@@ -1,0 +1,17 @@
+Pest Workforce Platform v2.3.0 - Owner Changes and Legacy Parity
+
+Included:
+- Company Setup page combining company details, branding paths, attendance/GPS defaults and payroll settings.
+- Payroll Settings removed from the standalone back-office menu and incorporated into Company Setup.
+- Multi-worksite geofence matching for Clock In, Clock Out and Working Lunch. The nearest active assigned worksite is used.
+- Printable Staff Register sign-off line removed.
+- Sage payroll export changed to period totals with columns:
+  Employee Code, Overtime 1.5 - Units, Overtime 1.5 - Amount, Overtime 2.0 - Units, Overtime 2.0 - Amount.
+- Exceptions report for outside-radius, missing clock-out, auto-closed and review sessions.
+- Leave / Absence report using active leave payroll adjustments.
+- Period Totals by Staff Member printable one-page payroll attachment.
+- Existing Time Adjustments retained with active/void audit handling.
+- Working Lunch GPS evidence remains clickable in Sessions.
+
+Not included in this ZIP:
+- Phone push notifications. These require browser push subscription, VAPID keys and scheduled server/cron processing and will be delivered as a separate tested release.

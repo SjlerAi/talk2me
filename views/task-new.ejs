@@ -1,0 +1,101 @@
+<section class="hero-row"><div><h1>Send Message or Task</h1><p>Send to any active staff member, manager or owner. It will appear in their Talk2Me inbox immediately.</p></div></section>
+<section class="panel form-panel">
+<% if(error){ %><div class="alert error"><%= error %></div><% } %>
+<form method="post" action="<%= basePath %>/tasks" class="form-grid" id="taskForm">
+<% const fixed = typeof selectedFixed !== 'undefined' ? selectedFixed : null; %>
+<input type="hidden" name="related_fixed_account_id" value="<%= fixed?.id||'' %>">
+<label>Type<select name="type"><option value="task">Task — action required</option><option value="notification">Notification — information</option></select></label>
+<label>Priority<select name="priority"><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></select></label>
+<label class="full">Send to<select name="assigned_to" required><option value="">Select recipient</option><% staff.forEach(s=>{ %><option value="<%= s.id %>"><%= s.full_name %> — <%= s.role.charAt(0).toUpperCase()+s.role.slice(1) %> — <%= s.email %></option><% }) %></select></label>
+<label class="full">Title<input name="title" maxlength="180" required></label>
+<label class="full">Message<textarea name="message" rows="6" required></textarea></label>
+<label>Due date and time<input type="datetime-local" name="due_at"></label>
+<% if(fixed){ %><div class="full selected-client"><div class="selected-client-title">✓ Related fixed account</div><strong><%= fixed.customer_name %></strong><br><small>Account <%= fixed.account_number %></small></div><% } %>
+
+<div class="full client-picker">
+  <label>Related client <span class="muted">(optional)</span>
+    <input id="clientSearch" type="search" autocomplete="off" placeholder="Search name, cell, account, ID or email">
+    <input id="relatedClientId" type="hidden" name="related_client_id">
+  </label>
+  <div id="clientResults" class="search-results" hidden></div>
+  <div id="selectedClient" class="selected-client" hidden></div>
+</div>
+
+<label class="full">Related open case <span class="muted">(optional)</span>
+  <select name="related_inquiry_id" id="relatedCase">
+    <option value="">No related case</option>
+    <% openCases.forEach(c=>{ %><option value="<%= c.id %>" data-client-id="<%= c.client_id || '' %>">#<%= c.id %> — <%= c.client_name %> — <%= c.query_text || c.category_name || 'Open inquiry' %></option><% }) %>
+  </select>
+</label>
+<label class="full checkbox-row"><input type="checkbox" name="send_email" value="1" checked> Also email the recipient</label>
+<div class="full"><button class="btn primary" type="submit">Send Message / Task</button></div>
+</form></section>
+<script>
+(() => {
+  const input = document.getElementById('clientSearch');
+  const hidden = document.getElementById('relatedClientId');
+  const results = document.getElementById('clientResults');
+  const selected = document.getElementById('selectedClient');
+  const caseSelect = document.getElementById('relatedCase');
+  let timer;
+
+  function clearSelection() {
+    hidden.value = '';
+    selected.hidden = true;
+    selected.innerHTML = '';
+    Array.from(caseSelect.options).forEach(o => { o.hidden = false; });
+  }
+
+  function chooseClient(client) {
+    hidden.value = client.id;
+    input.value = client.client_name || client.cell_number || '';
+    selected.innerHTML = `<div class="selected-client-title">✓ Selected client</div><strong>${client.client_name || 'Unnamed client'}</strong><br><small>${client.cell_number || ''}${client.account_number ? ' · Acc: ' + client.account_number : ''}${client.email ? ' · ' + client.email : ''}</small> <button type="button" class="link-button" id="clearClient">Change</button>`;
+    selected.hidden = false;
+    results.hidden = true;
+    Array.from(caseSelect.options).forEach((o, i) => {
+      if (i === 0) return;
+      o.hidden = o.dataset.clientId && o.dataset.clientId !== String(client.id);
+    });
+    caseSelect.value = '';
+    document.getElementById('clearClient').addEventListener('click', () => { input.value=''; clearSelection(); input.focus(); });
+  }
+
+  input.addEventListener('input', () => {
+    clearTimeout(timer);
+    clearSelection();
+    const q = input.value.trim();
+    if (q.length < 2) { results.hidden = true; return; }
+    timer = setTimeout(async () => {
+      try {
+        const response = await fetch(`${window.location.pathname.replace(/\/tasks\/new$/, '')}/clients/search?q=${encodeURIComponent(q)}`);
+        const clients = await response.json();
+        results.innerHTML = '';
+        if (!clients.length) {
+          results.innerHTML = '<div class="search-empty">No clients found.</div>';
+        } else {
+          const normalized = q.replace(/\s+/g, '').toLowerCase();
+          const exactMatches = clients.filter(client => [client.cell_number, client.account_number, client.email, client.id_number]
+            .filter(Boolean)
+            .some(value => String(value).replace(/\s+/g, '').toLowerCase() === normalized));
+          if (exactMatches.length === 1) {
+            chooseClient(exactMatches[0]);
+            return;
+          }
+          clients.forEach(client => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'search-result-item';
+            button.innerHTML = `<strong>${client.client_name || 'Unnamed client'}</strong><small>${client.cell_number || ''}${client.account_number ? ' · Acc: ' + client.account_number : ''}${client.email ? ' · ' + client.email : ''}</small>`;
+            button.addEventListener('click', () => chooseClient(client));
+            results.appendChild(button);
+          });
+        }
+        results.hidden = false;
+      } catch (_) {
+        results.innerHTML = '<div class="search-empty">Client search failed. Try again.</div>';
+        results.hidden = false;
+      }
+    }, 250);
+  });
+})();
+</script>

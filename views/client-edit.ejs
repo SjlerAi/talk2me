@@ -1,0 +1,62 @@
+<section class="page-head"><div><h1><%= client ? 'Edit Client' : 'Add Client / Potential Client' %></h1><p>Maintain the complete customer record. All changes update the central Talk2Me database.</p></div><a class="btn" href="<%= basePath %>/backoffice/clients">Back to Clients</a></section>
+<% if (saved) { %><div class="success-box">Client record saved successfully.</div><% } %>
+<div class="card form-card">
+<form method="post" action="<%= client ? basePath + '/backoffice/clients/' + client.id : basePath + '/backoffice/clients' %>">
+<input type="hidden" name="inquiry_id" value="<%= inquiryId || '' %>">
+<div class="form-grid">
+<div><label>Lifecycle status</label><select name="lifecycle_status"><% ['prospect','client','inactive','lost'].forEach(v=>{ %><option value="<%= v %>" <%= (client?.lifecycle_status||'prospect')===v?'selected':'' %>><%= v.replace('_',' ') %></option><% }) %></select></div>
+<div><label>Lead status</label><select name="lead_status"><option value="">Not applicable</option><% ['new','contacted','qualified','converted','not_interested'].forEach(v=>{ %><option value="<%= v %>" <%= client?.lead_status===v?'selected':'' %>><%= v.replace('_',' ') %></option><% }) %></select></div>
+<div><label>Unique account number</label><input name="account_number" value="<%= client?.account_number||prefill?.account_number||'' %>" <%= !client&&prefill?.account_number?'readonly':'' %>><small class="field-help">Prefixes such as B, V, VB and I are preserved. Mobile lines may share this account.</small></div>
+<div><label>Customer type</label><select name="customer_type"><% ['unknown','individual','business'].forEach(v=>{ %><option value="<%= v %>" <%= (client?.customer_type||'unknown')===v?'selected':'' %>><%= v %></option><% }) %></select></div>
+<div><label>First name</label><input name="first_name" value="<%= client?.first_name||'' %>"></div>
+<div><label>Surname</label><input name="surname" value="<%= client?.surname||'' %>"></div>
+<div><label>Company name</label><input name="company_name" value="<%= client?.company_name||'' %>"></div>
+<div><label>Display / client name</label><input name="client_name" required value="<%= client?.client_name||prefill?.client_name||'' %>"></div>
+<div><label>Cell number</label><input name="cell_number" value="<%= client?.cell_number||prefill?.cell_number||'' %>"></div>
+<div><label>Alternative number</label><input name="alt_number" value="<%= client?.alt_number||'' %>"></div>
+<div><label>Email</label><input type="email" name="email" value="<%= client?.email||prefill?.email||'' %>"></div>
+<div><label>Town</label><input name="city_town" value="<%= client?.city_town||'' %>"></div>
+<div><label>ID number</label><input name="id_number" value="<%= client?.id_number||'' %>"></div>
+<div><label>Birthday</label><input type="date" name="birthday" value="<%= client?.birthday ? new Date(client.birthday).toISOString().slice(0,10) : '' %>"></div>
+<div><label>Package</label><input name="package_name" value="<%= client?.package_name||'' %>"></div>
+<div><label>Handset in use</label><input name="handset" value="<%= client?.handset||'' %>"></div>
+<div><label>Monthly invoice amount</label><input type="number" step="0.01" name="monthly_invoice_amount" value="<%= client?.monthly_invoice_amount||'' %>"></div>
+<div><label>Previous upgrade date</label><input type="date" name="previous_upgrade_date" value="<%= (client?.previous_upgrade_date||client?.upgrade_date) ? new Date(client?.previous_upgrade_date||client?.upgrade_date).toISOString().slice(0,10) : '' %>"></div>
+<div><label>Contract term</label><select name="contract_term_months"><option value="24" <%= Number(client?.contract_term_months||24)===24?'selected':'' %>>24 months</option><option value="36" <%= Number(client?.contract_term_months)===36?'selected':'' %>>36 months (SIM contract)</option></select></div>
+<div><label>Next upgrade date</label><input type="date" readonly value="<%= client?.next_upgrade_date ? new Date(client.next_upgrade_date).toISOString().slice(0,10) : '' %>"><small class="field-help">Calculated from the previous upgrade date and contract term.</small></div>
+<div><label>Cancellation date</label><input type="date" name="cancellation_date" value="<%= client?.cancellation_date ? new Date(client.cancellation_date).toISOString().slice(0,10) : '' %>"></div>
+<div><label>Line status</label><select name="line_status"><% ['unknown','active','inactive','cancelled','suspended'].forEach(v=>{ %><option value="<%= v %>" <%= (client?.line_status||'unknown')===v?'selected':'' %>><%= v %></option><% }) %></select></div>
+<div><label>Authorised account contact</label><input name="main_contact_name" value="<%= client?.main_contact_name||'' %>"></div>
+<div><label>Authorised contact number</label><input name="main_contact_number" value="<%= client?.main_contact_number||'' %>"></div>
+<div><label>Account authority</label><select name="account_authority_status"><% [['unknown','Not confirmed'],['confirmed','Confirmed'],['not_authorised','Not authorised']].forEach(v=>{ %><option value="<%= v[0] %>" <%= (client?.account_authority_status||'unknown')===v[0]?'selected':'' %>><%= v[1] %></option><% }) %></select></div>
+<div class="full"><label>Authority verification notes</label><textarea name="authority_notes" rows="3"><%= client?.authority_notes||'' %></textarea></div>
+<div><label>Lead source</label><input name="lead_source" value="<%= client?.lead_source||'Shop inquiry' %>"></div>
+<div><label>Assigned staff member</label><select name="assigned_staff_id"><option value="">Unassigned</option><% (staff||[]).forEach(s=>{ %><option value="<%= s.id %>" <%= Number(assignedStaffId)===Number(s.id)?'selected':'' %>><%= s.full_name %></option><% }) %></select><small class="field-help">The responsible staff member can be changed at any time.</small></div>
+<div class="full"><label>Internal client notes</label><textarea name="notes" rows="5"><%= client?.notes||'' %></textarea></div>
+<div><label>Status</label><select name="is_active"><option value="1" <%= client?.is_active!==0?'selected':'' %>>Active</option><option value="0" <%= client?.is_active===0?'selected':'' %>>Inactive</option></select></div>
+</div>
+<button class="btn primary" type="submit">Save Client Record</button>
+</form></div>
+<% if(client && currentUser?.role==='owner'){ %><section class="panel protected-action"><h2>Owner Protected Action</h2><p>Archiving removes this record from active work but preserves linked inquiries and the audit trail.</p><form method="post" action="<%= basePath %>/backoffice/clients/<%= client.id %>/delete"><label>Reason<textarea name="delete_reason" required></textarea></label><label>Confirm owner password<input type="password" name="owner_password" required></label><button class="btn danger" type="submit" onclick="return confirm('Archive this client line? This action will be audited.')">Archive Client Line</button></form></section><% } %>
+
+<script>
+(() => {
+  const idInput = document.querySelector('input[name="id_number"]');
+  const birthdayInput = document.querySelector('input[name="birthday"]');
+  if (!idInput || !birthdayInput) return;
+  const derive = () => {
+    const digits = (idInput.value || '').replace(/\D/g, '');
+    if (!/^\d{13}$/.test(digits)) return;
+    const yy = Number(digits.slice(0,2));
+    const mm = Number(digits.slice(2,4));
+    const dd = Number(digits.slice(4,6));
+    const now = new Date();
+    const year = yy > (now.getFullYear() % 100) ? 1900 + yy : 2000 + yy;
+    const test = new Date(Date.UTC(year, mm - 1, dd));
+    if (test.getUTCFullYear() !== year || test.getUTCMonth() !== mm - 1 || test.getUTCDate() !== dd) return;
+    birthdayInput.value = `${year}-${String(mm).padStart(2,'0')}-${String(dd).padStart(2,'0')}`;
+  };
+  idInput.addEventListener('input', derive);
+  idInput.addEventListener('change', derive);
+})();
+</script>

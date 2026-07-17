@@ -1,0 +1,40 @@
+/* Talk2Me v1.19.0 - isolated notification popup styles */
+.task-popup[hidden]{display:none!important}
+.task-popup{
+  position:fixed!important;
+  right:22px!important;
+  bottom:22px!important;
+  left:auto!important;
+  top:auto!important;
+  z-index:99999!important;
+  width:min(390px,calc(100vw - 30px))!important;
+  margin:0!important;
+  background:#fff!important;
+  color:#1f2933!important;
+  border:1px solid #e2e8f0!important;
+  border-top:5px solid #fa1c1d!important;
+  border-radius:16px!important;
+  padding:20px!important;
+  box-shadow:0 20px 55px rgba(15,23,42,.28)!important;
+  opacity:0;
+  transform:translateY(16px);
+  transition:opacity .18s ease,transform .18s ease;
+  font-family:Arial,Helvetica,sans-serif!important;
+}
+.task-popup.show{opacity:1;transform:translateY(0)}
+.task-popup-close{
+  position:absolute!important;right:11px!important;top:9px!important;
+  width:30px!important;height:30px!important;padding:0!important;margin:0!important;
+  border:0!important;border-radius:50%!important;background:#f3f4f6!important;
+  color:#667085!important;font-size:24px!important;line-height:28px!important;cursor:pointer!important;
+}
+.task-popup-kicker{font-size:12px!important;font-weight:900!important;text-transform:uppercase!important;letter-spacing:.08em!important;color:#fa1c1d!important;margin:0 34px 9px 0!important}
+.task-popup-priority{display:inline-block!important;border-radius:999px!important;padding:5px 9px!important;font-size:11px!important;font-weight:900!important;margin:0 0 9px!important;background:#eef2f6!important;color:#475467!important}
+.task-popup-priority.urgent{background:#fee2e2!important;color:#b42318!important}
+.task-popup-priority.high{background:#fff4e5!important;color:#b54708!important}
+.task-popup h3{font-size:21px!important;line-height:1.25!important;margin:2px 28px 8px 0!important;color:#1f2933!important}
+.task-popup p{white-space:pre-wrap!important;line-height:1.45!important;margin:0 0 12px!important;color:#344054!important}
+.task-popup-meta{font-size:12px!important;color:#667085!important;margin:0 0 15px!important}
+.task-popup-open{display:block!important;text-align:center!important;background:#fa1c1d!important;color:#fff!important;text-decoration:none!important;border-radius:10px!important;padding:12px 16px!important;font-weight:900!important}
+.task-popup-open:hover{background:#d9151d!important}
+@media(max-width:600px){.task-popup{right:15px!important;bottom:15px!important;left:15px!important;width:auto!important}}

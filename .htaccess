@@ -1,0 +1,29 @@
+# DO NOT REMOVE. CLOUDLINUX PASSENGER CONFIGURATION BEGIN
+PassengerAppRoot "/home/uent/public_html/talk2me"
+PassengerBaseURI "/talk2me"
+PassengerNodejs "/home/uent/nodevenv/public_html/talk2me/20/bin/node"
+PassengerAppType node
+PassengerStartupFile server.js
+# DO NOT REMOVE. CLOUDLINUX PASSENGER CONFIGURATION END
+# DO NOT REMOVE OR MODIFY. CLOUDLINUX ENV VARS CONFIGURATION BEGIN
+<IfModule Litespeed>
+SetEnv APP_BUILD 2026-07-10
+SetEnv APP_NAME Talk2Me CRM
+SetEnv APP_URL https://uent.co.za/talk2me
+SetEnv DB_HOST localhost
+SetEnv DB_NAME uent_talk2me_crm
+SetEnv DB_PASSWORD T2M_Test_2026!Start
+SetEnv DB_USER uent_uent_talk2me_user
+SetEnv MAIL_FROM Talk2Me CRM <crm@uent.co.za>
+SetEnv NODE_ENV production
+SetEnv PRIVATE_UPLOAD_DIR /home/uent/talk2me_private_uploads
+SetEnv SESSION_SECRET Talk2Me_Elitehost_2026
+SetEnv SMTP_HOST mail.uent.co.za
+SetEnv SMTP_PASSWORD T2mMailTest2026X9
+SetEnv SMTP_PORT 465
+SetEnv SMTP_SECURE true
+SetEnv SMTP_USER crm@uent.co.za
+SetEnv TZ Africa/Johannesburg
+SetEnv APP_VERSION 4.0.1
+</IfModule>
+# DO NOT REMOVE OR MODIFY. CLOUDLINUX ENV VARS CONFIGURATION END

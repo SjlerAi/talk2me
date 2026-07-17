@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title><%= title %> | Talk2Me Command</title>
+  <link rel="icon" href="<%= basePath %>/public/images/favicon.ico">
+  <meta name="theme-color" content="#111827">
+  <link rel="stylesheet" href="<%= basePath %>/public/css/app.css?v=<%= encodeURIComponent(appVersion) %>">
+  <link rel="stylesheet" href="<%= basePath %>/public/css/notifications.css?v=<%= encodeURIComponent(appVersion) %>">
+  <link rel="stylesheet" href="<%= basePath %>/public/css/command.css?v=<%= encodeURIComponent(appVersion) %>">
+  <link rel="stylesheet" href="<%= basePath %>/public/css/command-4.0.1.css?v=<%= encodeURIComponent(appVersion) %>">
+</head>
+<body class="command-body <%= panelMode?'panel-mode':'' %>">
+<% if(currentUser && !panelMode){ const management=['owner','admin','manager'].includes(currentUser.role); %>
+<aside class="command-sidebar" id="command-sidebar">
+  <a class="command-brand" href="<%= basePath %>/workspace"><img src="<%= basePath %>/public/images/talk2me-logo.png" alt="Talk2Me"><div><strong>TALK2ME</strong><span>COMMAND</span></div></a>
+  <div class="command-user"><div class="command-avatar"><%= (currentUser.full_name||'?').slice(0,1).toUpperCase() %></div><div><strong><%= currentUser.full_name %></strong><span><%= currentUser.role %></span></div></div>
+  <nav class="command-nav">
+    <span class="command-nav-label">Work</span>
+    <a href="<%= basePath %>/workspace" class="<%= title==='Operational Workspace'?'active':'' %>"><b>⌂</b><span>My Workspace</span></a>
+    <a href="<%= basePath %>/queries/new" data-command-panel><b>＋</b><span>New Inquiry</span></a>
+    <a href="<%= basePath %>/tasks" data-command-panel><b>✓</b><span>Messages & Tasks</span><% if(unreadTaskCount){ %><em><%= unreadTaskCount %></em><% } %></a>
+    <% if(management){ %>
+    <span class="command-nav-label">Management</span>
+    <a href="<%= basePath %>/command-centre"><b>▦</b><span>Shop Command Centre</span></a>
+    <a href="<%= basePath %>/approvals" data-command-panel><b>◆</b><span>Approvals</span></a>
+    <a href="<%= basePath %>/upgrade-centre" data-command-panel><b>↗</b><span>Upgrades</span></a>
+    <a href="<%= basePath %>/reports?type=birthdays" data-command-panel><b>★</b><span>Reports</span></a>
+    <a href="<%= basePath %>/backoffice" data-command-panel><b>⚙</b><span>Administration</span></a>
+    <% } %>
+  </nav>
+  <div class="command-version"><span>Talk2Me Command</span><strong>v<%= appVersion %></strong></div>
+</aside>
+<div class="command-app">
+  <header class="command-topbar">
+    <button id="sidebar-toggle" class="icon-button" aria-label="Toggle menu">☰</button>
+    <div class="command-search"><span>⌕</span><input id="universal-client-search" placeholder="Find cellphone, account, customer, email, SIM or MAC" autocomplete="off"><div id="universal-client-results"></div></div>
+    <button id="alert-toggle" class="live-status" type="button" title="Enable sound and browser alerts"><i></i><span>Alerts</span></button>
+    <a class="top-task-link" href="<%= basePath %>/tasks" data-command-panel>Messages<% if(unreadTaskCount){ %><b><%= unreadTaskCount %></b><% } %></a>
+    <form method="post" action="<%= basePath %>/logout"><button class="logout-button">Logout</button></form>
+  </header>
+  <main class="command-page"><%- body %></main>
+</div>
+<div class="work-panel" id="work-panel" hidden aria-hidden="true"><div class="work-panel-bar"><div><span>Talk2Me work panel</span><strong id="work-panel-title">Complete the action</strong></div><button id="work-panel-close" type="button">Close & Return ×</button></div><iframe id="work-panel-frame" title="Talk2Me work panel"></iframe></div>
+<div id="command-toast" class="command-toast" hidden><strong id="toast-title">New work received</strong><span id="toast-text"></span><button id="toast-open">Open</button></div>
+<div id="login-greeting" class="login-greeting"><span>Welcome back</span><strong><%= currentUser.full_name %></strong><small>Your workspace is ready.</small></div>
+<script>
+(()=>{
+ const BASE=<%- JSON.stringify(basePath) %>, q=document.getElementById('universal-client-search'), results=document.getElementById('universal-client-results'); let timer;
+ if(q){q.addEventListener('input',()=>{clearTimeout(timer);timer=setTimeout(async()=>{const v=q.value.trim();if(v.length<2){results.innerHTML='';return}try{const rows=await fetch(BASE+'/search/all?q='+encodeURIComponent(v)).then(r=>r.json());results.innerHTML=rows.length?rows.map(c=>`<a href="${c.url}" data-command-panel><strong><small class="search-type ${c.record_type}">${c.record_type==='fixed'?'FIXED':'MOBILE'}</small> ${c.client_name||'Unnamed'}</strong><span>${c.cell_number||c.branch_name||''} · ${c.account_number||'No account'} · ${c.solution_id||c.handset||''}</span></a>`).join(''):`<div class="command-no-result"><strong>No customer found</strong><span>${v}</span><a href="${BASE}/queries/new?new_phone=${encodeURIComponent(v)}" data-command-panel>Add customer & continue</a></div>`}catch(e){results.innerHTML='<div class="command-no-result">Search temporarily unavailable</div>'}},180)});}
+ const panel=document.getElementById('work-panel'),frame=document.getElementById('work-panel-frame'),close=document.getElementById('work-panel-close');let savedY=0;
+ function openPanel(url,label){savedY=scrollY;const u=new URL(url,location.href);u.searchParams.set('panel','1');frame.src=u.href;document.getElementById('work-panel-title').textContent=label||'Complete the action';panel.hidden=false;panel.setAttribute('aria-hidden','false');document.body.classList.add('panel-open')}
+ function closePanel(){panel.hidden=true;panel.setAttribute('aria-hidden','true');frame.src='about:blank';document.body.classList.remove('panel-open');scrollTo(0,savedY);window.dispatchEvent(new Event('workspace:refresh'))}
+ document.addEventListener('click',e=>{const a=e.target.closest('a[data-command-panel]');if(!a||e.ctrlKey||e.metaKey)return;e.preventDefault();results.innerHTML='';openPanel(a.href,a.textContent.trim())});close.addEventListener('click',closePanel);addEventListener('message',e=>{if(e.data==='talk2me:close-panel')closePanel()});
+ document.getElementById('sidebar-toggle').onclick=()=>document.body.classList.toggle('sidebar-collapsed');
+ const alertButton=document.getElementById('alert-toggle');let alerts=localStorage.getItem('t2m-alerts')==='on',lastId=null,initial=true;function paint(){alertButton.classList.toggle('enabled',alerts);alertButton.querySelector('span').textContent=alerts?'Alerts on':'Alerts off'}paint();
+ alertButton.onclick=async()=>{alerts=!alerts;localStorage.setItem('t2m-alerts',alerts?'on':'off');if(alerts&&'Notification'in window&&Notification.permission==='default')await Notification.requestPermission();paint()};
+ function beep(){const C=window.AudioContext||window.webkitAudioContext;if(!C)return;const c=new C(),o=c.createOscillator(),g=c.createGain();o.frequency.value=740;g.gain.setValueAtTime(.08,c.currentTime);g.gain.exponentialRampToValueAtTime(.001,c.currentTime+.35);o.connect(g);g.connect(c.destination);o.start();o.stop(c.currentTime+.35)}
+ async function poll(){try{const d=await fetch(BASE+'/api/tasks/unread-latest',{cache:'no-store'}).then(r=>r.json());const t=d.task;if(t&&String(t.id)!==String(lastId)){if(!initial&&alerts){beep();if('Notification'in window&&Notification.permission==='granted')new Notification(t.title||'Talk2Me work',{body:t.message||'New work received'});}lastId=t.id;const toast=document.getElementById('command-toast');document.getElementById('toast-title').textContent=t.title||'New work';document.getElementById('toast-text').textContent=t.message||'';document.getElementById('toast-open').onclick=()=>{toast.hidden=true;openPanel(t.url,t.title)};if(!initial)toast.hidden=false;}initial=false;}catch(e){alertButton.classList.add('offline')}}poll();setInterval(poll,12000);
+ document.addEventListener('click',e=>{if(!e.target.closest('.command-search'))results.innerHTML=''});
+ const greeting=document.getElementById('login-greeting');if(sessionStorage.getItem('t2m-greeted')==='1')greeting.remove();else{sessionStorage.setItem('t2m-greeted','1');setTimeout(()=>greeting.classList.add('hide'),4200);setTimeout(()=>greeting.remove(),5000)}
+})();
+</script>
+<% } else { %><main class="<%= panelMode?'panel-page':'page' %>"><%- body %></main><% if(panelMode){ %><script>document.addEventListener('submit',()=>sessionStorage.setItem('t2m-panel-submitted','1'));</script><% } %><% } %>
+</body></html>

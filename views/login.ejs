@@ -1,0 +1,32 @@
+<section class="login-shell">
+  <div class="login-card">
+    <img class="login-logo" src="<%= basePath %>/public/images/talk2me-logo.png" alt="Talk2Me">
+    <h1>Staff Login</h1>
+    <% if (error) { %><div class="alert"><%= error %></div><% } %>
+    <form id="login-form" method="post" action="<%= basePath %>/login" autocomplete="off">
+      <input type="text" name="fake_username" autocomplete="username" tabindex="-1" aria-hidden="true" style="position:absolute;left:-9999px;opacity:0">
+      <input type="password" name="fake_password" autocomplete="current-password" tabindex="-1" aria-hidden="true" style="position:absolute;left:-9999px;opacity:0">
+      <label>Email / Username</label>
+      <input id="login-email" name="email" type="text" placeholder="Email address or username" autocomplete="off" autocapitalize="none" spellcheck="false" value="" required>
+      <label>Password</label>
+      <input id="login-password" name="password" type="password" placeholder="Password" autocomplete="new-password" value="" required>
+      <button class="primary" type="submit">Login</button>
+    </form>
+    <div class="version-stamp">Version <strong><%= appVersion %></strong> <span>Build <%= appBuild %></span></div>
+  </div>
+  <script>
+    (() => {
+      const form = document.getElementById('login-form');
+      const email = document.getElementById('login-email');
+      const password = document.getElementById('login-password');
+      const clearLogin = () => {
+        if (form) form.reset();
+        if (email) email.value = '';
+        if (password) password.value = '';
+      };
+      clearLogin();
+      window.addEventListener('pageshow', clearLogin);
+      setTimeout(clearLogin, 150);
+    })();
+  </script>
+</section>

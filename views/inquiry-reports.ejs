@@ -1,0 +1,34 @@
+<section class="page-head">
+  <div><h1>Inquiry Reporting Centre</h1><p>Review, filter and act on enquiries across every category.</p></div>
+  <div class="page-actions"><a class="btn" href="<%= basePath %>/backoffice/inquiries.csv">Export CSV</a><button class="btn" type="button" onclick="window.print()">Print</button></div>
+</section>
+
+<form class="card report-filters" method="get" action="<%= basePath %>/backoffice/inquiries">
+  <div class="form-grid">
+    <label>From<input type="date" name="from" value="<%= filters.from %>"></label>
+    <label>To<input type="date" name="to" value="<%= filters.to %>"></label>
+    <label>Category<select name="category_id"><option value="">All categories</option><% categories.forEach(c=>{ %><option value="<%= c.id %>" <%= String(filters.category_id)===String(c.id)?'selected':'' %>><%= c.category_name %></option><% }) %></select></label>
+    <label>Staff<select name="staff_id"><option value="">All staff</option><% staff.forEach(s=>{ %><option value="<%= s.id %>" <%= String(filters.staff_id)===String(s.id)?'selected':'' %>><%= s.full_name %></option><% }) %></select></label>
+    <label>Status<select name="status"><option value="">All statuses</option><% ['open','follow_up','waiting_customer','waiting_network','waiting_supplier','resolved','cancelled'].forEach(st=>{ %><option value="<%= st %>" <%= filters.status===st?'selected':'' %>><%= st.replaceAll('_',' ') %></option><% }) %></select></label>
+    <label>Search<input type="search" name="q" value="<%= filters.q %>" placeholder="Client, telephone or inquiry"></label>
+  </div>
+  <button class="btn primary" type="submit">Run Report</button>
+</form>
+
+<div class="stats-grid report-stats">
+  <div class="stat-card"><span>Total</span><strong><%= totals.total||0 %></strong></div>
+  <div class="stat-card"><span>Open</span><strong><%= totals.open_count||0 %></strong></div>
+  <div class="stat-card"><span>Completed</span><strong><%= totals.completed_count||0 %></strong></div>
+  <div class="stat-card"><span>Overdue</span><strong><%= totals.overdue_count||0 %></strong></div>
+  <div class="stat-card"><span>Due today</span><strong><%= totals.due_today_count||0 %></strong></div>
+</div>
+
+<div class="two-col">
+  <section class="card"><h2>By category</h2><div class="table-wrap"><table><thead><tr><th>Category</th><th>Total</th><th>Open</th><th>Completed</th><th>Overdue</th></tr></thead><tbody><% categorySummary.forEach(r=>{ %><tr><td><%= r.category_name %></td><td><%= r.total %></td><td><%= r.open_count||0 %></td><td><%= r.completed_count||0 %></td><td><%= r.overdue_count||0 %></td></tr><% }) %></tbody></table></div></section>
+  <section class="card"><h2>By staff member</h2><div class="table-wrap"><table><thead><tr><th>Staff</th><th>Total</th><th>Completed</th><th>Outstanding</th><th>Overdue</th></tr></thead><tbody><% staffSummary.forEach(r=>{ %><tr><td><%= r.staff_name %></td><td><%= r.total %></td><td><%= r.completed_count||0 %></td><td><%= r.outstanding_count||0 %></td><td><%= r.overdue_count||0 %></td></tr><% }) %></tbody></table></div></section>
+</div>
+
+<section class="card"><h2>Inquiry detail</h2><div class="table-wrap"><table><thead><tr><th>Date</th><th>Client</th><th>Telephone</th><th>Category</th><th>Inquiry</th><th>Action taken</th><th>Staff</th><th>Status</th><th>Follow-up</th><th>Actions</th></tr></thead><tbody>
+<% if(!rows.length){ %><tr><td colspan="10">No enquiries match the selected filters.</td></tr><% } %>
+<% rows.forEach(r=>{ %><tr><td><%= r.created_at ? new Date(r.created_at).toLocaleString('en-ZA') : '' %></td><td><strong><%= r.client_name||'Unknown' %></strong><br><small><%= r.email||'' %></small></td><td><%= r.cell_number||'' %></td><td><%= r.category_name||'Uncategorised' %></td><td><%= r.query_text||'' %></td><td><%= r.action_taken||r.result_found||'Not captured' %></td><td><%= r.staff_name %></td><td><span class="status-pill"><%= String(r.status||'').replaceAll('_',' ') %></span></td><td><%= r.follow_up_at ? new Date(r.follow_up_at).toLocaleString('en-ZA') : '—' %></td><td><a class="btn small" href="<%= basePath %>/dashboard/inquiries/<%= r.id %>">Open / Edit</a><% if(r.client_id){ %> <a class="btn small" href="<%= basePath %>/backoffice/clients/<%= r.client_id %>/edit">Client</a><% } %></td></tr><% }) %>
+</tbody></table></div></section>

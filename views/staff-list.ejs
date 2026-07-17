@@ -1,0 +1,22 @@
+<section class="page-head">
+  <div><h1>Staff Management</h1><p>Manage shop users, access levels and staff records.</p></div>
+  <a class="btn primary" href="<%= basePath %>/backoffice/staff/new">Add Staff Member</a>
+</section>
+<div class="card table-card">
+  <table class="data-table">
+    <thead><tr><th>Staff member</th><th>Login</th><th>Role</th><th>Contact</th><th>Status</th><th>Last login</th><th></th></tr></thead>
+    <tbody>
+      <% staff.forEach(person => { %>
+      <tr>
+        <td><div class="staff-cell"><% if (person.profile_photo_path) { %><img src="<%= basePath %>/backoffice/staff/<%= person.id %>/photo" alt=""><% } else { %><span class="avatar-placeholder"><%= (person.full_name || '?').charAt(0) %></span><% } %><div><strong><%= person.full_name %></strong><small><%= person.role ? person.role.charAt(0).toUpperCase()+person.role.slice(1) : 'Staff' %></small></div></div></td>
+        <td><%= person.email || person.username || '—' %></td>
+        <td><span class="role-badge"><%= person.role %></span></td>
+        <td><%= person.contact_number || '—' %></td>
+        <td><span class="status-pill <%= person.is_active ? 'active' : 'inactive' %>"><%= person.is_active ? 'Active' : 'Inactive' %></span></td>
+        <td><%= person.last_login_at ? new Date(person.last_login_at).toLocaleString('en-ZA') : 'Never' %></td>
+        <td><a class="btn small" href="<%= basePath %>/backoffice/staff/<%= person.id %>">Open</a></td>
+      </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</div>

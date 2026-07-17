@@ -1,0 +1,13 @@
+Pest Workforce Platform v2.3.0 Test Checklist
+
+[ ] /api/health shows 2.3.0 and database connected
+[ ] Staff Clock In matches nearest active assigned worksite
+[ ] Staff Clock Out matches nearest active assigned worksite
+[ ] Working Lunch requires GPS and remains clickable in Sessions
+[ ] Company Setup loads and saves company and payroll settings
+[ ] Printable Staff Register has no sign-off line
+[ ] Exceptions report lists outside-radius/missing/auto-close records
+[ ] Leave / Absence report lists active leave adjustments
+[ ] Period Totals by Staff Member prints correctly
+[ ] Sage CSV contains one total row per employee and approved five columns
+[ ] Time Adjustments can be created and voided

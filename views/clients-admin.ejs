@@ -1,0 +1,35 @@
+<section class="page-head"><div><h1>Customers</h1><p>Find clients and lines from the central database. Protected changes follow the approval workflow.</p></div><% if(['owner','manager'].includes(currentUser.role)){ %><a class="btn primary" href="<%= basePath %>/backoffice/clients/new">Add Client / Prospect</a><% } else { %><a class="btn primary" href="<%= basePath %>/queries/new">Quick Add / New Inquiry</a><% } %></section>
+<% if (saved) { %><div class="success-box">Client assignment saved.</div><% } %>
+<nav class="client-tabs" aria-label="Client views">
+  <a class="<%= view==='all'?'active':'' %>" href="<%= basePath %>/backoffice/clients?view=all">All active <span><%= counts.active_count||0 %></span></a>
+  <a class="<%= view==='prospects'?'active':'' %>" href="<%= basePath %>/backoffice/clients?view=prospects">Prospects <span><%= counts.prospect_count||0 %></span></a>
+  <a class="<%= view==='incomplete'?'active':'' %>" href="<%= basePath %>/backoffice/clients?view=incomplete">Incomplete <span><%= counts.incomplete_count||0 %></span></a>
+  <a class="<%= view==='unassigned'?'active':'' %>" href="<%= basePath %>/backoffice/clients?view=unassigned">Unassigned <span><%= counts.unassigned_count||0 %></span></a>
+  <a class="<%= view==='archived'?'active':'' %>" href="<%= basePath %>/backoffice/clients?view=archived">Archived <span><%= counts.archived_count||0 %></span></a>
+</nav>
+<div class="card form-card">
+  <form method="get"><input type="hidden" name="view" value="<%= view %>"><label>Search clients</label><div class="search-row"><input name="q" value="<%= q %>" placeholder="Name, contact number, email, account or ID"><button class="primary">Search</button></div></form>
+</div>
+<div class="card table-card"><table class="data-table"><thead><tr><th>Client</th><th>Type</th><th>Contact</th><th>Latest inquiry</th><th>Town</th><th>Next Upgrade</th><th>Assigned staff</th><th>Actions</th></tr></thead><tbody>
+<% if(!clients.length){ %><tr><td colspan="8">No records found in this view.</td></tr><% } %>
+<% clients.forEach(c => { %><tr>
+<td><strong><%= c.client_name %></strong><br><small><%= c.email || c.account_number || '' %></small></td>
+<td><span class="client-status <%= c.lifecycle_status || 'client' %>"><%= c.lifecycle_status || 'client' %></span><% if(c.lead_status){ %><br><small><%= c.lead_status.replace('_',' ') %></small><% } %></td>
+<td><%= c.cell_number || '—' %></td>
+<td><%= c.last_inquiry || '—' %><% if(c.last_action){ %><br><small><strong>Action:</strong> <%= c.last_action %></small><% } %></td>
+<td><%= c.city_town || '—' %></td>
+<td><strong><%= c.next_upgrade_date ? new Date(c.next_upgrade_date).toLocaleDateString('en-ZA') : (c.upgrade_date ? new Date(c.upgrade_date).toLocaleDateString('en-ZA') : '—') %></strong><% if(c.previous_upgrade_date){ %><br><small>Previous: <%= new Date(c.previous_upgrade_date).toLocaleDateString('en-ZA') %></small><% } %></td>
+<td>
+  <% if(['owner','manager'].includes(currentUser.role)){ %>
+  <form method="post" action="<%= basePath %>/backoffice/clients/<%= c.id %>/assign" class="assignment-form">
+    <input type="hidden" name="return_q" value="<%= q %>">
+    <select name="assigned_staff_id">
+      <option value="">Unassigned</option>
+      <% staff.forEach(s => { %><option value="<%= s.id %>" <%= Number(c.assigned_staff_id)===Number(s.id)?'selected':'' %>><%= s.full_name %></option><% }) %>
+    </select>
+    <button class="small-button" type="submit">Update</button>
+  </form>
+  <% } %>
+  <small class="assigned-note"><%= c.assigned_staff_name ? 'Currently: '+c.assigned_staff_name : 'Unassigned' %></small>
+</td><td><div class="client-actions"><% if(['owner','manager'].includes(currentUser.role)){ %><a class="btn tiny primary" href="<%= basePath %>/backoffice/clients/<%= c.id %>/edit">Edit Line</a><% } else { %><span class="muted">View only</span><% } %></div></td></tr><% }) %>
+</tbody></table></div>

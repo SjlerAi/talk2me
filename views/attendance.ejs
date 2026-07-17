@@ -1,0 +1,20 @@
+<section class="page-head">
+  <div><div class="eyebrow">Staff accountability</div><h1>Login & Attendance</h1><p>Immutable login sessions, activity, logout times and recorded session hours.</p></div>
+  <div class="hero-actions"><button class="btn" type="button" onclick="window.print()">Print</button><a class="btn primary" href="<%= basePath %>/backoffice/attendance.csv?from=<%= filters.from %>&to=<%= filters.to %><%= filters.staffId?'&staff_id='+filters.staffId:'' %>">Export CSV</a></div>
+</section>
+<section class="panel">
+  <form class="attendance-filters" method="get">
+    <label>From<input type="date" name="from" value="<%= filters.from %>"></label>
+    <label>To<input type="date" name="to" value="<%= filters.to %>"></label>
+    <label>Staff member<select name="staff_id"><option value="">All staff</option><% staff.forEach(s=>{ %><option value="<%= s.id %>" <%= Number(filters.staffId)===Number(s.id)?'selected':'' %>><%= s.full_name %></option><% }) %></select></label>
+    <button class="btn primary" type="submit">Run Report</button>
+  </form>
+</section>
+<section class="command-stats attendance-summary">
+  <% summary.forEach(s=>{ %><div class="attendance-card <%= Number(s.active_sessions)?'active':'' %>"><span><%= s.full_name %> · <%= s.role %></span><strong><%= Math.floor(Number(s.total_seconds||0)/3600) %>h <%= Math.floor((Number(s.total_seconds||0)%3600)/60) %>m</strong><small><%= s.login_count %> login(s) · <%= Number(s.active_sessions)?'Currently logged in':'Not active' %></small><small>First: <%= s.first_login?new Date(s.first_login).toLocaleString('en-ZA'):'—' %></small></div><% }) %>
+  <% if(!summary.length){ %><div class="empty-state">No login activity matches these filters.</div><% } %>
+</section>
+<section class="panel table-card"><h2>Complete Login History</h2><table class="data-table"><thead><tr><th>Staff</th><th>Login</th><th>Last activity</th><th>Logout</th><th>Duration</th><th>Status</th><th>IP / Device</th></tr></thead><tbody>
+  <% rows.forEach(r=>{const seconds=Number(r.duration_seconds||0); %><tr><td><strong><%= r.full_name %></strong><small><%= r.role %></small></td><td><%= new Date(r.login_at).toLocaleString('en-ZA') %></td><td><%= r.last_activity_at?new Date(r.last_activity_at).toLocaleString('en-ZA'):'—' %></td><td><%= r.logout_at?new Date(r.logout_at).toLocaleString('en-ZA'):'—' %><small><%= r.logout_reason||'' %></small></td><td><%= Math.floor(seconds/3600) %>h <%= Math.floor((seconds%3600)/60) %>m</td><td><span class="status-pill <%= r.session_status==='active'?'active':'' %>"><%= r.session_status.replaceAll('_',' ') %></span></td><td><%= r.ip_address||'—' %><small class="device-text"><%= r.user_agent||'Unknown device' %></small></td></tr><% }) %>
+  <% if(!rows.length){ %><tr><td colspan="7">No login records found.</td></tr><% } %>
+</tbody></table></section>

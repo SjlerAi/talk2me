@@ -1,0 +1,3 @@
+require('dotenv').config();
+const { getPool } = require('../src/db');
+(async()=>{try{const [db]=await getPool().query('SELECT DATABASE() database_name, NOW() server_time');const [tables]=await getPool().query("SELECT COUNT(*) table_count FROM information_schema.tables WHERE table_schema=DATABASE()");const [users]=await getPool().query('SELECT id,full_name,email,phone,role_id,is_active FROM users WHERE id IN (1,3) ORDER BY id');console.log(JSON.stringify({success:true,database:db[0],tables:tables[0],testers:users},null,2));process.exit(0)}catch(e){console.error(JSON.stringify({success:false,message:e.message},null,2));process.exit(1)}})();

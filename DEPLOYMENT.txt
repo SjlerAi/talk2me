@@ -1,0 +1,12 @@
+Pest Workforce Platform v2.3.0 Deployment
+
+1. Back up /home/uent/pest.uent.co.za.
+2. Upload this ZIP into /home/uent/pest.uent.co.za.
+3. Extract and overwrite existing application files.
+4. Keep all existing cPanel environment variables.
+5. No NPM install is required; dependencies did not change.
+6. Restart the Node.js application in cPanel.
+7. Hard-refresh the staff app and back office, or close/reopen the installed PWA.
+8. Confirm /api/health reports version 2.3.0.
+
+No database migration is required for this release.

@@ -1,0 +1,206 @@
+<section class="hero-row">
+  <div><h1>New Inquiry</h1><p>Search the customer first. If no match exists, capture the caller or walk-in as a potential client.</p></div>
+  <div class="query-actions"><button type="button" class="btn" id="minimize-query">Minimize</button></div>
+</section>
+
+<div class="query-card" id="query-card">
+  <div id="save-notice" class="save-notice neutral" hidden></div>
+  <form id="query-form" method="post" action="<%= basePath %>/queries">
+    <input type="hidden" name="client_id" id="client_id">
+    <input type="hidden" name="service_type" id="service_type" value="general">
+    <input type="hidden" name="fixed_account_id" id="fixed_account_id">
+    <input type="hidden" name="fixed_service_id" id="fixed_service_id">
+
+    <div class="form-grid">
+      <div class="full client-lookup-block inquiry-hidden-search" aria-hidden="true">
+        <label for="client-search">Search client</label>
+        <input id="client-search" autocomplete="off" autocapitalize="none" spellcheck="false" value="" placeholder="Cell number, name, email, account or ID">
+        <small class="field-help">Type at least 2 characters. An exact cellphone match loads automatically.</small>
+        <div id="client-results" class="search-results"></div>
+        <div id="selected-client" class="selected-client" hidden></div>
+        <div id="new-contact-alert" class="potential-alert" hidden>
+          <div class="potential-alert-row">
+            <div>
+              <strong>No client found</strong>
+              <p>Add the person now with only the essential contact details, then continue with the inquiry.</p>
+            </div>
+            <button type="button" class="primary compact" id="open-quick-contact">+ Add New Contact</button>
+          </div>
+          <div id="quick-contact-panel" class="quick-contact-panel" hidden>
+            <div class="quick-contact-grid">
+              <div><label for="quick_client_name">Name</label><input id="quick_client_name" autocomplete="off" value="" placeholder="Client or contact name"></div>
+              <div><label for="quick_cell_number">Cell number</label><input id="quick_cell_number" inputmode="tel" autocomplete="off" value=""></div>
+              <div><label for="quick_email">Email address <span class="muted">(optional)</span></label><input id="quick_email" type="email" autocomplete="off" value=""></div>
+              <div><label for="quick_alt_number">Alternative number <span class="muted">(optional)</span></label><input id="quick_alt_number" inputmode="tel" autocomplete="off" value=""></div>
+            </div>
+            <div id="quick-contact-error" class="inline-error" hidden></div>
+            <div class="quick-contact-actions">
+              <button type="button" class="primary" id="save-quick-contact">Save Contact & Continue</button>
+              <button type="button" class="btn" id="cancel-quick-contact">Cancel</button>
+            </div>
+            <small class="field-help">The contact is saved as a potential client. Full details can be completed later in Back Office → Clients.</small>
+          </div>
+        </div>
+      </div>
+
+      <div class="full inquiry-staff-strip"><span>Inquiry handled by</span><strong><%= currentUser.full_name %></strong><input type="hidden" name="workstation_id" value=""></div>
+      <div><label>Contact type</label><select name="walkin_or_call"><option value="walk_in">Walk-in</option><option value="phone_call">Phone call</option><option value="whatsapp">WhatsApp</option><option value="email">Email</option><option value="other">Other</option></select></div>
+      <div><label>Client / contact name</label><input name="client_name" id="client_name" autocomplete="off" value="" required></div>
+      <div><label>Cell number</label><input name="cell_number" id="cell_number" autocomplete="off" value=""></div>
+      <div><label>Email address</label><input type="email" name="email" id="email" autocomplete="off" value=""></div>
+
+      <div><label>Inquiry category</label><select name="category_id" required><option value="">Choose category</option><% categories.forEach(c=>{ %><option value="<%= c.id %>"><%= c.category_name %></option><% }) %></select></div>
+      <div><label>Other category</label><input name="category_other"></div>
+      <div class="full"><label>What did the client ask?</label><textarea name="query_text" rows="3"></textarea></div>
+      <div class="full"><label>Result found</label><textarea name="result_found" rows="3"></textarea></div>
+      <div class="full"><label>Action taken</label><textarea name="action_taken" rows="3"></textarea></div>
+      <div><label>Status</label><select name="status"><option value="resolved">Resolved</option><option value="open">Open</option><option value="follow_up">Follow-up required</option><option value="waiting_customer">Waiting for customer</option><option value="waiting_network">Waiting for network</option><option value="waiting_supplier">Waiting for supplier</option></select></div>
+      <div><label>Follow-up date and time</label><input type="datetime-local" name="follow_up_at"></div>
+    </div>
+
+    <div id="customer-snapshot"></div>
+    <div class="save-actions"><button class="primary" type="submit" data-mode="stay">Save Inquiry</button><button class="btn" type="submit" data-mode="new">Save & New Customer</button></div>
+  </form>
+</div>
+<button id="query-dock" class="query-dock" hidden>Open Talk2Me Inquiry</button>
+
+<script>
+(() => {
+  const basePath = '<%= basePath %>';
+  const form = document.getElementById('query-form');
+  const search = document.getElementById('client-search');
+  const phoneInput = document.getElementById('cell_number');
+  const results = document.getElementById('client-results');
+  const clientId = document.getElementById('client_id');
+  const selected = document.getElementById('selected-client');
+  const alertBox = document.getElementById('new-contact-alert');
+  const openQuickContact = document.getElementById('open-quick-contact');
+  const quickPanel = document.getElementById('quick-contact-panel');
+  const quickName = document.getElementById('quick_client_name');
+  const quickPhone = document.getElementById('quick_cell_number');
+  const quickEmail = document.getElementById('quick_email');
+  const quickAlt = document.getElementById('quick_alt_number');
+  const quickError = document.getElementById('quick-contact-error');
+  const notice = document.getElementById('save-notice');
+  const queryCard = document.getElementById('query-card');
+  const dock = document.getElementById('query-dock');
+  let timer; let resetTimer; let submitMode='stay';
+  const requestParams = new URLSearchParams(window.location.search);
+  const requestedPhone = requestParams.get('new_phone');
+  const requestedClientId = requestParams.get('select_client');
+  const requestedFixedAccountId = requestParams.get('fixed_account_id');
+
+  function esc(v){ return String(v??'').replace(/[&<>"']/g,s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s])); }
+  function setPotential(show){
+    alertBox.hidden=!show;
+    if(!show){ quickPanel.hidden=true; quickError.hidden=true; quickError.textContent=''; }
+  }
+  function clearQuickContact(){
+    quickName.value='';
+    quickPhone.value='';
+    quickEmail.value='';
+    quickAlt.value='';
+    quickError.hidden=true;
+    quickError.textContent='';
+  }
+  function prefillQuickContact(){
+    clearQuickContact();
+    const q=search.value.trim();
+    if(/^[+()\d\s-]{6,}$/.test(q)) quickPhone.value=q;
+  }
+  openQuickContact.addEventListener('click',()=>{ prefillQuickContact(); quickPanel.hidden=false; quickName.focus(); });
+  document.getElementById('cancel-quick-contact').addEventListener('click',()=>{ quickPanel.hidden=true; clearQuickContact(); });
+  document.getElementById('save-quick-contact').addEventListener('click', async ()=>{
+    quickError.hidden=true;
+    const button=document.getElementById('save-quick-contact');
+    button.disabled=true; button.textContent='Saving...';
+    try{
+      const body=new URLSearchParams({client_name:quickName.value.trim(),cell_number:quickPhone.value.trim(),email:quickEmail.value.trim(),alt_number:quickAlt.value.trim()});
+      const r=await fetch(`${basePath}/clients/quick`,{method:'POST',headers:{Accept:'application/json','Content-Type':'application/x-www-form-urlencoded'},body});
+      const data=await r.json().catch(()=>({ok:false,message:'Could not add contact.'}));
+      if(!r.ok||!data.ok){ quickError.textContent=data.message||'Could not add contact.'; quickError.hidden=false; return; }
+      selectClient(data.client);
+      notice.hidden=false; notice.className='save-notice success'; notice.textContent=data.message;
+    }catch(err){ quickError.textContent='Could not add contact. Please try again.'; quickError.hidden=false; }
+    finally{ button.disabled=false; button.textContent='Save Contact & Continue'; }
+  });
+
+  async function loadSnapshot(id){
+    const box=document.getElementById('customer-snapshot'); box.innerHTML='<div class="snapshot-loading">Loading customer information...</div>';
+    const r=await fetch(`${basePath}/clients/${id}/snapshot`,{headers:{Accept:'application/json'}}); const s=await r.json();
+    if(!r.ok){box.innerHTML='';return;}
+    box.innerHTML=`<div class="snapshot"><div class="snapshot-header"><div><div class="eyebrow">Customer Snapshot</div><h3>${esc(s.client.client_name)}</h3><p>${esc(s.client.account_number||'No account number')}</p></div><div class="snapshot-lines"><span>Lines</span><strong>${esc(s.line_count)}</strong></div></div><div class="snapshot-grid highlight-grid"><div><span>Next upgrade</span><strong>${s.client.upgrade_date?new Date(s.client.upgrade_date).toLocaleDateString('en-ZA'):'—'}</strong></div><div><span>Handset</span><strong>${esc(s.client.handset||'—')}</strong></div><div><span>Total contacts</span><strong>${esc(s.total_contacts||0)}</strong></div></div></div>`;
+  }
+  function selectClient(c){
+    clientId.value=c.id; search.value=c.cell_number||c.client_name||'';
+    document.getElementById('client_name').value=c.client_name||''; document.getElementById('cell_number').value=c.cell_number||''; document.getElementById('email').value=c.email||'';
+    selected.hidden=false; selected.innerHTML=`<strong>✓ Selected client: ${esc(c.client_name)}</strong><br><small>${esc(c.cell_number||'')} ${c.account_number?' • '+esc(c.account_number):''} ${c.email?' • '+esc(c.email):''}</small>`;
+    results.style.display='none'; setPotential(false); loadSnapshot(c.id);
+  }
+  async function doSearch(){
+    const q=search.value.trim(); clientId.value=''; selected.hidden=true; document.getElementById('customer-snapshot').innerHTML='';
+    if(q.length<2){results.style.display='none';setPotential(false);return;}
+    const r=await fetch(`${basePath}/clients/search?q=${encodeURIComponent(q)}`,{headers:{Accept:'application/json'},cache:'no-store'}); const rows=await r.json();
+    const exact=rows.find(x=>String(x.cell_number||'').replace(/\D/g,'')===q.replace(/\D/g,'')) || rows.find(x=>String(x.email||'').toLowerCase()===q.toLowerCase());
+    if(exact){selectClient(exact);return;}
+    results.innerHTML=rows.length?rows.map(c=>`<button type="button" class="search-result-item" data-id="${c.id}"><strong>${esc(c.client_name)}</strong><small>${esc(c.cell_number||'')} ${c.account_number?' • '+esc(c.account_number):''}</small></button>`).join(''):'<div class="search-empty">No client found.</div>';
+    results.style.display='block'; results.querySelectorAll('[data-id]').forEach(b=>b.addEventListener('click',()=>selectClient(rows.find(x=>String(x.id)===b.dataset.id))));
+    setPotential(rows.length===0);
+    if(rows.length===0){ document.getElementById('cell_number').value=q; }
+  }
+  search.addEventListener('input',()=>{clearTimeout(timer);timer=setTimeout(doSearch,250)});
+  phoneInput.addEventListener('input',()=>{
+    if(clientId.value){ clientId.value=''; selected.hidden=true; document.getElementById('customer-snapshot').innerHTML=''; }
+    search.value=phoneInput.value;
+    clearTimeout(timer);
+    timer=setTimeout(doSearch,250);
+  });
+  phoneInput.addEventListener('blur',()=>{ if(phoneInput.value.trim().length>=2 && !clientId.value){ search.value=phoneInput.value; doSearch(); } });
+  if(requestedPhone){
+    search.value=requestedPhone; phoneInput.value=requestedPhone; quickPhone.value=requestedPhone;
+    setPotential(true); quickPanel.hidden=false;
+    results.innerHTML='<div class="search-empty">No existing client selected. Add the new contact below and continue with the inquiry.</div>';
+    results.style.display='block'; setTimeout(()=>quickName.focus(),80);
+  }
+  if(requestedClientId){
+    fetch(`${basePath}/clients/${encodeURIComponent(requestedClientId)}/snapshot`,{headers:{Accept:'application/json'}})
+      .then(r=>r.json()).then(data=>{if(data?.client)selectClient(data.client)}).catch(()=>{});
+  }
+  if(requestedFixedAccountId){
+    fetch(`${basePath}/fixed/accounts/${encodeURIComponent(requestedFixedAccountId)}/json`,{headers:{Accept:'application/json'}})
+      .then(r=>r.json()).then(data=>{if(!data?.account)return;const a=data.account;document.getElementById('service_type').value='fixed';document.getElementById('fixed_account_id').value=a.id;document.getElementById('client_name').value=a.contact_name||a.customer_name||'';document.getElementById('cell_number').value=a.contact_number||'';document.getElementById('email').value=a.email||'';selected.hidden=false;selected.innerHTML=`<strong>✓ Fixed account selected: ${esc(a.customer_name)}</strong><br><small>${esc(a.account_number)} · ${data.services.length} fixed service(s)</small>`;document.getElementById('customer-snapshot').innerHTML=`<div class="snapshot"><div class="snapshot-header"><div><div class="eyebrow">Fixed Customer</div><h3>${esc(a.customer_name)}</h3><p>${esc(a.account_number)}</p></div><div class="snapshot-lines"><span>Services</span><strong>${data.services.length}</strong></div></div>${data.services.length?`<label>Related fixed service<select id="fixed-service-picker"><option value="">Whole account / not selected</option>${data.services.map(s=>`<option value="${s.id}">${esc(s.branch_name||s.solution_id||'Service')} · ${esc(s.solution_id||'')}</option>`).join('')}</select></label>`:''}</div>`;const picker=document.getElementById('fixed-service-picker');if(picker)picker.addEventListener('change',()=>document.getElementById('fixed_service_id').value=picker.value)}).catch(()=>{});
+  }
+  form.querySelectorAll('button[type=submit]').forEach(b=>b.addEventListener('click',()=>submitMode=b.dataset.mode||'stay'));
+  form.addEventListener('submit',async e=>{
+    e.preventDefault(); clearTimeout(resetTimer);
+    const body=new URLSearchParams(); new FormData(form).forEach((value,key)=>body.append(key,String(value)));
+    const r=await fetch(form.action,{method:'POST',headers:{Accept:'application/json','Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},body}); const data=await r.json().catch(()=>({ok:false,message:'Could not save inquiry.'}));
+    notice.hidden=false; notice.className='save-notice '+(r.ok?'success':'error'); notice.textContent=data.message||'Saved.';
+    if(!r.ok)return;
+    if(data.client_id){clientId.value=data.client_id; if(data.created_prospect){selected.hidden=false;selected.innerHTML=`<strong>✓ Potential client saved</strong><br><small>This contact is now available in the database for follow-up.</small>`;}}
+    if(submitMode==='new'){location.href=`${basePath}/queries/new?saved=1`;return;}
+    resetTimer=setTimeout(()=>location.href=`${basePath}/queries/new`,60000);
+  });
+  document.getElementById('minimize-query').addEventListener('click',()=>{queryCard.classList.add('minimized');dock.hidden=false;document.body.classList.add('body-query-minimized')});
+  dock.addEventListener('click',()=>{queryCard.classList.remove('minimized');dock.hidden=true;document.body.classList.remove('body-query-minimized')});
+
+  function clearNewInquiryFields(){
+    clientId.value='';
+    if(!requestedFixedAccountId){document.getElementById('service_type').value='general';document.getElementById('fixed_account_id').value='';document.getElementById('fixed_service_id').value='';}
+    search.value='';
+    document.getElementById('client_name').value='';
+    phoneInput.value='';
+    document.getElementById('email').value='';
+    selected.hidden=true;
+    selected.innerHTML='';
+    results.innerHTML='';
+    results.style.display='none';
+    document.getElementById('customer-snapshot').innerHTML='';
+    setPotential(false);
+    clearQuickContact();
+  }
+  clearNewInquiryFields();
+  window.addEventListener('pageshow', (event)=>{ if(event.persisted) clearNewInquiryFields(); });
+  setTimeout(()=>{ if(!clientId.value && !search.value.trim()) clearNewInquiryFields(); },150);
+})();
+</script>

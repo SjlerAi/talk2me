@@ -1,0 +1,91 @@
+<section class="hero-row">
+  <div>
+    <h1>Case #<%= inquiry.id %></h1>
+    <p><%= inquiry.client_name %> · <%= inquiry.cell_number || 'No cell' %> · Logged by <%= inquiry.staff_member %></p>
+  </div>
+  <a class="btn" href="<%= basePath %>/dashboard">Dashboard</a>
+</section>
+
+<% if (saved) { %>
+  <div class="save-notice success">Case updated successfully.</div>
+<% } %>
+
+<section class="grid two backoffice-case-grid">
+  <form class="panel case-editor" method="post" action="<%= basePath %>/dashboard/inquiries/<%= inquiry.id %>">
+    <h2>Owner Case Control</h2>
+
+    <div class="form-grid two-cols">
+      <label>Category
+        <select name="category_id">
+          <% categories.forEach(cat => { %>
+            <option value="<%= cat.id %>" <%= Number(cat.id) === Number(inquiry.category_id) ? 'selected' : '' %>><%= cat.category_name %></option>
+          <% }) %>
+        </select>
+      </label>
+      <label>Status
+        <select name="status">
+          <% ['open','follow_up','waiting_customer','waiting_network','waiting_supplier','resolved','cancelled'].forEach(st => { %>
+            <option value="<%= st %>" <%= inquiry.status === st ? 'selected' : '' %>><%= st.replace(/_/g, ' ') %></option>
+          <% }) %>
+        </select>
+      </label>
+      <label>Follow-up Date/Time
+        <input type="datetime-local" name="follow_up_at" value="<%= inquiry.follow_up_at ? new Date(inquiry.follow_up_at).toISOString().slice(0,16) : '' %>">
+      </label>
+      <label>Assigned Staff
+        <select name="assigned_staff_id">
+          <option value="">Unassigned</option>
+          <% staff.forEach(s => { %>
+            <option value="<%= s.id %>" <%= Number(s.id) === Number(inquiry.assigned_staff_id) ? 'selected' : '' %>><%= s.full_name %></option>
+          <% }) %>
+        </select>
+      </label>
+      <label>Priority
+        <select name="priority">
+          <option value="normal" <%= inquiry.priority !== 'urgent' ? 'selected' : '' %>>Normal</option>
+          <option value="urgent" <%= inquiry.priority === 'urgent' ? 'selected' : '' %>>Urgent</option>
+        </select>
+      </label>
+    </div>
+
+    <label>Result Found
+      <textarea name="result_found" rows="4"><%= inquiry.result_found || '' %></textarea>
+    </label>
+    <label>Action Taken
+      <textarea name="action_taken" rows="4"><%= inquiry.action_taken || '' %></textarea>
+    </label>
+    <label>Owner Reminder / Internal Note
+      <textarea name="owner_note" rows="4" placeholder="Example: When this client opens again, remind staff to check router stock before promising delivery."><%= inquiry.owner_note || '' %></textarea>
+    </label>
+    <label>Add Case Note
+      <textarea name="note_text" rows="3" placeholder="Optional new note for the case history."></textarea>
+    </label>
+
+    <button class="btn primary full" type="submit">Save Case</button>
+  </form>
+
+  <div class="panel case-summary">
+    <h2>Case Summary</h2>
+    <div class="summary-block"><span>Customer Asked</span><p><%= inquiry.query_text || 'Not captured' %></p></div>
+    <div class="summary-block"><span>Action Taken</span><p><%= inquiry.action_taken || 'Not captured' %></p></div>
+    <div class="summary-block"><span>Owner Note</span><p><%= inquiry.owner_note || 'No owner reminder yet.' %></p></div>
+    <div class="interaction-grid compact-grid">
+      <div><span>Logged</span><strong><%= new Date(inquiry.created_at).toLocaleString() %></strong></div>
+      <div><span>Updated</span><strong><%= new Date(inquiry.updated_at).toLocaleString() %></strong></div>
+      <div><span>Follow-up</span><strong><%= inquiry.follow_up_at ? new Date(inquiry.follow_up_at).toLocaleString() : 'Not set' %></strong></div>
+      <div><span>Completed</span><strong><%= inquiry.completed_at ? new Date(inquiry.completed_at).toLocaleString() : 'Still open' %></strong></div>
+    </div>
+
+    <h3>Client Data</h3>
+    <p><strong>Account:</strong> <%= inquiry.account_number || 'Not available' %></p>
+    <p><strong>Package:</strong> <%= inquiry.package_name || 'Not available' %></p>
+    <p><strong>Handset:</strong> <%= inquiry.handset || 'Not available' %></p>
+    <p><strong>Upgrade:</strong> <%= inquiry.upgrade_date ? new Date(inquiry.upgrade_date).toLocaleDateString() : 'Not available' %></p>
+
+    <h3>Case Notes</h3>
+    <% if (!notes.length) { %><p>No notes yet.</p><% } %>
+    <% notes.forEach(n => { %>
+      <div class="note-row"><strong><%= n.staff_member %></strong><small><%= new Date(n.created_at).toLocaleString() %></small><p><%= n.note %></p></div>
+    <% }) %>
+  </div>
+</section>

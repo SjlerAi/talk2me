@@ -1,0 +1,20 @@
+<section class="page-head"><div><div class="eyebrow">Unique account <%= account.account_number %></div><h1><%= isEdit?'Edit Fixed Service':'Add Fixed Service' %></h1><p><%= isEdit?'Update this specific installation or branch. Existing records are retained and cannot be deleted.':'Add a new installation or branch beneath '+(account.display_name||account.account_number)+'.' %></p></div></section>
+<% const action=isEdit?(isRequest?'/fixed/services/'+service.id+'/request-change':'/fixed/services/'+service.id):(isRequest?'/fixed/services/request':'/fixed/services'); %>
+<% const dateValue=v=>v?new Date(v).toISOString().slice(0,10):''; %>
+<form class="panel form-grid" method="post" action="<%= basePath %><%= action %>">
+  <input type="hidden" name="account_id" value="<%= account.id %>">
+  <div><label>Account number</label><input value="<%= account.account_number %>" readonly></div>
+  <div><label>Branch / site</label><input name="branch_name" required value="<%= service?.branch_name||'' %>"></div>
+  <div><label>Solution ID</label><input name="solution_id" value="<%= service?.solution_id||'' %>"></div>
+  <div><label>Order number</label><input name="order_number" value="<%= service?.order_number||'' %>"></div>
+  <div><label>Router model</label><input name="router_model" value="<%= service?.router_model||'' %>"></div>
+  <div><label>MAC address</label><input name="mac_address" value="<%= service?.mac_address||'' %>"></div>
+  <div><label>Technical SIM number</label><input name="sim_number" value="<%= service?.sim_number||'' %>"><small class="field-help">This is not used as the customer contact number.</small></div>
+  <div><label>Package</label><input name="package_name" value="<%= service?.package_name||'' %>"></div>
+  <div><label>Activation date</label><input type="date" name="activation_date" value="<%= dateValue(service?.activation_date) %>"></div>
+  <div><label>Service status</label><select name="service_status"><% ['active','pending','suspended','cancelled','unknown'].forEach(x=>{ %><option value="<%= x %>" <%= (service?.service_status||'active')===x?'selected':'' %>><%= x %></option><% }) %></select></div>
+  <div><label>Cancellation date</label><input type="date" name="cancellation_date" value="<%= dateValue(service?.cancellation_date) %>"></div>
+  <div class="full"><label>Installation address</label><input name="installation_address" value="<%= service?.installation_address||'' %>"></div>
+  <div class="full"><label>Technical notes</label><textarea name="technical_notes" rows="4"><%= service?.technical_notes||'' %></textarea></div>
+  <div class="full"><button class="btn primary" type="submit"><%= isRequest?(isEdit?'Send Change for Approval':'Send Fixed Service for Approval'):(isEdit?'Save Fixed Service':'Add Fixed Service') %></button></div>
+</form>

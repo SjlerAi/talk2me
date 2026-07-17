@@ -1,0 +1,121 @@
+<section class="hero-row">
+  <div><h1>Talk2Me Dashboard</h1><p>Owner control hub: today’s activity, open cases, follow-ups and staff performance.</p></div>
+  <div class="hero-actions">
+    <a class="btn primary" href="<%= basePath %>/queries/new">Open Query Popup</a>
+  </div>
+</section>
+
+<section class="stats-grid six">
+  <div class="stat"><span>Today</span><strong><%= stats.today %></strong></div>
+  <div class="stat"><span>Completed Today</span><strong><%= stats.completedToday %></strong></div>
+  <div class="stat"><span>Open Cases</span><strong><%= stats.openCases %></strong></div>
+  <div class="stat"><span>Follow-ups Due</span><strong><%= stats.followupsDue %></strong></div>
+  <div class="stat"><span>Yesterday</span><strong><%= stats.yesterday %></strong></div>
+  <div class="stat"><span>Clients</span><strong><%= stats.clients %></strong></div>
+</section>
+
+
+<section class="grid two dashboard-grid morning-alerts">
+  <div class="panel">
+    <div class="panel-heading-row">
+      <div>
+        <h2>Birthdays</h2>
+        <p class="muted">Today and tomorrow</p>
+      </div>
+      <span class="count-pill"><%= birthdays.length %></span>
+    </div>
+    <% if (!birthdays.length) { %><p>No birthdays today or tomorrow.</p><% } %>
+    <% birthdays.forEach(client => { %>
+      <div class="reminder-row">
+        <div>
+          <strong><%= client.client_name %></strong>
+          <small><%= client.cell_number || 'No contact number' %><% if (client.email) { %> · <%= client.email %><% } %></small>
+        </div>
+        <span class="badge <%= client.birthday_window === 'today' ? 'resolved' : 'follow_up' %>"><%= client.birthday_window === 'today' ? 'Today' : 'Tomorrow' %></span>
+      </div>
+    <% }) %>
+  </div>
+
+  <div class="panel">
+    <div class="panel-heading-row">
+      <div>
+        <h2>Upcoming Upgrades</h2>
+        <p class="muted">Today and the next 7 days</p>
+      </div>
+      <span class="count-pill"><%= upgrades.length %></span>
+    </div>
+    <% if (!upgrades.length) { %><p>No upgrades due in the next 7 days.</p><% } %>
+    <div class="upgrade-list">
+      <% upgrades.forEach(client => { %>
+        <div class="reminder-row">
+          <div>
+            <strong><%= client.client_name %></strong>
+            <small><%= client.cell_number || 'No cell number' %><% if (client.handset) { %> · <%= client.handset %><% } %></small>
+            <small><%= client.package_name || '' %><% if (client.account_number) { %> · Acc: <%= client.account_number %><% } %></small>
+          </div>
+          <div class="date-stack">
+            <strong><%= new Date(client.upgrade_date).toLocaleDateString() %></strong>
+            <small><%= client.days_until_upgrade === 0 ? 'Today' : client.days_until_upgrade === 1 ? 'Tomorrow' : `In ${client.days_until_upgrade} days` %></small>
+          </div>
+        </div>
+      <% }) %>
+    </div>
+  </div>
+</section>
+
+<section class="grid two dashboard-grid">
+  <div class="panel wide-panel">
+    <h2>Live Activity</h2>
+    <table>
+      <thead><tr><th>Time</th><th>Client</th><th>Category</th><th>Staff</th><th>Status</th></tr></thead>
+      <tbody>
+      <% activity.forEach(row => { %>
+        <tr class="click-row" onclick="window.location='<%= basePath %>/dashboard/inquiries/<%= row.id %>'">
+          <td><%= new Date(row.created_at).toLocaleString() %></td>
+          <td><a href="<%= basePath %>/dashboard/inquiries/<%= row.id %>"><%= row.client_name %></a><br><small><%= row.cell_number || '' %></small></td>
+          <td><%= row.category_name || 'Inquiry' %></td>
+          <td><%= row.staff_member %></td>
+          <td><span class="badge <%= row.status %>"><%= row.status %></span></td>
+        </tr>
+      <% }) %>
+      <% if (!activity.length) { %><tr><td colspan="5">No cases logged yet.</td></tr><% } %>
+      </tbody>
+    </table>
+  </div>
+  <div class="panel">
+    <h2>Today by Staff</h2>
+    <% if (!byStaff.length) { %><p>No activity yet today.</p><% } %>
+    <% byStaff.forEach(row => { %><div class="staff-row"><span><%= row.staff_member %></span><strong><%= row.total %></strong></div><% }) %>
+  </div>
+</section>
+
+<section class="grid two dashboard-grid">
+  <div class="panel wide-panel">
+    <h2>Open Cases / Follow-ups</h2>
+    <table class="case-table">
+      <thead><tr><th>Case</th><th>Client</th><th>Asked</th><th>Action</th><th>Due</th><th>Status</th></tr></thead>
+      <tbody>
+      <% openCases.forEach(c => { %>
+        <tr class="click-row <%= c.priority === 'urgent' ? 'urgent-row' : '' %>" onclick="window.location='<%= basePath %>/dashboard/inquiries/<%= c.id %>'">
+          <td><a href="<%= basePath %>/dashboard/inquiries/<%= c.id %>">#<%= c.id %></a><br><small><%= new Date(c.created_at).toLocaleString() %></small></td>
+          <td><strong><%= c.client_name %></strong><br><small><%= c.cell_number || '' %></small><% if (c.assigned_staff_member) { %><br><small>Assigned: <%= c.assigned_staff_member %></small><% } %></td>
+          <td><%= c.query_text || 'Not captured' %></td>
+          <td><%= c.action_taken || 'Not captured yet' %><% if (c.owner_note) { %><br><small class="owner-note-inline">Owner note: <%= c.owner_note %></small><% } %></td>
+          <td><%= c.follow_up_at ? new Date(c.follow_up_at).toLocaleString() : 'Not set' %></td>
+          <td><span class="badge <%= c.status %>"><%= c.status %></span></td>
+        </tr>
+      <% }) %>
+      <% if (!openCases.length) { %><tr><td colspan="6">No open cases right now.</td></tr><% } %>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="panel">
+    <h2>Today by Category</h2>
+    <% if (!categorySummary.length) { %><p>No category activity today.</p><% } %>
+    <% categorySummary.forEach(row => { %><div class="staff-row"><span><%= row.category_name %></span><strong><%= row.total %></strong></div><% }) %>
+    <hr>
+    <h3>Owner Workflow</h3>
+    <p>Click any activity row or open case to view the full customer case, add notes, update action taken, set follow-up, or close it.</p>
+  </div>
+</section>

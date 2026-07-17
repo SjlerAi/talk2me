@@ -1,0 +1,41 @@
+<section class="page-head">
+  <div><h1><%= isNew ? 'Add Staff Member' : 'Staff Profile' %></h1><p>Identity, contact information, role and private documents.</p></div>
+  <a class="btn" href="<%= basePath %>/backoffice/staff">Back to Staff</a>
+</section>
+<% if (saved) { %><div class="success-banner">Staff record saved successfully.</div><% } %>
+<div class="two-column-admin">
+  <form class="card form-card" method="post" enctype="multipart/form-data" action="<%= basePath %><%= isNew ? '/backoffice/staff' : '/backoffice/staff/' + staff.id %>">
+    <h2>Staff Details</h2>
+    <div class="form-grid">
+      <div><label>First name</label><input name="first_name" value="<%= staff.first_name || '' %>" required></div>
+      <div><label>Surname</label><input name="surname" value="<%= staff.surname || '' %>"></div>
+      <div><label>Display name</label><input name="full_name" value="<%= staff.full_name || '' %>" required></div>
+      <div><label>Job title</label><input name="job_title" value="<%= staff.job_title || '' %>"></div>
+      <div><label>Email / login</label><input name="email" type="email" value="<%= staff.email || '' %>" required></div>
+      <div><label>Username</label><input name="username" value="<%= staff.username || '' %>"></div>
+      <div><label>Contact number</label><input name="contact_number" value="<%= staff.contact_number || '' %>"></div>
+      <div><label>Alternate contact</label><input name="alternate_contact_number" value="<%= staff.alternate_contact_number || '' %>"></div>
+      <div><label>ID number</label><input name="id_number" value="<%= staff.id_number || '' %>"></div>
+      <div><label>Date of birth</label><input name="date_of_birth" type="date" value="<%= staff.date_of_birth ? new Date(staff.date_of_birth).toISOString().slice(0,10) : '' %>"></div>
+      <div><label>Branch / shop</label><input name="branch_name" value="<%= staff.branch_name || '' %>"></div>
+      <div><label>Employment start</label><input name="employment_start_date" type="date" value="<%= staff.employment_start_date ? new Date(staff.employment_start_date).toISOString().slice(0,10) : '' %>"></div>
+      <div><label>Access level</label><select name="role"><% ['owner','admin','manager','staff'].forEach(role => { %><option value="<%= role %>" <%= staff.role===role ? 'selected' : '' %>><%= role %></option><% }) %></select></div>
+      <div><label>Status</label><select name="is_active"><option value="1" <%= staff.is_active !== 0 ? 'selected' : '' %>>Active</option><option value="0" <%= staff.is_active === 0 ? 'selected' : '' %>>Inactive</option></select></div>
+      <div class="full"><label><%= isNew ? 'Temporary password' : 'New password (leave blank to keep current)' %></label><input name="password" type="password" <%= isNew ? 'required' : '' %> autocomplete="new-password"></div>
+      <div><label>Profile photo</label><input name="profile_photo" type="file" accept="image/jpeg,image/png,image/webp"></div>
+      <div><label>ID document</label><input name="id_document" type="file" accept="image/jpeg,image/png,image/webp,application/pdf"></div>
+      <div class="full"><label>Internal notes</label><textarea name="internal_notes" rows="5"><%= staff.internal_notes || '' %></textarea></div>
+    </div>
+    <button class="primary" type="submit"><%= isNew ? 'Create Staff Member' : 'Save Staff Profile' %></button>
+  </form>
+  <aside class="card staff-side-card">
+    <h2>Profile & Documents</h2>
+    <% if (!isNew && staff.profile_photo_path) { %><img class="large-profile-photo" src="<%= basePath %>/backoffice/staff/<%= staff.id %>/photo" alt="Profile photo"><% } %>
+    <% if (!isNew) { %>
+      <p><strong>Last login:</strong><br><%= staff.last_login_at ? new Date(staff.last_login_at).toLocaleString('en-ZA') : 'Never' %></p>
+      <h3>Private documents</h3>
+      <% if (!documents.length) { %><p>No documents uploaded.</p><% } %>
+      <% documents.forEach(doc => { %><p><a href="<%= basePath %>/backoffice/staff/<%= staff.id %>/documents/<%= doc.id %>"><%= doc.document_type.replace('_',' ') %>: <%= doc.original_filename %></a><br><small><%= new Date(doc.uploaded_at).toLocaleString('en-ZA') %></small></p><% }) %>
+    <% } else { %><p>Create the staff record first. Uploaded files will be stored privately and linked to the new profile.</p><% } %>
+  </aside>
+</div>

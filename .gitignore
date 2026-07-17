@@ -1,0 +1,32 @@
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Dependencies
+node_modules/
+
+# User uploads and private data
+private_uploads/
+talk2me_private_uploads/
+mnt/
+
+# Runtime files
+tmp/
+*.log
+digest.log
+stderr.log
+stdout.log
+
+# Deployment archives and backups
+*.zip
+*.tar
+*.tar.gz
+
+# Server-managed folders
+cgi-bin/
+.well-known/
+
+# Operating system files
+.DS_Store
+Thumbs.db

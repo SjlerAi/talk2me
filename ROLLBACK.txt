@@ -1,0 +1,5 @@
+1. Stop the Node.js application.
+2. Restore the previous domain/application folder backup.
+3. Point the domain back to the previous PHP document root if it was changed.
+4. Restore the database only if a test created records that must be removed. Prefer deleting only verified test session IDs rather than restoring the whole live database.
+5. No migration is required for v2.0.0. If optional indexes were installed, run migrations/ROLLBACK_001.sql.

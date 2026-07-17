@@ -1,0 +1,1 @@
+const http=require('http');const port=process.env.PORT||3000;http.get(`http://127.0.0.1:${port}/api/health`,r=>{let b='';r.on('data',c=>b+=c);r.on('end',()=>{console.log(b);process.exit(r.statusCode===200?0:1)})}).on('error',e=>{console.error(e.message);process.exit(1)});

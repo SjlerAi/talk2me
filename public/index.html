@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#ffffff">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" href="/assets/favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" href="/assets/favicon.png">
+  <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+  <link rel="stylesheet" href="/assets/app.css?v=2.1.1">
+  <title>West Coast Pest Attendance</title>
+</head>
+<body>
+  <main class="phone">
+    <section id="login" class="login-panel">
+      <img src="/assets/favicon.png" class="brand-icon login-icon" alt="West Coast Pest">
+      <div class="card login-card">
+        <h1>Log in</h1>
+        <label>Email, mobile or staff code<input id="identifier" autocomplete="username"></label>
+        <label>Password<input id="password" type="password" autocomplete="current-password"></label>
+        <button id="loginBtn" class="btn blue">Log in</button>
+        <p id="loginMsg" class="msg"></p>
+      </div>
+      <footer class="version-footer">Pest Workforce Platform <strong>v2.2.1</strong></footer>
+    </section>
+
+    <section id="home" class="hidden app-panel">
+      <header class="app-header">
+        <img src="/assets/favicon.png" class="brand-icon" alt="West Coast Pest">
+      </header>
+
+      <div class="card attendance-card">
+        <div class="worksite">Current worksite:<strong id="worksite">—</strong></div>
+        <div id="actionNotice" class="action-notice hidden" role="status" aria-live="polite"></div>
+
+        <button id="clockIn" class="btn green">Clock In</button>
+        <button id="clockOut" class="btn red">Clock Out</button>
+
+        <h2>Choose Work Lunch</h2>
+        <div class="lunch">
+          <button data-min="15">15 min</button>
+          <button data-min="30">30 min</button>
+          <button data-min="45">45 min</button>
+          <button data-min="60">60 min</button>
+        </div>
+
+        <p id="msg" class="msg"></p>
+        <div class="sync" id="sync">Online</div>
+        <button id="logout" class="linkbtn">Log out</button>
+      </div>
+      <footer class="version-footer">Pest Workforce Platform <strong>v2.2.1</strong></footer>
+    </section>
+  </main>
+  <script src="/app.js?v=2.1.1"></script>
+</body>
+</html>
