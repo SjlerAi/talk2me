@@ -1,0 +1,5 @@
+---
+deployment:
+  tasks:
+    - export DEPLOYPATH=/home/uent/talk2me.uent.co.za
+    - /bin/cp -R . $DEPLOYPATH
