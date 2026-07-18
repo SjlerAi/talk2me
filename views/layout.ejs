@@ -3,12 +3,16 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <title><%= title %> | Talk2Me Command</title>
-  <link rel="icon" href="<%= basePath %>/public/images/favicon.ico">
+  <link rel="icon" href="<%= basePath %>/public/images/favicon.ico?v=<%= encodeURIComponent(appVersion) %>">
+  <link rel="apple-touch-icon" sizes="192x192" href="<%= basePath %>/public/images/favicon-192x192.png?v=<%= encodeURIComponent(appVersion) %>">
+  <link rel="manifest" href="<%= basePath %>/public/site.webmanifest?v=<%= encodeURIComponent(appVersion) %>">
   <meta name="theme-color" content="#111827">
   <link rel="stylesheet" href="<%= basePath %>/public/css/app.css?v=<%= encodeURIComponent(appVersion) %>">
   <link rel="stylesheet" href="<%= basePath %>/public/css/notifications.css?v=<%= encodeURIComponent(appVersion) %>">
   <link rel="stylesheet" href="<%= basePath %>/public/css/command.css?v=<%= encodeURIComponent(appVersion) %>">
   <link rel="stylesheet" href="<%= basePath %>/public/css/command-4.0.1.css?v=<%= encodeURIComponent(appVersion) %>">
+  <link rel="stylesheet" href="<%= basePath %>/public/css/command-4.0.2.css?v=<%= encodeURIComponent(appVersion) %>">
+  <script defer src="<%= basePath %>/public/js/customer-actions.js?v=<%= encodeURIComponent(appVersion) %>"></script>
 </head>
 <body class="command-body <%= panelMode?'panel-mode':'' %>">
 <% if(currentUser && !panelMode){ const management=['owner','admin','manager'].includes(currentUser.role); %>
@@ -61,5 +65,10 @@
  const greeting=document.getElementById('login-greeting');if(sessionStorage.getItem('t2m-greeted')==='1')greeting.remove();else{sessionStorage.setItem('t2m-greeted','1');setTimeout(()=>greeting.classList.add('hide'),4200);setTimeout(()=>greeting.remove(),5000)}
 })();
 </script>
-<% } else { %><main class="<%= panelMode?'panel-page':'page' %>"><%- body %></main><% if(panelMode){ %><script>document.addEventListener('submit',()=>sessionStorage.setItem('t2m-panel-submitted','1'));</script><% } %><% } %>
+<% } else { %><main class="<%= panelMode?'panel-page':'page' %>"><%- body %></main><% if(panelMode){ %><script>
+// Keep all work inside the existing iframe. This prevents a second command
+// shell/work panel from being opened inside the first one.
+document.addEventListener('click',e=>{const a=e.target.closest('a[href]');if(!a||a.target==='_blank'||a.origin!==location.origin)return;const u=new URL(a.href);u.searchParams.set('panel','1');a.href=u.href});
+document.addEventListener('submit',e=>{sessionStorage.setItem('t2m-panel-submitted','1');const f=e.target;if(!f.querySelector('input[name="panel"]')){const i=document.createElement('input');i.type='hidden';i.name='panel';i.value='1';f.appendChild(i)}});
+</script><% } %><% } %>
 </body></html>

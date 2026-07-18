@@ -783,7 +783,7 @@ router.post('/backoffice/clients/:id/assign', requireAuth, requireRole('owner','
     await audit(req,{actionType:'client_assignment_changed',entityType:'clients',entityId:clientId,description:`Assignment for ${client.client_name} changed from ${before?.assigned_staff_name||'Unassigned'} to ${afterName}`,before:{assigned_staff_id:before?.assigned_staff_id||null,assigned_staff_name:before?.assigned_staff_name||'Unassigned'},after:{assigned_staff_id:staffId,assigned_staff_name:afterName,scope:client.account_number?'account':'client'}});
     const back=String(req.body.return_q||'').trim();
     const returnTo=String(req.body.return_to||'');
-    if(returnTo==='customer360') return res.redirect(`${res.locals.basePath}/customers/${clientId}/360?assigned=1`);
+    if(returnTo==='customer360') return res.redirect(`${res.locals.basePath}/customers/${clientId}/360?assigned=1${String(req.body.panel||'')==='1'?'&panel=1':''}`);
     res.redirect(`${res.locals.basePath}/backoffice/clients?q=${encodeURIComponent(back)}&saved=1`);
   } catch(e){ next(e); }
 });
@@ -1134,8 +1134,13 @@ async function saveClientAssignment(clientId, accountNumber, staffId, assignedBy
   if (!staff) throw new Error('Invalid staff assignment');
   await db.execute(`UPDATE client_assignments SET is_active=0,updated_at=NOW()
     WHERE is_active=1 AND (client_id=:clientId OR (:accountNumber IS NOT NULL AND :accountNumber<>'' AND account_number=:accountNumber))`,{clientId,accountNumber:accountNumber||null});
+  // A client has one durable assignment row. Reuse it when ownership changes;
+  // inserting a second row violates uq_client_assignments_client.
   await db.execute(`INSERT INTO client_assignments (client_id,account_number,assigned_staff_id,assigned_by,is_active)
-    VALUES (:clientId,:accountNumber,:staffId,:assignedBy,1)`,{clientId,accountNumber:accountNumber||null,staffId,assignedBy});
+    VALUES (:clientId,:accountNumber,:staffId,:assignedBy,1)
+    ON DUPLICATE KEY UPDATE
+      account_number=VALUES(account_number),assigned_staff_id=VALUES(assigned_staff_id),
+      assigned_by=VALUES(assigned_by),is_active=1,updated_at=NOW()`,{clientId,accountNumber:accountNumber||null,staffId,assignedBy});
   if(accountNumber) await db.execute(`UPDATE customer_accounts SET assigned_staff_id=:staffId,assigned_by=:assignedBy,assignment_confirmed_at=NOW() WHERE account_number_normalised=UPPER(REPLACE(TRIM(:accountNumber),' ',''))`,{accountNumber,staffId,assignedBy});
 }
 
@@ -1225,7 +1230,7 @@ router.get('/backoffice/clients/:id/edit', requireAuth, requireRole('owner','man
     const [[assignment]] = await db.execute(`SELECT assigned_staff_id FROM client_assignments
       WHERE is_active=1 AND (client_id=:id OR (account_number IS NOT NULL AND account_number<>'' AND account_number=:accountNumber))
       ORDER BY (client_id=:id) DESC,updated_at DESC LIMIT 1`,{id,accountNumber:client.account_number||''});
-    res.render('client-edit',{title:`Edit ${client.client_name}`,client,prefill:null,inquiryId:null,saved:req.query.saved,staff,assignedStaffId:assignment?.assigned_staff_id||null});
+    res.render('client-edit',{title:`Edit ${client.client_name}`,client,prefill:null,inquiryId:null,saved:req.query.saved,staff,assignedStaffId:assignment?.assigned_staff_id||null,accountRequired:['mobile','fixed'].includes(String(req.query.account_required))?String(req.query.account_required):null});
   } catch(e){ next(e); }
 });
 
@@ -1251,7 +1256,10 @@ router.post('/backoffice/clients/:id', requireAuth, requireRole('owner','manager
       await audit(req,{actionType:'client_assignment_changed',entityType:'clients',entityId:id,description:`Assignment for ${data.client_name} changed from ${beforeAssignment?.assigned_staff_name||'Unassigned'} to ${newStaff?.full_name||'Unassigned'}`,before:{assigned_staff_id:beforeAssignment?.assigned_staff_id||null,assigned_staff_name:beforeAssignment?.assigned_staff_name||'Unassigned'},after:{assigned_staff_id:newStaffId,assigned_staff_name:newStaff?.full_name||'Unassigned',scope:data.account_number?'account':'client'}});
     }
     await saveAccountAuthority(id,data.account_number,data,req.session.user.id);
-    res.redirect(`${res.locals.basePath}/backoffice/clients/${id}/edit?saved=1`);
+    const nextService=['mobile','fixed'].includes(String(req.body.next_service))?String(req.body.next_service):null;
+    const panel=String(req.body.panel||'')==='1';
+    if(nextService&&data.account_number)return res.redirect(`${res.locals.basePath}/customers/${id}/add-${nextService}${panel?'?panel=1':''}`);
+    res.redirect(`${res.locals.basePath}/backoffice/clients/${id}/edit?saved=1${panel?'&panel=1':''}`);
   } catch(e){ next(e); }
 });
 
@@ -1420,6 +1428,34 @@ router.get('/api/workspace/summary', requireAuth, async (req,res,next) => {
       (SELECT COALESCE(MAX(id),0) FROM staff_tasks WHERE assigned_to=:id) latest_task_id`,{id});
     res.json({summary,server_time:new Date().toISOString()});
   } catch(e){next(e);}
+});
+
+router.get('/customers/:id/add-mobile', requireAuth, async (req,res,next) => {
+  try {
+    const panel=String(req.query.panel||'')==='1';
+    const id=Number(req.params.id);const [[client]]=await db.execute('SELECT id,client_name,email,account_number FROM clients WHERE id=:id LIMIT 1',{id});
+    if(!client)return res.status(404).render('error',{title:'Customer not found',message:'The customer could not be found.'});
+    if(!String(client.account_number||'').trim()){
+      if(['owner','manager'].includes(req.session.user.role))return res.redirect(`${res.locals.basePath}/backoffice/clients/${id}/edit?account_required=mobile${panel?'&panel=1':''}`);
+      return res.status(400).render('error',{title:'Unique account required',message:'Ask an owner or manager to capture the unique account number before another mobile line can be requested.'});
+    }
+    if(req.session.user.role==='staff')return res.redirect(`${res.locals.basePath}/customers/${id}/request-mobile-line${panel?'?panel=1':''}`);
+    res.redirect(`${res.locals.basePath}/backoffice/clients/new?account_number=${encodeURIComponent(client.account_number)}&client_name=${encodeURIComponent(client.client_name||'')}&email=${encodeURIComponent(client.email||'')}${panel?'&panel=1':''}`);
+  }catch(e){next(e)}
+});
+
+router.get('/customers/:id/add-fixed', requireAuth, async (req,res,next) => {
+  try {
+    const panel=String(req.query.panel||'')==='1';
+    const id=Number(req.params.id);const [[client]]=await db.execute('SELECT id,account_number FROM clients WHERE id=:id LIMIT 1',{id});
+    if(!client)return res.status(404).render('error',{title:'Customer not found',message:'The customer could not be found.'});
+    if(!String(client.account_number||'').trim()){
+      if(['owner','manager'].includes(req.session.user.role))return res.redirect(`${res.locals.basePath}/backoffice/clients/${id}/edit?account_required=fixed${panel?'&panel=1':''}`);
+      return res.status(400).render('error',{title:'Unique account required',message:'Ask an owner or manager to capture the unique account number before a fixed service can be requested.'});
+    }
+    const route=req.session.user.role==='staff'?'/fixed/services/request-new':'/fixed/services/new';
+    res.redirect(`${res.locals.basePath}${route}?account_number=${encodeURIComponent(client.account_number)}${panel?'&panel=1':''}`);
+  }catch(e){next(e)}
 });
 
 router.get('/customers/:id/360', requireAuth, async (req,res,next) => {

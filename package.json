@@ -1,7 +1,7 @@
 {
   "name": "talk2me-crm",
-  "version": "4.0.1",
-  "description": "Talk2Me Command 4.0.1 - branded operational workspace refinement",
+  "version": "4.0.7",
+  "description": "Talk2Me Command 4.0.7 - maximum-size solid-white favicon mark",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

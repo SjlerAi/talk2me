@@ -5,6 +5,10 @@
 
 <div class="query-card" id="query-card">
   <div id="save-notice" class="save-notice neutral" hidden></div>
+  <div id="inquiry-client-actions" class="inquiry-client-actions" hidden>
+    <div><span>Selected customer actions</span><strong id="inquiry-action-customer">Customer</strong><small id="inquiry-action-account">Select a customer to continue</small></div>
+    <div class="inquiry-action-buttons"><a class="btn opportunity" id="inquiry-add-mobile" href="#">Add Mobile Line</a><a class="btn opportunity" id="inquiry-add-fixed" href="#">Add Fixed Service</a><a class="btn" id="inquiry-open-customer" href="#">Open Customer</a></div>
+  </div>
   <form id="query-form" method="post" action="<%= basePath %>/queries">
     <input type="hidden" name="client_id" id="client_id">
     <input type="hidden" name="service_type" id="service_type" value="general">
@@ -12,7 +16,7 @@
     <input type="hidden" name="fixed_service_id" id="fixed_service_id">
 
     <div class="form-grid">
-      <div class="full client-lookup-block inquiry-hidden-search" aria-hidden="true">
+      <div class="full client-lookup-block inquiry-client-lookup">
         <label for="client-search">Search client</label>
         <input id="client-search" autocomplete="off" autocapitalize="none" spellcheck="false" value="" placeholder="Cell number, name, email, account or ID">
         <small class="field-help">Type at least 2 characters. An exact cellphone match loads automatically.</small>
@@ -84,13 +88,30 @@
   const notice = document.getElementById('save-notice');
   const queryCard = document.getElementById('query-card');
   const dock = document.getElementById('query-dock');
+  const customerActions = document.getElementById('inquiry-client-actions');
+  const actionCustomer = document.getElementById('inquiry-action-customer');
+  const actionAccount = document.getElementById('inquiry-action-account');
+  const addMobile = document.getElementById('inquiry-add-mobile');
+  const addFixed = document.getElementById('inquiry-add-fixed');
+  const openCustomer = document.getElementById('inquiry-open-customer');
+  const userRole = <%- JSON.stringify(currentUser.role) %>;
   let timer; let resetTimer; let submitMode='stay';
   const requestParams = new URLSearchParams(window.location.search);
   const requestedPhone = requestParams.get('new_phone');
-  const requestedClientId = requestParams.get('select_client');
+  const requestedClientId = requestParams.get('select_client') || requestParams.get('client_id');
   const requestedFixedAccountId = requestParams.get('fixed_account_id');
 
   function esc(v){ return String(v??'').replace(/[&<>"']/g,s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s])); }
+  function mobileCustomerActions(c){
+    const account=String(c.account_number||'').trim(); customerActions.hidden=false;
+    actionCustomer.textContent=c.client_name||'Selected customer'; actionAccount.textContent=account?`Unique account ${account}`:'Complete the account number before adding another service';
+    openCustomer.hidden=false; openCustomer.href=`${basePath}/customers/${c.id}/360`; addMobile.hidden=!account; addFixed.hidden=!account;
+    if(account){addMobile.href=userRole==='staff'?`${basePath}/customers/${c.id}/request-mobile-line`:`${basePath}/backoffice/clients/new?account_number=${encodeURIComponent(account)}&client_name=${encodeURIComponent(c.client_name||'')}&email=${encodeURIComponent(c.email||'')}`;addFixed.href=userRole==='staff'?`${basePath}/fixed/services/request-new?account_number=${encodeURIComponent(account)}`:`${basePath}/fixed/services/new?account_number=${encodeURIComponent(account)}`;}
+  }
+  function fixedCustomerActions(a){
+    const account=String(a.account_number||'').trim();customerActions.hidden=false;actionCustomer.textContent=a.customer_name||'Selected fixed customer';actionAccount.textContent=`Unique account ${account}`;
+    addMobile.hidden=false;addMobile.href=`${basePath}/fixed/accounts/${a.id}/request-mobile-line`;addFixed.hidden=false;addFixed.href=userRole==='staff'?`${basePath}/fixed/services/request-new?account_number=${encodeURIComponent(account)}`:`${basePath}/fixed/services/new?account_number=${encodeURIComponent(account)}`;openCustomer.hidden=false;openCustomer.href=`${basePath}/fixed/accounts/${a.id}`;
+  }
   function setPotential(show){
     alertBox.hidden=!show;
     if(!show){ quickPanel.hidden=true; quickError.hidden=true; quickError.textContent=''; }
@@ -135,7 +156,7 @@
     clientId.value=c.id; search.value=c.cell_number||c.client_name||'';
     document.getElementById('client_name').value=c.client_name||''; document.getElementById('cell_number').value=c.cell_number||''; document.getElementById('email').value=c.email||'';
     selected.hidden=false; selected.innerHTML=`<strong>✓ Selected client: ${esc(c.client_name)}</strong><br><small>${esc(c.cell_number||'')} ${c.account_number?' • '+esc(c.account_number):''} ${c.email?' • '+esc(c.email):''}</small>`;
-    results.style.display='none'; setPotential(false); loadSnapshot(c.id);
+    results.style.display='none'; setPotential(false); mobileCustomerActions(c); loadSnapshot(c.id);
   }
   async function doSearch(){
     const q=search.value.trim(); clientId.value=''; selected.hidden=true; document.getElementById('customer-snapshot').innerHTML='';
@@ -169,6 +190,7 @@
   if(requestedFixedAccountId){
     fetch(`${basePath}/fixed/accounts/${encodeURIComponent(requestedFixedAccountId)}/json`,{headers:{Accept:'application/json'}})
       .then(r=>r.json()).then(data=>{if(!data?.account)return;const a=data.account;document.getElementById('service_type').value='fixed';document.getElementById('fixed_account_id').value=a.id;document.getElementById('client_name').value=a.contact_name||a.customer_name||'';document.getElementById('cell_number').value=a.contact_number||'';document.getElementById('email').value=a.email||'';selected.hidden=false;selected.innerHTML=`<strong>✓ Fixed account selected: ${esc(a.customer_name)}</strong><br><small>${esc(a.account_number)} · ${data.services.length} fixed service(s)</small>`;document.getElementById('customer-snapshot').innerHTML=`<div class="snapshot"><div class="snapshot-header"><div><div class="eyebrow">Fixed Customer</div><h3>${esc(a.customer_name)}</h3><p>${esc(a.account_number)}</p></div><div class="snapshot-lines"><span>Services</span><strong>${data.services.length}</strong></div></div>${data.services.length?`<label>Related fixed service<select id="fixed-service-picker"><option value="">Whole account / not selected</option>${data.services.map(s=>`<option value="${s.id}">${esc(s.branch_name||s.solution_id||'Service')} · ${esc(s.solution_id||'')}</option>`).join('')}</select></label>`:''}</div>`;const picker=document.getElementById('fixed-service-picker');if(picker)picker.addEventListener('change',()=>document.getElementById('fixed_service_id').value=picker.value)}).catch(()=>{});
+    fetch(`${basePath}/fixed/accounts/${encodeURIComponent(requestedFixedAccountId)}/json`,{headers:{Accept:'application/json'}}).then(r=>r.json()).then(data=>{if(data?.account)fixedCustomerActions(data.account)}).catch(()=>{});
   }
   form.querySelectorAll('button[type=submit]').forEach(b=>b.addEventListener('click',()=>submitMode=b.dataset.mode||'stay'));
   form.addEventListener('submit',async e=>{
@@ -196,11 +218,12 @@
     results.innerHTML='';
     results.style.display='none';
     document.getElementById('customer-snapshot').innerHTML='';
+    customerActions.hidden=true;
     setPotential(false);
     clearQuickContact();
   }
-  clearNewInquiryFields();
+  if(!requestedClientId && !requestedFixedAccountId && !requestedPhone) clearNewInquiryFields();
   window.addEventListener('pageshow', (event)=>{ if(event.persisted) clearNewInquiryFields(); });
-  setTimeout(()=>{ if(!clientId.value && !search.value.trim()) clearNewInquiryFields(); },150);
+  if(!requestedClientId && !requestedFixedAccountId && !requestedPhone)setTimeout(()=>{ if(!clientId.value && !search.value.trim()) clearNewInquiryFields(); },150);
 })();
 </script>

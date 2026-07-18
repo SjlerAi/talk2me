@@ -10,7 +10,10 @@ const packageInfo = require('./package.json');
 const app = express();
 app.set('trust proxy', 1);
 
-const BASE_PATH = process.env.BASE_PATH || '/talk2me';
+const configuredBasePath = String(process.env.BASE_PATH || '/talk2me').trim();
+const BASE_PATH = configuredBasePath === '/'
+  ? ''
+  : '/' + configuredBasePath.split('/').filter(Boolean).join('/');
 const PORT = process.env.PORT || 3000;
 const sessionSecure = String(process.env.SESSION_SECURE || 'false').toLowerCase() === 'true';
 const EIGHT_HOURS_MS = 8 * 60 * 60 * 1000;
@@ -81,14 +84,14 @@ app.use((req, res, next) => {
 // Register both root and /talk2me paths. This makes the app work whether cPanel/Passenger
 // strips the Application URL prefix or passes it through to Express.
 app.use('/public', express.static(path.join(__dirname, 'public')));
-app.use(`${BASE_PATH}/public`, express.static(path.join(__dirname, 'public')));
+if (BASE_PATH) app.use(`${BASE_PATH}/public`, express.static(path.join(__dirname, 'public')));
 
 const routes = require('./src/routes');
 app.use('/', routes);
-if (BASE_PATH && BASE_PATH !== '/') app.use(BASE_PATH, routes);
+if (BASE_PATH) app.use(BASE_PATH, routes);
 
 app.get('/', (req, res) => res.redirect(`${BASE_PATH}/login`));
-if (BASE_PATH && BASE_PATH !== '/') app.get(BASE_PATH, (req, res) => res.redirect(`${BASE_PATH}/login`));
+if (BASE_PATH) app.get(BASE_PATH, (req, res) => res.redirect(`${BASE_PATH}/login`));
 
 app.use((req, res) => res.status(404).render('error', { title: 'Not found', message: 'Page not found' }));
 app.use((err, req, res, next) => {
