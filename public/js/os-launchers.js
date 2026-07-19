@@ -25,9 +25,42 @@
     setTimeout(() => node.remove(), 3500);
   }
 
+  function popupGeometry() {
+    const availableWidth = Number(window.screen?.availWidth || window.outerWidth || 1366);
+    const availableHeight = Number(window.screen?.availHeight || window.outerHeight || 768);
+    const width = Math.max(760, Math.min(1180, availableWidth - 180));
+    const height = Math.max(560, Math.min(760, availableHeight - 140));
+    const browserLeft = Number(window.screenX ?? window.screenLeft ?? 0);
+    const browserTop = Number(window.screenY ?? window.screenTop ?? 0);
+    const browserWidth = Number(window.outerWidth || availableWidth);
+    const browserHeight = Number(window.outerHeight || availableHeight);
+    const left = Math.max(0, Math.round(browserLeft + (browserWidth - width) / 2));
+    const top = Math.max(0, Math.round(browserTop + (browserHeight - height) / 2));
+    return { width, height, left, top };
+  }
+
   function openSeparate(item, key) {
-    const child = window.open(item.portal_url, `talk2me-${key}`, 'noopener,noreferrer');
-    if (!child) toast(`${item.display_name} could not open`, 'Allow pop-ups for this Talk2Me site and try again.');
+    const size = popupGeometry();
+    const features = [
+      'popup=yes',
+      `width=${size.width}`,
+      `height=${size.height}`,
+      `left=${size.left}`,
+      `top=${size.top}`,
+      'resizable=yes',
+      'scrollbars=yes',
+      'status=yes'
+    ].join(',');
+
+    const child = window.open('about:blank', `talk2me-${key}`, features);
+    if (!child) {
+      toast(`${item.display_name} could not open`, 'Allow pop-ups for this Talk2Me site and try again.');
+      return;
+    }
+
+    try { child.opener = null; } catch (_) {}
+    try { child.location.replace(item.portal_url); } catch (_) { child.location.href = item.portal_url; }
+    try { child.focus(); } catch (_) {}
   }
 
   function openManagedLauncher(key) {
@@ -52,7 +85,7 @@
       width: 1120,
       height: 690,
       render(body) {
-        body.innerHTML = `<div style="height:100%;display:grid;grid-template-rows:auto 1fr"><div class="t2m-os-supplier-toolbar"><div><strong>${esc(item.display_name)}</strong><small style="display:block">This site may block embedded access. Use the separate-window button when it does.</small></div><button class="t2m-os-secondary-button" type="button">Open separately ↗</button></div><iframe title="${esc(item.display_name)}" src="${esc(item.portal_url)}"></iframe></div>`;
+        body.innerHTML = `<div style="height:100%;display:grid;grid-template-rows:auto 1fr"><div class="t2m-os-supplier-toolbar"><div><strong>${esc(item.display_name)}</strong><small style="display:block">This site may block embedded access. Use the floating-window button when it does.</small></div><button class="t2m-os-secondary-button" type="button">Open floating window ↗</button></div><iframe title="${esc(item.display_name)}" src="${esc(item.portal_url)}"></iframe></div>`;
         body.querySelector('button').onclick = () => openSeparate(item, key);
       }
     });
