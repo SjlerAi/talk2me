@@ -1,2 +1,13 @@
-<section class="page-head"><div><div class="eyebrow">Account <%= client.canonical_account_number %></div><h1>Request Mobile Line</h1><p>The line will be added after an owner or manager approves it.</p></div><a class="btn" href="<%= typeof backUrl!=='undefined'?backUrl:basePath+'/customers/'+client.id+'/360' %>">Back</a></section>
-<form class="panel form-grid" method="post" action="<%= typeof formAction!=='undefined'?formAction:'' %>"><div><label>Unique account</label><input value="<%= client.canonical_account_number %>" readonly></div><div><label>Line user / customer</label><input name="client_name" value="<%= client.client_name %>" required></div><div><label>Cellphone number</label><input name="cell_number" required></div><div><label>Email</label><input type="email" name="email" value="<%= client.email||'' %>"></div><div><label>Package</label><input name="package_name"></div><div><label>Handset</label><input name="handset"></div><div><label>Previous upgrade date</label><input type="date" name="previous_upgrade_date"></div><div><label>Contract term</label><select name="contract_term_months"><option value="24">24 months</option><option value="36">36 months</option></select></div><div class="full"><button class="btn primary">Send Mobile Line for Approval</button></div></form>
+<section class="page-head"><div><div class="eyebrow"><%= provisional ? 'Provisional account' : 'Account '+client.canonical_account_number %></div><h1><%= provisional ? 'Add Mobile Line Now' : 'Request Mobile Line' %></h1><p><%= provisional ? 'Capture the line now. Management will assign the official account number afterward.' : 'The line will be added after an owner or manager approves it.' %></p></div><a class="btn" href="<%= typeof backUrl!=='undefined'?backUrl:basePath+'/customers/'+client.id+'/360' %>">Back</a></section>
+<form class="panel form-grid" method="post" action="<%= typeof formAction!=='undefined'?formAction:'' %>">
+  <div><label>Account status</label><input value="<%= client.canonical_account_number %>" readonly></div>
+  <div><label>Line user / customer</label><input name="client_name" value="<%= client.client_name %>" required></div>
+  <div><label>Cellphone number</label><input name="cell_number" required></div>
+  <div><label>Email</label><input type="email" name="email" value="<%= client.email||'' %>"></div>
+  <div><label>Package</label><input name="package_name"></div>
+  <div><label>Handset</label><input name="handset"></div>
+  <div><label>Previous upgrade date</label><input type="date" name="previous_upgrade_date"></div>
+  <div><label>Contract term</label><select name="contract_term_months"><option value="24">24 months</option><option value="36">36 months</option></select></div>
+  <% if (provisional) { %><div class="full"><div class="notice warning"><strong>Pending account number</strong><p>The customer and line will be saved immediately. A manager approval request will be created automatically.</p></div></div><% } %>
+  <div class="full"><button class="btn primary"><%= provisional ? 'Save Line and Request Account Number' : 'Send Mobile Line for Approval' %></button></div>
+</form>
