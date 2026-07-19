@@ -64,6 +64,7 @@ app.use((req, res, next) => {
   res.locals.appBuild = process.env.APP_BUILD || '2026-07-13';
   res.locals.panelMode = String(req.query.panel || '') === '1';
   res.locals.voipUrlTemplate = process.env.VOIP_URL_TEMPLATE || '';
+  res.locals.unreadTaskCount = 0;
   next();
 });
 
