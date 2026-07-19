@@ -8,8 +8,4 @@ CREATE TABLE IF NOT EXISTS staff_notes (
   reminder_at DATETIME NULL,
   related_client_id BIGINT UNSIGNED NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  archived_at DATETIME NULL,
-  PRIMARY KEY (id),
-  KEY idx_staff_notes_user_active (staff_user_id, is_archived, is_pinned, updated_at),
-  KEY idx_staff_notes_client (related_client_id),
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT
