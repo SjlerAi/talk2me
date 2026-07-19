@@ -1,12 +1,12 @@
 {
   "name": "talk2me-crm",
-  "version": "6.0.0-alpha.7",
-  "description": "Talk2Me OS v6 alpha 7 - provisional fixed services and duplicate-number inquiry preservation",
+  "version": "6.0.0-alpha.8",
+  "description": "Talk2Me OS v6 alpha 8 - safe pending-account customer workspace and continued mobile/fixed actions",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
-    "check": "node --check server.js && node --check src/routes/os.js && node --check src/routes/os-operations.js && node --check public/js/os-v6.js",
+    "check": "node --check server.js && node --check src/routes/os.js && node --check src/routes/os-operations.js && node --check src/routes/customer-360-safe.js && node --check public/js/os-v6.js",
     "digest:staff-work": "node scripts/send-staff-work-digest.js",
     "digest:owner": "node scripts/send-owner-daily-brief.js",
     "digest:staff-clients": "node scripts/send-staff-client-digest.js"
