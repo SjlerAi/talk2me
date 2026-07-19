@@ -8,4 +8,73 @@ CREATE TABLE IF NOT EXISTS staff_notes (
   reminder_at DATETIME NULL,
   related_client_id BIGINT UNSIGNED NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT
+  updated_at DATETIME NULL,
+  archived_at DATETIME NULL,
+  PRIMARY KEY (id),
+  KEY idx_staff_notes_user_active (staff_user_id,is_archived,is_pinned,updated_at),
+  KEY idx_staff_notes_client (related_client_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS customer_followups (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  client_id BIGINT UNSIGNED NOT NULL,
+  customer_name VARCHAR(200) NOT NULL,
+  contact_number VARCHAR(40) NULL,
+  reason VARCHAR(255) NOT NULL,
+  notes TEXT NULL,
+  scheduled_at DATETIME NOT NULL,
+  assigned_to BIGINT UNSIGNED NOT NULL,
+  created_by BIGINT UNSIGNED NOT NULL,
+  status VARCHAR(30) NOT NULL DEFAULT 'open',
+  completed_at DATETIME NULL,
+  completed_by BIGINT UNSIGNED NULL,
+  archived_at DATETIME NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NULL,
+  PRIMARY KEY (id),
+  KEY idx_customer_followups_assigned (assigned_to,status,scheduled_at),
+  KEY idx_customer_followups_client (client_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS customer_callbacks (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  client_id BIGINT UNSIGNED NOT NULL,
+  customer_name VARCHAR(200) NOT NULL,
+  contact_number VARCHAR(40) NOT NULL,
+  reason VARCHAR(255) NOT NULL,
+  notes TEXT NULL,
+  scheduled_at DATETIME NOT NULL,
+  assigned_to BIGINT UNSIGNED NOT NULL,
+  created_by BIGINT UNSIGNED NOT NULL,
+  status VARCHAR(30) NOT NULL DEFAULT 'scheduled',
+  completed_at DATETIME NULL,
+  completed_by BIGINT UNSIGNED NULL,
+  archived_at DATETIME NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NULL,
+  PRIMARY KEY (id),
+  KEY idx_customer_callbacks_assigned (assigned_to,status,scheduled_at),
+  KEY idx_customer_callbacks_client (client_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS sales_prospects (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  prospect_name VARCHAR(200) NOT NULL,
+  cell_number VARCHAR(40) NULL,
+  email VARCHAR(255) NULL,
+  city_town VARCHAR(150) NULL,
+  lead_source VARCHAR(150) NULL,
+  interest TEXT NULL,
+  next_action_at DATETIME NULL,
+  assigned_to BIGINT UNSIGNED NOT NULL,
+  created_by BIGINT UNSIGNED NOT NULL,
+  status VARCHAR(30) NOT NULL DEFAULT 'new',
+  converted_at DATETIME NULL,
+  converted_by BIGINT UNSIGNED NULL,
+  archived_at DATETIME NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NULL,
+  PRIMARY KEY (id),
+  KEY idx_sales_prospects_assigned (assigned_to,status,next_action_at),
+  KEY idx_sales_prospects_contact (cell_number,email)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
