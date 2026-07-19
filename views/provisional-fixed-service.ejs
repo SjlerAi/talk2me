@@ -1,0 +1,18 @@
+<section class="page-head"><div><div class="eyebrow">Provisional fixed service</div><h1>Add Fixed Service Now</h1><p>Capture the service now. Management will assign the official account number afterward.</p></div><a class="btn" href="<%= basePath %>/customers/<%= client.id %>/360">Back</a></section>
+<form class="panel form-grid" method="post" action="<%= basePath %>/customers/<%= client.id %>/request-provisional-fixed-service">
+  <div><label>Account status</label><input value="Pending manager allocation" readonly></div>
+  <div><label>Customer</label><input value="<%= client.client_name||'' %>" readonly></div>
+  <div><label>Branch / site</label><input name="branch_name"></div>
+  <div><label>Solution ID</label><input name="solution_id"></div>
+  <div><label>Order number</label><input name="order_number"></div>
+  <div><label>Router model</label><input name="router_model"></div>
+  <div><label>MAC address</label><input name="mac_address"></div>
+  <div><label>Technical SIM number</label><input name="sim_number"></div>
+  <div><label>Package</label><input name="package_name"></div>
+  <div><label>Activation date</label><input type="date" name="activation_date"></div>
+  <div><label>Service status</label><select name="service_status"><option value="pending">Pending</option><option value="active">Active</option><option value="unknown">Unknown</option></select></div>
+  <div class="full"><label>Installation address</label><input name="installation_address"></div>
+  <div class="full"><label>Technical notes</label><textarea name="technical_notes" rows="4"></textarea></div>
+  <div class="full"><div class="notice warning"><strong>Pending account number</strong><p>The fixed-service request will be saved immediately and sent to management for account allocation.</p></div></div>
+  <div class="full"><button class="btn primary" type="submit">Save Fixed Service and Request Account Number</button></div>
+</form>
