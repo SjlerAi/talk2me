@@ -117,6 +117,9 @@ self.addEventListener('install', event => {
 self.addEventListener('activate', event => {
   event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key.startsWith('talk2me-static-') && key !== CACHE_NAME).map(key => caches.delete(key)))).then(() => self.clients.claim()));
 });
+self.addEventListener('message', event => {
+  if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
+});
 self.addEventListener('fetch', event => {
   const request = event.request;
   if (request.method !== 'GET') return;
@@ -162,6 +165,10 @@ if (BASE_PATH) app.use(BASE_PATH, osLauncherSettings);
 const osOperations = require('./src/routes/os-operations');
 app.use('/', osOperations);
 if (BASE_PATH) app.use(BASE_PATH, osOperations);
+
+const osProductivity = require('./src/routes/os-productivity');
+app.use('/', osProductivity);
+if (BASE_PATH) app.use(BASE_PATH, osProductivity);
 
 const osRoutes = require('./src/routes/os');
 app.use('/', osRoutes);
