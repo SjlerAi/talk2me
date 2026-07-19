@@ -1,7 +1,7 @@
 {
   "name": "talk2me-crm",
-  "version": "6.0.0-alpha.4",
-  "description": "Talk2Me OS v6 alpha 4 - improved contrast, dominant search and clickable desk widgets",
+  "version": "6.0.0-alpha.5",
+  "description": "Talk2Me OS v6 alpha 5 - corrected window stacking and improved sidebar contrast",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
