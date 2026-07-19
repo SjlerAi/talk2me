@@ -4,14 +4,27 @@ const { requireAuth } = require('../middleware/auth');
 
 const router = express.Router();
 const DEFAULTS = [
-  { slot_key: 'slot_1', display_name: 'Vodacom', icon_text: 'V', portal_url: '', sort_order: 1, is_enabled: 1 },
-  { slot_key: 'slot_2', display_name: 'MTN', icon_text: 'MTN', portal_url: '', sort_order: 2, is_enabled: 1 },
-  { slot_key: 'slot_3', display_name: 'Telkom', icon_text: 'T', portal_url: '', sort_order: 3, is_enabled: 1 },
-  { slot_key: 'slot_4', display_name: 'Sage', icon_text: 'S', portal_url: '', sort_order: 4, is_enabled: 1 }
+  { slot_key: 'slot_1', display_name: 'Vodacom', icon_text: 'V', portal_url: '', open_mode: 'separate', sort_order: 1, is_enabled: 1 },
+  { slot_key: 'slot_2', display_name: 'MTN', icon_text: 'MTN', portal_url: '', open_mode: 'separate', sort_order: 2, is_enabled: 1 },
+  { slot_key: 'slot_3', display_name: 'Telkom', icon_text: 'T', portal_url: '', open_mode: 'separate', sort_order: 3, is_enabled: 1 },
+  { slot_key: 'slot_4', display_name: 'Sage', icon_text: 'S', portal_url: '', open_mode: 'separate', sort_order: 4, is_enabled: 1 }
 ];
 
 function isOwner(user) {
   return Boolean(user && ['owner', 'admin'].includes(user.role));
+}
+
+async function ensureOpenModeColumn() {
+  const [[column]] = await db.execute(`SELECT COUNT(*) total
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA=DATABASE()
+      AND TABLE_NAME='os_external_launchers'
+      AND COLUMN_NAME='open_mode'`);
+  if (!Number(column?.total || 0)) {
+    await db.execute(`ALTER TABLE os_external_launchers
+      ADD COLUMN open_mode ENUM('embedded','separate') NOT NULL DEFAULT 'separate'
+      AFTER portal_url`);
+  }
 }
 
 async function ensureTable() {
@@ -21,6 +34,7 @@ async function ensureTable() {
     display_name VARCHAR(100) NOT NULL,
     icon_text VARCHAR(12) NOT NULL,
     portal_url VARCHAR(1000) NULL,
+    open_mode ENUM('embedded','separate') NOT NULL DEFAULT 'separate',
     sort_order INT NOT NULL DEFAULT 0,
     is_enabled TINYINT(1) NOT NULL DEFAULT 1,
     updated_by INT NULL,
@@ -30,17 +44,19 @@ async function ensureTable() {
     UNIQUE KEY uq_os_external_launchers_slot (slot_key)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
 
+  await ensureOpenModeColumn();
+
   for (const item of DEFAULTS) {
     await db.execute(`INSERT INTO os_external_launchers
-      (slot_key,display_name,icon_text,portal_url,sort_order,is_enabled)
-      VALUES (:slot_key,:display_name,:icon_text,NULL,:sort_order,:is_enabled)
+      (slot_key,display_name,icon_text,portal_url,open_mode,sort_order,is_enabled)
+      VALUES (:slot_key,:display_name,:icon_text,NULL,:open_mode,:sort_order,:is_enabled)
       ON DUPLICATE KEY UPDATE slot_key=VALUES(slot_key)`, item);
   }
 }
 
 async function loadLaunchers() {
   await ensureTable();
-  const [rows] = await db.query(`SELECT id,slot_key,display_name,icon_text,portal_url,sort_order,is_enabled
+  const [rows] = await db.query(`SELECT id,slot_key,display_name,icon_text,portal_url,open_mode,sort_order,is_enabled
     FROM os_external_launchers ORDER BY sort_order,id`);
   return rows;
 }
@@ -79,15 +95,18 @@ router.post('/backoffice/os-launchers', requireAuth, async (req, res, next) => {
       const displayName = String(req.body[`display_name_${key}`] || '').trim().slice(0, 100);
       const iconText = String(req.body[`icon_text_${key}`] || '').trim().slice(0, 12);
       const portalUrl = String(req.body[`portal_url_${key}`] || '').trim();
+      const openMode = req.body[`open_mode_${key}`] === 'embedded' ? 'embedded' : 'separate';
       const isEnabled = req.body[`is_enabled_${key}`] === '1' ? 1 : 0;
       if (!displayName) throw new Error('Every enabled launcher must have a display name.');
       if (portalUrl && !/^https:\/\//i.test(portalUrl)) throw new Error(`${displayName} must use an https:// address.`);
       await db.execute(`UPDATE os_external_launchers SET
-        display_name=:displayName,icon_text=:iconText,portal_url=:portalUrl,is_enabled=:isEnabled,updated_by=:updatedBy
+        display_name=:displayName,icon_text=:iconText,portal_url=:portalUrl,open_mode=:openMode,
+        is_enabled=:isEnabled,updated_by=:updatedBy
         WHERE slot_key=:key`, {
         displayName,
         iconText: iconText || displayName.slice(0, 1).toUpperCase(),
         portalUrl: portalUrl || null,
+        openMode,
         isEnabled,
         updatedBy: req.session.user.id,
         key

@@ -1,6 +1,7 @@
 <section class="page-head"><div><div class="eyebrow">Owner configuration</div><h1>Workstation Launchers</h1><p>Control the four external-system buttons shown across every Talk2Me workstation.</p></div><a class="btn" href="<%= basePath %>/backoffice">Back to Administration</a></section>
 <% if(saved){ %><div class="success-box">Workstation launcher settings were saved. Refresh the workstation to see the changes.</div><% } %>
 <% if(error){ %><div class="error-box"><strong>Settings not saved</strong><p><%= error %></p></div><% } %>
+<div class="panel" style="margin-bottom:18px"><strong>Important:</strong> Many external sites block opening inside another website. Use <em>Open in separate window</em> for Vodacom and any other portal that displays a blocked or prohibited symbol.</div>
 <form class="panel form-grid" method="post" action="<%= basePath %>/backoffice/os-launchers">
   <% launchers.forEach(item=>{ %>
   <div class="full panel" style="margin:0">
@@ -9,6 +10,7 @@
       <div><label>Display name</label><input name="display_name_<%= item.slot_key %>" value="<%= item.display_name %>" maxlength="100" required><small>This is the wording staff see on the top button and window title.</small></div>
       <div><label>Button icon / initials</label><input name="icon_text_<%= item.slot_key %>" value="<%= item.icon_text %>" maxlength="12"><small>Examples: V, MTN, T, S, CRM.</small></div>
       <div class="full"><label>Secure portal URL</label><input type="url" name="portal_url_<%= item.slot_key %>" value="<%= item.portal_url||'' %>" placeholder="https://..."><small>Leave blank until the correct external system address is available.</small></div>
+      <div class="full"><label>How should this system open?</label><select name="open_mode_<%= item.slot_key %>"><option value="separate" <%= item.open_mode!=='embedded'?'selected':'' %>>Open in separate browser window — recommended</option><option value="embedded" <%= item.open_mode==='embedded'?'selected':'' %>>Open inside Talk2Me workspace — only when supported</option></select><small>External suppliers often prevent embedded access for security reasons. Separate-window mode avoids the blocked screen shown in the workstation.</small></div>
     </div>
   </div>
   <% }) %>
