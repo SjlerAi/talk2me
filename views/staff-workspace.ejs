@@ -1,17 +1,67 @@
-<section class="os6-shell" aria-label="Talk2Me OS workspace">
-  <nav class="os6-launchbar" aria-label="Primary launchers">
-    <button type="button" class="os6-launch os6-launch-customer" onclick="document.getElementById('universal-client-search').focus()"><span>⌕</span><strong>Customer</strong></button>
-    <% [1,2,3].forEach(number=>{ %>
-      <button type="button" class="os6-launch" data-supplier-open="<%= number %>"><span>↗</span><strong data-supplier-name="<%= number %>">Supplier <%= number %></strong></button>
-    <% }) %>
+<section class="os6-shell" id="os6-shell" aria-label="Talk2Me OS workspace">
+  <nav class="os6-launchbar" aria-label="Applications">
+    <button type="button" class="os6-launch primary" data-os6-focus-search><span>⌕</span><strong>Customer</strong></button>
+    <% [1,2,3].forEach(number=>{ %><button type="button" class="os6-launch" data-supplier-open="<%= number %>"><span>↗</span><strong data-supplier-name="<%= number %>">Supplier <%= number %></strong></button><% }) %>
+    <button type="button" class="os6-launch" data-os6-app="new-inquiry" data-title="New inquiry" data-url="<%= basePath %>/queries/new"><span>＋</span><strong>Inquiry</strong></button>
   </nav>
 
   <main class="os6-desktop" id="os6-desktop">
-    <div class="os6-empty-state" id="os6-empty-state">
-      <div class="os6-mark">T</div>
-      <strong>Talk2Me</strong>
-      <span>Select a launcher or search for a customer.</span>
-    </div>
+    <div class="os6-empty-state" id="os6-empty-state"><div class="os6-mark">T</div><strong>Talk2Me</strong><span>Ready</span></div>
+  </main>
 
-    <section class="os6-window os6-window-active" data-os6-window="queue" hidden>
-      <header><
+  <footer class="os6-dock" aria-label="Dock">
+    <button type="button" data-os6-app="queue" data-title="Work Queue" data-url="<%= basePath %>/work-centre?view=all"><span>☷</span>Queue<em><%= stats.open %></em></button>
+    <button type="button" data-os6-app="tasks" data-title="Tasks" data-url="<%= basePath %>/tasks"><span>✓</span>Tasks<em><%= stats.tasks %></em></button>
+    <button type="button" data-os6-app="messages" data-title="Messages" data-url="<%= basePath %>/tasks"><span>✉</span>Messages<em><%= stats.tasks %></em></button>
+    <button type="button" data-os6-app="calendar" data-title="Calendar" data-url="<%= basePath %>/tasks"><span>□</span>Calendar</button>
+    <% if(['owner','manager','admin'].includes(String(currentUser.role).toLowerCase())){ %><button type="button" data-os6-app="reports" data-title="Reports" data-url="<%= basePath %>/reports"><span>▥</span>Reports</button><% } %>
+  </footer>
+</section>
+
+<template id="os6-window-template">
+  <section class="os6-window" role="dialog">
+    <header class="os6-window-bar"><strong></strong><div><button type="button" data-os6-min title="Minimise">—</button><button type="button" data-os6-max title="Maximise">□</button><button type="button" data-os6-close title="Close">×</button></div></header>
+    <div class="os6-window-body"><iframe title="Talk2Me application"></iframe></div>
+  </section>
+</template>
+
+<script>
+(()=>{
+  const desktop=document.getElementById('os6-desktop'), empty=document.getElementById('os6-empty-state'), template=document.getElementById('os6-window-template');
+  const windows=new Map(); let z=20, cascade=0;
+  const supplierKey='talk2me-supplier-launchers-v1';
+  const defaults=[null,{name:'Vodacom',url:''},{name:'MTN',url:''},{name:'Telkom',url:''}];
+  let suppliers; try{suppliers=JSON.parse(localStorage.getItem(supplierKey))||defaults}catch(_){suppliers=defaults}
+  const showEmpty=()=>empty.hidden=[...windows.values()].some(w=>!w.hidden);
+  function activate(win){z+=1;win.style.zIndex=z;document.querySelectorAll('.os6-window').forEach(w=>w.classList.toggle('active',w===win));}
+  function openWindow(id,title,url,external=false){
+    let win=windows.get(id);
+    if(win){win.hidden=false;win.classList.remove('minimised');activate(win);showEmpty();return win;}
+    win=template.content.firstElementChild.cloneNode(true); win.dataset.windowId=id;
+    win.querySelector('header strong').textContent=title;
+    const frame=win.querySelector('iframe'); frame.src=url; frame.title=title;
+    cascade=(cascade+28)%196;win.style.left=(28+cascade)+'px';win.style.top=(24+cascade/2)+'px';
+    desktop.appendChild(win);windows.set(id,win);activate(win);showEmpty();makeDraggable(win);
+    win.querySelector('[data-os6-close]').onclick=()=>{win.remove();windows.delete(id);showEmpty()};
+    win.querySelector('[data-os6-min]').onclick=()=>{win.hidden=true;showEmpty()};
+    win.querySelector('[data-os6-max]').onclick=()=>{win.classList.toggle('maximised');activate(win)};
+    win.addEventListener('mousedown',()=>activate(win));
+    if(external){const note=document.createElement('a');note.className='os6-external';note.href=url;note.target='_blank';note.rel='noopener';note.textContent='Open in separate secure tab';win.querySelector('.os6-window-body').appendChild(note)}
+    return win;
+  }
+  function makeDraggable(win){
+    const bar=win.querySelector('.os6-window-bar');let sx=0,sy=0,sl=0,st=0,drag=false;
+    bar.addEventListener('pointerdown',e=>{if(e.target.closest('button')||win.classList.contains('maximised'))return;drag=true;sx=e.clientX;sy=e.clientY;sl=win.offsetLeft;st=win.offsetTop;bar.setPointerCapture(e.pointerId);activate(win)});
+    bar.addEventListener('pointermove',e=>{if(!drag)return;win.style.left=Math.max(0,sl+e.clientX-sx)+'px';win.style.top=Math.max(0,st+e.clientY-sy)+'px'});
+    bar.addEventListener('pointerup',()=>drag=false);
+  }
+  function configureSupplier(n){const current=suppliers[n]||defaults[n];const name=prompt('Supplier name',current.name);if(name===null)return null;const url=prompt('Secure portal URL (https://...)',current.url||'https://');if(url===null)return null;if(url&&!/^https:\/\//i.test(url)){alert('URL must start with https://');return null}suppliers[n]={name:name.trim()||defaults[n].name,url:url.trim()};localStorage.setItem(supplierKey,JSON.stringify(suppliers));paintSuppliers();return suppliers[n]}
+  function paintSuppliers(){[1,2,3].forEach(n=>{document.querySelectorAll(`[data-supplier-name="${n}"]`).forEach(el=>el.textContent=(suppliers[n]||defaults[n]).name)})}
+  document.querySelectorAll('[data-supplier-open]').forEach(btn=>btn.onclick=()=>{const n=Number(btn.dataset.supplierOpen);let item=suppliers[n]||defaults[n];if(!item.url)item=configureSupplier(n);if(item&&item.url)openWindow('supplier-'+n,item.name,item.url,true)});
+  document.querySelectorAll('[data-os6-app]').forEach(btn=>btn.onclick=()=>openWindow(btn.dataset.os6App,btn.dataset.title,btn.dataset.url));
+  document.querySelectorAll('[data-os6-focus-search]').forEach(btn=>btn.onclick=()=>document.getElementById('universal-client-search')?.focus());
+  document.addEventListener('click',e=>{const link=e.target.closest('#universal-client-results a');if(!link)return;e.preventDefault();const title=link.querySelector('strong')?.textContent?.trim()||'Customer';openWindow('customer-'+link.href,title,link.href);document.getElementById('universal-client-results').innerHTML='';});
+  document.addEventListener('click',e=>{const link=e.target.closest('[data-command-panel]');if(!link||link.closest('#universal-client-results'))return;if(!document.getElementById('os6-shell'))return;e.preventDefault();openWindow('page-'+link.href,link.textContent.trim().slice(0,50)||'Talk2Me',link.href)});
+  paintSuppliers();showEmpty();addEventListener('workspace:refresh',()=>windows.forEach(w=>{const f=w.querySelector('iframe');if(f)f.src=f.src}));
+})();
+</script>
