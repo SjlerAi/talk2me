@@ -49,7 +49,7 @@ router.get('/workspace', requireAuth, async (req, res, next) => {
   }
 });
 
-router.get('/api/os-v6/status', requireAuth, async (req, res, next) => {
+router.get('/api/os/status', requireAuth, async (req, res, next) => {
   try {
     const status = await loadOsStatus(req.session.user.id);
     res.json({
