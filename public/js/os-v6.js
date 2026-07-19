@@ -7,18 +7,18 @@
   const config = JSON.parse(configNode.textContent || '{}');
   const basePath = String(config.basePath || '');
   const layer = document.getElementById('os-window-layer');
-  const emptyState = document.getElementById('os-workspace-empty');
   const searchInput = document.getElementById('os-global-search');
   const searchResults = document.getElementById('os-search-results');
   const toastRegion = document.getElementById('os-toast-region');
+  const taskbarItems = document.getElementById('os-taskbar-items');
   const supplierKey = 'talk2me-os-v6-suppliers';
   const notesKey = `talk2me-os-v6-notes-${config.user?.id || 'user'}`;
 
   const suppliersDefault = {
-    vodacom: { name: 'Vodacom', icon: '📱', url: '' },
-    mtn: { name: 'MTN', icon: '📡', url: '' },
-    telkom: { name: 'Telkom', icon: '☎', url: '' },
-    sage: { name: 'Sage', icon: '💼', url: '' }
+    vodacom: { name: 'Vodacom', icon: 'V', url: '' },
+    mtn: { name: 'MTN', icon: 'MTN', url: '' },
+    telkom: { name: 'Telkom', icon: 'T', url: '' },
+    sage: { name: 'Sage', icon: 'S', url: '' }
   };
 
   const esc = value => String(value ?? '')
@@ -92,7 +92,7 @@
       this.render(record);
       this.focus(options.id);
       this.sync(options.appKey || options.id);
-      emptyState.hidden = true;
+      this.renderTaskbar();
       return record;
     }
 
@@ -165,18 +165,21 @@
       this.windows.forEach(item => item.node.classList.remove('is-focused'));
       record.node.classList.add('is-focused');
       record.node.style.zIndex = String(++this.z);
+      this.renderTaskbar(id);
     }
 
     minimize(id) {
       const record = this.windows.get(id); if (!record) return;
       record.minimized = true; record.node.classList.add('is-minimized');
       this.sync(record.options.appKey || id);
+      this.renderTaskbar();
     }
 
     restore(id) {
       const record = this.windows.get(id); if (!record) return;
       record.minimized = false; record.node.classList.remove('is-minimized');
       this.sync(record.options.appKey || id);
+      this.renderTaskbar(id);
     }
 
     maximize(id) {
@@ -196,7 +199,7 @@
       const record = this.windows.get(id); if (!record) return;
       const appKey = record.options.appKey || id;
       record.node.remove(); this.windows.delete(id); this.sync(appKey);
-      emptyState.hidden = this.windows.size > 0;
+      this.renderTaskbar();
     }
 
     sync(appKey) {
@@ -206,21 +209,26 @@
         button.classList.toggle('is-minimized', related.length > 0 && related.every(item => item.minimized));
       });
     }
+
+    renderTaskbar(activeId) {
+      if (!taskbarItems) return;
+      taskbarItems.innerHTML = [...this.windows.entries()].map(([id, record]) => `<button type="button" class="t2m-os-taskbar-item ${record.minimized ? 'is-minimized' : ''} ${activeId === id ? 'is-active' : ''}" data-taskbar-window="${esc(id)}"><b>${esc(record.options.icon || '▣')}</b><span>${esc(record.options.title)}</span></button>`).join('');
+    }
   }
 
   const windows = new WindowManager();
   const apps = {
-    queue: { id: 'queue', appKey: 'queue', title: 'Queue', icon: '📨', subtitle: 'Open customer work', url: `${basePath}/work-centre?view=all`, width: 1080, height: 670 },
-    tasks: { id: 'tasks', appKey: 'tasks', title: 'Tasks', icon: '✔', subtitle: 'My active work', url: `${basePath}/tasks`, width: 1000, height: 650 },
-    messages: { id: 'messages', appKey: 'messages', title: 'Messages', icon: '💬', subtitle: 'Staff communication', url: `${basePath}/tasks?view=active`, width: 960, height: 640 },
-    notifications: { id: 'notifications', appKey: 'notifications', title: 'Notifications', icon: '🔔', subtitle: 'Unread work', url: `${basePath}/tasks?view=active`, width: 900, height: 610 },
+    queue: { id: 'queue', appKey: 'queue', title: 'Queue', icon: '▤', subtitle: 'Open customer work', url: `${basePath}/work-centre?view=all`, width: 1080, height: 670 },
+    tasks: { id: 'tasks', appKey: 'tasks', title: 'Tasks', icon: '✓', subtitle: 'My active work', url: `${basePath}/tasks`, width: 1000, height: 650 },
+    messages: { id: 'messages', appKey: 'messages', title: 'Messages', icon: '●', subtitle: 'Staff communication', url: `${basePath}/tasks?view=active`, width: 960, height: 640 },
+    notifications: { id: 'notifications', appKey: 'notifications', title: 'Notifications', icon: '🔔', subtitle: 'New and overdue work', url: `${basePath}/tasks?view=active`, width: 900, height: 610 },
     reports: { id: 'reports', appKey: 'reports', title: 'Reports', icon: '▦', subtitle: 'Management information', url: config.isManagement ? `${basePath}/reports?type=birthdays` : `${basePath}/tasks`, width: 1100, height: 690 }
   };
 
   function settings() {
     windows.open({ id: 'settings', appKey: 'settings', title: 'Settings', icon: '⚙', width: 760, height: 570, render(body) {
       const suppliers = readSuppliers();
-      body.innerHTML = `<div class="t2m-os-native"><h2>Talk2Me OS Settings</h2><p>Configure secure supplier portal links for this workstation.</p><form class="t2m-os-settings-form" id="supplier-settings">${Object.entries(suppliers).map(([key, item]) => `<div class="t2m-os-settings-row"><label for="supplier-${key}">${item.icon} ${esc(item.name)}</label><input id="supplier-${key}" name="${key}" type="url" placeholder="https://..." value="${esc(item.url)}"></div>`).join('')}<button class="t2m-os-primary-button" type="submit">Save supplier links</button></form></div>`;
+      body.innerHTML = `<div class="t2m-os-native"><h2>Talk2Me OS Settings</h2><p>Configure secure supplier portal links for this workstation.</p><form class="t2m-os-settings-form" id="supplier-settings">${Object.entries(suppliers).map(([key, item]) => `<div class="t2m-os-settings-row"><label for="supplier-${key}">${esc(item.name)}</label><input id="supplier-${key}" name="${key}" type="url" placeholder="https://..." value="${esc(item.url)}"></div>`).join('')}<button class="t2m-os-primary-button" type="submit">Save supplier links</button></form></div>`;
       body.querySelector('form').onsubmit = event => {
         event.preventDefault(); const data = new FormData(event.currentTarget); const next = readSuppliers();
         for (const key of Object.keys(next)) {
@@ -235,13 +243,16 @@
 
   function native(app) {
     if (app === 'settings') return settings();
-    if (app === 'notes') return windows.open({ id: 'notes', appKey: 'notes', title: 'Notes', icon: '📝', width: 680, height: 540, render(body) {
+    if (app === 'help') return windows.open({ id: 'help', appKey: 'help', title: 'Help Centre', icon: '?', width: 760, height: 590, render(body) {
+      body.innerHTML = `<div class="t2m-os-native"><h2>Talk2Me Help Centre</h2><p>Use this area for the operating manual and role-specific guidance.</p><ul class="t2m-os-help-list"><li><strong>Customer search</strong><br>Find mobile and fixed customers from the universal search bar.</li><li><strong>Supplier systems</strong><br>Open Vodacom, MTN, Telkom or Sage from the top launcher.</li><li><strong>Tasks and messages</strong><br>Use the left menu to manage assigned work and staff communication.</li><li><strong>Windows</strong><br>Move, resize, minimise, restore or maximise any application window.</li></ul></div>`;
+    }});
+    if (app === 'notes') return windows.open({ id: 'notes', appKey: 'notes', title: 'Notes', icon: '✎', width: 680, height: 540, render(body) {
       body.innerHTML = '<div class="t2m-os-native t2m-os-notes"><div><h2>My Notes</h2><p>Private notes saved in this browser.</p></div><textarea aria-label="My notes" placeholder="Write a note…"></textarea><small>Saved locally</small></div>';
       const area = body.querySelector('textarea'); area.value = localStorage.getItem(notesKey) || '';
       area.oninput = () => localStorage.setItem(notesKey, area.value);
     }});
-    if (app === 'calendar') return windows.open({ id: 'calendar', appKey: 'calendar', title: 'Calendar', icon: '📅', width: 780, height: 560, render(body) { body.innerHTML = '<div class="t2m-os-native t2m-os-placeholder"><span>📅</span><h2>Calendar</h2><p>The OS window is ready. Calendar data will be connected in the next module.</p></div>'; }});
-    if (app === 'calculator') return windows.open({ id: 'calculator', appKey: 'calculator', title: 'Calculator', icon: '⌗', width: 430, height: 570, render(body) {
+    if (app === 'calendar') return windows.open({ id: 'calendar', appKey: 'calendar', title: 'Calendar', icon: '□', width: 780, height: 560, render(body) { body.innerHTML = '<div class="t2m-os-native t2m-os-placeholder"><span>□</span><h2>Calendar</h2><p>The calendar module will be connected in a later phase.</p></div>'; }});
+    if (app === 'calculator') return windows.open({ id: 'calculator', appKey: 'calculator', title: 'Calculator', icon: '#', width: 430, height: 570, render(body) {
       const keys = ['C','(',')','÷','7','8','9','×','4','5','6','−','1','2','3','+','0','.','⌫','='];
       body.innerHTML = `<div class="t2m-os-native"><div class="t2m-os-calculator"><input class="t2m-os-calculator-display" aria-label="Calculator display"><div class="t2m-os-calculator-grid">${keys.map(key => `<button type="button" data-key="${key}">${key}</button>`).join('')}</div></div></div>`;
       const display = body.querySelector('input'); body.onclick = event => { const button = event.target.closest('[data-key]'); if (!button) return; const key = button.dataset.key;
@@ -255,11 +266,17 @@
   }
 
   function openApp(app) { apps[app] ? windows.open(apps[app]) : native(app); }
+  function openRoute(url, title, icon = '▣') {
+    windows.open({ id: `route:${url}`, appKey: 'route', title, icon, subtitle: 'Talk2Me application', url, width: 1100, height: 690 });
+  }
+  function openCustomers() {
+    openRoute(`${basePath}/backoffice/clients`, 'Customer Centre', 'C');
+  }
 
   function openSupplier(key) {
     const supplier = readSuppliers()[key];
     if (!supplier?.url) { settings(); return toast(`${supplier?.name || 'Supplier'} not configured`, 'Add the secure portal URL in Settings.'); }
-    windows.open({ id: `supplier:${key}`, title: supplier.name, icon: supplier.icon, subtitle: 'External supplier system', width: 1120, height: 690, render(body) {
+    windows.open({ id: `supplier:${key}`, appKey: `supplier:${key}`, title: supplier.name, icon: supplier.icon, subtitle: 'External supplier system', width: 1120, height: 690, render(body) {
       body.innerHTML = `<div style="height:100%;display:grid;grid-template-rows:48px 1fr"><div class="t2m-os-supplier-toolbar"><span>${esc(supplier.url)}</span><button class="t2m-os-secondary-button" type="button">Open separately ↗</button></div><iframe title="${esc(supplier.name)}" src="${esc(supplier.url)}"></iframe></div>`;
       body.querySelector('button').onclick = () => window.open(supplier.url, `talk2me-${key}`, 'noopener,noreferrer');
     }});
@@ -268,7 +285,15 @@
   document.addEventListener('click', event => {
     const app = event.target.closest('[data-os-app]'); if (app) openApp(app.dataset.osApp);
     const supplier = event.target.closest('[data-os-supplier]'); if (supplier) openSupplier(supplier.dataset.osSupplier);
-    if (event.target.closest('[data-os-launch="customer"]')) searchInput.focus();
+    if (event.target.closest('[data-os-launch="customers"]')) openCustomers();
+    const route = event.target.closest('[data-os-route]'); if (route) openRoute(route.dataset.osRoute, route.dataset.routeTitle || 'Talk2Me', route.dataset.routeIcon || '▣');
+    const taskbar = event.target.closest('[data-taskbar-window]'); if (taskbar) {
+      const id = taskbar.dataset.taskbarWindow; const record = windows.windows.get(id);
+      if (record?.minimized) windows.restore(id); else windows.focus(id);
+    }
+    const collapse = event.target.closest('[data-widget-collapse]'); if (collapse) {
+      const widget = collapse.closest('.t2m-os-desk-widget'); widget.classList.toggle('is-collapsed'); collapse.textContent = widget.classList.contains('is-collapsed') ? '+' : '−';
+    }
     if (!event.target.closest('.t2m-os-search')) closeSearch();
   });
 
@@ -276,7 +301,7 @@
   function closeSearch() { searchResults.hidden = true; searchResults.innerHTML = ''; searchInput.setAttribute('aria-expanded', 'false'); }
   function openCustomer(row) {
     if (!row) return; const fixed = row.record_type === 'fixed';
-    windows.open({ id: `${fixed ? 'fixed' : 'customer'}:${row.id}`, appKey: 'customer', title: row.client_name || 'Customer', icon: fixed ? '☎' : '👤', subtitle: [row.account_number, row.cell_number].filter(Boolean).join(' · ') || 'Customer record', url: row.url, width: 1120, height: 700 });
+    windows.open({ id: `${fixed ? 'fixed' : 'customer'}:${row.id}`, appKey: 'customer', title: row.client_name || 'Customer', icon: fixed ? 'T' : 'C', subtitle: [row.account_number, row.cell_number].filter(Boolean).join(' · ') || 'Customer record', url: row.url, width: 1120, height: 700 });
     searchInput.value = ''; closeSearch();
   }
   async function search(query) {
@@ -284,7 +309,7 @@
     try {
       const response = await fetch(`${basePath}/search/all?q=${encodeURIComponent(query)}`, { signal: controller.signal, headers: { Accept: 'application/json' } });
       if (!response.ok) throw new Error('Search failed'); results = await response.json(); searchInput.setAttribute('aria-expanded', 'true');
-      searchResults.innerHTML = results.length ? results.map((row, index) => `<button type="button" class="t2m-os-search-result" data-result="${index}"><span>${row.record_type === 'fixed' ? '☎' : '👤'}</span><span class="t2m-os-search-result-copy"><strong>${esc(row.client_name || 'Unnamed customer')}</strong><span>${esc([row.cell_number || row.branch_name, row.account_number, row.solution_id || row.handset].filter(Boolean).join(' · '))}</span></span><small>${row.record_type === 'fixed' ? 'FIXED' : 'MOBILE'}</small></button>`).join('') : `<div class="t2m-os-search-message"><strong>No customer found</strong><br>${esc(query)}</div>`;
+      searchResults.innerHTML = results.length ? results.map((row, index) => `<button type="button" class="t2m-os-search-result" data-result="${index}"><span>${row.record_type === 'fixed' ? 'T' : 'C'}</span><span class="t2m-os-search-result-copy"><strong>${esc(row.client_name || 'Unnamed customer')}</strong><span>${esc([row.cell_number || row.branch_name, row.account_number, row.solution_id || row.handset].filter(Boolean).join(' · '))}</span></span><small>${row.record_type === 'fixed' ? 'FIXED' : 'MOBILE'}</small></button>`).join('') : `<div class="t2m-os-search-message"><strong>No customer found</strong><br>${esc(query)}</div>`;
       if (results.length === 1 && query.replace(/\D/g, '').length >= 10) openCustomer(results[0]);
     } catch (error) { if (error.name !== 'AbortError') searchResults.innerHTML = '<div class="t2m-os-search-message">Search temporarily unavailable.</div>'; }
   }
@@ -294,13 +319,15 @@
   document.addEventListener('keydown', event => { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); searchInput.focus(); } });
 
   function badge(name, value) { document.querySelectorAll(`[data-badge="${CSS.escape(name)}"]`).forEach(node => { node.textContent = String(value || 0); node.hidden = !value; }); }
+  function statusValue(name, value) { document.querySelectorAll(`[data-status="${CSS.escape(name)}"]`).forEach(node => { node.textContent = String(value || 0); }); }
   async function refresh() {
     try {
       const response = await fetch(`${basePath}/api/os/status`, { cache: 'no-store', headers: { Accept: 'application/json' } });
       if (!response.ok) return; const status = (await response.json()).status || {};
       badge('queue', status.queueCount); badge('tasks', status.taskCount); badge('messages', status.unreadMessageCount); badge('notifications', status.unreadMessageCount);
+      ['overdueTaskCount','dueTodayTaskCount','followUpTodayCount','unreadMessageCount','birthdaysTodayCount','upgradesDueCount','callbacksTodayCount','newProspectsCount'].forEach(name => statusValue(name, status[name]));
     } catch (_) {}
   }
   setInterval(refresh, 15000);
-  window.Talk2MeOS = { windows, openApp, openSupplier, refresh };
+  window.Talk2MeOS = { windows, openApp, openSupplier, openRoute, refresh };
 })();

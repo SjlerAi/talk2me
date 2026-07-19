@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title><%= title %> | Talk2Me</title>
-  <meta name="theme-color" content="#111827">
+  <meta name="theme-color" content="#202832">
   <link rel="icon" href="<%= basePath %>/public/images/favicon.ico?v=<%= encodeURIComponent(appVersion) %>">
   <link rel="stylesheet" href="<%= basePath %>/public/css/os-v6.css?v=<%= encodeURIComponent(appVersion) %>">
 </head>
@@ -29,9 +29,6 @@
         <button class="t2m-os-icon-button" type="button" data-os-app="notifications" aria-label="Notifications">
           <span aria-hidden="true">🔔</span><b class="t2m-os-badge" data-badge="notifications" <%= status.unreadMessageCount ? '' : 'hidden' %>><%= status.unreadMessageCount %></b>
         </button>
-        <button class="t2m-os-icon-button" type="button" data-os-app="messages" aria-label="Messages">
-          <span aria-hidden="true">💬</span><b class="t2m-os-badge" data-badge="messages" <%= status.unreadMessageCount ? '' : 'hidden' %>><%= status.unreadMessageCount %></b>
-        </button>
         <button class="t2m-os-user-button" type="button" data-os-app="settings" aria-label="Open user settings">
           <span class="t2m-os-avatar"><%= (currentUser.full_name || '?').slice(0, 1).toUpperCase() %></span>
           <span class="t2m-os-user-copy"><strong><%= currentUser.full_name %></strong><small><%= currentUser.role %></small></span>
@@ -40,28 +37,71 @@
       </div>
     </header>
 
-    <nav class="t2m-os-launcher" aria-label="Primary applications">
-      <button type="button" data-os-launch="customer"><span>👤</span><strong>Customer</strong></button>
-      <button type="button" data-os-supplier="vodacom"><span>📱</span><strong>Vodacom</strong></button>
-      <button type="button" data-os-supplier="mtn"><span>📡</span><strong>MTN</strong></button>
-      <button type="button" data-os-supplier="telkom"><span>☎</span><strong>Telkom</strong></button>
-      <button type="button" data-os-supplier="sage"><span>💼</span><strong>Sage</strong></button>
+    <aside class="t2m-os-sidebar" aria-label="Talk2Me applications">
+      <div class="t2m-os-sidebar-section">
+        <span class="t2m-os-sidebar-label">Work</span>
+        <button type="button" data-os-app="queue"><span>▤</span><strong>Queue</strong><b data-badge="queue" <%= status.queueCount ? '' : 'hidden' %>><%= status.queueCount %></b></button>
+        <button type="button" data-os-app="tasks"><span>✓</span><strong>Tasks</strong><b data-badge="tasks" <%= status.taskCount ? '' : 'hidden' %>><%= status.taskCount %></b></button>
+        <button type="button" data-os-app="messages"><span>●</span><strong>Messages</strong><b data-badge="messages" <%= status.unreadMessageCount ? '' : 'hidden' %>><%= status.unreadMessageCount %></b></button>
+        <button type="button" data-os-app="calendar"><span>□</span><strong>Calendar</strong></button>
+        <button type="button" data-os-app="notes"><span>✎</span><strong>Notes</strong></button>
+        <button type="button" data-os-app="calculator"><span>#</span><strong>Calculator</strong></button>
+      </div>
+
+      <div class="t2m-os-sidebar-section">
+        <span class="t2m-os-sidebar-label">Information</span>
+        <button type="button" data-os-app="reports"><span>▦</span><strong>Reports</strong></button>
+        <button type="button" data-os-app="help"><span>?</span><strong>Help</strong></button>
+        <button type="button" data-os-app="settings"><span>⚙</span><strong>Settings</strong></button>
+      </div>
+
+      <% if (isManagement) { %>
+      <div class="t2m-os-sidebar-section">
+        <span class="t2m-os-sidebar-label">Management</span>
+        <button type="button" data-os-route="<%= basePath %>/command-centre" data-route-title="Command Centre" data-route-icon="◆"><span>◆</span><strong>Command Centre</strong></button>
+        <button type="button" data-os-route="<%= basePath %>/approvals" data-route-title="Approvals" data-route-icon="✓"><span>✓</span><strong>Approvals</strong></button>
+        <button type="button" data-os-route="<%= basePath %>/upgrade-centre" data-route-title="Upgrade Centre" data-route-icon="↗"><span>↗</span><strong>Upgrades</strong></button>
+        <button type="button" data-os-route="<%= basePath %>/backoffice" data-route-title="Administration" data-route-icon="⚙"><span>⚙</span><strong>Administration</strong></button>
+      </div>
+      <% } %>
+    </aside>
+
+    <nav class="t2m-os-launcher" aria-label="Primary systems">
+      <button type="button" data-os-launch="customers"><span class="t2m-brand-mark customer">C</span><strong>Customers</strong></button>
+      <button type="button" data-os-supplier="vodacom"><span class="t2m-brand-mark vodacom">V</span><strong>Vodacom</strong></button>
+      <button type="button" data-os-supplier="mtn"><span class="t2m-brand-mark mtn">MTN</span><strong>MTN</strong></button>
+      <button type="button" data-os-supplier="telkom"><span class="t2m-brand-mark telkom">T</span><strong>Telkom</strong></button>
+      <button type="button" data-os-supplier="sage"><span class="t2m-brand-mark sage">S</span><strong>Sage</strong></button>
     </nav>
 
     <main class="t2m-os-workspace" id="os-workspace" aria-label="Talk2Me workspace">
-      <div class="t2m-os-workspace-empty" id="os-workspace-empty" aria-hidden="true"><span>Talk2Me OS</span><strong>WORKSPACE</strong></div>
+      <section class="t2m-os-desk-widgets" id="os-desk-widgets" aria-label="Today overview">
+        <article class="t2m-os-desk-widget" data-widget="work">
+          <header><div><span>My desk</span><strong>Today’s Work</strong></div><button type="button" data-widget-collapse aria-label="Collapse Today’s Work">−</button></header>
+          <div class="t2m-os-widget-body">
+            <button type="button" data-os-app="tasks"><span>Overdue tasks</span><strong data-status="overdueTaskCount"><%= status.overdueTaskCount %></strong></button>
+            <button type="button" data-os-route="<%= basePath %>/tasks?view=active" data-route-title="Tasks Due Today" data-route-icon="✓"><span>Tasks due today</span><strong data-status="dueTodayTaskCount"><%= status.dueTodayTaskCount %></strong></button>
+            <button type="button" data-os-route="<%= basePath %>/work-centre?view=all" data-route-title="Customer Follow-ups" data-route-icon="▤"><span>Customer follow-ups</span><strong data-status="followUpTodayCount"><%= status.followUpTodayCount %></strong></button>
+            <button type="button" data-os-app="messages"><span>Unread messages</span><strong data-status="unreadMessageCount"><%= status.unreadMessageCount %></strong></button>
+          </div>
+        </article>
+
+        <article class="t2m-os-desk-widget" data-widget="care">
+          <header><div><span>Opportunities</span><strong>Client Care Today</strong></div><button type="button" data-widget-collapse aria-label="Collapse Client Care Today">−</button></header>
+          <div class="t2m-os-widget-body">
+            <button type="button" data-os-route="<%= basePath %>/reports?type=birthdays" data-route-title="Birthdays Today" data-route-icon="★"><span>Birthdays</span><strong data-status="birthdaysTodayCount"><%= status.birthdaysTodayCount %></strong></button>
+            <button type="button" data-os-route="<%= basePath %>/upgrade-centre" data-route-title="Upgrade Opportunities" data-route-icon="↗"><span>Upgrades due</span><strong data-status="upgradesDueCount"><%= status.upgradesDueCount %></strong></button>
+            <button type="button" data-os-route="<%= basePath %>/work-centre?view=all" data-route-title="Scheduled Callbacks" data-route-icon="☎"><span>Scheduled callbacks</span><strong data-status="callbacksTodayCount"><%= status.callbacksTodayCount %></strong></button>
+            <button type="button" data-os-route="<%= basePath %>/backoffice/clients?view=prospects" data-route-title="New Prospects" data-route-icon="C"><span>New prospects</span><strong data-status="newProspectsCount"><%= status.newProspectsCount %></strong></button>
+          </div>
+        </article>
+      </section>
       <div class="t2m-os-window-layer" id="os-window-layer"></div>
     </main>
 
-    <footer class="t2m-os-dock" id="os-dock" aria-label="Application dock">
-      <button type="button" data-os-app="queue"><span>📨</span><strong>Queue</strong><b class="t2m-os-dock-badge" data-badge="queue" <%= status.queueCount ? '' : 'hidden' %>><%= status.queueCount %></b></button>
-      <button type="button" data-os-app="tasks"><span>✔</span><strong>Tasks</strong><b class="t2m-os-dock-badge" data-badge="tasks" <%= status.taskCount ? '' : 'hidden' %>><%= status.taskCount %></b></button>
-      <button type="button" data-os-app="messages"><span>💬</span><strong>Messages</strong><b class="t2m-os-dock-badge" data-badge="messages" <%= status.unreadMessageCount ? '' : 'hidden' %>><%= status.unreadMessageCount %></b></button>
-      <button type="button" data-os-app="calendar"><span>📅</span><strong>Calendar</strong></button>
-      <button type="button" data-os-app="notes"><span>📝</span><strong>Notes</strong></button>
-      <button type="button" data-os-app="calculator"><span>⌗</span><strong>Calculator</strong></button>
-      <button type="button" data-os-app="reports"><span>▦</span><strong>Reports</strong></button>
-      <button type="button" data-os-app="settings"><span>⚙</span><strong>Settings</strong></button>
+    <footer class="t2m-os-taskbar" id="os-taskbar" aria-label="Open windows">
+      <span class="t2m-os-taskbar-label">Open windows</span>
+      <div class="t2m-os-taskbar-items" id="os-taskbar-items"></div>
     </footer>
   </div>
 
