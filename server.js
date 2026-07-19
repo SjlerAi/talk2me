@@ -71,23 +71,21 @@ app.use((req, res, next) => {
 app.use('/public', express.static(path.join(__dirname, 'public')));
 if (BASE_PATH) app.use(`${BASE_PATH}/public`, express.static(path.join(__dirname, 'public')));
 
-// Save provisional fixed services before the legacy handlers so validation and
-// panel-aware errors remain inside the OS window instead of becoming server errors.
 const provisionalFixedSave = require('./src/routes/provisional-fixed-save');
 app.use('/', provisionalFixedSave);
 if (BASE_PATH) app.use(BASE_PATH, provisionalFixedSave);
 
-// Save provisional mobile lines before the older handlers so one route owns the
-// full duplicate check, transaction and user-facing error state.
 const provisionalMobileSave = require('./src/routes/provisional-mobile-save');
 app.use('/', provisionalMobileSave);
 if (BASE_PATH) app.use(BASE_PATH, provisionalMobileSave);
 
-// Customer 360 is mounted first so customers without an official account number
-// still open safely and show their pending account status.
 const customer360Safe = require('./src/routes/customer-360-safe');
 app.use('/', customer360Safe);
 if (BASE_PATH) app.use(BASE_PATH, customer360Safe);
+
+const osLauncherSettings = require('./src/routes/os-launcher-settings');
+app.use('/', osLauncherSettings);
+if (BASE_PATH) app.use(BASE_PATH, osLauncherSettings);
 
 const osOperations = require('./src/routes/os-operations');
 app.use('/', osOperations);

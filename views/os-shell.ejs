@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="<%= basePath %>/public/css/os-v6-alpha5.css?v=<%= encodeURIComponent(appVersion) %>">
 </head>
 <body class="t2m-os-body">
+  <% const launchers = (typeof osLaunchers !== 'undefined' && Array.isArray(osLaunchers) ? osLaunchers : []).filter(item => item.is_enabled); %>
   <div class="t2m-os-shell" id="talk2me-os">
     <header class="t2m-os-topbar">
       <a class="t2m-os-brand" href="<%= basePath %>/workspace" aria-label="Talk2Me OS home">
@@ -25,7 +26,7 @@
       </div>
       <div class="t2m-os-top-actions">
         <button class="t2m-os-icon-button" type="button" data-os-app="notifications" aria-label="Notifications"><span aria-hidden="true">🔔</span><b class="t2m-os-badge" data-badge="notifications" <%= status.unreadMessageCount ? '' : 'hidden' %>><%= status.unreadMessageCount %></b></button>
-        <button class="t2m-os-user-button" type="button" data-os-app="settings" aria-label="Open user settings"><span class="t2m-os-avatar"><%= (currentUser.full_name || '?').slice(0, 1).toUpperCase() %></span><span class="t2m-os-user-copy"><strong><%= currentUser.full_name %></strong><small><%= currentUser.role %></small></span></button>
+        <button class="t2m-os-user-button" type="button" aria-label="Signed-in user"><span class="t2m-os-avatar"><%= (currentUser.full_name || '?').slice(0, 1).toUpperCase() %></span><span class="t2m-os-user-copy"><strong><%= currentUser.full_name %></strong><small><%= currentUser.role %></small></span></button>
         <form method="post" action="<%= basePath %>/logout"><button class="t2m-os-logout" type="submit">Logout</button></form>
       </div>
     </header>
@@ -36,10 +37,13 @@
         <button type="button" data-os-app="messages"><span>●</span><strong>Messages</strong><b data-badge="messages" <%= status.unreadMessageCount ? '' : 'hidden' %>><%= status.unreadMessageCount %></b></button>
         <button type="button" data-os-app="calendar"><span>□</span><strong>Calendar</strong></button><button type="button" data-os-app="notes"><span>✎</span><strong>Notes</strong></button><button type="button" data-os-app="calculator"><span>#</span><strong>Calculator</strong></button>
       </div>
-      <div class="t2m-os-sidebar-section"><span class="t2m-os-sidebar-label">Information</span><button type="button" data-os-app="reports"><span>▦</span><strong>Reports</strong></button><button type="button" data-os-app="help"><span>?</span><strong>Help</strong></button><button type="button" data-os-app="settings"><span>⚙</span><strong>Settings</strong></button></div>
+      <div class="t2m-os-sidebar-section"><span class="t2m-os-sidebar-label">Information</span><button type="button" data-os-app="reports"><span>▦</span><strong>Reports</strong></button><button type="button" data-os-app="help"><span>?</span><strong>Help</strong></button></div>
       <% if (isManagement) { %><div class="t2m-os-sidebar-section"><span class="t2m-os-sidebar-label">Management</span><button type="button" data-os-route="<%= basePath %>/command-centre" data-route-title="Command Centre" data-route-icon="◆"><span>◆</span><strong>Command Centre</strong></button><button type="button" data-os-route="<%= basePath %>/approvals" data-route-title="Approvals" data-route-icon="✓"><span>✓</span><strong>Approvals</strong></button><button type="button" data-os-route="<%= basePath %>/upgrade-centre" data-route-title="Upgrade Centre" data-route-icon="↗"><span>↗</span><strong>Upgrades</strong></button><button type="button" data-os-route="<%= basePath %>/backoffice" data-route-title="Administration" data-route-icon="⚙"><span>⚙</span><strong>Administration</strong></button></div><% } %>
     </aside>
-    <nav class="t2m-os-launcher" aria-label="Primary systems"><button type="button" data-os-launch="customers"><span class="t2m-brand-mark customer">C</span><strong>Customers</strong></button><button type="button" data-os-supplier="vodacom"><span class="t2m-brand-mark vodacom">V</span><strong>Vodacom</strong></button><button type="button" data-os-supplier="mtn"><span class="t2m-brand-mark mtn">MTN</span><strong>MTN</strong></button><button type="button" data-os-supplier="telkom"><span class="t2m-brand-mark telkom">T</span><strong>Telkom</strong></button><button type="button" data-os-supplier="sage"><span class="t2m-brand-mark sage">S</span><strong>Sage</strong></button></nav>
+    <nav class="t2m-os-launcher" aria-label="Primary systems">
+      <button type="button" data-os-launch="customers"><span class="t2m-brand-mark customer">C</span><strong>Customers</strong></button>
+      <% launchers.forEach((item,index)=>{ %><button type="button" data-os-managed-launcher="<%= item.slot_key %>"><span class="t2m-brand-mark customer"><%= item.icon_text||item.display_name.slice(0,1) %></span><strong><%= item.display_name %></strong></button><% }) %>
+    </nav>
     <main class="t2m-os-workspace" id="os-workspace" aria-label="Talk2Me workspace">
       <section class="t2m-os-desk-widgets" id="os-desk-widgets" aria-label="Today overview">
         <article class="t2m-os-desk-widget" data-widget="work"><header><div><span>My desk</span><strong>Today’s Work</strong></div><button type="button" data-widget-collapse aria-label="Collapse Today’s Work">−</button></header><div class="t2m-os-widget-body">
@@ -59,7 +63,8 @@
     <footer class="t2m-os-taskbar" id="os-taskbar" aria-label="Open windows"><span class="t2m-os-taskbar-label">Open windows</span><div class="t2m-os-taskbar-items" id="os-taskbar-items"></div></footer>
   </div>
   <div class="t2m-os-toast-region" id="os-toast-region" aria-live="polite" aria-atomic="true"></div>
-  <script id="talk2me-os-config" type="application/json"><%- JSON.stringify({basePath,appVersion,user:{id:currentUser.id,name:currentUser.full_name,role:currentUser.role},isManagement,status}).replace(/</g, '\\u003c') %></script>
+  <script id="talk2me-os-config" type="application/json"><%- JSON.stringify({basePath,appVersion,user:{id:currentUser.id,name:currentUser.full_name,role:currentUser.role},isManagement,status,launchers}).replace(/</g, '\\u003c') %></script>
   <script defer src="<%= basePath %>/public/js/os-v6.js?v=<%= encodeURIComponent(appVersion) %>"></script>
+  <script defer src="<%= basePath %>/public/js/os-launchers.js?v=<%= encodeURIComponent(appVersion) %>"></script>
 </body>
 </html>
