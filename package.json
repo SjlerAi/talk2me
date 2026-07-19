@@ -1,12 +1,12 @@
 {
   "name": "talk2me-crm",
-  "version": "6.0.0-alpha.6",
-  "description": "Talk2Me OS v6 alpha 6 - staff-scoped work lists and provisional account-number workflow",
+  "version": "6.0.0-alpha.7",
+  "description": "Talk2Me OS v6 alpha 7 - provisional fixed services and duplicate-number inquiry preservation",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
-    "check": "node --check server.js && node --check src/routes/os.js && node --check public/js/os-v6.js",
+    "check": "node --check server.js && node --check src/routes/os.js && node --check src/routes/os-operations.js && node --check public/js/os-v6.js",
     "digest:staff-work": "node scripts/send-staff-work-digest.js",
     "digest:owner": "node scripts/send-owner-daily-brief.js",
     "digest:staff-clients": "node scripts/send-staff-client-digest.js"
