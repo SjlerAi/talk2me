@@ -1,10 +1,15 @@
 <div class="t2m-os" data-talk2me-os data-base="<%= basePath %>">
   <header class="os-topbar">
-    <div class="os-brand">
+    <a class="os-brand" href="<%= basePath %>/workspace">
       <img src="<%= basePath %>/public/images/talk2me-logo.png" alt="Talk2Me">
       <div class="os-brand-copy"><strong>TALK2ME</strong><span>OS v6</span></div>
-    </div>
+    </a>
+
     <div class="os-search">
       <span class="os-search-icon">⌕</span>
       <input data-os-search autocomplete="off" placeholder="Search customer, account, cellphone, email, SIM, IMEI or MAC">
-      <div class="
+      <div class="os-search-results" data-os-results></div>
+    </div>
+
+    <div class="os-topbar-actions">
+      <button type="button" data-launch="messages" title="Messages">💬<%
