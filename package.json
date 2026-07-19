@@ -1,7 +1,7 @@
 {
   "name": "talk2me-crm",
-  "version": "6.0.0-alpha.21.2",
-  "description": "Talk2Me OS v6 alpha 21.2 - single dashboard quick-add action per row",
+  "version": "6.0.0-alpha.21.3",
+  "description": "Talk2Me OS v6 alpha 21.3 - aligned dashboard count and quick-add columns",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
