@@ -1,11 +1,12 @@
 {
   "name": "talk2me-crm",
-  "version": "4.0.7",
-  "description": "Talk2Me Command 4.0.7 - maximum-size solid-white favicon mark",
+  "version": "6.0.0-alpha.1",
+  "description": "Talk2Me OS v6 alpha - desktop-style CRM application shell",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
+    "check": "node --check server.js && node --check src/routes/os.js && node --check public/js/os-v6.js",
     "digest:staff-work": "node scripts/send-staff-work-digest.js",
     "digest:owner": "node scripts/send-owner-daily-brief.js",
     "digest:staff-clients": "node scripts/send-staff-client-digest.js"

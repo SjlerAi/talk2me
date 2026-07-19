@@ -86,6 +86,12 @@ app.use((req, res, next) => {
 app.use('/public', express.static(path.join(__dirname, 'public')));
 if (BASE_PATH) app.use(`${BASE_PATH}/public`, express.static(path.join(__dirname, 'public')));
 
+// Mount the OS shell before the legacy route module so /workspace becomes the
+// permanent desktop-style application shell while all existing feature routes remain available.
+const osRoutes = require('./src/routes/os');
+app.use('/', osRoutes);
+if (BASE_PATH) app.use(BASE_PATH, osRoutes);
+
 const routes = require('./src/routes');
 app.use('/', routes);
 if (BASE_PATH) app.use(BASE_PATH, routes);
