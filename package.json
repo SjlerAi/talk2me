@@ -1,7 +1,7 @@
 {
   "name": "talk2me-crm",
-  "version": "6.0.0-alpha.5",
-  "description": "Talk2Me OS v6 alpha 5 - corrected window stacking and improved sidebar contrast",
+  "version": "6.0.0-alpha.6",
+  "description": "Talk2Me OS v6 alpha 6 - staff-scoped work lists and provisional account-number workflow",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
