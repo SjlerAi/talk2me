@@ -1,0 +1,71 @@
+:root{
+  --t2m-side-strong:#dbe4eb;
+  --t2m-side-strong-2:#cfdbe4;
+  --t2m-workspace-clean:#f8fafc;
+  --t2m-search-bg:#fff5f5;
+  --t2m-search-border:#ed1c24;
+}
+
+.t2m-os-sidebar{
+  background:linear-gradient(180deg,var(--t2m-side-strong),var(--t2m-side-strong-2));
+  border-right:1px solid #b9c7d2;
+  box-shadow:inset -1px 0 rgba(255,255,255,.55),4px 0 16px rgba(32,40,50,.06);
+}
+.t2m-os-sidebar-label{color:#5f7283}
+.t2m-os-sidebar button{color:#263746}
+.t2m-os-sidebar button>span{background:#c7d5df;color:#465d70}
+.t2m-os-sidebar button:hover{background:#eef3f7;border-color:#bfcdd7}
+.t2m-os-sidebar button.is-open{background:#fff;border-color:#bfcdd7}
+
+.t2m-os-workspace{background-color:var(--t2m-workspace-clean)}
+
+.t2m-os-search{max-width:none}
+.t2m-os-search input{
+  background:var(--t2m-search-bg);
+  border:2px solid var(--t2m-search-border);
+  box-shadow:0 0 0 4px rgba(237,28,36,.08),0 6px 18px rgba(237,28,36,.08);
+}
+.t2m-os-search input:hover{background:#fff1f2}
+.t2m-os-search input:focus{
+  background:#fff;
+  border-color:#c81018;
+  box-shadow:0 0 0 5px rgba(237,28,36,.16),0 8px 24px rgba(237,28,36,.12);
+}
+.t2m-os-search>span{color:var(--t2m-red)}
+
+.t2m-os-desk-widgets{z-index:20}
+.t2m-os-window-layer{pointer-events:none}
+.t2m-os-window{pointer-events:auto}
+
+.t2m-os-widget-body button{
+  cursor:pointer;
+  grid-template-columns:28px 1fr auto 26px;
+  width:100%;
+}
+.t2m-os-widget-body button::after{
+  content:'+';
+  width:24px;
+  height:24px;
+  display:grid;
+  place-items:center;
+  border-radius:7px;
+  background:#e8eef3;
+  color:#506679;
+  font-size:16px;
+  font-weight:900;
+  transform:none;
+}
+.t2m-os-widget-body button:hover::after{
+  background:var(--t2m-blue);
+  color:#fff;
+  transform:none;
+}
+.t2m-os-desk-widget[data-widget=care] .t2m-os-widget-body button:hover::after{
+  background:var(--t2m-red);
+  color:#fff;
+}
+.t2m-os-widget-body button:active{transform:translateY(1px)}
+
+@media(max-width:1050px){
+  .t2m-os-sidebar{background:linear-gradient(180deg,var(--t2m-side-strong),var(--t2m-side-strong-2))}
+}
