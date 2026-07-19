@@ -1,0 +1,18 @@
+<section class="page-head"><div><div class="eyebrow">Productivity record</div><h1><%= title %></h1><p>Created <%= record.created_at instanceof Date ? record.created_at.toLocaleString('en-ZA') : record.created_at %></p></div></section>
+<section class="panel" style="display:grid;gap:16px">
+  <div class="form-grid">
+    <% Object.entries(record).filter(([key])=>!['outcome','notes'].includes(key)).forEach(([key,value])=>{ %>
+      <div><label><%= key.replaceAll('_',' ') %></label><div class="input-like"><%= value == null ? '' : (value instanceof Date ? value.toLocaleString('en-ZA') : value) %></div></div>
+    <% }) %>
+    <% if(record.notes){ %><div class="full"><label>Notes</label><div class="input-like"><%= record.notes %></div></div><% } %>
+    <% if(record.outcome){ %><div class="full"><label>Outcome</label><div class="input-like"><%= record.outcome %></div></div><% } %>
+  </div>
+  <form method="post" action="<%= basePath %>/os/productivity/<%= kind %>/<%= record.id %>/status" style="display:flex;gap:10px;align-items:center">
+    <label for="status">Status</label>
+    <select id="status" name="status">
+      <% const statuses=kind==='follow-up'?['open','completed','cancelled','archived']:kind==='callback'?['scheduled','completed','cancelled','archived']:['new','contacted','qualified','converted','lost','archived']; %>
+      <% statuses.forEach(status=>{ %><option value="<%= status %>" <%= record.status===status?'selected':'' %>><%= status %></option><% }) %>
+    </select>
+    <button class="btn primary" type="submit">Update status</button>
+  </form>
+</section>
