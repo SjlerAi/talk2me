@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title><%= title %> | Talk2Me</title>
+  <link rel="stylesheet" href="<%= basePath %>/public/css/os-v6.css?v=<%= encodeURIComponent(appVersion) %>">
+  <link rel="stylesheet" href="<%= basePath %>/public/css/os-v6-alpha21.css?v=<%= encodeURIComponent(appVersion) %>">
+</head>
+<body class="t2m-quick-body">
+  <% const v = (name, fallback='') => values && values[name] != null ? values[name] : fallback; %>
+  <main class="t2m-quick-card">
+    <header><div><span>Quick action</span><h1><%= title %></h1></div><small>Saved securely in Talk2Me</small></header>
+
+    <% if (error) { %><div class="t2m-quick-error"><strong>Could not save</strong><span><%= error %></span></div><% } %>
+    <% if (saved) { %>
+      <div class="t2m-quick-success"><strong>Saved successfully</strong><span>The dashboard and related work list are being refreshed.</span></div>
+      <script>
+        window.parent.postMessage({ type:'talk2me:quick-action-saved', action:<%- JSON.stringify(type) %> }, window.location.origin);
+      </script>
+    <% } else { %>
+      <form method="post" action="<%= basePath %>/os/quick-add/<%= type %>" class="t2m-quick-form" id="quick-action-form">
+        <% if (['task','follow-up','callback','birthday','upgrade'].includes(type)) { %>
+          <section class="t2m-customer-picker" data-customer-picker data-required="<%= type === 'task' ? '0' : '1' %>">
+            <label for="customer-search"><%= type === 'task' ? 'Related customer (optional)' : 'Customer' %></label>
+            <input id="customer-search" type="search" autocomplete="off" placeholder="Search name, account or cellphone..." value="<%= v('customer_name') %>">
+            <input type="hidden" name="client_id" value="<%= v('client_id') %>">
+            <input type="hidden" name="customer_name" value="<%= v('customer_name') %>">
+            <input type="hidden" name="contact_number" value="<%= v('contact_number') %>">
+            <div class="t2m-customer-results" hidden></div>
+            <div class="t2m-customer-selected" <%= v('client_id') ? '' : 'hidden' %>><strong><%= v('customer_name') %></strong><span><%= v('contact_number') %></span><button type="button" data-clear-customer>Change</button></div>
+          </section>
+        <% } %>
+
+        <% if (type === 'task') { %>
+          <div class="t2m-field full"><label>Task title</label><input name="title" maxlength="200" required value="<%= v('title') %>" placeholder="What must be done?"></div>
+          <div class="t2m-field"><label>Due date and time</label><input name="due_at" type="datetime-local" required value="<%= v('due_at') %>"></div>
+          <div class="t2m-field"><label>Priority</label><select name="priority"><option value="normal" <%= v('priority','normal')==='normal'?'selected':'' %>>Normal</option><option value="high" <%= v('priority')==='high'?'selected':'' %>>High</option><option value="urgent" <%= v('priority')==='urgent'?'selected':'' %>>Urgent</option></select></div>
+          <div class="t2m-field full"><label>Notes</label><textarea name="notes" rows="5" placeholder="Instructions or context"><%= v('notes') %></textarea></div>
+        <% } %>
+
+        <% if (type === 'follow-up') { %>
+          <div class="t2m-field"><label>Follow-up date and time</label><input name="scheduled_at" type="datetime-local" required value="<%= v('scheduled_at') %>"></div>
+          <div class="t2m-field"><label>Reason</label><input name="reason" maxlength="255" required value="<%= v('reason') %>" placeholder="Reason for follow-up"></div>
+          <div class="t2m-field full"><label>Notes</label><textarea name="notes" rows="5"><%= v('notes') %></textarea></div>
+        <% } %>
+
+        <% if (type === 'callback') { %>
+          <div class="t2m-field"><label>Callback date and time</label><input name="scheduled_at" type="datetime-local" required value="<%= v('scheduled_at') %>"></div>
+          <div class="t2m-field"><label>Contact number</label><input data-contact-copy name="callback_number" value="<%= v('callback_number',v('contact_number')) %>" placeholder="Customer contact number"></div>
+          <div class="t2m-field full"><label>Reason</label><input name="reason" maxlength="255" required value="<%= v('reason') %>" placeholder="What must be discussed?"></div>
+          <div class="t2m-field full"><label>Notes</label><textarea name="notes" rows="4"><%= v('notes') %></textarea></div>
+        <% } %>
+
+        <% if (type === 'birthday') { %>
+          <div class="t2m-field full"><label>Birthday</label><input name="birthday" type="date" required value="<%= v('birthday') %>"><small>This updates the selected customer and matching records with the same ID number.</small></div>
+        <% } %>
+
+        <% if (type === 'upgrade') { %>
+          <div class="t2m-field"><label>Previous upgrade date</label><input name="previous_upgrade_date" type="date" required value="<%= v('previous_upgrade_date') %>"></div>
+          <div class="t2m-field"><label>Contract term</label><select name="contract_term_months"><option value="24" <%= String(v('contract_term_months','24'))==='24'?'selected':'' %>>24 months</option><option value="36" <%= String(v('contract_term_months'))==='36'?'selected':'' %>>36 months</option></select></div>
+          <div class="t2m-field full"><small>Talk2Me calculates the next upgrade date automatically.</small></div>
+        <% } %>
+
+        <% if (type === 'prospect') { %>
+          <div class="t2m-field full"><label>Prospect name</label><input name="prospect_name" maxlength="200" required value="<%= v('prospect_name') %>"></div>
+          <div class="t2m-field"><label>Cellphone number</label><input name="cell_number" maxlength="40" value="<%= v('cell_number') %>"></div>
+          <div class="t2m-field"><label>Email</label><input name="email" type="email" maxlength="255" value="<%= v('email') %>"></div>
+          <div class="t2m-field"><label>Town</label><input name="city_town" maxlength="150" value="<%= v('city_town') %>"></div>
+          <div class="t2m-field"><label>Lead source</label><input name="lead_source" maxlength="150" value="<%= v('lead_source') %>" placeholder="Walk-in, referral, website..."></div>
+          <div class="t2m-field full"><label>Interest / enquiry</label><textarea name="interest" rows="4"><%= v('interest') %></textarea></div>
+          <div class="t2m-field full"><label>Next action date and time</label><input name="next_action_at" type="datetime-local" value="<%= v('next_action_at') %>"></div>
+        <% } %>
+
+        <footer><button type="submit" class="t2m-os-primary-button">Save <%= title.replace(/^Add |^Schedule /,'') %></button></footer>
+      </form>
+    <% } %>
+  </main>
+
+  <script>
+  (()=>{
+    const picker=document.querySelector('[data-customer-picker]');
+    if(!picker)return;
+    const search=picker.querySelector('#customer-search');
+    const results=picker.querySelector('.t2m-customer-results');
+    const selected=picker.querySelector('.t2m-customer-selected');
+    const idInput=picker.querySelector('[name="client_id"]');
+    const nameInput=picker.querySelector('[name="customer_name"]');
+    const phoneInput=picker.querySelector('[name="contact_number"]');
+    let timer,rows=[],displayed=[];
+    const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+    function choose(row){
+      idInput.value=row.id||'';nameInput.value=row.client_name||'';phoneInput.value=row.cell_number||'';
+      search.value=row.client_name||'';selected.hidden=false;selected.querySelector('strong').textContent=row.client_name||'Customer';selected.querySelector('span').textContent=[row.cell_number,row.account_number].filter(Boolean).join(' · ');
+      const callback=document.querySelector('[data-contact-copy]');if(callback&&!callback.value)callback.value=row.cell_number||'';
+      results.hidden=true;results.innerHTML='';
+    }
+    search.addEventListener('input',()=>{clearTimeout(timer);const q=search.value.trim();idInput.value='';nameInput.value='';phoneInput.value='';selected.hidden=true;if(q.length<2){results.hidden=true;return}timer=setTimeout(async()=>{results.hidden=false;results.innerHTML='<div class="t2m-result-message">Searching...</div>';try{const response=await fetch(<%- JSON.stringify(basePath) %>+'/search/all?q='+encodeURIComponent(q),{headers:{Accept:'application/json'}});rows=await response.json();displayed=rows.filter(r=>r.record_type!=='fixed').slice(0,10);results.innerHTML=displayed.length?displayed.map((r,i)=>'<button type="button" data-row="'+i+'"><strong>'+esc(r.client_name||'Unnamed customer')+'</strong><span>'+esc([r.cell_number,r.account_number,r.handset].filter(Boolean).join(' · '))+'</span></button>').join(''):'<div class="t2m-result-message">No customer found.</div>'}catch(e){results.innerHTML='<div class="t2m-result-message">Search unavailable.</div>'}},180)});
+    results.addEventListener('click',event=>{const button=event.target.closest('[data-row]');if(button)choose(displayed[Number(button.dataset.row)])});
+    picker.querySelector('[data-clear-customer]')?.addEventListener('click',()=>{idInput.value='';nameInput.value='';phoneInput.value='';search.value='';selected.hidden=true;search.focus()});
+    document.getElementById('quick-action-form')?.addEventListener('submit',event=>{if(picker.dataset.required==='1'&&!idInput.value){event.preventDefault();alert('Select a customer from the search results.')}});
+  })();
+  </script>
+</body>
+</html>
