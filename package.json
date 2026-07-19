@@ -1,7 +1,7 @@
 {
   "name": "talk2me-crm",
-  "version": "6.0.0-alpha.13",
-  "description": "Talk2Me OS v6 alpha 13 - owner-managed workstation launcher names and secure links",
+  "version": "6.0.0-alpha.14",
+  "description": "Talk2Me OS v6 alpha 14 - external launcher embedded or separate-window mode",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
