@@ -1,7 +1,7 @@
 {
   "name": "talk2me-crm",
-  "version": "6.0.0-alpha.21",
-  "description": "Talk2Me OS v6 alpha 21 - dashboard quick actions and database-backed productivity",
+  "version": "6.0.0-alpha.21.1",
+  "description": "Talk2Me OS v6 alpha 21.1 - cleaner dashboard rows and single quick-add actions",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
