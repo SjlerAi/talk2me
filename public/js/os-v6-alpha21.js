@@ -32,6 +32,64 @@
     return payload;
   }
 
+  function simplifyTodayWork() {
+    const widget = document.querySelector('.t2m-os-desk-widget[data-widget="work"] .t2m-os-widget-body');
+    if (!widget) return;
+
+    const overdueRow = widget.querySelector('[data-status="overdueTaskCount"]')?.closest('.t2m-os-widget-row');
+    const todayRow = widget.querySelector('[data-status="dueTodayTaskCount"]')?.closest('.t2m-os-widget-row');
+    const followUpRow = widget.querySelector('[data-status="followUpTodayCount"]')?.closest('.t2m-os-widget-row');
+    const messageRow = widget.querySelector('[data-status="unreadMessageCount"]')?.closest('.t2m-os-widget-row');
+
+    if (overdueRow) overdueRow.remove();
+    if (todayRow) {
+      const view = todayRow.querySelector('.t2m-os-widget-view');
+      const label = view?.querySelector('span');
+      const count = view?.querySelector('strong');
+      if (label) label.textContent = 'Tasks';
+      if (view) {
+        view.dataset.osRoute = `${basePath}/tasks`;
+        view.dataset.routeTitle = 'Tasks';
+        view.dataset.routeIcon = '✓';
+        view.setAttribute('aria-label', 'Open tasks');
+      }
+      if (count) count.dataset.status = 'actionableTaskCount';
+    }
+    if (followUpRow) {
+      const view = followUpRow.querySelector('.t2m-os-widget-view');
+      const label = view?.querySelector('span');
+      if (label) label.textContent = 'Follow-ups';
+      if (view) {
+        view.dataset.routeTitle = 'Follow-ups';
+        view.setAttribute('aria-label', 'Open follow-ups');
+      }
+    }
+    if (messageRow) {
+      const view = messageRow.querySelector('.t2m-os-widget-view');
+      const label = view?.querySelector('span');
+      if (label) label.textContent = 'Messages';
+      if (view) {
+        view.dataset.routeTitle = 'Messages';
+        view.setAttribute('aria-label', 'Open messages');
+      }
+    }
+  }
+
+  async function refreshActionableTasks() {
+    try {
+      const response = await fetch(`${basePath}/api/os/status`, { cache: 'no-store', headers: { Accept: 'application/json' } });
+      if (!response.ok) return;
+      const status = (await response.json()).status || {};
+      const overdue = Number(status.overdueTaskCount || 0);
+      const dueToday = Number(status.dueTodayTaskCount || 0);
+      const count = overdue + dueToday;
+      document.querySelectorAll('[data-status="actionableTaskCount"]').forEach(node => {
+        node.textContent = String(count);
+        node.dataset.positive = String(overdue > 0);
+      });
+    } catch (_) {}
+  }
+
   function openQuickAction(type, title, icon = '+') {
     windows.open({
       id: `quick:${type}`,
@@ -153,6 +211,11 @@
     const type = String(event.data.action || '');
     setTimeout(() => windows.close(`quick:${type}`), 250);
     window.Talk2MeOS.refresh();
+    refreshActionableTasks();
     toast('Saved', 'The dashboard and related work list were refreshed.');
   });
+
+  simplifyTodayWork();
+  refreshActionableTasks();
+  setInterval(refreshActionableTasks, 15000);
 })();
