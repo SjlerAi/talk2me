@@ -1,2 +1,13 @@
 <section class="page-head"><div><div class="eyebrow">Controlled database changes</div><h1>Approvals</h1><p>Review proposed changes before anything touches live customer data.</p></div></section>
-<section class="panel table-card"><table class="data-table"><thead><tr><th>Requested</th><th>Customer</th><th>Requested by</th><th>Change</th><th>Approval</th><th>Decision</th></tr></thead><tbody><% rows.forEach(r=>{const p=JSON.parse(r.proposed_data_json); %><tr><td><%= new Date(r.created_at).toLocaleString('en-ZA') %></td><td><strong><%= r.client_name||r.summary %></strong><small><%= r.cell_number||r.account_number||'' %></small></td><td><%= r.requested_by_name %></td><td><% Object.entries(p).forEach(([k,v])=>{ %><div><strong><%= k.replaceAll('_',' ') %>:</strong> <%= v %></div><% }) %><% if(r.reason){ %><small>Reason: <%= r.reason %></small><% } %></td><td><span class="badge <%= r.required_approval_role==='owner'?'urgent':'normal' %>"><%= r.required_approval_role %></span></td><td><form method="post" action="<%= basePath %>/approvals/<%= r.id %>/decision"><textarea name="comment" placeholder="Review comment"></textarea><div class="approval-actions"><button class="btn primary" name="decision" value="approve">Approve</button><button class="btn danger" name="decision" value="reject">Reject</button></div></form></td></tr><% }) %><% if(!rows.length){ %><tr><td colspan="6">No changes are waiting for your approval.</td></tr><% } %></tbody></table></section>
+<section class="panel table-card"><table class="data-table"><thead><tr><th>Requested</th><th>Customer</th><th>Requested by</th><th>Change</th><th>Approval</th><th>Decision</th></tr></thead><tbody>
+<% rows.forEach(r=>{const p=JSON.parse(r.proposed_data_json); %><tr>
+<td><%= new Date(r.created_at).toLocaleString('en-ZA') %></td>
+<td><strong><%= r.client_name||r.summary %></strong><small><%= r.cell_number||r.account_number||'' %></small></td>
+<td><%= r.requested_by_name %></td>
+<td><% Object.entries(p).forEach(([k,v])=>{ %><div><strong><%= k.replaceAll('_',' ') %>:</strong> <%= Array.isArray(v)?v.join(', '):v %></div><% }) %><% if(r.reason){ %><small>Reason: <%= r.reason %></small><% } %></td>
+<td><span class="badge <%= r.required_approval_role==='owner'?'urgent':'normal' %>"><%= r.required_approval_role %></span></td>
+<td><form method="post" action="<%= basePath %>/approvals/<%= r.id %>/decision">
+<% if(r.request_type==='assign_account_number'){ %><label>Official account number</label><input name="account_number" placeholder="Enter unique account number"><% } %>
+<textarea name="comment" placeholder="Review comment"></textarea><div class="approval-actions"><button class="btn primary" name="decision" value="approve">Approve</button><button class="btn danger" name="decision" value="reject">Reject</button></div></form></td>
+</tr><% }) %><% if(!rows.length){ %><tr><td colspan="6">No changes are waiting for your approval.</td></tr><% } %>
+</tbody></table></section>
