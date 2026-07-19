@@ -68,6 +68,78 @@ app.use((req, res, next) => {
   next();
 });
 
+function registerPwaRoute(route, handler) {
+  app.get(route, handler);
+  if (BASE_PATH) app.get(`${BASE_PATH}${route}`, handler);
+}
+
+registerPwaRoute('/manifest.webmanifest', (req, res) => {
+  const scope = `${BASE_PATH || ''}/` || '/';
+  res.type('application/manifest+json').send({
+    id: `${BASE_PATH || ''}/workspace`,
+    name: 'Talk2Me OS',
+    short_name: 'Talk2Me',
+    description: 'Talk2Me customer and staff command centre',
+    start_url: `${BASE_PATH || ''}/workspace`,
+    scope,
+    display: 'standalone',
+    background_color: '#202832',
+    theme_color: '#202832',
+    icons: [
+      { src: `${BASE_PATH || ''}/public/images/favicon-192x192.png`, sizes: '192x192', type: 'image/png' },
+      { src: `${BASE_PATH || ''}/public/images/favicon-512x512.png`, sizes: '512x512', type: 'image/png' },
+      { src: `${BASE_PATH || ''}/public/images/favicon-512x512.png`, sizes: '512x512', type: 'image/png', purpose: 'maskable' }
+    ]
+  });
+});
+
+registerPwaRoute('/offline', (req, res) => {
+  res.status(503).type('html').send(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#202832"><title>Talk2Me is offline</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#202832;color:#fff;font-family:system-ui,sans-serif}.card{max-width:560px;margin:24px;padding:34px;border-radius:18px;background:#fff;color:#202832;box-shadow:0 24px 70px rgba(0,0,0,.35)}h1{margin-top:0}p{line-height:1.6;color:#5d6875}</style></head><body><main class="card"><h1>Talk2Me is offline</h1><p>A secure internet connection is required to access customer information. Reconnect and reopen Talk2Me.</p></main></body></html>`);
+});
+
+registerPwaRoute('/service-worker.js', (req, res) => {
+  const base = BASE_PATH || '';
+  const version = String(packageInfo.version || 'dev').replace(/[^a-zA-Z0-9._-]/g, '-');
+  res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.type('application/javascript').send(`
+const CACHE_NAME = 'talk2me-static-${version}';
+const BASE = ${JSON.stringify(base)};
+const OFFLINE_URL = BASE + '/offline';
+const PRECACHE = [
+  OFFLINE_URL,
+  BASE + '/public/images/favicon-192x192.png',
+  BASE + '/public/images/favicon-512x512.png',
+  BASE + '/public/images/talk2me-logo.png'
+];
+self.addEventListener('install', event => {
+  event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(PRECACHE)).then(() => self.skipWaiting()));
+});
+self.addEventListener('activate', event => {
+  event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key.startsWith('talk2me-static-') && key !== CACHE_NAME).map(key => caches.delete(key)))).then(() => self.clients.claim()));
+});
+self.addEventListener('fetch', event => {
+  const request = event.request;
+  if (request.method !== 'GET') return;
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin) return;
+  if (request.mode === 'navigate') {
+    event.respondWith(fetch(request, { cache: 'no-store' }).catch(() => caches.match(OFFLINE_URL)));
+    return;
+  }
+  const isStatic = url.pathname.startsWith(BASE + '/public/');
+  if (!isStatic) return;
+  event.respondWith(caches.open(CACHE_NAME).then(async cache => {
+    const cached = await cache.match(request);
+    const network = fetch(request).then(response => {
+      if (response.ok) cache.put(request, response.clone());
+      return response;
+    }).catch(() => cached);
+    return cached || network;
+  }));
+});
+`);
+});
+
 app.use('/public', express.static(path.join(__dirname, 'public')));
 if (BASE_PATH) app.use(`${BASE_PATH}/public`, express.static(path.join(__dirname, 'public')));
 
