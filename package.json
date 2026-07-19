@@ -1,7 +1,7 @@
 {
   "name": "talk2me-crm",
-  "version": "6.0.0-alpha.21.3",
-  "description": "Talk2Me OS v6 alpha 21.3 - aligned dashboard count and quick-add columns",
+  "version": "6.0.0-alpha.21.4",
+  "description": "Talk2Me OS v6 alpha 21.4 - full dashboard labels and wider cards",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
