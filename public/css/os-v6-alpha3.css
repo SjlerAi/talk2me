@@ -1,0 +1,135 @@
+:root{
+  --t2m-top:#ffffff;
+  --t2m-side:#edf2f6;
+  --t2m-side-hover:#ffffff;
+  --t2m-taskbar:#e7edf2;
+  --t2m-taskbar-border:#ccd7e0;
+  --t2m-soft-blue:#eef7fd;
+  --t2m-soft-red:#fff1f2;
+}
+
+.t2m-os-topbar{
+  background:var(--t2m-top);
+  color:var(--t2m-ink);
+  border-bottom:3px solid var(--t2m-red);
+  box-shadow:0 2px 12px rgba(32,40,50,.08);
+}
+.t2m-os-brand{color:var(--t2m-ink)}
+.t2m-os-brand strong{color:var(--t2m-ink)}
+.t2m-os-brand small{color:var(--t2m-red)}
+.t2m-os-search input{
+  background:#f4f7f9;
+  border-color:#d9e1e7;
+  color:var(--t2m-ink);
+}
+.t2m-os-search input:focus{background:#fff;border-color:#9bc8e6}
+.t2m-os-icon-button,.t2m-os-user-button,.t2m-os-logout{
+  color:var(--t2m-ink);
+  background:#f4f7f9;
+  border-color:#d9e1e7;
+}
+.t2m-os-icon-button:hover,.t2m-os-user-button:hover,.t2m-os-logout:hover{background:#eaf2f7}
+.t2m-os-user-copy small{color:var(--t2m-muted)}
+
+.t2m-os-sidebar{
+  background:linear-gradient(180deg,#f1f5f8,#e8eef3);
+  color:var(--t2m-ink);
+  border-right:1px solid #d4dee6;
+}
+.t2m-os-sidebar-label{color:#718295}
+.t2m-os-sidebar button{color:#334352}
+.t2m-os-sidebar button>span{
+  background:#dfe8ef;
+  color:#526678;
+}
+.t2m-os-sidebar button:hover{
+  background:var(--t2m-side-hover);
+  border-color:#d7e0e8;
+  box-shadow:0 5px 14px rgba(32,40,50,.08);
+}
+.t2m-os-sidebar button.is-open{
+  background:#fff;
+  border-color:#d7e0e8;
+  box-shadow:inset 4px 0 var(--t2m-red),0 5px 14px rgba(32,40,50,.08);
+}
+.t2m-os-sidebar button.is-open>span{background:#e7f3fb;color:var(--t2m-blue)}
+
+.t2m-os-launcher{background:#fff}
+.t2m-os-launcher button{border-color:#edf1f4}
+.t2m-os-launcher button:hover{
+  background:#fff;
+  border-color:#cbd8e2;
+  box-shadow:0 8px 20px rgba(32,40,50,.09);
+}
+
+.t2m-os-workspace{background-color:#f7f9fb}
+.t2m-os-desk-widget{box-shadow:0 12px 28px rgba(32,40,50,.10)}
+.t2m-os-widget-body button{
+  position:relative;
+  display:grid;
+  grid-template-columns:28px 1fr auto 18px;
+  align-items:center;
+  gap:9px;
+  min-height:46px;
+  padding:8px 10px;
+}
+.t2m-os-widget-body button::before{
+  width:26px;
+  height:26px;
+  display:grid;
+  place-items:center;
+  border-radius:8px;
+  background:#edf3f7;
+  color:#526678;
+  font-size:12px;
+  font-weight:900;
+}
+.t2m-os-widget-body button::after{
+  content:'›';
+  color:#8a9aaa;
+  font-size:22px;
+  line-height:1;
+  transform:translateX(0);
+  transition:transform .16s ease,color .16s ease;
+}
+.t2m-os-widget-body button:hover{
+  background:var(--t2m-soft-blue);
+  color:#174e73;
+}
+.t2m-os-desk-widget[data-widget=care] .t2m-os-widget-body button:hover{
+  background:var(--t2m-soft-red);
+  color:#8f1820;
+}
+.t2m-os-widget-body button:hover::after{transform:translateX(3px);color:var(--t2m-blue)}
+.t2m-os-desk-widget[data-widget=care] .t2m-os-widget-body button:hover::after{color:var(--t2m-red)}
+.t2m-os-widget-body button[data-widget-action='overdue']::before{content:'!';background:#ffe5e7;color:#b4232b}
+.t2m-os-widget-body button[data-widget-action='due-today']::before{content:'✓';background:#fff3d6;color:#9a6500}
+.t2m-os-widget-body button[data-widget-action='followups']::before{content:'↻';background:#e7f3fb;color:#006ba9}
+.t2m-os-widget-body button[data-widget-action='messages']::before{content:'●';background:#ede9fe;color:#6d4cc7}
+.t2m-os-widget-body button[data-widget-action='birthdays']::before{content:'★';background:#fff3d6;color:#9a6500}
+.t2m-os-widget-body button[data-widget-action='upgrades']::before{content:'↗';background:#e7f3fb;color:#006ba9}
+.t2m-os-widget-body button[data-widget-action='callbacks']::before{content:'☎';background:#e9f8f2;color:#087a58}
+.t2m-os-widget-body button[data-widget-action='prospects']::before{content:'+';background:#edf3f7;color:#526678}
+.t2m-os-widget-body button strong[data-positive='true']{background:var(--t2m-red);color:#fff}
+
+.t2m-os-taskbar{
+  background:var(--t2m-taskbar);
+  border-top:1px solid var(--t2m-taskbar-border);
+  color:var(--t2m-ink);
+}
+.t2m-os-taskbar-label{color:#68798a}
+.t2m-os-taskbar-item{
+  background:#fff;
+  color:var(--t2m-ink);
+  border-color:#cfd9e1;
+  box-shadow:0 2px 6px rgba(32,40,50,.06);
+}
+.t2m-os-taskbar-item:hover,.t2m-os-taskbar-item.is-active{
+  background:#fff;
+  border-color:#8cbddd;
+  box-shadow:inset 0 3px var(--t2m-blue),0 3px 8px rgba(32,40,50,.08);
+}
+
+@media(max-width:1050px){
+  .t2m-os-sidebar{background:#edf2f6}
+}
