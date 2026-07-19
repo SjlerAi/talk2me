@@ -25,11 +25,21 @@
     setTimeout(() => node.remove(), 3500);
   }
 
+  function openSeparate(item, key) {
+    const child = window.open(item.portal_url, `talk2me-${key}`, 'noopener,noreferrer');
+    if (!child) toast(`${item.display_name} could not open`, 'Allow pop-ups for this Talk2Me site and try again.');
+  }
+
   function openManagedLauncher(key) {
     const item = byKey[key];
     if (!item) return;
     if (!item.portal_url) {
       toast(`${item.display_name} is not configured`, 'The owner must add its secure URL in Administration > Workstation Launchers.');
+      return;
+    }
+
+    if (item.open_mode !== 'embedded') {
+      openSeparate(item, key);
       return;
     }
 
@@ -42,8 +52,8 @@
       width: 1120,
       height: 690,
       render(body) {
-        body.innerHTML = `<div style="height:100%;display:grid;grid-template-rows:48px 1fr"><div class="t2m-os-supplier-toolbar"><span>${esc(item.portal_url)}</span><button class="t2m-os-secondary-button" type="button">Open separately ↗</button></div><iframe title="${esc(item.display_name)}" src="${esc(item.portal_url)}"></iframe></div>`;
-        body.querySelector('button').onclick = () => window.open(item.portal_url, `talk2me-${key}`, 'noopener,noreferrer');
+        body.innerHTML = `<div style="height:100%;display:grid;grid-template-rows:auto 1fr"><div class="t2m-os-supplier-toolbar"><div><strong>${esc(item.display_name)}</strong><small style="display:block">This site may block embedded access. Use the separate-window button when it does.</small></div><button class="t2m-os-secondary-button" type="button">Open separately ↗</button></div><iframe title="${esc(item.display_name)}" src="${esc(item.portal_url)}"></iframe></div>`;
+        body.querySelector('button').onclick = () => openSeparate(item, key);
       }
     });
   }
