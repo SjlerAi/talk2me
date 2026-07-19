@@ -42,6 +42,19 @@
     return { width, height, left, top };
   }
 
+  function popupFeatures(size) {
+    return [
+      'popup=yes',
+      `width=${size.width}`,
+      `height=${size.height}`,
+      `left=${size.left}`,
+      `top=${size.top}`,
+      'resizable=yes',
+      'scrollbars=yes',
+      'status=yes'
+    ].join(',');
+  }
+
   function renderExternalTaskbar() {
     if (!taskbarItems) return;
     taskbarItems.querySelectorAll('[data-external-task]').forEach(node => node.remove());
@@ -50,8 +63,8 @@
       if (!record.child || record.child.closed) continue;
       const wrapper = document.createElement('span');
       wrapper.dataset.externalTask = key;
-      wrapper.style.cssText = 'height:34px;display:flex;align-items:center;border:1px solid rgba(0,114,188,.28);border-radius:8px;background:#fff;overflow:hidden;box-shadow:0 2px 8px rgba(32,40,50,.08)';
-      wrapper.innerHTML = `<button type="button" data-external-focus="${esc(key)}" title="Bring ${esc(record.item.display_name)} back to the foreground" style="height:32px;display:flex;align-items:center;gap:7px;padding:0 10px;border:0;background:${activeExternalKey === key ? '#e7f3fb' : '#fff'};color:#263746;font-weight:800"><b>${esc(record.item.icon_text || record.item.display_name.slice(0, 1))}</b><span>${esc(record.item.display_name)}</span><small style="color:#697684">external</small></button><button type="button" data-external-close="${esc(key)}" title="Close ${esc(record.item.display_name)}" aria-label="Close ${esc(record.item.display_name)}" style="width:32px;height:32px;border:0;border-left:1px solid #d7e0e8;background:#fff;color:#697684;font-size:18px">×</button>`;
+      wrapper.style.cssText = 'height:34px;display:flex;align-items:center;border:1px solid rgba(0,114,188,.38);border-radius:8px;background:#fff;overflow:hidden;box-shadow:0 2px 8px rgba(32,40,50,.08)';
+      wrapper.innerHTML = `<button type="button" data-external-focus="${esc(key)}" title="Restore ${esc(record.item.display_name)}" aria-label="Restore ${esc(record.item.display_name)}" style="cursor:pointer;height:32px;display:flex;align-items:center;gap:7px;padding:0 10px;border:0;background:${activeExternalKey === key ? '#dff1fc' : '#fff'};color:#263746;font-weight:800"><b>${esc(record.item.icon_text || record.item.display_name.slice(0, 1))}</b><span>${esc(record.item.display_name)}</span><small style="color:#0072bc;font-weight:800">restore</small></button><button type="button" data-external-close="${esc(key)}" title="Close ${esc(record.item.display_name)}" aria-label="Close ${esc(record.item.display_name)}" style="cursor:pointer;width:32px;height:32px;border:0;border-left:1px solid #d7e0e8;background:#fff;color:#697684;font-size:18px">×</button>`;
       taskbarItems.appendChild(wrapper);
     }
   }
@@ -62,10 +75,36 @@
     renderExternalTaskbar();
   };
 
-  function rememberExternal(item, key, child) {
-    externalWindows.set(key, { item, child });
+  function rememberExternal(item, key, child, windowName, features) {
+    externalWindows.set(key, { item, child, windowName, features });
     activeExternalKey = key;
     renderExternalTaskbar();
+  }
+
+  function activatePopup(record) {
+    const size = popupGeometry();
+    const features = popupFeatures(size);
+    let target = record.child;
+
+    try {
+      const namedWindow = window.open('', record.windowName, features);
+      if (namedWindow && record.child && !record.child.closed && namedWindow !== record.child) {
+        try { namedWindow.close(); } catch (_) {}
+      } else if (namedWindow) {
+        target = namedWindow;
+        record.child = namedWindow;
+      }
+    } catch (_) {}
+
+    if (!target || target.closed) return false;
+
+    try { target.resizeTo(size.width, size.height); } catch (_) {}
+    try { target.moveTo(size.left, size.top); } catch (_) {}
+    try { target.focus(); } catch (_) {}
+    setTimeout(() => {
+      try { target.focus(); } catch (_) {}
+    }, 80);
+    return true;
   }
 
   function focusExternal(key) {
@@ -77,9 +116,14 @@
       if (item) openSeparate(item, key);
       return;
     }
+
     activeExternalKey = key;
     renderExternalTaskbar();
-    try { record.child.focus(); } catch (_) {}
+    if (!activatePopup(record)) {
+      externalWindows.delete(key);
+      renderExternalTaskbar();
+      openSeparate(record.item, key);
+    }
   }
 
   function closeExternal(key) {
@@ -102,24 +146,15 @@
     }
 
     const size = popupGeometry();
-    const features = [
-      'popup=yes',
-      `width=${size.width}`,
-      `height=${size.height}`,
-      `left=${size.left}`,
-      `top=${size.top}`,
-      'resizable=yes',
-      'scrollbars=yes',
-      'status=yes'
-    ].join(',');
-
-    const child = window.open('about:blank', `talk2me-${key}`, features);
+    const features = popupFeatures(size);
+    const windowName = `talk2me-${key}`;
+    const child = window.open('about:blank', windowName, features);
     if (!child) {
       toast(`${item.display_name} could not open`, 'Allow pop-ups for this Talk2Me site and try again.');
       return;
     }
 
-    rememberExternal(item, key, child);
+    rememberExternal(item, key, child, windowName, features);
     try { child.opener = null; } catch (_) {}
     try { child.location.replace(item.portal_url); } catch (_) { child.location.href = item.portal_url; }
     try { child.focus(); } catch (_) {}
@@ -157,6 +192,7 @@
     const focusButton = event.target.closest('[data-external-focus]');
     if (focusButton) {
       event.preventDefault();
+      event.stopPropagation();
       focusExternal(focusButton.dataset.externalFocus);
       return;
     }
@@ -164,6 +200,7 @@
     const closeButton = event.target.closest('[data-external-close]');
     if (closeButton) {
       event.preventDefault();
+      event.stopPropagation();
       closeExternal(closeButton.dataset.externalClose);
       return;
     }
