@@ -1,0 +1,10 @@
+<section class="page-head"><div><div class="eyebrow">My assigned work</div><h1><%= title %></h1><p>Only records assigned to <%= currentUser.full_name %> are shown.</p></div></section>
+<section class="panel table-card">
+  <% if (!rows.length) { %>
+    <div style="padding:48px 24px;text-align:center"><h2><%= emptyMessage %></h2><p>This list is linked directly to your staff assignment in the database.</p></div>
+  <% } else { %>
+    <table class="data-table"><thead><tr><% columns.forEach(column => { %><th><%= column.replaceAll('_',' ') %></th><% }) %><th></th></tr></thead><tbody>
+      <% rows.forEach(row => { %><tr><% columns.forEach(column => { %><td><%= row[column] == null ? '' : (row[column] instanceof Date ? row[column].toLocaleString('en-ZA') : row[column]) %></td><% }) %><td><a class="btn primary" href="<%= row.url %>">Open</a></td></tr><% }) %>
+    </tbody></table>
+  <% } %>
+</section>
