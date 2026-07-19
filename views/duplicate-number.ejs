@@ -1,0 +1,20 @@
+<section class="page-head"><div><div class="eyebrow">Duplicate cellphone number</div><h1>Duplicate Number Found</h1><p>This cellphone number already exists. No duplicate customer line was created.</p></div></section>
+<section class="panel">
+  <h2>Existing customer</h2>
+  <p><strong><%= duplicate.client_name %></strong></p>
+  <p><%= duplicate.cell_number||'' %> <%= duplicate.account_number?'· Account '+duplicate.account_number:'' %></p>
+  <p>Assigned to: <%= duplicate.assigned_staff_name %> · Status: <%= duplicate.line_status||'unknown' %></p>
+  <div class="approval-actions"><a class="btn primary" href="<%= basePath %>/customers/<%= duplicate.id %>/360">Open existing customer</a></div>
+</section>
+<form class="panel form-grid" method="post" action="<%= basePath %>/os/duplicate-number/inquiry">
+  <input type="hidden" name="client_id" value="<%= duplicate.id %>">
+  <div><label>Inquiry category</label><select name="category_id" required><option value="">Select category</option><% categories.forEach(c=>{ %><option value="<%= c.id %>"><%= c.category_name %></option><% }) %></select></div>
+  <div><label>Contact type</label><select name="walkin_or_call"><option value="walk_in">Walk-in</option><option value="call">Call</option><option value="whatsapp">WhatsApp</option></select></div>
+  <div class="full"><label>What does the customer need?</label><textarea name="query_text" rows="4" required></textarea></div>
+  <div class="full"><label>Action taken</label><textarea name="action_taken" rows="3"></textarea></div>
+  <div><label>Follow-up date</label><input type="datetime-local" name="follow_up_at"></div>
+  <div class="full"><label><input type="checkbox" name="report_conflict" value="1"> This appears to be a different or recycled customer number</label></div>
+  <div><label>Reported customer name</label><input name="reported_name" value="<%= attempted.client_name||'' %>"></div>
+  <div class="full"><label>Conflict notes</label><textarea name="conflict_notes" rows="3"></textarea></div>
+  <div class="full"><button class="btn primary" type="submit">Save Inquiry Without Creating a Duplicate</button></div>
+</form>
