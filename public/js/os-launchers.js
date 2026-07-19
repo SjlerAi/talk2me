@@ -9,7 +9,7 @@
   const byKey = Object.fromEntries(launchers.map(item => [item.slot_key, item]));
   const windows = window.Talk2MeOS.windows;
   const taskbarItems = document.getElementById('os-taskbar-items');
-  const externalWindows = new Map();
+  const externalTabs = new Map();
   let activeExternalKey = null;
 
   function esc(value) {
@@ -28,43 +28,16 @@
     setTimeout(() => node.remove(), 3500);
   }
 
-  function popupGeometry() {
-    const availableWidth = Number(window.screen?.availWidth || window.outerWidth || 1366);
-    const availableHeight = Number(window.screen?.availHeight || window.outerHeight || 768);
-    const width = Math.max(760, Math.min(1180, availableWidth - 180));
-    const height = Math.max(560, Math.min(760, availableHeight - 140));
-    const browserLeft = Number(window.screenX ?? window.screenLeft ?? 0);
-    const browserTop = Number(window.screenY ?? window.screenTop ?? 0);
-    const browserWidth = Number(window.outerWidth || availableWidth);
-    const browserHeight = Number(window.outerHeight || availableHeight);
-    const left = Math.max(0, Math.round(browserLeft + (browserWidth - width) / 2));
-    const top = Math.max(0, Math.round(browserTop + (browserHeight - height) / 2));
-    return { width, height, left, top };
-  }
-
-  function popupFeatures(size) {
-    return [
-      'popup=yes',
-      `width=${size.width}`,
-      `height=${size.height}`,
-      `left=${size.left}`,
-      `top=${size.top}`,
-      'resizable=yes',
-      'scrollbars=yes',
-      'status=yes'
-    ].join(',');
-  }
-
   function renderExternalTaskbar() {
     if (!taskbarItems) return;
     taskbarItems.querySelectorAll('[data-external-task]').forEach(node => node.remove());
 
-    for (const [key, record] of externalWindows.entries()) {
-      if (!record.child || record.child.closed) continue;
+    for (const [key, record] of externalTabs.entries()) {
+      if (!record.tab || record.tab.closed) continue;
       const wrapper = document.createElement('span');
       wrapper.dataset.externalTask = key;
       wrapper.style.cssText = 'height:34px;display:flex;align-items:center;border:1px solid rgba(0,114,188,.38);border-radius:8px;background:#fff;overflow:hidden;box-shadow:0 2px 8px rgba(32,40,50,.08)';
-      wrapper.innerHTML = `<button type="button" data-external-focus="${esc(key)}" title="Restore ${esc(record.item.display_name)}" aria-label="Restore ${esc(record.item.display_name)}" style="cursor:pointer;height:32px;display:flex;align-items:center;gap:7px;padding:0 10px;border:0;background:${activeExternalKey === key ? '#dff1fc' : '#fff'};color:#263746;font-weight:800"><b>${esc(record.item.icon_text || record.item.display_name.slice(0, 1))}</b><span>${esc(record.item.display_name)}</span><small style="color:#0072bc;font-weight:800">restore</small></button><button type="button" data-external-close="${esc(key)}" title="Close ${esc(record.item.display_name)}" aria-label="Close ${esc(record.item.display_name)}" style="cursor:pointer;width:32px;height:32px;border:0;border-left:1px solid #d7e0e8;background:#fff;color:#697684;font-size:18px">×</button>`;
+      wrapper.innerHTML = `<button type="button" data-external-switch="${esc(key)}" title="Switch to ${esc(record.item.display_name)} tab" aria-label="Switch to ${esc(record.item.display_name)} tab" style="cursor:pointer;height:32px;display:flex;align-items:center;gap:7px;padding:0 10px;border:0;background:${activeExternalKey === key ? '#dff1fc' : '#fff'};color:#263746;font-weight:800"><b>${esc(record.item.icon_text || record.item.display_name.slice(0, 1))}</b><span>${esc(record.item.display_name)}</span><small style="color:#0072bc;font-weight:800">tab</small></button><button type="button" data-external-close="${esc(key)}" title="Close ${esc(record.item.display_name)} tab" aria-label="Close ${esc(record.item.display_name)} tab" style="cursor:pointer;width:32px;height:32px;border:0;border-left:1px solid #d7e0e8;background:#fff;color:#697684;font-size:18px">×</button>`;
       taskbarItems.appendChild(wrapper);
     }
   }
@@ -75,89 +48,80 @@
     renderExternalTaskbar();
   };
 
-  function rememberExternal(item, key, child, windowName, features) {
-    externalWindows.set(key, { item, child, windowName, features });
+  function tabName(key) {
+    return `talk2me-system-${String(key).replace(/[^a-z0-9_-]/gi, '-')}`;
+  }
+
+  function rememberTab(item, key, tab) {
+    externalTabs.set(key, { item, tab, name: tabName(key) });
     activeExternalKey = key;
     renderExternalTaskbar();
   }
 
-  function activatePopup(record) {
-    const size = popupGeometry();
-    const features = popupFeatures(size);
-    let target = record.child;
+  function openNewTab(item, key) {
+    const name = tabName(key);
+    const tab = window.open(item.portal_url, name);
+    if (!tab) {
+      toast(`${item.display_name} could not open`, 'Allow pop-ups and redirects for this Talk2Me site, then try again.');
+      return null;
+    }
 
-    try {
-      const namedWindow = window.open('', record.windowName, features);
-      if (namedWindow && record.child && !record.child.closed && namedWindow !== record.child) {
-        try { namedWindow.close(); } catch (_) {}
-      } else if (namedWindow) {
-        target = namedWindow;
-        record.child = namedWindow;
-      }
-    } catch (_) {}
-
-    if (!target || target.closed) return false;
-
-    try { target.resizeTo(size.width, size.height); } catch (_) {}
-    try { target.moveTo(size.left, size.top); } catch (_) {}
-    try { target.focus(); } catch (_) {}
-    setTimeout(() => {
-      try { target.focus(); } catch (_) {}
-    }, 80);
-    return true;
+    rememberTab(item, key, tab);
+    try { tab.focus(); } catch (_) {}
+    return tab;
   }
 
-  function focusExternal(key) {
-    const record = externalWindows.get(key);
-    if (!record || !record.child || record.child.closed) {
-      externalWindows.delete(key);
+  function switchToTab(key) {
+    const record = externalTabs.get(key);
+    if (!record || !record.tab || record.tab.closed) {
+      externalTabs.delete(key);
       renderExternalTaskbar();
       const item = byKey[key];
-      if (item) openSeparate(item, key);
+      if (item) openNewTab(item, key);
       return;
     }
 
     activeExternalKey = key;
     renderExternalTaskbar();
-    if (!activatePopup(record)) {
-      externalWindows.delete(key);
-      renderExternalTaskbar();
-      openSeparate(record.item, key);
-    }
+
+    let target = record.tab;
+    try {
+      const namedTab = window.open('', record.name);
+      if (namedTab) {
+        target = namedTab;
+        record.tab = namedTab;
+      }
+    } catch (_) {}
+
+    try { target.focus(); } catch (_) {}
+    setTimeout(() => {
+      try { target.focus(); } catch (_) {}
+    }, 50);
   }
 
   function closeExternal(key) {
-    const record = externalWindows.get(key);
+    const record = externalTabs.get(key);
     if (!record) return;
     const confirmed = window.confirm(`Are you sure you want to close ${record.item.display_name} and return to the Talk2Me workspace?`);
     if (!confirmed) return;
-    try { if (record.child && !record.child.closed) record.child.close(); } catch (_) {}
-    externalWindows.delete(key);
+
+    try {
+      if (record.tab && !record.tab.closed) record.tab.close();
+    } catch (_) {}
+
+    externalTabs.delete(key);
     if (activeExternalKey === key) activeExternalKey = null;
     renderExternalTaskbar();
     try { window.focus(); } catch (_) {}
   }
 
-  function openSeparate(item, key) {
-    const existing = externalWindows.get(key);
-    if (existing?.child && !existing.child.closed) {
-      focusExternal(key);
+  function openExternal(item, key) {
+    const existing = externalTabs.get(key);
+    if (existing?.tab && !existing.tab.closed) {
+      switchToTab(key);
       return;
     }
-
-    const size = popupGeometry();
-    const features = popupFeatures(size);
-    const windowName = `talk2me-${key}`;
-    const child = window.open('about:blank', windowName, features);
-    if (!child) {
-      toast(`${item.display_name} could not open`, 'Allow pop-ups for this Talk2Me site and try again.');
-      return;
-    }
-
-    rememberExternal(item, key, child, windowName, features);
-    try { child.opener = null; } catch (_) {}
-    try { child.location.replace(item.portal_url); } catch (_) { child.location.href = item.portal_url; }
-    try { child.focus(); } catch (_) {}
+    openNewTab(item, key);
   }
 
   function openManagedLauncher(key) {
@@ -169,7 +133,7 @@
     }
 
     if (item.open_mode !== 'embedded') {
-      openSeparate(item, key);
+      openExternal(item, key);
       return;
     }
 
@@ -182,25 +146,25 @@
       width: 1120,
       height: 690,
       render(body) {
-        body.innerHTML = `<div style="height:100%;display:grid;grid-template-rows:auto 1fr"><div class="t2m-os-supplier-toolbar"><div><strong>${esc(item.display_name)}</strong><small style="display:block">This site may block embedded access. Use the floating-window button when it does.</small></div><button class="t2m-os-secondary-button" type="button">Open floating window ↗</button></div><iframe title="${esc(item.display_name)}" src="${esc(item.portal_url)}"></iframe></div>`;
-        body.querySelector('button').onclick = () => openSeparate(item, key);
+        body.innerHTML = `<div style="height:100%;display:grid;grid-template-rows:auto 1fr"><div class="t2m-os-supplier-toolbar"><div><strong>${esc(item.display_name)}</strong><small style="display:block">This site may block embedded access. Open it in a browser tab when it does.</small></div><button class="t2m-os-secondary-button" type="button">Open browser tab ↗</button></div><iframe title="${esc(item.display_name)}" src="${esc(item.portal_url)}"></iframe></div>`;
+        body.querySelector('button').onclick = () => openExternal(item, key);
       }
     });
   }
 
   document.addEventListener('click', event => {
-    const focusButton = event.target.closest('[data-external-focus]');
-    if (focusButton) {
+    const switchButton = event.target.closest('[data-external-switch]');
+    if (switchButton) {
       event.preventDefault();
-      event.stopPropagation();
-      focusExternal(focusButton.dataset.externalFocus);
+      event.stopImmediatePropagation();
+      switchToTab(switchButton.dataset.externalSwitch);
       return;
     }
 
     const closeButton = event.target.closest('[data-external-close]');
     if (closeButton) {
       event.preventDefault();
-      event.stopPropagation();
+      event.stopImmediatePropagation();
       closeExternal(closeButton.dataset.externalClose);
       return;
     }
@@ -214,9 +178,9 @@
 
   setInterval(() => {
     let changed = false;
-    for (const [key, record] of externalWindows.entries()) {
-      if (!record.child || record.child.closed) {
-        externalWindows.delete(key);
+    for (const [key, record] of externalTabs.entries()) {
+      if (!record.tab || record.tab.closed) {
+        externalTabs.delete(key);
         if (activeExternalKey === key) activeExternalKey = null;
         changed = true;
       }
