@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title><%= title %> | Talk2Me</title>
+  <meta name="theme-color" content="#111827">
+  <link rel="icon" href="<%= basePath %>/public/images/favicon.ico?v=<%= encodeURIComponent(appVersion) %>">
+  <link rel="stylesheet" href="<%= basePath %>/public/css/os-v6.css?v=<%= encodeURIComponent(appVersion) %>">
+</head>
+<body class="os-body">
+<div class="os-shell">
+  <header class="os-topbar">
+    <a class="os-brand" href="<%= basePath %>/workspace" aria-label="Talk2Me OS home">
+      <img src="<%= basePath %>/public/images/talk2me-logo.png" alt="Talk2Me">
+      <span><strong>Talk2Me</strong><small>OS v<%= appVersion %></small></span>
+    </a>
+    <div class="os-search" role="search">
+      <span aria-hidden="true">⌕</span>
+      <input id="os-search" type="search" autocomplete="off" placeholder="Search customer, account, phone, email, SIM or MAC..." aria-label="Search customers">
+      <div id="os-search-results" class="os-search-results" hidden></div>
+    </div>
+    <div class="os-top-actions">
+      <button type="button" class="os-icon" data-os-app="notifications" aria-label="Notifications">🔔<b data-badge="notifications" <%= status.unreadMessageCount ? '' : 'hidden' %>><%= status.unreadMessageCount %></b></button>
+      <button type="button" class="os-icon" data-os-app="messages" aria-label="Messages">💬<b data-badge="messages" <%= status.unreadMessageCount ? '' : 'hidden' %>><%= status.unreadMessageCount %></b></button>
+      <button type="button" class="os-user" data-os-app="settings"><i><%= (currentUser.full_name||'?').slice(0,1).toUpperCase() %></i><span><strong><%= currentUser.full_name %></strong><small><%= currentUser.role %></small></span></button>
+      <form method="post" action="<%= basePath %>/logout"><button class="os-logout">Logout</button></form>
+    </div>
+  </header>
+
+  <nav class="os-launcher" aria-label="Primary applications">
+    <button type="button" data-os-customer><span>👤</span><strong>Customer</strong></button>
+    <button type="button" data-os-supplier="vodacom"><span>📱</span><strong>Vodacom</strong></button>
+    <button type="button" data-os-supplier="mtn"><span>📡</span><strong>MTN</strong></button>
+    <button type="button" data-os-supplier="telkom"><span>☎</span><strong>Telkom</strong></button>
+    <button type="button" data-os-supplier="sage"><span>💼</span><strong>Sage</strong></button>
+  </nav>
+
+  <main id="os-workspace" class="os-workspace" aria-label="Talk2Me workspace">
+    <div id="os-empty" class="os-empty"><span>Talk2Me OS</span><strong>WORKSPACE</strong></div>
+    <div id="os-window-layer" class="os-window-layer"></div>
+  </main>
+
+  <footer id="os-dock" class="os-dock" aria-label="Application dock">
+    <button type="button" data-os-app="queue"><span>📨</span><strong>Queue</strong><b data-badge="queue" <%= status.queueCount ? '' : 'hidden' %>><%= status.queueCount %></b></button>
+    <button type="button" data-os-app="tasks"><span>✔</span><strong>Tasks</strong><b data-badge="tasks" <%= status.taskCount ? '' : 'hidden' %>><%= status.taskCount %></b></button>
+    <button type="button" data-os-app="messages"><span>💬</span><strong>Messages</strong><b data-badge="messages" <%= status.unreadMessageCount ? '' : 'hidden' %>><%= status.unreadMessageCount %></b></button>
+    <button type="button" data-os-app="calendar"><span>📅</span><strong>Calendar</strong></button>
+    <button type="button" data-os-app="notes"><span>📝</span><strong>Notes</strong></button>
+    <button type="button" data-os-app="calculator"><span>⌗</span><strong>Calculator</strong></button>
+    <button type="button" data-os-app="reports"><span>▦</span><strong>Reports</strong></button>
+    <button type="button" data-os-app="settings"><span>⚙</span><strong>Settings</strong></button>
+  </footer>
+</div>
+<div id="os-toasts" class="os-toasts" aria-live="polite"></div>
+<script id="os-config" type="application/json"><%- JSON.stringify({basePath,appVersion,user:{id:currentUser.id,name:currentUser.full_name,role:currentUser.role},isManagement,status}).replace(/</g,'\\u003c') %></script>
+<script defer src="<%= basePath %>/public/js/os-v6.js?v=<%= encodeURIComponent(appVersion) %>"></script>
+</body>
+</html>
