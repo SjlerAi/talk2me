@@ -70,6 +70,12 @@ app.use((req, res, next) => {
 app.use('/public', express.static(path.join(__dirname, 'public')));
 if (BASE_PATH) app.use(`${BASE_PATH}/public`, express.static(path.join(__dirname, 'public')));
 
+// Customer 360 is mounted first so customers without an official account number
+// still open safely and show their pending account status.
+const customer360Safe = require('./src/routes/customer-360-safe');
+app.use('/', customer360Safe);
+if (BASE_PATH) app.use(BASE_PATH, customer360Safe);
+
 const osOperations = require('./src/routes/os-operations');
 app.use('/', osOperations);
 if (BASE_PATH) app.use(BASE_PATH, osOperations);
