@@ -1,7 +1,7 @@
 {
   "name": "talk2me-crm",
-  "version": "6.0.0-alpha.16",
-  "description": "Talk2Me OS v6 alpha 16 - track floating external systems in the workspace taskbar",
+  "version": "6.0.0-alpha.17",
+  "description": "Talk2Me OS v6 alpha 17 - restore floating external systems from the workspace taskbar",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
