@@ -1,0 +1,16 @@
+<section class="page-head"><div><div class="eyebrow">Owner configuration</div><h1>Workstation Launchers</h1><p>Control the four external-system buttons shown across every Talk2Me workstation.</p></div><a class="btn" href="<%= basePath %>/backoffice">Back to Administration</a></section>
+<% if(saved){ %><div class="success-box">Workstation launcher settings were saved. Refresh the workstation to see the changes.</div><% } %>
+<% if(error){ %><div class="error-box"><strong>Settings not saved</strong><p><%= error %></p></div><% } %>
+<form class="panel form-grid" method="post" action="<%= basePath %>/backoffice/os-launchers">
+  <% launchers.forEach(item=>{ %>
+  <div class="full panel" style="margin:0">
+    <div class="panel-heading-row"><div><div class="eyebrow">Position <%= item.sort_order %></div><h2><%= item.display_name %></h2></div><label><input type="checkbox" name="is_enabled_<%= item.slot_key %>" value="1" <%= item.is_enabled?'checked':'' %>> Show on workstation</label></div>
+    <div class="form-grid">
+      <div><label>Display name</label><input name="display_name_<%= item.slot_key %>" value="<%= item.display_name %>" maxlength="100" required><small>This is the wording staff see on the top button and window title.</small></div>
+      <div><label>Button icon / initials</label><input name="icon_text_<%= item.slot_key %>" value="<%= item.icon_text %>" maxlength="12"><small>Examples: V, MTN, T, S, CRM.</small></div>
+      <div class="full"><label>Secure portal URL</label><input type="url" name="portal_url_<%= item.slot_key %>" value="<%= item.portal_url||'' %>" placeholder="https://..."><small>Leave blank until the correct external system address is available.</small></div>
+    </div>
+  </div>
+  <% }) %>
+  <div class="full"><button class="btn primary" type="submit">Save Workstation Launchers</button></div>
+</form>
