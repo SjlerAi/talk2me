@@ -15,7 +15,7 @@
   <script defer src="<%= basePath %>/public/js/customer-actions.js?v=<%= encodeURIComponent(appVersion) %>"></script>
 </head>
 <body class="command-body <%= panelMode?'panel-mode':'' %>">
-<% if(currentUser && !panelMode){ const management=['owner','admin','manager'].includes(currentUser.role); %>
+<% if(currentUser && !panelMode){ const management=['owner','admin','manager'].includes(currentUser.role); const safeUnreadTaskCount=typeof unreadTaskCount==='undefined'?0:Number(unreadTaskCount||0); %>
 <aside class="command-sidebar" id="command-sidebar">
   <a class="command-brand" href="<%= basePath %>/workspace"><img src="<%= basePath %>/public/images/talk2me-logo.png" alt="Talk2Me"><div><strong>TALK2ME</strong><span>COMMAND</span></div></a>
   <div class="command-user"><div class="command-avatar"><%= (currentUser.full_name||'?').slice(0,1).toUpperCase() %></div><div><strong><%= currentUser.full_name %></strong><span><%= currentUser.role %></span></div></div>
@@ -23,7 +23,7 @@
     <span class="command-nav-label">Work</span>
     <a href="<%= basePath %>/workspace" class="<%= title==='Operational Workspace'?'active':'' %>"><b>⌂</b><span>My Workspace</span></a>
     <a href="<%= basePath %>/queries/new" data-command-panel><b>＋</b><span>New Inquiry</span></a>
-    <a href="<%= basePath %>/tasks" data-command-panel><b>✓</b><span>Messages & Tasks</span><% if(unreadTaskCount){ %><em><%= unreadTaskCount %></em><% } %></a>
+    <a href="<%= basePath %>/tasks" data-command-panel><b>✓</b><span>Messages & Tasks</span><% if(safeUnreadTaskCount){ %><em><%= safeUnreadTaskCount %></em><% } %></a>
     <% if(management){ %>
     <span class="command-nav-label">Management</span>
     <a href="<%= basePath %>/command-centre"><b>▦</b><span>Shop Command Centre</span></a>
@@ -40,7 +40,7 @@
     <button id="sidebar-toggle" class="icon-button" aria-label="Toggle menu">☰</button>
     <div class="command-search"><span>⌕</span><input id="universal-client-search" placeholder="Find cellphone, account, customer, email, SIM or MAC" autocomplete="off"><div id="universal-client-results"></div></div>
     <button id="alert-toggle" class="live-status" type="button" title="Enable sound and browser alerts"><i></i><span>Alerts</span></button>
-    <a class="top-task-link" href="<%= basePath %>/tasks" data-command-panel>Messages<% if(unreadTaskCount){ %><b><%= unreadTaskCount %></b><% } %></a>
+    <a class="top-task-link" href="<%= basePath %>/tasks" data-command-panel>Messages<% if(safeUnreadTaskCount){ %><b><%= safeUnreadTaskCount %></b><% } %></a>
     <form method="post" action="<%= basePath %>/logout"><button class="logout-button">Logout</button></form>
   </header>
   <main class="command-page"><%- body %></main>

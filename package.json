@@ -1,7 +1,7 @@
 {
   "name": "talk2me-crm",
-  "version": "6.0.0-alpha.9",
-  "description": "Talk2Me OS v6 alpha 9 - reliable provisional mobile save and duplicate handling",
+  "version": "6.0.0-alpha.10",
+  "description": "Talk2Me OS v6 alpha 10 - safe duplicate and validation rendering across command layouts",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
