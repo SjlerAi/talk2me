@@ -1,13 +1,49 @@
+<%
+function parseApprovalData(value) {
+  if (value == null || value === '') return {};
+  if (typeof value === 'object' && !Buffer.isBuffer(value)) return value;
+  try {
+    const parsed = JSON.parse(Buffer.isBuffer(value) ? value.toString('utf8') : String(value));
+    return parsed && typeof parsed === 'object' ? parsed : { details: parsed };
+  } catch (_) {
+    return { details: String(value) };
+  }
+}
+
+function approvalLabel(value) {
+  return String(value || 'details').replaceAll('_', ' ').replace(/\b\w/g, letter => letter.toUpperCase());
+}
+
+function flattenApprovalData(value, prefix = '') {
+  if (value == null || value === '') return prefix ? [[approvalLabel(prefix), 'Not provided']] : [];
+  if (Array.isArray(value)) {
+    if (!value.length) return prefix ? [[approvalLabel(prefix), 'None']] : [];
+    if (value.every(item => item == null || typeof item !== 'object')) {
+      return [[approvalLabel(prefix), value.map(item => String(item ?? '')).join(', ')]];
+    }
+    return value.flatMap((item, index) => flattenApprovalData(item, `${prefix} ${index + 1}`.trim()));
+  }
+  if (typeof value === 'object') {
+    return Object.entries(value).flatMap(([key, item]) => flattenApprovalData(item, prefix ? `${prefix} — ${key}` : key));
+  }
+  return [[approvalLabel(prefix), String(value)]];
+}
+%>
 <section class="page-head"><div><div class="eyebrow">Controlled database changes</div><h1>Approvals</h1><p>Review proposed changes before anything touches live customer data.</p></div></section>
 <section class="panel table-card"><table class="data-table"><thead><tr><th>Requested</th><th>Customer</th><th>Requested by</th><th>Change</th><th>Approval</th><th>Decision</th></tr></thead><tbody>
-<% rows.forEach(r=>{const p=JSON.parse(r.proposed_data_json); %><tr>
+<% rows.forEach(r=>{ const proposed=parseApprovalData(r.proposed_data_json); const details=flattenApprovalData(proposed); %><tr>
 <td><%= new Date(r.created_at).toLocaleString('en-ZA') %></td>
 <td><strong><%= r.client_name||r.summary %></strong><small><%= r.cell_number||r.account_number||'' %></small></td>
 <td><%= r.requested_by_name %></td>
-<td><% Object.entries(p).forEach(([k,v])=>{ %><div><strong><%= k.replaceAll('_',' ') %>:</strong> <%= Array.isArray(v)?v.join(', '):v %></div><% }) %><% if(r.reason){ %><small>Reason: <%= r.reason %></small><% } %></td>
+<td>
+  <div><strong>Request:</strong> <%= approvalLabel(r.request_type) %></div>
+  <% details.forEach(([label,value])=>{ %><div><strong><%= label %>:</strong> <%= value %></div><% }) %>
+  <% if(!details.length){ %><div>No additional request details were supplied.</div><% } %>
+  <% if(r.reason){ %><small>Reason: <%= r.reason %></small><% } %>
+</td>
 <td><span class="badge <%= r.required_approval_role==='owner'?'urgent':'normal' %>"><%= r.required_approval_role %></span></td>
 <td><form method="post" action="<%= basePath %>/approvals/<%= r.id %>/decision">
-<% if(r.request_type==='assign_account_number'){ %><label>Official account number</label><input name="account_number" placeholder="Enter unique account number"><% } %>
-<textarea name="comment" placeholder="Review comment"></textarea><div class="approval-actions"><button class="btn primary" name="decision" value="approve">Approve</button><button class="btn danger" name="decision" value="reject">Reject</button></div></form></td>
+<% if(r.request_type==='assign_account_number'){ %><label>Official account number</label><input name="account_number" placeholder="Enter unique account number" required><% } %>
+<textarea name="comment" placeholder="Review comment"></textarea><div class="approval-actions"><button class="btn primary" name="decision" value="approve">Approve</button><button class="btn danger" name="decision" value="reject" formnovalidate>Reject</button></div></form></td>
 </tr><% }) %><% if(!rows.length){ %><tr><td colspan="6">No changes are waiting for your approval.</td></tr><% } %>
 </tbody></table></section>
