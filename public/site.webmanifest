@@ -1,11 +1,29 @@
 {
-  "name": "Talk2Me CRM",
+  "id": "/talk2me/workspace",
+  "name": "Talk2Me OS",
   "short_name": "Talk2Me",
+  "description": "Talk2Me customer and staff command centre",
+  "start_url": "/talk2me/workspace",
+  "scope": "/talk2me/",
+  "display": "standalone",
+  "background_color": "#202832",
+  "theme_color": "#202832",
   "icons": [
-    { "src": "/talk2me/public/images/favicon-192x192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/talk2me/public/images/favicon-512x512.png", "sizes": "512x512", "type": "image/png" }
-  ],
-  "theme_color": "#ff1f2a",
-  "background_color": "#ffffff",
-  "display": "standalone"
+    {
+      "src": "/talk2me/public/images/favicon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/talk2me/public/images/favicon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/talk2me/public/images/favicon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
 }
