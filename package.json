@@ -1,7 +1,7 @@
 {
   "name": "talk2me-crm",
-  "version": "6.0.0-alpha.15",
-  "description": "Talk2Me OS v6 alpha 15 - centered floating external system windows above the workspace",
+  "version": "6.0.0-alpha.16",
+  "description": "Talk2Me OS v6 alpha 16 - track floating external systems in the workspace taskbar",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
