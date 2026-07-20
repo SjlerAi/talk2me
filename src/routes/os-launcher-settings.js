@@ -7,7 +7,9 @@ const DEFAULTS = [
   { slot_key: 'slot_1', display_name: 'Vodacom', icon_text: 'V', portal_url: '', open_mode: 'separate', sort_order: 1, is_enabled: 1 },
   { slot_key: 'slot_2', display_name: 'MTN', icon_text: 'MTN', portal_url: '', open_mode: 'separate', sort_order: 2, is_enabled: 1 },
   { slot_key: 'slot_3', display_name: 'Telkom', icon_text: 'T', portal_url: '', open_mode: 'separate', sort_order: 3, is_enabled: 1 },
-  { slot_key: 'slot_4', display_name: 'Sage', icon_text: 'S', portal_url: '', open_mode: 'separate', sort_order: 4, is_enabled: 1 }
+  { slot_key: 'slot_4', display_name: 'Sage', icon_text: 'S', portal_url: '', open_mode: 'separate', sort_order: 4, is_enabled: 1 },
+  { slot_key: 'slot_5', display_name: 'System 5', icon_text: '5', portal_url: '', open_mode: 'separate', sort_order: 5, is_enabled: 0 },
+  { slot_key: 'slot_6', display_name: 'System 6', icon_text: '6', portal_url: '', open_mode: 'separate', sort_order: 6, is_enabled: 0 }
 ];
 
 function isOwner(user) {
@@ -97,14 +99,14 @@ router.post('/backoffice/os-launchers', requireAuth, async (req, res, next) => {
       const portalUrl = String(req.body[`portal_url_${key}`] || '').trim();
       const openMode = req.body[`open_mode_${key}`] === 'embedded' ? 'embedded' : 'separate';
       const isEnabled = req.body[`is_enabled_${key}`] === '1' ? 1 : 0;
-      if (!displayName) throw new Error('Every enabled launcher must have a display name.');
-      if (portalUrl && !/^https:\/\//i.test(portalUrl)) throw new Error(`${displayName} must use an https:// address.`);
+      if (isEnabled && !displayName) throw new Error('Every enabled launcher must have a display name.');
+      if (portalUrl && !/^https:\/\//i.test(portalUrl)) throw new Error(`${displayName || 'Launcher'} must use an https:// address.`);
       await db.execute(`UPDATE os_external_launchers SET
         display_name=:displayName,icon_text=:iconText,portal_url=:portalUrl,open_mode=:openMode,
         is_enabled=:isEnabled,updated_by=:updatedBy
         WHERE slot_key=:key`, {
-        displayName,
-        iconText: iconText || displayName.slice(0, 1).toUpperCase(),
+        displayName: displayName || `System ${key.slice(-1)}`,
+        iconText: iconText || displayName.slice(0, 1).toUpperCase() || key.slice(-1),
         portalUrl: portalUrl || null,
         openMode,
         isEnabled,
