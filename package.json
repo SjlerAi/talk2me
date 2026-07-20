@@ -1,7 +1,7 @@
 {
   "name": "talk2me-crm",
-  "version": "6.0.0-alpha.21.5",
-  "description": "Talk2Me OS v6 alpha 21.5 - six configurable workstation launchers",
+  "version": "6.0.0-alpha.21.6",
+  "description": "Talk2Me OS v6 alpha 21.6 - customers plus five configurable launchers",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
