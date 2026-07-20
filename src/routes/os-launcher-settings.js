@@ -7,7 +7,8 @@ const DEFAULTS = [
   { slot_key: 'slot_1', display_name: 'Vodacom', icon_text: 'V', portal_url: '', open_mode: 'separate', sort_order: 1, is_enabled: 1 },
   { slot_key: 'slot_2', display_name: 'MTN', icon_text: 'MTN', portal_url: '', open_mode: 'separate', sort_order: 2, is_enabled: 1 },
   { slot_key: 'slot_3', display_name: 'Telkom', icon_text: 'T', portal_url: '', open_mode: 'separate', sort_order: 3, is_enabled: 1 },
-  { slot_key: 'slot_4', display_name: 'Sage', icon_text: 'S', portal_url: '', open_mode: 'separate', sort_order: 4, is_enabled: 1 }
+  { slot_key: 'slot_4', display_name: 'Sage', icon_text: 'S', portal_url: '', open_mode: 'separate', sort_order: 4, is_enabled: 1 },
+  { slot_key: 'slot_5', display_name: 'New System', icon_text: 'N', portal_url: '', open_mode: 'separate', sort_order: 5, is_enabled: 0 }
 ];
 
 function isOwner(user) {
