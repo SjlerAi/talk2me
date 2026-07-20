@@ -1,0 +1,24 @@
+.t2m-notes-sidebar header{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px}
+.t2m-notes-sidebar header h2{min-width:0;margin:0}
+.t2m-notes-sidebar [data-note-new]{position:static!important;margin:0!important;justify-self:end;min-width:72px}
+.t2m-notes-editor{grid-template-rows:auto auto minmax(0,1fr) auto}
+.t2m-notes-editor>[data-note-title]{grid-row:2;width:100%;margin:0}
+.t2m-notes-editor>[data-note-text]{grid-row:3;width:100%;margin:0}
+.t2m-notes-actions{grid-row:4}
+
+.t2m-calendar-app{height:100%;display:grid;grid-template-rows:auto auto minmax(0,1fr) auto;gap:12px;padding:18px;background:#f7f9fc}
+.t2m-calendar-toolbar{display:grid;grid-template-columns:42px 1fr 42px;align-items:center;gap:12px}
+.t2m-calendar-toolbar>div{display:grid;text-align:center}
+.t2m-calendar-toolbar strong{font-size:22px}
+.t2m-calendar-toolbar small{color:var(--t2m-muted);font-size:12px}
+.t2m-calendar-toolbar>button{width:42px;height:42px;border:1px solid var(--t2m-border);border-radius:10px;background:#fff;color:var(--t2m-ink);font-size:26px}
+.t2m-calendar-weekdays,.t2m-calendar-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+.t2m-calendar-weekdays span{text-align:center;color:var(--t2m-muted);font-size:11px;font-weight:900;text-transform:uppercase}
+.t2m-calendar-grid{min-height:0}
+.t2m-calendar-day{min-height:58px;display:flex;align-items:flex-start;justify-content:flex-end;padding:8px;border:1px solid var(--t2m-border);border-radius:10px;background:#fff;color:var(--t2m-ink)}
+.t2m-calendar-day:hover{border-color:#ef8d92;background:#fff4f4}
+.t2m-calendar-day.is-outside{opacity:.38}
+.t2m-calendar-day.is-today{box-shadow:inset 0 0 0 2px var(--t2m-blue)}
+.t2m-calendar-day.is-selected{border-color:var(--t2m-red);background:#fff0f1;color:#9d151b;font-weight:900}
+.t2m-calendar-footer{display:flex;justify-content:space-between;gap:12px}
+@media(max-width:700px){.t2m-calendar-day{min-height:44px;padding:6px}.t2m-calendar-app{padding:10px}.t2m-notes-sidebar header{grid-template-columns:1fr auto}}
