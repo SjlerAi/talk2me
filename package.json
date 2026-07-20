@@ -1,7 +1,7 @@
 {
   "name": "talk2me-crm",
-  "version": "6.0.0-alpha.21.4",
-  "description": "Talk2Me OS v6 alpha 21.4 - full dashboard labels and wider cards",
+  "version": "6.0.0-alpha.21.5",
+  "description": "Talk2Me OS v6 alpha 21.5 - six daily launcher positions",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
