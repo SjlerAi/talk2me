@@ -1,14 +1,14 @@
-<section class="page-head"><div><div class="eyebrow">Owner configuration</div><h1>Workstation Launchers</h1><p>Control the six external-system buttons shown across every Talk2Me workstation. The Customers button remains separate and always available.</p></div><a class="btn" href="<%= basePath %>/backoffice">Back to Administration</a></section>
+<section class="page-head"><div><div class="eyebrow">Owner configuration</div><h1>Workstation Launchers</h1><p>Control the five configurable external-system buttons shown next to the permanent Customers button.</p></div><a class="btn" href="<%= basePath %>/backoffice">Back to Administration</a></section>
 <% if(saved){ %><div class="success-box">Workstation launcher settings were saved. Refresh the workstation to see the changes.</div><% } %>
 <% if(error){ %><div class="error-box"><strong>Settings not saved</strong><p><%= error %></p></div><% } %>
 <div class="panel" style="margin-bottom:18px"><strong>Recommended:</strong> Use a controlled companion window for supplier systems that block embedded access. It opens smaller than the Talk2Me workspace, reuses one window per supplier and remains listed in the Talk2Me taskbar while open.</div>
 <form class="panel form-grid" method="post" action="<%= basePath %>/backoffice/os-launchers">
   <% launchers.forEach(item=>{ %>
   <div class="full panel" style="margin:0">
-    <div class="panel-heading-row"><div><div class="eyebrow">Position <%= item.sort_order %> of 6</div><h2><%= item.display_name %></h2></div><label><input type="checkbox" name="is_enabled_<%= item.slot_key %>" value="1" <%= item.is_enabled?'checked':'' %>> Show on workstation</label></div>
+    <div class="panel-heading-row"><div><div class="eyebrow">Position <%= item.sort_order %> of 5</div><h2><%= item.display_name %></h2></div><label><input type="checkbox" name="is_enabled_<%= item.slot_key %>" value="1" <%= item.is_enabled?'checked':'' %>> Show on workstation</label></div>
     <div class="form-grid">
       <div><label>Display name</label><input name="display_name_<%= item.slot_key %>" value="<%= item.display_name %>" maxlength="100"><small>This is the wording staff see on the top button and taskbar entry.</small></div>
-      <div><label>Button icon / initials</label><input name="icon_text_<%= item.slot_key %>" value="<%= item.icon_text %>" maxlength="12"><small>Examples: V, MTN, T, S, CRM.</small></div>
+      <div><label>Button icon / initials</label><input name="icon_text_<%= item.slot_key %>" value="<%= item.icon_text %>" maxlength="12"><small>Examples: V, T2, KB, S, CRM.</small></div>
       <div class="full"><label>Secure portal URL</label><input type="url" name="portal_url_<%= item.slot_key %>" value="<%= item.portal_url||'' %>" placeholder="https://..."><small>Leave blank until the correct external system address is available.</small></div>
       <div class="full"><label>How should this system open?</label><select name="open_mode_<%= item.slot_key %>"><option value="separate" <%= item.open_mode!=='embedded'?'selected':'' %>>Open as controlled companion window — recommended</option><option value="embedded" <%= item.open_mode==='embedded'?'selected':'' %>>Open inside Talk2Me workspace — only when supported</option></select><small>The companion window opens at approximately 82% of screen width and 84% of screen height, stays above Talk2Me and is tracked in the Talk2Me taskbar while it remains open.</small></div>
     </div>
