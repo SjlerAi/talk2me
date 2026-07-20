@@ -3,13 +3,13 @@ const db = require('../config/db');
 const { requireAuth } = require('../middleware/auth');
 
 const router = express.Router();
+const MANAGED_SLOT_KEYS = ['slot_1', 'slot_2', 'slot_3', 'slot_4', 'slot_5'];
 const DEFAULTS = [
   { slot_key: 'slot_1', display_name: 'Vodacom', icon_text: 'V', portal_url: '', open_mode: 'separate', sort_order: 1, is_enabled: 1 },
   { slot_key: 'slot_2', display_name: 'MTN', icon_text: 'MTN', portal_url: '', open_mode: 'separate', sort_order: 2, is_enabled: 1 },
   { slot_key: 'slot_3', display_name: 'Telkom', icon_text: 'T', portal_url: '', open_mode: 'separate', sort_order: 3, is_enabled: 1 },
   { slot_key: 'slot_4', display_name: 'Sage', icon_text: 'S', portal_url: '', open_mode: 'separate', sort_order: 4, is_enabled: 1 },
-  { slot_key: 'slot_5', display_name: 'System 5', icon_text: '5', portal_url: '', open_mode: 'separate', sort_order: 5, is_enabled: 0 },
-  { slot_key: 'slot_6', display_name: 'System 6', icon_text: '6', portal_url: '', open_mode: 'separate', sort_order: 6, is_enabled: 0 }
+  { slot_key: 'slot_5', display_name: 'System 5', icon_text: '5', portal_url: '', open_mode: 'separate', sort_order: 5, is_enabled: 0 }
 ];
 
 function isOwner(user) {
@@ -58,8 +58,11 @@ async function ensureTable() {
 
 async function loadLaunchers() {
   await ensureTable();
+  const placeholders = MANAGED_SLOT_KEYS.map(() => '?').join(',');
   const [rows] = await db.query(`SELECT id,slot_key,display_name,icon_text,portal_url,open_mode,sort_order,is_enabled
-    FROM os_external_launchers ORDER BY sort_order,id`);
+    FROM os_external_launchers
+    WHERE slot_key IN (${placeholders})
+    ORDER BY sort_order,id`, MANAGED_SLOT_KEYS);
   return rows;
 }
 
@@ -91,8 +94,8 @@ router.post('/backoffice/os-launchers', requireAuth, async (req, res, next) => {
   }
   try {
     await ensureTable();
-    const [current] = await db.query('SELECT slot_key FROM os_external_launchers ORDER BY sort_order,id');
-    for (const row of current) {
+    const launchers = await loadLaunchers();
+    for (const row of launchers) {
       const key = row.slot_key;
       const displayName = String(req.body[`display_name_${key}`] || '').trim().slice(0, 100);
       const iconText = String(req.body[`icon_text_${key}`] || '').trim().slice(0, 12);
