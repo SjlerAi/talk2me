@@ -15,9 +15,11 @@
   <link rel="stylesheet" href="<%= basePath %>/public/css/os-v6-alpha21.css?v=<%= encodeURIComponent(appVersion) %>">
   <link rel="stylesheet" href="<%= basePath %>/public/css/os-v6-alpha21-7.css?v=<%= encodeURIComponent(appVersion) %>">
   <link rel="stylesheet" href="<%= basePath %>/public/css/os-v6-alpha21-8.css?v=<%= encodeURIComponent(appVersion) %>">
+  <link rel="stylesheet" href="<%= basePath %>/public/css/attendance.css?v=<%= encodeURIComponent(appVersion) %>">
 </head>
 <body class="t2m-os-body">
   <% const launchers = (typeof osLaunchers !== 'undefined' && Array.isArray(osLaunchers) ? osLaunchers : []).filter(item => item.is_enabled); %>
+  <% const attendance = typeof attendanceState !== 'undefined' ? attendanceState : null; %>
   <div class="t2m-os-shell" id="talk2me-os">
     <header class="t2m-os-topbar">
       <a class="t2m-os-brand" href="<%= basePath %>/workspace" aria-label="Talk2Me OS home">
@@ -30,9 +32,10 @@
         <div class="t2m-os-search-results" id="os-search-results" role="listbox" hidden></div>
       </div>
       <div class="t2m-os-top-actions">
+        <button class="attendance-clock-button <%= attendance?'is-active':'' %>" type="button" data-os-route="<%= basePath %>/attendance/my" data-route-title="My Attendance" data-route-icon="◷" aria-label="Open my attendance"><i></i><span><strong><%= attendance?'Clocked in':'Attendance' %></strong><small><%= attendance?new Date(attendance.clock_in_at).toLocaleTimeString('en-ZA',{hour:'2-digit',minute:'2-digit'}):'Open register' %></small></span></button>
         <button class="t2m-os-icon-button" type="button" data-os-app="notifications" aria-label="Notifications"><span aria-hidden="true">🔔</span><b class="t2m-os-badge" data-badge="notifications" <%= status.unreadMessageCount ? '' : 'hidden' %>><%= status.unreadMessageCount %></b></button>
         <button class="t2m-os-user-button" type="button" aria-label="Signed-in user"><span class="t2m-os-avatar"><%= (currentUser.full_name || '?').slice(0, 1).toUpperCase() %></span><span class="t2m-os-user-copy"><strong><%= currentUser.full_name %></strong><small><%= currentUser.role %></small></span></button>
-        <form method="post" action="<%= basePath %>/logout"><button class="t2m-os-logout" type="submit">Logout</button></form>
+        <form method="post" action="<%= basePath %>/logout"><button class="t2m-os-logout" type="submit">Clock Out & Logout</button></form>
       </div>
     </header>
     <aside class="t2m-os-sidebar" aria-label="Talk2Me applications">
@@ -40,10 +43,11 @@
         <button type="button" data-os-app="queue"><span>▤</span><strong>Queue</strong><b data-badge="queue" <%= status.queueCount ? '' : 'hidden' %>><%= status.queueCount %></b></button>
         <button type="button" data-os-app="tasks"><span>✓</span><strong>Tasks</strong><b data-badge="tasks" <%= status.taskCount ? '' : 'hidden' %>><%= status.taskCount %></b></button>
         <button type="button" data-os-app="messages"><span>●</span><strong>Messages</strong><b data-badge="messages" <%= status.unreadMessageCount ? '' : 'hidden' %>><%= status.unreadMessageCount %></b></button>
+        <button type="button" data-os-route="<%= basePath %>/attendance/my" data-route-title="My Attendance" data-route-icon="◷"><span>◷</span><strong>Attendance</strong></button>
         <button type="button" data-os-app="calendar"><span>□</span><strong>Calendar</strong></button><button type="button" data-os-app="notes"><span>✎</span><strong>Notes</strong></button><button type="button" data-os-app="calculator"><span>#</span><strong>Calculator</strong></button>
       </div>
       <div class="t2m-os-sidebar-section"><span class="t2m-os-sidebar-label">Information</span><button type="button" data-os-app="reports"><span>▦</span><strong>Reports</strong></button><button type="button" data-os-app="help"><span>?</span><strong>Help</strong></button></div>
-      <% if (isManagement) { %><div class="t2m-os-sidebar-section"><span class="t2m-os-sidebar-label">Management</span><button type="button" data-os-route="<%= basePath %>/command-centre" data-route-title="Command Centre" data-route-icon="◆"><span>◆</span><strong>Command Centre</strong></button><button type="button" data-os-route="<%= basePath %>/approvals" data-route-title="Approvals" data-route-icon="✓"><span>✓</span><strong>Approvals</strong></button><button type="button" data-os-route="<%= basePath %>/upgrade-centre" data-route-title="Upgrade Centre" data-route-icon="↗"><span>↗</span><strong>Upgrades</strong></button><button type="button" data-os-route="<%= basePath %>/backoffice" data-route-title="Administration" data-route-icon="⚙"><span>⚙</span><strong>Administration</strong></button></div><% } %>
+      <% if (isManagement) { %><div class="t2m-os-sidebar-section"><span class="t2m-os-sidebar-label">Management</span><button type="button" data-os-route="<%= basePath %>/command-centre" data-route-title="Command Centre" data-route-icon="◆"><span>◆</span><strong>Command Centre</strong></button><button type="button" data-os-route="<%= basePath %>/backoffice/attendance" data-route-title="Attendance Register" data-route-icon="◷"><span>◷</span><strong>Attendance Register</strong></button><button type="button" data-os-route="<%= basePath %>/approvals" data-route-title="Approvals" data-route-icon="✓"><span>✓</span><strong>Approvals</strong></button><button type="button" data-os-route="<%= basePath %>/upgrade-centre" data-route-title="Upgrade Centre" data-route-icon="↗"><span>↗</span><strong>Upgrades</strong></button><button type="button" data-os-route="<%= basePath %>/backoffice" data-route-title="Administration" data-route-icon="⚙"><span>⚙</span><strong>Administration</strong></button></div><% } %>
     </aside>
     <nav class="t2m-os-launcher" aria-label="Primary systems">
       <button type="button" data-os-launch="customers"><span class="t2m-brand-mark customer">C</span><strong>Customers</strong></button>
@@ -68,7 +72,7 @@
     <footer class="t2m-os-taskbar" id="os-taskbar" aria-label="Open windows"><span class="t2m-os-taskbar-label">Open windows</span><div class="t2m-os-taskbar-items" id="os-taskbar-items"></div></footer>
   </div>
   <div class="t2m-os-toast-region" id="os-toast-region" aria-live="polite" aria-atomic="true"></div>
-  <script id="talk2me-os-config" type="application/json"><%- JSON.stringify({basePath,appVersion,user:{id:currentUser.id,name:currentUser.full_name,role:currentUser.role},isManagement,status,launchers}).replace(/</g, '\\u003c') %></script>
+  <script id="talk2me-os-config" type="application/json"><%- JSON.stringify({basePath,appVersion,user:{id:currentUser.id,name:currentUser.full_name,role:currentUser.role},isManagement,status,launchers}).replace(/</g, '\u003c') %></script>
   <script defer src="<%= basePath %>/public/js/os-v6.js?v=<%= encodeURIComponent(appVersion) %>"></script>
   <script defer src="<%= basePath %>/public/js/os-launchers.js?v=<%= encodeURIComponent(appVersion) %>"></script>
   <script defer src="<%= basePath %>/public/js/os-v6-alpha21.js?v=<%= encodeURIComponent(appVersion) %>"></script>

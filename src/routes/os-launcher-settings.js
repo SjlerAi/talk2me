@@ -137,4 +137,6 @@ router.get('/api/os/launchers', requireAuth, async (req, res, next) => {
   }
 });
 
+router.use(require('./attendance'));
+
 module.exports = router;

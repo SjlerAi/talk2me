@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="<%= basePath %>/public/css/command.css?v=<%= encodeURIComponent(appVersion) %>">
   <link rel="stylesheet" href="<%= basePath %>/public/css/command-4.0.1.css?v=<%= encodeURIComponent(appVersion) %>">
   <link rel="stylesheet" href="<%= basePath %>/public/css/command-4.0.2.css?v=<%= encodeURIComponent(appVersion) %>">
+  <link rel="stylesheet" href="<%= basePath %>/public/css/attendance.css?v=<%= encodeURIComponent(appVersion) %>">
   <script defer src="<%= basePath %>/public/js/customer-actions.js?v=<%= encodeURIComponent(appVersion) %>"></script>
 </head>
 <body class="command-body <%= panelMode?'panel-mode':'' %>">
@@ -22,11 +23,13 @@
   <nav class="command-nav">
     <span class="command-nav-label">Work</span>
     <a href="<%= basePath %>/workspace" class="<%= title==='Operational Workspace'?'active':'' %>"><b>⌂</b><span>My Workspace</span></a>
+    <a href="<%= basePath %>/attendance/my" data-command-panel><b>◷</b><span>My Attendance</span></a>
     <a href="<%= basePath %>/queries/new" data-command-panel><b>＋</b><span>New Inquiry</span></a>
     <a href="<%= basePath %>/tasks" data-command-panel><b>✓</b><span>Messages & Tasks</span><% if(safeUnreadTaskCount){ %><em><%= safeUnreadTaskCount %></em><% } %></a>
     <% if(management){ %>
     <span class="command-nav-label">Management</span>
     <a href="<%= basePath %>/command-centre"><b>▦</b><span>Shop Command Centre</span></a>
+    <a href="<%= basePath %>/backoffice/attendance" data-command-panel><b>◷</b><span>Attendance Register</span></a>
     <a href="<%= basePath %>/approvals" data-command-panel><b>◆</b><span>Approvals</span></a>
     <a href="<%= basePath %>/upgrade-centre" data-command-panel><b>↗</b><span>Upgrades</span></a>
     <a href="<%= basePath %>/reports?type=birthdays" data-command-panel><b>★</b><span>Reports</span></a>
@@ -41,7 +44,7 @@
     <div class="command-search"><span>⌕</span><input id="universal-client-search" placeholder="Find cellphone, account, customer, email, SIM or MAC" autocomplete="off"><div id="universal-client-results"></div></div>
     <button id="alert-toggle" class="live-status" type="button" title="Enable sound and browser alerts"><i></i><span>Alerts</span></button>
     <a class="top-task-link" href="<%= basePath %>/tasks" data-command-panel>Messages<% if(safeUnreadTaskCount){ %><b><%= safeUnreadTaskCount %></b><% } %></a>
-    <form method="post" action="<%= basePath %>/logout"><button class="logout-button">Logout</button></form>
+    <form method="post" action="<%= basePath %>/logout"><button class="logout-button">Clock Out & Logout</button></form>
   </header>
   <main class="command-page"><%- body %></main>
 </div>
