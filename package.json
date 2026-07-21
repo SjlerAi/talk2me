@@ -1,7 +1,7 @@
 {
   "name": "talk2me-crm",
-  "version": "6.0.0-alpha.21.13",
-  "description": "Talk2Me OS v6 alpha 21.13 - merge attendance status with the signed-in user control",
+  "version": "6.0.0-alpha.21.14",
+  "description": "Talk2Me OS v6 alpha 21.14 - redesign attendance administration for compact workstation windows",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -19,7 +19,6 @@
     "ejs": "^3.1.10",
     "express": "^4.19.2",
     "express-ejs-layouts": "^2.5.1",
-    "express-session": "^1.18.0",
     "mysql2": "^3.11.0",
     "multer": "^1.4.5-lts.1",
     "nodemailer": "^6.9.15"
