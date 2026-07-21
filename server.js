@@ -166,13 +166,17 @@ const osOperations = require('./src/routes/os-operations');
 app.use('/', osOperations);
 if (BASE_PATH) app.use(BASE_PATH, osOperations);
 
-const osProductivity = require('./src/routes/os-productivity');
-app.use('/', osProductivity);
-if (BASE_PATH) app.use(BASE_PATH, osProductivity);
+const osSearchActions = require('./src/routes/os-search-actions');
+app.use('/', osSearchActions);
+if (BASE_PATH) app.use(BASE_PATH, osSearchActions);
 
 const osCustomerActions = require('./src/routes/os-customer-actions');
 app.use('/', osCustomerActions);
 if (BASE_PATH) app.use(BASE_PATH, osCustomerActions);
+
+const osProductivity = require('./src/routes/os-productivity');
+app.use('/', osProductivity);
+if (BASE_PATH) app.use(BASE_PATH, osProductivity);
 
 const osRoutes = require('./src/routes/os');
 app.use('/', osRoutes);
