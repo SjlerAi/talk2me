@@ -1,0 +1,23 @@
+.t2m-search-empty-action {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+
+.t2m-search-empty-action > div {
+  display: grid;
+  gap: 4px;
+}
+
+.t2m-search-empty-action strong {
+  font-size: 15px;
+}
+
+.t2m-search-empty-action span {
+  color: #5f6b76;
+  line-height: 1.4;
+}
+
+.t2m-search-empty-action .t2m-os-primary-button {
+  justify-self: start;
+}
