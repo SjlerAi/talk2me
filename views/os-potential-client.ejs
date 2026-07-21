@@ -19,13 +19,14 @@
       <div class="t2m-existing-client">
         <strong><%= existing.client_name %></strong>
         <span><%= [existing.cell_number, existing.email, existing.lifecycle_status].filter(Boolean).join(' · ') %></span>
-        <a class="t2m-os-primary-button" href="<%= basePath %>/customers/<%= existing.id %>/360">Open existing customer</a>
+        <div class="t2m-quick-success-actions"><a class="t2m-os-primary-button" href="<%= basePath %>/customers/<%= existing.id %>/360">Open existing customer</a><a class="t2m-os-secondary-button" href="<%= basePath %>/customers/<%= existing.id %>/notes/new">Add Internal Note</a></div>
       </div>
     <% } %>
 
     <% if (saved && client) { %>
       <div class="t2m-quick-success"><strong>Potential client saved</strong><span><%= client.client_name %> is now searchable in Talk2Me and assigned to you.</span></div>
-      <div class="t2m-quick-success-actions"><a class="t2m-os-primary-button" href="<%= basePath %>/customers/<%= client.id %>/360">Open Customer 360</a></div>
+      <div class="t2m-post-capture-note"><div><strong>Record the interaction now</strong><span>Add an internal note showing what the client needs, who handled it and who must follow up.</span></div><a class="t2m-os-primary-button" href="<%= basePath %>/customers/<%= client.id %>/notes/new">+ Add Internal Note</a></div>
+      <div class="t2m-quick-success-actions"><a class="t2m-os-secondary-button" href="<%= basePath %>/customers/<%= client.id %>/360">Open Customer 360</a></div>
       <script>window.parent.postMessage({ type:'talk2me:quick-action-saved', action:'potential-client' }, window.location.origin);</script>
     <% } else { %>
       <form method="post" action="<%= basePath %>/os/potential-client" class="t2m-quick-form">
@@ -36,7 +37,7 @@
         <div class="t2m-field"><label>Customer type</label><select name="customer_type"><option value="unknown" <%= v('customer_type','unknown')==='unknown'?'selected':'' %>>Unknown</option><option value="individual" <%= v('customer_type')==='individual'?'selected':'' %>>Individual</option><option value="business" <%= v('customer_type')==='business'?'selected':'' %>>Business</option></select></div>
         <div class="t2m-field"><label>ID number (optional)</label><input name="id_number" maxlength="30" value="<%= v('id_number') %>"></div>
         <div class="t2m-field"><label>Lead source</label><input name="lead_source" maxlength="150" value="<%= v('lead_source','Customer search') %>"></div>
-        <div class="t2m-field full"><label>Initial notes / service required</label><textarea name="notes" rows="5" placeholder="What does the potential client need?"><%= v('notes') %></textarea></div>
+        <div class="t2m-field full"><label>Initial internal note / service required</label><textarea name="notes" rows="5" placeholder="What does the potential client need?"><%= v('notes') %></textarea><small>This initial note is saved on the client profile. After saving, use Add Internal Note for the permanent interaction history and staff follow-up.</small></div>
         <footer><button type="submit" class="t2m-os-primary-button">Save Potential Client</button></footer>
       </form>
     <% } %>
