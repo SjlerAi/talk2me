@@ -1,7 +1,7 @@
 {
   "name": "talk2me-crm",
-  "version": "6.0.0-alpha.21.9",
-  "description": "Talk2Me OS v6 alpha 21.9 - distinguish prospect inquiries, potential clients and customer notes",
+  "version": "6.0.0-alpha.21.10",
+  "description": "Talk2Me OS v6 alpha 21.10 - make internal customer notes visible after capture and in Customer 360",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
