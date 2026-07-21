@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="<%= basePath %>/public/css/os-v6-alpha5.css?v=<%= encodeURIComponent(appVersion) %>">
   <link rel="stylesheet" href="<%= basePath %>/public/css/os-v6-alpha21.css?v=<%= encodeURIComponent(appVersion) %>">
   <link rel="stylesheet" href="<%= basePath %>/public/css/os-v6-alpha21-7.css?v=<%= encodeURIComponent(appVersion) %>">
+  <link rel="stylesheet" href="<%= basePath %>/public/css/os-v6-alpha21-8.css?v=<%= encodeURIComponent(appVersion) %>">
 </head>
 <body class="t2m-os-body">
   <% const launchers = (typeof osLaunchers !== 'undefined' && Array.isArray(osLaunchers) ? osLaunchers : []).filter(item => item.is_enabled); %>
@@ -72,6 +73,7 @@
   <script defer src="<%= basePath %>/public/js/os-launchers.js?v=<%= encodeURIComponent(appVersion) %>"></script>
   <script defer src="<%= basePath %>/public/js/os-v6-alpha21.js?v=<%= encodeURIComponent(appVersion) %>"></script>
   <script defer src="<%= basePath %>/public/js/os-v6-alpha21-7.js?v=<%= encodeURIComponent(appVersion) %>"></script>
+  <script defer src="<%= basePath %>/public/js/os-v6-alpha21-8.js?v=<%= encodeURIComponent(appVersion) %>"></script>
   <script defer src="<%= basePath %>/public/js/pwa-install.js?v=<%= encodeURIComponent(appVersion) %>" data-base-path="<%= basePath %>"></script>
 </body>
 </html>
