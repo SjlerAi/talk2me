@@ -7,8 +7,8 @@
   <a class="<%= view==='unassigned'?'active':'' %>" href="<%= basePath %>/backoffice/clients?view=unassigned">Unassigned <span><%= counts.unassigned_count||0 %></span></a>
   <a class="<%= view==='archived'?'active':'' %>" href="<%= basePath %>/backoffice/clients?view=archived">Archived <span><%= counts.archived_count||0 %></span></a>
 </nav>
-<div class="card form-card">
-  <form method="get"><input type="hidden" name="view" value="<%= view %>"><label>Search clients</label><div class="search-row"><input name="q" value="<%= q %>" placeholder="Name, contact number, email, account or ID"><button class="primary">Search</button></div></form>
+<div class="card form-card" id="customer-list-filter">
+  <form method="get" id="customer-list-filter-form"><input type="hidden" name="view" value="<%= view %>"><label>Filter this customer list</label><div class="search-row"><input id="customer-list-filter-input" name="q" value="<%= q %>" autocomplete="off" placeholder="Start typing a name, contact number, email, account or ID"><button class="primary">Search</button></div><small class="customer-list-filter-help">The selected <%= view.replace('_',' ') %> list filters automatically after three letters or digits.</small></form>
 </div>
 <div class="card table-card"><table class="data-table"><thead><tr><th>Client</th><th>Type</th><th>Contact</th><th>Latest inquiry</th><th>Town</th><th>Next Upgrade</th><th>Assigned staff</th><th>Actions</th></tr></thead><tbody>
 <% if(!clients.length){ %><tr><td colspan="8">No records found in this view.</td></tr><% } %>
@@ -31,5 +31,8 @@
   </form>
   <% } %>
   <small class="assigned-note"><%= c.assigned_staff_name ? 'Currently: '+c.assigned_staff_name : 'Unassigned' %></small>
-</td><td><div class="client-actions"><% if(['owner','manager'].includes(currentUser.role)){ %><a class="btn tiny primary" href="<%= basePath %>/backoffice/clients/<%= c.id %>/edit">Edit Line</a><% } else { %><span class="muted">View only</span><% } %></div></td></tr><% }) %>
+</td><td><div class="client-actions"><a class="btn tiny" href="<%= basePath %>/customers/<%= c.id %>/360">Open 360</a><% if(['owner','manager'].includes(currentUser.role)){ %><a class="btn tiny primary" href="<%= basePath %>/backoffice/clients/<%= c.id %>/edit">Edit Line</a><% } %></div></td></tr><% }) %>
 </tbody></table></div>
+<script>
+(()=>{const form=document.getElementById('customer-list-filter-form');const input=document.getElementById('customer-list-filter-input');const card=document.getElementById('customer-list-filter');if(!form||!input)return;let timer;input.addEventListener('input',()=>{clearTimeout(timer);const q=input.value.trim();if(q.length>0&&q.length<3)return;timer=setTimeout(()=>{card?.classList.add('customer-list-searching');form.requestSubmit()},350)});})();
+</script>

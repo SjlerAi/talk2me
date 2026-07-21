@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title><%= title %> | Talk2Me</title>
+  <link rel="stylesheet" href="<%= basePath %>/public/css/os-v6.css?v=<%= encodeURIComponent(appVersion) %>">
+  <link rel="stylesheet" href="<%= basePath %>/public/css/os-v6-alpha21.css?v=<%= encodeURIComponent(appVersion) %>">
+  <link rel="stylesheet" href="<%= basePath %>/public/css/os-v6-alpha21-9.css?v=<%= encodeURIComponent(appVersion) %>">
+</head>
+<body class="t2m-quick-body">
+  <% const v = (name, fallback='') => values && values[name] != null ? values[name] : fallback; %>
+  <main class="t2m-quick-card">
+    <header><div><span>Customer capture</span><h1>Add Potential Client</h1></div><small>Creates a searchable client profile</small></header>
+
+    <% if (error) { %><div class="t2m-quick-error"><strong>Could not save</strong><span><%= error %></span></div><% } %>
+
+    <% if (existing) { %>
+      <div class="t2m-existing-client">
+        <strong><%= existing.client_name %></strong>
+        <span><%= [existing.cell_number, existing.email, existing.lifecycle_status].filter(Boolean).join(' · ') %></span>
+        <a class="t2m-os-primary-button" href="<%= basePath %>/customers/<%= existing.id %>/360">Open existing customer</a>
+      </div>
+    <% } %>
+
+    <% if (saved && client) { %>
+      <div class="t2m-quick-success"><strong>Potential client saved</strong><span><%= client.client_name %> is now searchable in Talk2Me and assigned to you.</span></div>
+      <div class="t2m-quick-success-actions"><a class="t2m-os-primary-button" href="<%= basePath %>/customers/<%= client.id %>/360">Open Customer 360</a></div>
+      <script>window.parent.postMessage({ type:'talk2me:quick-action-saved', action:'potential-client' }, window.location.origin);</script>
+    <% } else { %>
+      <form method="post" action="<%= basePath %>/os/potential-client" class="t2m-quick-form">
+        <div class="t2m-field full"><label>Client / company name</label><input name="client_name" maxlength="200" required value="<%= v('client_name') %>" placeholder="Full name or business name"></div>
+        <div class="t2m-field"><label>Cellphone number</label><input name="cell_number" maxlength="40" value="<%= v('cell_number') %>" placeholder="At least cellphone or email"></div>
+        <div class="t2m-field"><label>Email</label><input name="email" type="email" maxlength="255" value="<%= v('email') %>" placeholder="At least cellphone or email"></div>
+        <div class="t2m-field"><label>Town</label><input name="city_town" maxlength="150" value="<%= v('city_town') %>"></div>
+        <div class="t2m-field"><label>Customer type</label><select name="customer_type"><option value="unknown" <%= v('customer_type','unknown')==='unknown'?'selected':'' %>>Unknown</option><option value="individual" <%= v('customer_type')==='individual'?'selected':'' %>>Individual</option><option value="business" <%= v('customer_type')==='business'?'selected':'' %>>Business</option></select></div>
+        <div class="t2m-field"><label>ID number (optional)</label><input name="id_number" maxlength="30" value="<%= v('id_number') %>"></div>
+        <div class="t2m-field"><label>Lead source</label><input name="lead_source" maxlength="150" value="<%= v('lead_source','Customer search') %>"></div>
+        <div class="t2m-field full"><label>Initial notes / service required</label><textarea name="notes" rows="5" placeholder="What does the potential client need?"><%= v('notes') %></textarea></div>
+        <footer><button type="submit" class="t2m-os-primary-button">Save Potential Client</button></footer>
+      </form>
+    <% } %>
+  </main>
+</body>
+</html>
