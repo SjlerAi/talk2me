@@ -1,0 +1,41 @@
+<% const fmt = value => value ? new Date(value).toLocaleString('en-ZA',{timeZone:settings.timezone,dateStyle:'medium',timeStyle:'short'}) : '—'; %>
+<% const fmtDate = value => value ? new Date(value).toLocaleDateString('en-ZA',{timeZone:settings.timezone,dateStyle:'medium'}) : '—'; %>
+<section class="page-head attendance-page-head">
+  <div><div class="eyebrow">Staff time and leave</div><h1>My Attendance</h1><p>Your Talk2Me login clocks you in. Logging out from the main workstation clocks you out.</p></div>
+  <a class="btn" href="<%= basePath %>/workspace">Return to Workspace</a>
+</section>
+
+<section class="attendance-summary-grid">
+  <article class="attendance-status-card <%= active?'is-active':'is-closed' %>">
+    <span>Current status</span>
+    <strong><%= active?'Clocked in':'Not clocked in' %></strong>
+    <p><%= active?`Since ${fmt(active.clock_in_at)}`:'Your next successful Talk2Me login will start attendance.' %></p>
+    <% if(active){ %><b><%= hoursLabel(active.worked_minutes) %> today</b><% } %>
+  </article>
+  <article><span>Annual leave allowance</span><strong><%= Number(settings.annual_leave_days).toFixed(1) %> days</strong><p>Configurable by management.</p></article>
+  <article><span>Annual leave used</span><strong><%= annualUsed.toFixed(1) %> days</strong><p>Approved annual leave this calendar year.</p></article>
+  <article><span>Annual leave remaining</span><strong><%= annualRemaining.toFixed(1) %> days</strong><p>Based on the current configured allowance.</p></article>
+</section>
+
+<section class="card attendance-card">
+  <div class="panel-heading-row"><div><div class="eyebrow">Standard roster</div><h2>Working Hours</h2></div><small>Timezone: <%= settings.timezone %></small></div>
+  <div class="table-wrap"><table class="data-table attendance-table"><thead><tr><th>Day</th><th>Status</th><th>Start</th><th>Finish</th><th>Break</th></tr></thead><tbody>
+    <% schedule.forEach(day=>{ %><tr><td><strong><%= day.day_name %></strong></td><td><%= day.is_workday?'Working day':'Off' %></td><td><%= day.is_workday?String(day.start_time).slice(0,5):'—' %></td><td><%= day.is_workday?String(day.end_time).slice(0,5):'—' %></td><td><%= day.is_workday?`${day.break_minutes||0} min`:'—' %></td></tr><% }) %>
+  </tbody></table></div>
+</section>
+
+<section class="card attendance-card">
+  <div class="panel-heading-row"><div><div class="eyebrow">Recent activity</div><h2>Attendance History</h2></div></div>
+  <div class="table-wrap"><table class="data-table attendance-table"><thead><tr><th>Date</th><th>Clock in</th><th>Clock out</th><th>Worked</th><th>Status</th></tr></thead><tbody>
+    <% if(!sessions.length){ %><tr><td colspan="5">No attendance records yet. Log out and log in again after deployment to start attendance.</td></tr><% } %>
+    <% sessions.forEach(row=>{ %><tr><td><%= fmtDate(row.work_date) %></td><td><%= fmt(row.clock_in_at) %></td><td><%= row.clock_out_at?fmt(row.clock_out_at):'Still clocked in' %></td><td><%= hoursLabel(row.worked_minutes) %></td><td><span class="attendance-pill <%= row.status %>"><%= row.status.replace('_',' ') %></span></td></tr><% }) %>
+  </tbody></table></div>
+</section>
+
+<section class="card attendance-card">
+  <div class="panel-heading-row"><div><div class="eyebrow">Approved and recorded</div><h2>Leave History</h2></div></div>
+  <div class="table-wrap"><table class="data-table attendance-table"><thead><tr><th>Leave type</th><th>From</th><th>To</th><th>Days</th><th>Status</th></tr></thead><tbody>
+    <% if(!leave.length){ %><tr><td colspan="5">No leave records.</td></tr><% } %>
+    <% leave.forEach(row=>{ %><tr><td><strong><%= row.leave_type_name %></strong></td><td><%= fmtDate(row.start_date) %></td><td><%= fmtDate(row.end_date) %></td><td><%= Number(row.leave_days).toFixed(1) %></td><td><span class="attendance-pill <%= row.status %>"><%= row.status %></span></td></tr><% }) %>
+  </tbody></table></div>
+</section>
