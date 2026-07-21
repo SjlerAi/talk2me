@@ -170,6 +170,10 @@ const osProductivity = require('./src/routes/os-productivity');
 app.use('/', osProductivity);
 if (BASE_PATH) app.use(BASE_PATH, osProductivity);
 
+const osCustomerActions = require('./src/routes/os-customer-actions');
+app.use('/', osCustomerActions);
+if (BASE_PATH) app.use(BASE_PATH, osCustomerActions);
+
 const osRoutes = require('./src/routes/os');
 app.use('/', osRoutes);
 if (BASE_PATH) app.use(BASE_PATH, osRoutes);
