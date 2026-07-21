@@ -1,7 +1,7 @@
 {
   "name": "talk2me-crm",
-  "version": "6.0.0-alpha.21.14",
-  "description": "Talk2Me OS v6 alpha 21.14 - redesign attendance administration for compact workstation windows",
+  "version": "6.0.0-alpha.21.15",
+  "description": "Talk2Me OS v6 alpha 21.15 - redesign attendance administration with focused tabbed sections",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
