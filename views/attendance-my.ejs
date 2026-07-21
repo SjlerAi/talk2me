@@ -2,7 +2,7 @@
 <% const fmtDate = value => value ? new Date(value).toLocaleDateString('en-ZA',{timeZone:settings.timezone,dateStyle:'medium'}) : '—'; %>
 <section class="page-head attendance-page-head">
   <div><div class="eyebrow">Staff time and leave</div><h1>My Attendance</h1><p>Your Talk2Me login clocks you in. Logging out from the main workstation clocks you out.</p></div>
-  <a class="btn" href="<%= basePath %>/workspace">Return to Workspace</a>
+  <button class="btn" type="button" id="attendance-return-workspace">Return to Workspace</button>
 </section>
 
 <section class="attendance-summary-grid">
@@ -39,3 +39,29 @@
     <% leave.forEach(row=>{ %><tr><td><strong><%= row.leave_type_name %></strong></td><td><%= fmtDate(row.start_date) %></td><td><%= fmtDate(row.end_date) %></td><td><%= Number(row.leave_days).toFixed(1) %></td><td><span class="attendance-pill <%= row.status %>"><%= row.status %></span></td></tr><% }) %>
   </tbody></table></div>
 </section>
+
+<script>
+(()=>{
+  const button=document.getElementById('attendance-return-workspace');
+  if(!button)return;
+  button.addEventListener('click',()=>{
+    try{
+      const manager=window.parent?.Talk2MeOS?.windows;
+      const frame=window.frameElement;
+      if(manager&&frame){
+        for(const [id,record] of manager.windows.entries()){
+          if(record.node.contains(frame)){
+            manager.close(id);
+            return;
+          }
+        }
+      }
+    }catch(error){}
+    if(window.parent!==window){
+      window.parent.postMessage('talk2me:close-panel','*');
+      return;
+    }
+    window.location.href='<%= basePath %>/workspace';
+  });
+})();
+</script>
