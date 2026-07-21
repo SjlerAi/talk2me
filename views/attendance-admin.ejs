@@ -1,102 +1,246 @@
 <% const fmt = value => value ? new Date(value).toLocaleString('en-ZA',{timeZone:settings.timezone,dateStyle:'medium',timeStyle:'short'}) : '—'; %>
 <% const fmtDate = value => value ? new Date(value).toLocaleDateString('en-ZA',{timeZone:settings.timezone,dateStyle:'medium'}) : '—'; %>
 <% const inputDateTime = value => value ? new Date(value).toLocaleString('sv-SE',{timeZone:settings.timezone}).replace(' ','T').slice(0,16) : ''; %>
-<section class="page-head attendance-page-head">
-  <div><div class="eyebrow">Back office</div><h1>Attendance Register</h1><p>Talk2Me login is the clock-in event and logout is the clock-out event. Working hours, leave and corrections are managed here.</p></div>
-  <a class="btn" href="<%= basePath %>/attendance/my">My Attendance</a>
-</section>
-<% if(saved){ %><div class="success-box">Attendance changes saved successfully.</div><% } %>
+<% const savedKey = typeof saved === 'undefined' ? '' : String(saved || ''); %>
+<% const initialTab = savedKey === 'settings' ? 'hours' : savedKey.startsWith('leave') ? 'leave' : ['manual','adjustment'].includes(savedKey) ? 'time' : 'live'; %>
 
-<section class="attendance-summary-grid attendance-admin-summary">
-  <article><span>Clocked in now</span><strong><%= register.filter(x=>x.active).length %></strong><p>Staff with an active attendance session.</p></article>
-  <article><span>On leave today</span><strong><%= register.filter(x=>x.leaveToday).length %></strong><p>Approved leave covering today.</p></article>
-  <article><span>Not clocked in</span><strong><%= register.filter(x=>!x.active&&!x.leaveToday&&!x.firstIn).length %></strong><p>Active staff without attendance today.</p></article>
-  <article><span>Annual leave default</span><strong><%= Number(settings.annual_leave_days).toFixed(1) %> days</strong><p>Current configurable annual allowance.</p></article>
-</section>
+<div class="attendance-admin-shell" data-initial-tab="<%= initialTab %>">
+  <section class="page-head attendance-page-head">
+    <div>
+      <div class="eyebrow">Back office</div>
+      <h1>Attendance Register</h1>
+      <p>Use one section at a time to manage today’s register, working hours, leave and time corrections.</p>
+    </div>
+    <a class="btn" href="<%= basePath %>/attendance/my">My Attendance</a>
+  </section>
 
-<section class="card attendance-card">
-  <div class="panel-heading-row"><div><div class="eyebrow">Today</div><h2>Live Attendance</h2></div><small><%= new Date().toLocaleDateString('en-ZA',{timeZone:settings.timezone,dateStyle:'full'}) %></small></div>
-  <div class="table-wrap"><table class="data-table attendance-table"><thead><tr><th>Staff member</th><th>Scheduled</th><th>First in</th><th>Last out</th><th>Worked</th><th>Status</th></tr></thead><tbody>
-    <% register.forEach(row=>{ const todayIso=((new Date().getDay()+6)%7)+1; const todaySchedule=schedule.find(x=>Number(x.iso_day)===todayIso); %>
-    <tr><td><strong><%= row.full_name %></strong><br><small><%= row.role %></small></td><td><%= todaySchedule?.is_workday?`${String(todaySchedule.start_time).slice(0,5)}–${String(todaySchedule.end_time).slice(0,5)}`:'Off' %></td><td><%= row.firstIn?fmt(row.firstIn):'—' %></td><td><%= row.lastOut?fmt(row.lastOut):'—' %></td><td><%= row.minutes?hoursLabel(row.minutes):'—' %></td><td><span class="attendance-pill <%= row.active?'active':row.leaveToday?'leave':row.firstIn?'closed':'missing' %>"><%= row.leaveToday?row.leaveToday.leave_type_name:row.status %></span></td></tr>
-    <% }) %>
-  </tbody></table></div>
-</section>
+  <% if(savedKey){ %><div class="success-box">Attendance changes saved successfully.</div><% } %>
 
-<section class="attendance-admin-grid">
-  <article class="card attendance-card">
-    <div class="eyebrow">Configuration</div><h2>Working Hours and Leave</h2>
-    <form method="post" action="<%= basePath %>/backoffice/attendance/settings" class="attendance-form">
-      <div class="attendance-form-grid">
-        <label>Annual leave days<input type="number" step="0.5" min="0" max="100" name="annual_leave_days" value="<%= settings.annual_leave_days %>" required></label>
-        <label>Late grace period<input type="number" min="0" max="180" name="late_grace_minutes" value="<%= settings.late_grace_minutes %>" required></label>
+  <nav class="attendance-subnav" role="tablist" aria-label="Attendance administration sections">
+    <button type="button" role="tab" data-attendance-tab="live" aria-selected="<%= initialTab==='live' %>">
+      <span>◷</span><strong>Live Register</strong><small>Today’s attendance</small>
+    </button>
+    <button type="button" role="tab" data-attendance-tab="hours" aria-selected="<%= initialTab==='hours' %>">
+      <span>⌚</span><strong>Working Hours</strong><small>Schedule and rules</small>
+    </button>
+    <button type="button" role="tab" data-attendance-tab="leave" aria-selected="<%= initialTab==='leave' %>">
+      <span>▣</span><strong>Leave Management</strong><small>Capture and review leave</small>
+    </button>
+    <button type="button" role="tab" data-attendance-tab="time" aria-selected="<%= initialTab==='time' %>">
+      <span>↻</span><strong>Time Management</strong><small>Missing and corrected time</small>
+    </button>
+  </nav>
+
+  <section class="attendance-tab-panel" data-attendance-panel="live" <%= initialTab==='live'?'':'hidden' %>>
+    <div class="attendance-summary-grid attendance-admin-summary">
+      <article><span>Clocked in now</span><strong><%= register.filter(x=>x.active).length %></strong><p>Staff with an active attendance session.</p></article>
+      <article><span>On leave today</span><strong><%= register.filter(x=>x.leaveToday).length %></strong><p>Approved leave covering today.</p></article>
+      <article><span>Not clocked in</span><strong><%= register.filter(x=>!x.active&&!x.leaveToday&&!x.firstIn).length %></strong><p>Active staff without attendance today.</p></article>
+      <article><span>Annual leave default</span><strong><%= Number(settings.annual_leave_days).toFixed(1) %> days</strong><p>Current annual allowance.</p></article>
+    </div>
+
+    <article class="card attendance-card attendance-section-card">
+      <div class="panel-heading-row">
+        <div><div class="eyebrow">Today</div><h2>Live Attendance</h2></div>
+        <small><%= new Date().toLocaleDateString('en-ZA',{timeZone:settings.timezone,dateStyle:'full'}) %></small>
       </div>
-      <label>Timezone<input name="timezone" value="<%= settings.timezone %>" required></label>
-      <label class="check-label"><input type="checkbox" name="auto_clock_in_on_login" value="1" <%= settings.auto_clock_in_on_login?'checked':'' %>> Login clocks staff in</label>
-      <label class="check-label"><input type="checkbox" name="auto_clock_out_on_logout" value="1" <%= settings.auto_clock_out_on_logout?'checked':'' %>> Logout clocks staff out</label>
-      <div class="schedule-editor">
-        <% schedule.forEach(day=>{ %><div class="schedule-row"><strong><%= day.day_name %></strong><label class="check-label"><input type="checkbox" name="is_workday_<%= day.iso_day %>" value="1" <%= day.is_workday?'checked':'' %>> Work</label><label>Start<input type="time" name="start_time_<%= day.iso_day %>" value="<%= day.start_time?String(day.start_time).slice(0,5):'' %>"></label><label>Finish<input type="time" name="end_time_<%= day.iso_day %>" value="<%= day.end_time?String(day.end_time).slice(0,5):'' %>"></label><label>Break min<input type="number" min="0" max="300" name="break_minutes_<%= day.iso_day %>" value="<%= day.break_minutes||0 %>"></label></div><% }) %>
+      <div class="attendance-table-wrap">
+        <table class="data-table attendance-table attendance-live-table">
+          <thead><tr><th>Staff member</th><th>Scheduled</th><th>First in</th><th>Last out</th><th>Worked</th><th>Status</th></tr></thead>
+          <tbody>
+            <% register.forEach(row=>{ const todayIso=((new Date().getDay()+6)%7)+1; const todaySchedule=schedule.find(x=>Number(x.iso_day)===todayIso); %>
+              <tr>
+                <td data-label="Staff member"><strong><%= row.full_name %></strong><small><%= row.role %></small></td>
+                <td data-label="Scheduled"><%= todaySchedule?.is_workday?`${String(todaySchedule.start_time).slice(0,5)}–${String(todaySchedule.end_time).slice(0,5)}`:'Off' %></td>
+                <td data-label="First in"><%= row.firstIn?fmt(row.firstIn):'—' %></td>
+                <td data-label="Last out"><%= row.lastOut?fmt(row.lastOut):'—' %></td>
+                <td data-label="Worked"><%= row.minutes?hoursLabel(row.minutes):'—' %></td>
+                <td data-label="Status"><span class="attendance-pill <%= row.active?'active':row.leaveToday?'leave':row.firstIn?'closed':'missing' %>"><%= row.leaveToday?row.leaveToday.leave_type_name:row.status %></span></td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
       </div>
-      <button class="btn primary" type="submit">Save Attendance Settings</button>
-    </form>
-  </article>
+    </article>
+  </section>
 
-  <article class="card attendance-card">
-    <div class="eyebrow">Leave management</div><h2>Add Staff Leave</h2>
-    <form method="post" action="<%= basePath %>/backoffice/attendance/leave" class="attendance-form">
-      <label>Staff member<select name="staff_id" required><option value="">Select staff</option><% staff.forEach(s=>{ %><option value="<%= s.id %>"><%= s.full_name %></option><% }) %></select></label>
-      <label>Leave type<select name="leave_type_id" required><% leaveTypes.forEach(t=>{ %><option value="<%= t.id %>"><%= t.name %></option><% }) %></select></label>
-      <div class="attendance-form-grid"><label>Start date<input type="date" name="start_date" required></label><label>End date<input type="date" name="end_date" required></label></div>
-      <label>Days override <small>Leave blank to calculate configured working days.</small><input type="number" name="leave_days" min="0.5" step="0.5"></label>
-      <label>Reason / notes<textarea name="reason" rows="3"></textarea></label>
-      <button class="btn primary" type="submit">Add Leave</button>
-    </form>
-  </article>
+  <section class="attendance-tab-panel" data-attendance-panel="hours" <%= initialTab==='hours'?'':'hidden' %>>
+    <article class="card attendance-card attendance-section-card">
+      <div class="attendance-section-heading">
+        <div><div class="eyebrow">Configuration</div><h2>Working Hours and Attendance Rules</h2></div>
+        <p>Set the normal weekly schedule and automatic login and logout behaviour.</p>
+      </div>
+      <form method="post" action="<%= basePath %>/backoffice/attendance/settings" class="attendance-form attendance-settings-form">
+        <div class="attendance-rule-grid">
+          <label>Annual leave days<input type="number" step="0.5" min="0" max="100" name="annual_leave_days" value="<%= settings.annual_leave_days %>" required></label>
+          <label>Late grace period <small>Minutes after the scheduled start.</small><input type="number" min="0" max="180" name="late_grace_minutes" value="<%= settings.late_grace_minutes %>" required></label>
+          <label>Timezone<input name="timezone" value="<%= settings.timezone %>" required></label>
+        </div>
 
-  <article class="card attendance-card">
-    <div class="eyebrow">Missing record</div><h2>Add Manual Attendance</h2>
-    <form method="post" action="<%= basePath %>/backoffice/attendance/manual-entry" class="attendance-form">
-      <label>Staff member<select name="staff_id" required><option value="">Select staff</option><% staff.forEach(s=>{ %><option value="<%= s.id %>"><%= s.full_name %></option><% }) %></select></label>
-      <div class="attendance-form-grid"><label>Clock in<input type="datetime-local" name="clock_in_at" required></label><label>Clock out<input type="datetime-local" name="clock_out_at" required></label></div>
-      <label>Reason<textarea name="reason" rows="3" required placeholder="Why was this entry added manually?"></textarea></label>
-      <button class="btn primary" type="submit">Add Manual Entry</button>
-    </form>
-  </article>
+        <div class="attendance-toggle-row">
+          <label class="attendance-switch"><input type="checkbox" name="auto_clock_in_on_login" value="1" <%= settings.auto_clock_in_on_login?'checked':'' %>><span></span><strong>Login clocks staff in</strong></label>
+          <label class="attendance-switch"><input type="checkbox" name="auto_clock_out_on_logout" value="1" <%= settings.auto_clock_out_on_logout?'checked':'' %>><span></span><strong>Logout clocks staff out</strong></label>
+        </div>
 
-  <article class="card attendance-card">
-    <div class="eyebrow">Audit protected</div><h2>Adjust Existing Time</h2>
-    <form method="post" action="<%= basePath %>/backoffice/attendance/adjust" class="attendance-form">
-      <label>Attendance record<select name="session_id" required id="attendance-session-select"><option value="">Select record</option><% recentSessions.forEach(row=>{ %><option value="<%= row.id %>" data-in="<%= inputDateTime(row.clock_in_at) %>" data-out="<%= inputDateTime(row.clock_out_at) %>"><%= row.full_name %> · <%= fmtDate(row.work_date) %> · <%= fmt(row.clock_in_at) %></option><% }) %></select></label>
-      <div class="attendance-form-grid"><label>Corrected clock in<input id="adjusted-clock-in" type="datetime-local" name="adjusted_clock_in_at" required></label><label>Corrected clock out<input id="adjusted-clock-out" type="datetime-local" name="adjusted_clock_out_at" required></label></div>
-      <label>Adjustment reason<textarea name="reason" rows="3" required placeholder="The original times remain in the audit trail."></textarea></label>
-      <button class="btn primary" type="submit">Save Time Adjustment</button>
-    </form>
-  </article>
-</section>
+        <div class="attendance-schedule-heading"><div><h3>Weekly schedule</h3><p>Each day has its own start, finish and break setting.</p></div></div>
+        <div class="attendance-day-grid">
+          <% schedule.forEach(day=>{ %>
+            <fieldset class="attendance-day-card <%= day.is_workday?'is-working':'is-off' %>">
+              <legend class="sr-only"><%= day.day_name %></legend>
+              <div class="attendance-day-head">
+                <strong><%= day.day_name %></strong>
+                <label class="attendance-work-toggle"><input type="checkbox" name="is_workday_<%= day.iso_day %>" value="1" <%= day.is_workday?'checked':'' %>><span>Working day</span></label>
+              </div>
+              <div class="attendance-day-fields">
+                <label class="schedule-start">Start<input type="time" name="start_time_<%= day.iso_day %>" value="<%= day.start_time?String(day.start_time).slice(0,5):'' %>"></label>
+                <label class="schedule-finish">Finish<input type="time" name="end_time_<%= day.iso_day %>" value="<%= day.end_time?String(day.end_time).slice(0,5):'' %>"></label>
+                <label class="schedule-break">Break minutes<input type="number" min="0" max="300" name="break_minutes_<%= day.iso_day %>" value="<%= day.break_minutes||0 %>"></label>
+              </div>
+            </fieldset>
+          <% }) %>
+        </div>
+        <div class="attendance-form-actions"><button class="btn primary" type="submit">Save Working Hours</button></div>
+      </form>
+    </article>
+  </section>
 
-<section class="card attendance-card">
-  <div class="panel-heading-row"><div><div class="eyebrow">Recent</div><h2>Attendance Records</h2></div></div>
-  <div class="table-wrap"><table class="data-table attendance-table"><thead><tr><th>Staff</th><th>Date</th><th>Clock in</th><th>Clock out</th><th>Worked</th><th>Source</th><th>Status</th></tr></thead><tbody>
-    <% if(!recentSessions.length){ %><tr><td colspan="7">No attendance records yet.</td></tr><% } %>
-    <% recentSessions.forEach(row=>{ %><tr><td><strong><%= row.full_name %></strong></td><td><%= fmtDate(row.work_date) %></td><td><%= fmt(row.clock_in_at) %></td><td><%= row.clock_out_at?fmt(row.clock_out_at):'Missing / active' %></td><td><%= hoursLabel(row.worked_minutes) %></td><td><%= row.clock_in_source %> / <%= row.clock_out_source||'—' %></td><td><span class="attendance-pill <%= row.status %>"><%= row.status %></span></td></tr><% }) %>
-  </tbody></table></div>
-</section>
+  <section class="attendance-tab-panel" data-attendance-panel="leave" <%= initialTab==='leave'?'':'hidden' %>>
+    <div class="attendance-panel-grid">
+      <article class="card attendance-card attendance-section-card">
+        <div class="attendance-section-heading"><div><div class="eyebrow">Leave management</div><h2>Add Staff Leave</h2></div><p>Approved leave is reflected in the live attendance register.</p></div>
+        <form method="post" action="<%= basePath %>/backoffice/attendance/leave" class="attendance-form">
+          <label>Staff member<select name="staff_id" required><option value="">Select staff</option><% staff.forEach(s=>{ %><option value="<%= s.id %>"><%= s.full_name %></option><% }) %></select></label>
+          <label>Leave type<select name="leave_type_id" required><% leaveTypes.forEach(t=>{ %><option value="<%= t.id %>"><%= t.name %></option><% }) %></select></label>
+          <div class="attendance-form-grid"><label>Start date<input type="date" name="start_date" required></label><label>End date<input type="date" name="end_date" required></label></div>
+          <label>Days override <small>Leave blank to calculate configured working days.</small><input type="number" name="leave_days" min="0.5" step="0.5"></label>
+          <label>Reason / notes<textarea name="reason" rows="3"></textarea></label>
+          <button class="btn primary" type="submit">Add Leave</button>
+        </form>
+      </article>
 
-<section class="card attendance-card">
-  <div class="panel-heading-row"><div><div class="eyebrow">Leave register</div><h2>Recorded Leave</h2></div></div>
-  <div class="table-wrap"><table class="data-table attendance-table"><thead><tr><th>Staff</th><th>Type</th><th>Dates</th><th>Days</th><th>Status</th><th></th></tr></thead><tbody>
-    <% if(!leaveRecords.length){ %><tr><td colspan="6">No leave recorded.</td></tr><% } %>
-    <% leaveRecords.forEach(row=>{ %><tr><td><strong><%= row.full_name %></strong></td><td><%= row.leave_type_name %></td><td><%= fmtDate(row.start_date) %> – <%= fmtDate(row.end_date) %></td><td><%= Number(row.leave_days).toFixed(1) %></td><td><span class="attendance-pill <%= row.status %>"><%= row.status %></span></td><td><% if(row.status!=='cancelled'){ %><form method="post" action="<%= basePath %>/backoffice/attendance/leave/<%= row.id %>/cancel"><button class="btn tiny" type="submit">Cancel</button></form><% } %></td></tr><% }) %>
-  </tbody></table></div>
-</section>
+      <article class="card attendance-card attendance-section-card attendance-record-card">
+        <div class="attendance-section-heading"><div><div class="eyebrow">Leave register</div><h2>Recorded Leave</h2></div><p>Review or cancel previously recorded leave.</p></div>
+        <div class="attendance-table-wrap">
+          <table class="data-table attendance-table">
+            <thead><tr><th>Staff</th><th>Type</th><th>Dates</th><th>Days</th><th>Status</th><th>Action</th></tr></thead>
+            <tbody>
+              <% if(!leaveRecords.length){ %><tr><td colspan="6">No leave recorded.</td></tr><% } %>
+              <% leaveRecords.forEach(row=>{ %>
+                <tr>
+                  <td data-label="Staff"><strong><%= row.full_name %></strong></td>
+                  <td data-label="Type"><%= row.leave_type_name %></td>
+                  <td data-label="Dates"><%= fmtDate(row.start_date) %> – <%= fmtDate(row.end_date) %></td>
+                  <td data-label="Days"><%= Number(row.leave_days).toFixed(1) %></td>
+                  <td data-label="Status"><span class="attendance-pill <%= row.status %>"><%= row.status %></span></td>
+                  <td data-label="Action"><% if(row.status!=='cancelled'){ %><form method="post" action="<%= basePath %>/backoffice/attendance/leave/<%= row.id %>/cancel"><button class="btn tiny" type="submit">Cancel</button></form><% } else { %>—<% } %></td>
+                </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+      </article>
+    </div>
+  </section>
 
-<section class="card attendance-card">
-  <div class="panel-heading-row"><div><div class="eyebrow">Audit trail</div><h2>Time Adjustments</h2></div></div>
-  <div class="table-wrap"><table class="data-table attendance-table"><thead><tr><th>Staff</th><th>Original</th><th>Corrected</th><th>Reason</th><th>Adjusted by</th><th>Date</th></tr></thead><tbody>
-    <% if(!adjustments.length){ %><tr><td colspan="6">No time adjustments.</td></tr><% } %>
-    <% adjustments.forEach(row=>{ %><tr><td><strong><%= row.full_name %></strong></td><td><%= fmt(row.original_clock_in_at) %><br><%= fmt(row.original_clock_out_at) %></td><td><%= fmt(row.adjusted_clock_in_at) %><br><%= fmt(row.adjusted_clock_out_at) %></td><td><%= row.reason %></td><td><%= row.adjusted_by_name %></td><td><%= fmt(row.created_at) %></td></tr><% }) %>
-  </tbody></table></div>
-</section>
+  <section class="attendance-tab-panel" data-attendance-panel="time" <%= initialTab==='time'?'':'hidden' %>>
+    <div class="attendance-time-actions">
+      <article class="card attendance-card attendance-section-card">
+        <div class="attendance-section-heading"><div><div class="eyebrow">Missing record</div><h2>Add Manual Attendance</h2></div><p>Use this only where a clock-in or clock-out record was missed.</p></div>
+        <form method="post" action="<%= basePath %>/backoffice/attendance/manual-entry" class="attendance-form">
+          <label>Staff member<select name="staff_id" required><option value="">Select staff</option><% staff.forEach(s=>{ %><option value="<%= s.id %>"><%= s.full_name %></option><% }) %></select></label>
+          <div class="attendance-form-grid"><label>Clock in<input type="datetime-local" name="clock_in_at" required></label><label>Clock out<input type="datetime-local" name="clock_out_at" required></label></div>
+          <label>Reason<textarea name="reason" rows="3" required placeholder="Why was this entry added manually?"></textarea></label>
+          <button class="btn primary" type="submit">Add Manual Entry</button>
+        </form>
+      </article>
+
+      <article class="card attendance-card attendance-section-card">
+        <div class="attendance-section-heading"><div><div class="eyebrow">Audit protected</div><h2>Correct Existing Time</h2></div><p>The original times remain in the audit trail.</p></div>
+        <form method="post" action="<%= basePath %>/backoffice/attendance/adjust" class="attendance-form">
+          <label>Attendance record<select name="session_id" required id="attendance-session-select"><option value="">Select record</option><% recentSessions.forEach(row=>{ %><option value="<%= row.id %>" data-in="<%= inputDateTime(row.clock_in_at) %>" data-out="<%= inputDateTime(row.clock_out_at) %>"><%= row.full_name %> · <%= fmtDate(row.work_date) %> · <%= fmt(row.clock_in_at) %></option><% }) %></select></label>
+          <div class="attendance-form-grid"><label>Corrected clock in<input id="adjusted-clock-in" type="datetime-local" name="adjusted_clock_in_at" required></label><label>Corrected clock out<input id="adjusted-clock-out" type="datetime-local" name="adjusted_clock_out_at" required></label></div>
+          <label>Adjustment reason<textarea name="reason" rows="3" required placeholder="Explain why this time is being corrected."></textarea></label>
+          <button class="btn primary" type="submit">Save Time Adjustment</button>
+        </form>
+      </article>
+    </div>
+
+    <article class="card attendance-card attendance-section-card attendance-record-card">
+      <div class="attendance-section-heading"><div><div class="eyebrow">Recent</div><h2>Attendance Records</h2></div><p>The latest 31 days of recorded time.</p></div>
+      <div class="attendance-table-wrap">
+        <table class="data-table attendance-table">
+          <thead><tr><th>Staff</th><th>Date</th><th>Clock in</th><th>Clock out</th><th>Worked</th><th>Source</th><th>Status</th></tr></thead>
+          <tbody>
+            <% if(!recentSessions.length){ %><tr><td colspan="7">No attendance records yet.</td></tr><% } %>
+            <% recentSessions.forEach(row=>{ %>
+              <tr>
+                <td data-label="Staff"><strong><%= row.full_name %></strong></td>
+                <td data-label="Date"><%= fmtDate(row.work_date) %></td>
+                <td data-label="Clock in"><%= fmt(row.clock_in_at) %></td>
+                <td data-label="Clock out"><%= row.clock_out_at?fmt(row.clock_out_at):'Missing / active' %></td>
+                <td data-label="Worked"><%= hoursLabel(row.worked_minutes) %></td>
+                <td data-label="Source"><%= row.clock_in_source %> / <%= row.clock_out_source||'—' %></td>
+                <td data-label="Status"><span class="attendance-pill <%= row.status %>"><%= row.status %></span></td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </article>
+
+    <details class="card attendance-card attendance-section-card attendance-audit-details">
+      <summary><span><small>Audit trail</small><strong>Time Adjustments</strong></span><b>View audit trail</b></summary>
+      <div class="attendance-table-wrap">
+        <table class="data-table attendance-table">
+          <thead><tr><th>Staff</th><th>Original</th><th>Corrected</th><th>Reason</th><th>Adjusted by</th><th>Date</th></tr></thead>
+          <tbody>
+            <% if(!adjustments.length){ %><tr><td colspan="6">No time adjustments.</td></tr><% } %>
+            <% adjustments.forEach(row=>{ %>
+              <tr><td data-label="Staff"><strong><%= row.full_name %></strong></td><td data-label="Original"><%= fmt(row.original_clock_in_at) %><br><%= fmt(row.original_clock_out_at) %></td><td data-label="Corrected"><%= fmt(row.adjusted_clock_in_at) %><br><%= fmt(row.adjusted_clock_out_at) %></td><td data-label="Reason"><%= row.reason %></td><td data-label="Adjusted by"><%= row.adjusted_by_name %></td><td data-label="Date"><%= fmt(row.created_at) %></td></tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </details>
+  </section>
+</div>
+
 <script>
-(()=>{const select=document.getElementById('attendance-session-select');if(!select)return;select.addEventListener('change',()=>{const option=select.selectedOptions[0];document.getElementById('adjusted-clock-in').value=option?.dataset.in||'';document.getElementById('adjusted-clock-out').value=option?.dataset.out||''})})();
+(()=>{
+  const shell=document.querySelector('.attendance-admin-shell');
+  if(!shell)return;
+  const tabs=[...shell.querySelectorAll('[data-attendance-tab]')];
+  const panels=[...shell.querySelectorAll('[data-attendance-panel]')];
+  const activate=name=>{
+    tabs.forEach(tab=>tab.setAttribute('aria-selected',String(tab.dataset.attendanceTab===name)));
+    panels.forEach(panel=>{panel.hidden=panel.dataset.attendancePanel!==name});
+    shell.dataset.activeTab=name;
+    try{sessionStorage.setItem('talk2me-attendance-tab',name)}catch(error){}
+    shell.scrollIntoView({block:'start'});
+  };
+  tabs.forEach(tab=>tab.addEventListener('click',()=>activate(tab.dataset.attendanceTab)));
+  const savedTab=shell.dataset.initialTab;
+  let preferred=savedTab;
+  if(!savedTab||savedTab==='live'){
+    try{preferred=sessionStorage.getItem('talk2me-attendance-tab')||savedTab||'live'}catch(error){preferred=savedTab||'live'}
+  }
+  if(!panels.some(panel=>panel.dataset.attendancePanel===preferred))preferred='live';
+  activate(preferred);
+
+  const select=document.getElementById('attendance-session-select');
+  if(select){
+    select.addEventListener('change',()=>{
+      const option=select.selectedOptions[0];
+      document.getElementById('adjusted-clock-in').value=option?.dataset.in||'';
+      document.getElementById('adjusted-clock-out').value=option?.dataset.out||'';
+    });
+  }
+
+  shell.querySelectorAll('.attendance-work-toggle input').forEach(input=>{
+    const card=input.closest('.attendance-day-card');
+    const paint=()=>{card.classList.toggle('is-working',input.checked);card.classList.toggle('is-off',!input.checked)};
+    input.addEventListener('change',paint);
+    paint();
+  });
+})();
 </script>
