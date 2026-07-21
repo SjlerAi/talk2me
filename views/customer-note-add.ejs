@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title><%= title %> | Talk2Me</title>
+  <link rel="stylesheet" href="<%= basePath %>/public/css/os-v6.css?v=<%= encodeURIComponent(appVersion) %>">
+  <link rel="stylesheet" href="<%= basePath %>/public/css/os-v6-alpha21.css?v=<%= encodeURIComponent(appVersion) %>">
+  <link rel="stylesheet" href="<%= basePath %>/public/css/os-v6-alpha21-9.css?v=<%= encodeURIComponent(appVersion) %>">
+</head>
+<body class="t2m-quick-body">
+  <% const v = (name, fallback='') => values && values[name] != null ? values[name] : fallback; %>
+  <main class="t2m-quick-card">
+    <header><div><span>Customer interaction</span><h1>Add Customer Note</h1></div><small>Permanent customer history</small></header>
+    <div class="t2m-customer-note-summary"><strong><%= client.client_name %></strong><span><%= [client.cell_number, client.email, client.account_number].filter(Boolean).join(' · ') %></span></div>
+    <% if (error) { %><div class="t2m-quick-error"><strong>Could not save</strong><span><%= error %></span></div><% } %>
+    <form method="post" action="<%= basePath %>/customers/<%= client.id %>/notes" class="t2m-quick-form">
+      <div class="t2m-field"><label>Note type</label><select name="note_type"><% [['inquiry','Customer inquiry'],['call','Customer call'],['walk_in','Walk-in interaction'],['complaint','Complaint'],['information','Information'],['sales','Sales opportunity'],['other','Other note']].forEach(([value,label])=>{ %><option value="<%= value %>" <%= v('note_type','inquiry')===value?'selected':'' %>><%= label %></option><% }) %></select></div>
+      <div class="t2m-field"><label>Contact method</label><select name="contact_method"><% [['walk_in','Walk-in'],['phone','Telephone'],['email','Email'],['whatsapp','WhatsApp'],['other','Other']].forEach(([value,label])=>{ %><option value="<%= value %>" <%= v('contact_method','walk_in')===value?'selected':'' %>><%= label %></option><% }) %></select></div>
+      <div class="t2m-field full"><label>Subject</label><input name="subject" maxlength="255" required value="<%= v('subject') %>" placeholder="What was the customer asking about?"></div>
+      <div class="t2m-field full"><label>Customer note / inquiry details</label><textarea name="note_text" rows="7" required placeholder="Record what the customer said, what was explained, and what must happen next."><%= v('note_text') %></textarea></div>
+      <div class="t2m-field full"><label>Handled by / assigned to</label><select name="assigned_staff_id" required><% staff.forEach(s=>{ %><option value="<%= s.id %>" <%= Number(v('assigned_staff_id'))===Number(s.id)?'selected':'' %>><%= s.full_name %> — <%= s.role %></option><% }) %></select><small>Captured by <%= currentUser.full_name %>. The selected staff member becomes responsible for follow-up.</small></div>
+      <div class="t2m-field"><label>Follow-up required</label><select name="follow_up_required" id="follow-up-required"><option value="0" <%= String(v('follow_up_required','0'))==='0'?'selected':'' %>>No — record only</option><option value="1" <%= String(v('follow_up_required'))==='1'?'selected':'' %>>Yes — create task</option></select></div>
+      <div class="t2m-field" id="follow-up-date-field"><label>Follow-up date and time</label><input name="follow_up_at" type="datetime-local" value="<%= v('follow_up_at') %>"></div>
+      <footer><button type="submit" class="t2m-os-primary-button">Save Customer Note</button></footer>
+    </form>
+  </main>
+  <script>
+  (()=>{const required=document.getElementById('follow-up-required');const field=document.getElementById('follow-up-date-field');const input=field.querySelector('input');const sync=()=>{const on=required.value==='1';field.hidden=!on;input.required=on};required.addEventListener('change',sync);sync()})();
+  </script>
+</body>
+</html>
