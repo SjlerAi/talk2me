@@ -20,6 +20,7 @@
 <body class="t2m-os-body">
   <% const launchers = (typeof osLaunchers !== 'undefined' && Array.isArray(osLaunchers) ? osLaunchers : []).filter(item => item.is_enabled); %>
   <% const attendance = typeof attendanceState !== 'undefined' ? attendanceState : null; %>
+  <% const firstName = String(currentUser.full_name || currentUser.username || 'Staff').trim().split(/\s+/)[0]; %>
   <div class="t2m-os-shell" id="talk2me-os">
     <header class="t2m-os-topbar">
       <a class="t2m-os-brand" href="<%= basePath %>/workspace" aria-label="Talk2Me OS home">
@@ -32,10 +33,12 @@
         <div class="t2m-os-search-results" id="os-search-results" role="listbox" hidden></div>
       </div>
       <div class="t2m-os-top-actions">
-        <button class="attendance-clock-button <%= attendance?'is-active':'' %>" type="button" data-os-route="<%= basePath %>/attendance/my" data-route-title="My Attendance" data-route-icon="◷" aria-label="Open my attendance"><i></i><span><strong><%= attendance?'Clocked in':'Attendance' %></strong><small><%= attendance?new Date(attendance.clock_in_at).toLocaleTimeString('en-ZA',{hour:'2-digit',minute:'2-digit'}):'Open register' %></small></span></button>
+        <button class="attendance-user-control <%= attendance?'is-active':'is-inactive' %>" type="button" data-os-route="<%= basePath %>/attendance/my" data-route-title="My Attendance" data-route-icon="◷" aria-label="Open attendance for <%= firstName %>">
+          <span class="attendance-user-avatar"><%= firstName.slice(0,1).toUpperCase() %></span>
+          <span class="attendance-user-copy"><strong><%= firstName %></strong><small><i aria-hidden="true"></i><%= attendance?'Clocked in · '+new Date(attendance.clock_in_at).toLocaleTimeString('en-ZA',{hour:'2-digit',minute:'2-digit'}):'Not clocked in' %></small></span>
+        </button>
         <button class="t2m-os-icon-button" type="button" data-os-app="notifications" aria-label="Notifications"><span aria-hidden="true">🔔</span><b class="t2m-os-badge" data-badge="notifications" <%= status.unreadMessageCount ? '' : 'hidden' %>><%= status.unreadMessageCount %></b></button>
-        <button class="t2m-os-user-button" type="button" aria-label="Signed-in user"><span class="t2m-os-avatar"><%= (currentUser.full_name || '?').slice(0, 1).toUpperCase() %></span><span class="t2m-os-user-copy"><strong><%= currentUser.full_name %></strong><small><%= currentUser.role %></small></span></button>
-        <form method="post" action="<%= basePath %>/logout"><button class="t2m-os-logout" type="submit">Clock Out & Logout</button></form>
+        <form method="post" action="<%= basePath %>/logout"><button class="t2m-os-logout attendance-session-action" type="submit"><%= attendance?'Clock Out & Logout':'Logout' %></button></form>
       </div>
     </header>
     <aside class="t2m-os-sidebar" aria-label="Talk2Me applications">
@@ -43,7 +46,6 @@
         <button type="button" data-os-app="queue"><span>▤</span><strong>Queue</strong><b data-badge="queue" <%= status.queueCount ? '' : 'hidden' %>><%= status.queueCount %></b></button>
         <button type="button" data-os-app="tasks"><span>✓</span><strong>Tasks</strong><b data-badge="tasks" <%= status.taskCount ? '' : 'hidden' %>><%= status.taskCount %></b></button>
         <button type="button" data-os-app="messages"><span>●</span><strong>Messages</strong><b data-badge="messages" <%= status.unreadMessageCount ? '' : 'hidden' %>><%= status.unreadMessageCount %></b></button>
-        <button type="button" data-os-route="<%= basePath %>/attendance/my" data-route-title="My Attendance" data-route-icon="◷"><span>◷</span><strong>Attendance</strong></button>
         <button type="button" data-os-app="calendar"><span>□</span><strong>Calendar</strong></button><button type="button" data-os-app="notes"><span>✎</span><strong>Notes</strong></button><button type="button" data-os-app="calculator"><span>#</span><strong>Calculator</strong></button>
       </div>
       <div class="t2m-os-sidebar-section"><span class="t2m-os-sidebar-label">Information</span><button type="button" data-os-app="reports"><span>▦</span><strong>Reports</strong></button><button type="button" data-os-app="help"><span>?</span><strong>Help</strong></button></div>
