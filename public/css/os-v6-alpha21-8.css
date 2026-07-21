@@ -21,3 +21,28 @@
 .t2m-search-empty-action .t2m-os-primary-button {
   justify-self: start;
 }
+
+.t2m-search-empty-action .t2m-search-empty-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.t2m-search-empty-action .t2m-os-secondary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 0 16px;
+  border: 1px solid #b9c9d6;
+  border-radius: 9px;
+  background: #fff;
+  color: #202832;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.t2m-search-empty-action .t2m-os-secondary-button:hover {
+  border-color: #ed1c24;
+  color: #b8141c;
+}
