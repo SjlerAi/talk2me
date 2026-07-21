@@ -1,7 +1,7 @@
 {
   "name": "talk2me-crm",
-  "version": "6.0.0-alpha.21.10",
-  "description": "Talk2Me OS v6 alpha 21.10 - make internal customer notes visible after capture and in Customer 360",
+  "version": "6.0.0-alpha.21.11",
+  "description": "Talk2Me OS v6 alpha 21.11 - simplify customer list assignment and edit actions",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
