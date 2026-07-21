@@ -10,10 +10,10 @@
 <div class="card form-card" id="customer-list-filter">
   <form method="get" id="customer-list-filter-form"><input type="hidden" name="view" value="<%= view %>"><label>Filter this customer list</label><div class="search-row"><input id="customer-list-filter-input" name="q" value="<%= q %>" autocomplete="off" placeholder="Start typing a name, contact number, email, account or ID"><button class="primary">Search</button></div><small class="customer-list-filter-help">The selected <%= view.replace('_',' ') %> list filters automatically after three letters or digits.</small></form>
 </div>
-<div class="card table-card"><table class="data-table"><thead><tr><th>Client</th><th>Type</th><th>Contact</th><th>Latest inquiry</th><th>Town</th><th>Next Upgrade</th><th>Assigned staff</th><th>Actions</th></tr></thead><tbody>
+<div class="card table-card"><table class="data-table customer-admin-table"><thead><tr><th>Client</th><th>Type</th><th>Contact</th><th>Latest inquiry</th><th>Town</th><th>Next Upgrade</th><th>Assigned staff</th><th aria-label="Edit"></th></tr></thead><tbody>
 <% if(!clients.length){ %><tr><td colspan="8">No records found in this view.</td></tr><% } %>
 <% clients.forEach(c => { %><tr>
-<td><strong><%= c.client_name %></strong><br><small><%= c.email || c.account_number || '' %></small></td>
+<td><a class="customer-name-link" href="<%= basePath %>/customers/<%= c.id %>/360"><strong><%= c.client_name %></strong><small><%= c.email || c.account_number || '' %></small></a></td>
 <td><span class="client-status <%= c.lifecycle_status || 'client' %>"><%= c.lifecycle_status || 'client' %></span><% if(c.lead_status){ %><br><small><%= c.lead_status.replace('_',' ') %></small><% } %></td>
 <td><%= c.cell_number || '—' %></td>
 <td><%= c.last_inquiry || '—' %><% if(c.last_action){ %><br><small><strong>Action:</strong> <%= c.last_action %></small><% } %></td>
@@ -21,18 +21,31 @@
 <td><strong><%= c.next_upgrade_date ? new Date(c.next_upgrade_date).toLocaleDateString('en-ZA') : (c.upgrade_date ? new Date(c.upgrade_date).toLocaleDateString('en-ZA') : '—') %></strong><% if(c.previous_upgrade_date){ %><br><small>Previous: <%= new Date(c.previous_upgrade_date).toLocaleDateString('en-ZA') %></small><% } %></td>
 <td>
   <% if(['owner','manager'].includes(currentUser.role)){ %>
-  <form method="post" action="<%= basePath %>/backoffice/clients/<%= c.id %>/assign" class="assignment-form">
+  <form method="post" action="<%= basePath %>/backoffice/clients/<%= c.id %>/assign" class="assignment-form compact-assignment-form" data-assignment-form>
     <input type="hidden" name="return_q" value="<%= q %>">
-    <select name="assigned_staff_id">
+    <select name="assigned_staff_id" aria-label="Assigned staff for <%= c.client_name %>" data-original-value="<%= c.assigned_staff_id || '' %>">
       <option value="">Unassigned</option>
       <% staff.forEach(s => { %><option value="<%= s.id %>" <%= Number(c.assigned_staff_id)===Number(s.id)?'selected':'' %>><%= s.full_name %></option><% }) %>
     </select>
-    <button class="small-button" type="submit">Update</button>
+    <button class="assignment-save-button" type="submit" aria-label="Save assignment" title="Save assignment" disabled>✓</button>
   </form>
-  <% } %>
-  <small class="assigned-note"><%= c.assigned_staff_name ? 'Currently: '+c.assigned_staff_name : 'Unassigned' %></small>
-</td><td><div class="client-actions"><a class="btn tiny" href="<%= basePath %>/customers/<%= c.id %>/360">Open 360</a><% if(['owner','manager'].includes(currentUser.role)){ %><a class="btn tiny primary" href="<%= basePath %>/backoffice/clients/<%= c.id %>/edit">Edit Line</a><% } %></div></td></tr><% }) %>
+  <% } else { %><span><%= c.assigned_staff_name || 'Unassigned' %></span><% } %>
+</td>
+<td class="customer-row-edit"><% if(['owner','manager'].includes(currentUser.role)){ %><a class="customer-edit-icon" href="<%= basePath %>/backoffice/clients/<%= c.id %>/edit" aria-label="Edit <%= c.client_name %>" title="Edit line">✎</a><% } %></td></tr><% }) %>
 </tbody></table></div>
 <script>
-(()=>{const form=document.getElementById('customer-list-filter-form');const input=document.getElementById('customer-list-filter-input');const card=document.getElementById('customer-list-filter');if(!form||!input)return;let timer;input.addEventListener('input',()=>{clearTimeout(timer);const q=input.value.trim();if(q.length>0&&q.length<3)return;timer=setTimeout(()=>{card?.classList.add('customer-list-searching');form.requestSubmit()},350)});})();
+(()=>{
+  const form=document.getElementById('customer-list-filter-form');
+  const input=document.getElementById('customer-list-filter-input');
+  const card=document.getElementById('customer-list-filter');
+  if(form&&input){let timer;input.addEventListener('input',()=>{clearTimeout(timer);const q=input.value.trim();if(q.length>0&&q.length<3)return;timer=setTimeout(()=>{card?.classList.add('customer-list-searching');form.requestSubmit()},350)})}
+  document.querySelectorAll('[data-assignment-form]').forEach(assignmentForm=>{
+    const select=assignmentForm.querySelector('select');
+    const button=assignmentForm.querySelector('.assignment-save-button');
+    if(!select||!button)return;
+    const sync=()=>{const changed=String(select.value)!==String(select.dataset.originalValue||'');button.disabled=!changed;button.classList.toggle('is-ready',changed)};
+    select.addEventListener('change',sync);
+    sync();
+  });
+})();
 </script>
