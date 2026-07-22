@@ -1,7 +1,7 @@
 {
   "name": "talk2me-crm",
-  "version": "6.0.0-alpha.21.20",
-  "description": "Talk2Me OS v6 alpha 21.20 - polish notes and attendance layouts",
+  "version": "6.0.0-alpha.21.21",
+  "description": "Talk2Me OS v6 alpha 21.21 - normalize attendance typography and layout",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
