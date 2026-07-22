@@ -1,7 +1,7 @@
 {
   "name": "talk2me-crm",
-  "version": "6.0.0-alpha.21.21",
-  "description": "Talk2Me OS v6 alpha 21.21 - normalize attendance typography and layout",
+  "version": "6.0.0-alpha.21.22",
+  "description": "Talk2Me OS v6 alpha 21.22 - align all attendance management layouts",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
