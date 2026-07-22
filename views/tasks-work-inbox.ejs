@@ -1,0 +1,52 @@
+<% const panelSuffix = panelMode ? '&panel=1' : ''; %>
+<% const taskUrl = id => `${basePath}/tasks/${id}${panelMode?'?panel=1':''}`; %>
+<% const tabUrl = key => `${basePath}/tasks?view=${key}${panelSuffix}`; %>
+<section class="hero-row task-work-hero">
+  <div><h1>Tasks & Messages</h1><p>Plan today’s work, follow progress, and approve completed work before it is archived.</p></div>
+  <div class="hero-actions"><a class="btn primary" href="<%= basePath %>/tasks/new<%= panelMode?'?panel=1':'' %>">Send Message / Task</a></div>
+</section>
+<nav class="task-work-tabs" aria-label="Task and message views">
+  <% const tabs=[['active','All Active'],['today','Today'],['priority','My Priority'],['progress','In Progress'],['approval','Awaiting My Approval'],['sent','Sent by Me'],['notifications','Notifications'],['archive','Archive']]; %>
+  <% if(management) tabs.push(['all','All Staff Active']); %>
+  <% tabs.forEach(([key,label])=>{ const count=Number(counts[key]||0); %>
+    <a class="<%= view===key?'active':'' %> <%= (key==='approval'||key==='notifications')&&count?'has-alert':'' %>" href="<%= tabUrl(key) %>"><span><%= label %></span><b <%= count?'':'hidden' %>><%= count %></b></a>
+  <% }) %>
+</nav>
+<% if(view!=='notifications'){ %>
+<section class="panel task-work-filter-card">
+  <form method="get" class="task-work-filters">
+    <input type="hidden" name="view" value="<%= view %>"><% if(panelMode){ %><input type="hidden" name="panel" value="1"><% } %>
+    <label>Search<input type="search" name="q" value="<%= filters.q %>" placeholder="Title, message, person or customer"></label>
+    <label>Type<select name="type"><option value="">All</option><option value="task" <%= filters.type==='task'?'selected':'' %>>Tasks</option><option value="notification" <%= filters.type==='notification'?'selected':'' %>>Messages</option></select></label>
+    <label>Priority<select name="priority"><option value="">All</option><option value="urgent" <%= filters.priority==='urgent'?'selected':'' %>>Urgent</option><option value="high" <%= filters.priority==='high'?'selected':'' %>>High</option><option value="normal" <%= filters.priority==='normal'?'selected':'' %>>Normal</option></select></label>
+    <% if(management){ %><label>Staff<select name="staff_id"><option value="">All staff</option><% staff.forEach(s=>{ %><option value="<%= s.id %>" <%= Number(filters.staffFilter)===Number(s.id)?'selected':'' %>><%= s.full_name %></option><% }) %></select></label><% } %>
+    <button class="btn primary" type="submit">Apply</button>
+  </form>
+</section>
+<section class="task-work-list" aria-label="<%= title %>">
+  <% tasks.forEach(t=>{ const overdue=t.due_at&&new Date(t.due_at)<new Date()&&!['completed','cancelled'].includes(t.status); const dueToday=t.due_at&&new Date(t.due_at).toDateString()===new Date().toDateString(); const priorityToday=t.my_priority_date&&new Date(t.my_priority_date).toDateString()===new Date().toDateString(); %>
+  <a class="task-work-card <%= overdue?'is-overdue':'' %> <%= t.workflow_state==='awaiting_sender_ack'?'needs-approval':'' %>" href="<%= taskUrl(t.id) %>">
+    <div class="task-work-card-mark"><span><%= t.type==='notification'?'●':'✓' %></span></div>
+    <div class="task-work-card-copy">
+      <div class="task-work-card-title"><strong><%= t.title %></strong><span class="badge <%= t.priority %>"><%= t.priority %></span></div>
+      <p><%= String(t.message||'').slice(0,180) %></p>
+      <div class="task-work-meta"><span><b>From:</b> <%= t.created_by_name %></span><span><b>To:</b> <%= t.assigned_name %></span><% if(t.related_client_name){ %><span><b>Client:</b> <%= t.related_client_name %></span><% } %></div>
+      <div class="task-work-labels">
+        <span class="workflow-state"><%= t.workflow_label %></span>
+        <% if(overdue){ %><span class="date-label danger">Overdue</span><% } else if(dueToday){ %><span class="date-label today">Due today</span><% } %>
+        <% if(priorityToday){ %><span class="date-label priority">My priority today</span><% } %>
+        <% if(t.workflow_state==='returned'){ %><span class="date-label danger">Returned for more work</span><% } %>
+      </div>
+    </div>
+    <div class="task-work-card-date"><strong><%= t.due_at?new Date(t.due_at).toLocaleDateString('en-ZA'):'No due date' %></strong><small><%= t.due_at?new Date(t.due_at).toLocaleTimeString('en-ZA',{hour:'2-digit',minute:'2-digit'}):new Date(t.created_at).toLocaleDateString('en-ZA') %></small><span>›</span></div>
+  </a>
+  <% }) %>
+  <% if(!tasks.length){ %><div class="panel task-work-empty"><h2>Nothing here</h2><p>This view has no matching tasks or messages.</p></div><% } %>
+</section>
+<% } else { %>
+<section class="panel task-work-notification-head"><div><h2>Notifications</h2><p>Completion requests stay here until you accept or return the work.</p></div><form method="post" action="<%= basePath %>/tasks/notifications/read-all"><% if(panelMode){ %><input type="hidden" name="panel" value="1"><% } %><button class="btn" type="submit">Mark updates read</button></form></section>
+<section class="task-work-list">
+  <% notifications.forEach(n=>{ %><a class="task-notification-card <%= n.action_required?'action-required':'' %>" href="<%= taskUrl(n.task_id) %>"><span class="task-notification-dot"></span><div><strong><%= n.action_required?'Action required':'Work update' %></strong><p><%= n.notification_text %></p><small><%= new Date(n.created_at).toLocaleString('en-ZA') %></small></div><b>›</b></a><% }) %>
+  <% if(!notifications.length){ %><div class="panel task-work-empty"><h2>All caught up</h2><p>There are no unread updates or approval requests.</p></div><% } %>
+</section>
+<% } %>
