@@ -147,6 +147,10 @@ self.addEventListener('fetch', event => {
 app.use('/public', express.static(path.join(__dirname, 'public')));
 if (BASE_PATH) app.use(`${BASE_PATH}/public`, express.static(path.join(__dirname, 'public')));
 
+const nightlyLogoutSettings = require('./src/routes/nightly-logout-settings');
+app.use('/', nightlyLogoutSettings);
+if (BASE_PATH) app.use(BASE_PATH, nightlyLogoutSettings);
+
 const provisionalFixedSave = require('./src/routes/provisional-fixed-save');
 app.use('/', provisionalFixedSave);
 if (BASE_PATH) app.use(BASE_PATH, provisionalFixedSave);
