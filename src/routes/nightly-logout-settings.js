@@ -9,15 +9,6 @@ function isManagement(user) {
   return Boolean(user && ['owner', 'admin', 'manager'].includes(user.role));
 }
 
-router.use(async (req, res, next) => {
-  try {
-    await nightlyLogout.ensureNightlyLogoutSchema();
-    next();
-  } catch (error) {
-    next(error);
-  }
-});
-
 router.get('/api/session-status', (req, res) => {
   if (!req.session.user) return res.status(401).json({ authenticated: false, reason: 'default_logout' });
   res.json({ authenticated: true });
@@ -42,14 +33,15 @@ router.post('/backoffice/attendance/nightly-logout', requireAuth, async (req, re
       return res.status(403).render('error', { title: 'Access denied', message: 'Only management can configure automatic logout.' });
     }
 
+    await nightlyLogout.ensureNightlyLogoutSchema();
     const enabled = req.body.auto_logout_enabled === '1' ? 1 : 0;
     const time = String(req.body.auto_logout_time || '').trim();
     if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) {
       return res.status(400).render('error', { title: 'Invalid logout time', message: 'Choose a valid automatic logout time.' });
     }
 
-    await db.execute(`UPDATE attendance_settings SET
-      auto_logout_enabled=:enabled,auto_logout_time=:time,updated_by=:updatedBy
+    await db.execute(`UPDATE nightly_logout_settings SET
+      enabled=:enabled,logout_time=:time,updated_by=:updatedBy
       WHERE id=1`, {
       enabled,
       time: `${time}:00`,
