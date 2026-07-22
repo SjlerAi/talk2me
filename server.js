@@ -6,6 +6,7 @@ const expressLayouts = require('express-ejs-layouts');
 const crypto = require('crypto');
 const db = require('./src/config/db');
 const packageInfo = require('./package.json');
+const { startNightlyLogoutWorker } = require('./src/services/nightly-logout');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -146,6 +147,10 @@ self.addEventListener('fetch', event => {
 app.use('/public', express.static(path.join(__dirname, 'public')));
 if (BASE_PATH) app.use(`${BASE_PATH}/public`, express.static(path.join(__dirname, 'public')));
 
+const nightlyLogoutSettings = require('./src/routes/nightly-logout-settings');
+app.use('/', nightlyLogoutSettings);
+if (BASE_PATH) app.use(BASE_PATH, nightlyLogoutSettings);
+
 const provisionalFixedSave = require('./src/routes/provisional-fixed-save');
 app.use('/', provisionalFixedSave);
 if (BASE_PATH) app.use(BASE_PATH, provisionalFixedSave);
@@ -193,4 +198,7 @@ app.use((err, req, res, next) => {
   console.error(err);
   res.status(500).render('error', { title: 'Server error', message: 'Something went wrong. Check server logs.' });
 });
-app.listen(PORT, () => console.log(`Talk2Me CRM running on port ${PORT} with base path ${BASE_PATH}`));
+app.listen(PORT, () => {
+  console.log(`Talk2Me CRM running on port ${PORT} with base path ${BASE_PATH}`);
+  startNightlyLogoutWorker();
+});
