@@ -1,12 +1,12 @@
 {
   "name": "talk2me-crm",
-  "version": "6.0.0-alpha.21.23",
-  "description": "Talk2Me OS v6 alpha 21.23 - restore staff-owned tasks, messages and personal notes access",
+  "version": "6.0.0-alpha.21.24",
+  "description": "Talk2Me OS v6 alpha 21.24 - closed-loop tasks, messages, priorities and sender approval",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
-    "check": "node --check server.js && node --check src/routes/os.js && node --check src/routes/os-productivity.js && node --check src/routes/staff-work-access.js && node --check src/routes/os-operations.js && node --check src/routes/os-customer-actions.js && node --check src/routes/os-search-actions.js && node --check src/routes/attendance.js && node --check src/routes/nightly-logout-settings.js && node --check src/services/attendance.js && node --check src/services/nightly-logout.js && node --check src/routes/customer-360-safe.js && node --check src/routes/provisional-mobile-save.js && node --check src/routes/provisional-fixed-save.js && node --check src/routes/os-launcher-settings.js && node --check public/js/os-v6.js && node --check public/js/os-v6-alpha21.js && node --check public/js/os-v6-alpha21-7.js && node --check public/js/os-v6-alpha21-8.js && node --check public/js/os-v6-alpha21-17.js && node --check public/js/attendance-nightly-settings.js && node --check public/js/session-status-monitor.js && node --check public/js/os-launchers.js && node --check public/js/pwa-install.js && node --check scripts/migrate.js && node --check scripts/migration-status.js",
+    "check": "node --check server.js && node --check src/routes/os.js && node --check src/routes/os-productivity.js && node --check src/routes/staff-work-access.js && node --check src/routes/task-workflow.js && node --check src/routes/os-operations.js && node --check src/routes/os-customer-actions.js && node --check src/routes/os-search-actions.js && node --check src/routes/attendance.js && node --check src/routes/nightly-logout-settings.js && node --check src/services/attendance.js && node --check src/services/nightly-logout.js && node --check src/routes/customer-360-safe.js && node --check src/routes/provisional-mobile-save.js && node --check src/routes/provisional-fixed-save.js && node --check src/routes/os-launcher-settings.js && node --check public/js/os-v6.js && node --check public/js/os-v6-alpha21.js && node --check public/js/os-v6-alpha21-7.js && node --check public/js/os-v6-alpha21-8.js && node --check public/js/os-v6-alpha21-17.js && node --check public/js/task-workflow-notifications.js && node --check public/js/attendance-nightly-settings.js && node --check public/js/session-status-monitor.js && node --check public/js/os-launchers.js && node --check public/js/pwa-install.js && node --check scripts/migrate.js && node --check scripts/migration-status.js",
     "db:migrate": "node scripts/migrate.js",
     "db:status": "node scripts/migration-status.js",
     "digest:staff-work": "node scripts/send-staff-work-digest.js",
