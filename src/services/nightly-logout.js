@@ -62,7 +62,8 @@ async function ensureNightlyLogoutSchema() {
 
 async function getNightlyLogoutSettings() {
   await ensureNightlyLogoutSchema();
-  const [[settings]] = await db.execute(`SELECT timezone,auto_logout_enabled,auto_logout_time,last_auto_logout_date
+  const [[settings]] = await db.execute(`SELECT timezone,auto_logout_enabled,auto_logout_time,
+      DATE_FORMAT(last_auto_logout_date,'%Y-%m-%d') last_auto_logout_date
     FROM attendance_settings WHERE id=1`);
   return settings || {
     timezone: 'Africa/Johannesburg',
@@ -82,7 +83,7 @@ async function runAutomaticLogout(now = new Date()) {
     const zone = settings.timezone || 'Africa/Johannesburg';
     const current = localParts(zone, now);
     const cutoffMinutes = timeMinutes(settings.auto_logout_time);
-    const lastRun = settings.last_auto_logout_date ? String(settings.last_auto_logout_date).slice(0, 10) : '';
+    const lastRun = settings.last_auto_logout_date || '';
 
     if (current.minuteOfDay < cutoffMinutes) return { ran: false, reason: 'before_cutoff' };
     if (lastRun === current.date) return { ran: false, reason: 'already_completed' };
