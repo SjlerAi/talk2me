@@ -4,7 +4,25 @@
   const configNode = document.getElementById('talk2me-os-config');
   const config = configNode ? JSON.parse(configNode.textContent || '{}') : {};
   const basePath = String(config.basePath || '');
+  const appVersion = String(config.appVersion || '');
   let redirecting = false;
+
+  function loadWorkflowAssets() {
+    if (!document.querySelector('link[data-task-workflow]')) {
+      const stylesheet = document.createElement('link');
+      stylesheet.rel = 'stylesheet';
+      stylesheet.dataset.taskWorkflow = '1';
+      stylesheet.href = `${basePath}/public/css/task-workflow.css?v=${encodeURIComponent(appVersion)}`;
+      document.head.appendChild(stylesheet);
+    }
+    if (!document.querySelector('script[data-task-workflow]')) {
+      const script = document.createElement('script');
+      script.defer = true;
+      script.dataset.taskWorkflow = '1';
+      script.src = `${basePath}/public/js/task-workflow-notifications.js?v=${encodeURIComponent(appVersion)}`;
+      document.head.appendChild(script);
+    }
+  }
 
   async function checkSession() {
     if (redirecting) return;
@@ -22,6 +40,7 @@
     }
   }
 
+  loadWorkflowAssets();
   checkSession();
   setInterval(checkSession, 15000);
   document.addEventListener('visibilitychange', () => {
