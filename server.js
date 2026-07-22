@@ -6,6 +6,7 @@ const expressLayouts = require('express-ejs-layouts');
 const crypto = require('crypto');
 const db = require('./src/config/db');
 const packageInfo = require('./package.json');
+const { startNightlyLogoutWorker } = require('./src/services/nightly-logout');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -193,4 +194,7 @@ app.use((err, req, res, next) => {
   console.error(err);
   res.status(500).render('error', { title: 'Server error', message: 'Something went wrong. Check server logs.' });
 });
-app.listen(PORT, () => console.log(`Talk2Me CRM running on port ${PORT} with base path ${BASE_PATH}`));
+app.listen(PORT, () => {
+  console.log(`Talk2Me CRM running on port ${PORT} with base path ${BASE_PATH}`);
+  startNightlyLogoutWorker();
+});
