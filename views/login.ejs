@@ -3,6 +3,7 @@
     <img class="login-logo" src="<%= basePath %>/public/images/talk2me-logo.png" alt="Talk2Me">
     <h1>Staff Login</h1>
     <% if (error) { %><div class="alert"><%= error %></div><% } %>
+    <div id="default-logout-notice" class="alert" hidden><strong>Automatic logout completed.</strong><br>Talk2Me closed the previous session at the configured daily logout time. Please log in again.</div>
     <form id="login-form" method="post" action="<%= basePath %>/login" autocomplete="off">
       <input type="text" name="fake_username" autocomplete="username" tabindex="-1" aria-hidden="true" style="position:absolute;left:-9999px;opacity:0">
       <input type="password" name="fake_password" autocomplete="current-password" tabindex="-1" aria-hidden="true" style="position:absolute;left:-9999px;opacity:0">
@@ -27,6 +28,9 @@
       clearLogin();
       window.addEventListener('pageshow', clearLogin);
       setTimeout(clearLogin, 150);
+      if (new URLSearchParams(window.location.search).get('reason') === 'default_logout') {
+        document.getElementById('default-logout-notice').hidden = false;
+      }
     })();
   </script>
 </section>
