@@ -1,7 +1,7 @@
 {
   "name": "talk2me-crm",
-  "version": "6.0.0-alpha.21.18",
-  "description": "Talk2Me OS v6 alpha 21.18 - configurable nightly automatic logout",
+  "version": "6.0.0-alpha.21.19",
+  "description": "Talk2Me OS v6 alpha 21.19 - isolate nightly logout setup from application routes",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
