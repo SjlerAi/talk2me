@@ -5,8 +5,6 @@
   if (!form) return;
 
   const basePath = new URL(form.action, window.location.href).pathname.replace(/\/backoffice\/attendance\/settings$/, '');
-  const scheduleHeading = form.querySelector('.attendance-schedule-heading');
-  if (!scheduleHeading) return;
 
   async function load() {
     try {
@@ -38,7 +36,7 @@
           <button class="btn primary" type="submit">Save Automatic Logout</button>
           <small>${settings.lastRunDate ? `Last automatic logout: ${String(settings.lastRunDate).slice(0, 10)}` : 'No automatic logout has run yet.'}</small>
         </form>`;
-      scheduleHeading.before(section);
+      form.before(section);
     } catch (_) {
       // Working-hours settings remain usable if this optional panel cannot load.
     }
