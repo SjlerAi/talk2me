@@ -16,11 +16,13 @@
   <link rel="stylesheet" href="<%= basePath %>/public/css/os-v6-alpha21-7.css?v=<%= encodeURIComponent(appVersion) %>">
   <link rel="stylesheet" href="<%= basePath %>/public/css/os-v6-alpha21-8.css?v=<%= encodeURIComponent(appVersion) %>">
   <link rel="stylesheet" href="<%= basePath %>/public/css/attendance.css?v=<%= encodeURIComponent(appVersion) %>">
+  <link rel="stylesheet" href="<%= basePath %>/public/css/client-assignment-centre.css?v=<%= encodeURIComponent(appVersion) %>">
 </head>
 <body class="t2m-os-body">
   <% const launchers = (typeof osLaunchers !== 'undefined' && Array.isArray(osLaunchers) ? osLaunchers : []).filter(item => item.is_enabled); %>
   <% const attendance = typeof attendanceState !== 'undefined' ? attendanceState : null; %>
   <% const firstName = String(currentUser.full_name || currentUser.username || 'Staff').trim().split(/\s+/)[0]; %>
+  <% const unassignedCount = typeof unassignedClientCount === 'undefined' ? 0 : Number(unassignedClientCount || 0); %>
   <div class="t2m-os-shell" id="talk2me-os">
     <header class="t2m-os-topbar">
       <a class="t2m-os-brand" href="<%= basePath %>/workspace" aria-label="Talk2Me OS home">
@@ -46,14 +48,19 @@
         <button type="button" data-os-app="queue"><span>▤</span><strong>Queue</strong><b data-badge="queue" <%= status.queueCount ? '' : 'hidden' %>><%= status.queueCount %></b></button>
         <button type="button" data-os-app="tasks"><span>✓</span><strong>Tasks</strong><b data-badge="tasks" <%= status.taskCount ? '' : 'hidden' %>><%= status.taskCount %></b></button>
         <button type="button" data-os-app="messages"><span>●</span><strong>Messages</strong><b data-badge="messages" <%= status.unreadMessageCount ? '' : 'hidden' %>><%= status.unreadMessageCount %></b></button>
+        <button type="button" data-os-route="<%= basePath %>/clients/assignment-centre?view=unassigned" data-route-title="Client Assignment Centre" data-route-icon="◇"><span>◇</span><strong>Unassigned Clients</strong><b data-badge="unassignedClients" <%= unassignedCount ? '' : 'hidden' %>><%= unassignedCount %></b></button>
         <button type="button" data-os-app="calendar"><span>□</span><strong>Calendar</strong></button><button type="button" data-os-app="notes"><span>✎</span><strong>Notes</strong></button><button type="button" data-os-app="calculator"><span>#</span><strong>Calculator</strong></button>
       </div>
       <div class="t2m-os-sidebar-section"><span class="t2m-os-sidebar-label">Information</span><button type="button" data-os-app="reports"><span>▦</span><strong>Reports</strong></button><button type="button" data-os-app="help"><span>?</span><strong>Help</strong></button></div>
       <% if (isManagement) { %><div class="t2m-os-sidebar-section"><span class="t2m-os-sidebar-label">Management</span><button type="button" data-os-route="<%= basePath %>/command-centre" data-route-title="Command Centre" data-route-icon="◆"><span>◆</span><strong>Command Centre</strong></button><button type="button" data-os-route="<%= basePath %>/backoffice/attendance" data-route-title="Attendance Register" data-route-icon="◷"><span>◷</span><strong>Attendance Register</strong></button><button type="button" data-os-route="<%= basePath %>/approvals" data-route-title="Approvals" data-route-icon="✓"><span>✓</span><strong>Approvals</strong></button><button type="button" data-os-route="<%= basePath %>/upgrade-centre" data-route-title="Upgrade Centre" data-route-icon="↗"><span>↗</span><strong>Upgrades</strong></button><button type="button" data-os-route="<%= basePath %>/backoffice" data-route-title="Administration" data-route-icon="⚙"><span>⚙</span><strong>Administration</strong></button></div><% } %>
     </aside>
     <nav class="t2m-os-launcher" aria-label="Primary systems">
-      <button type="button" data-os-launch="customers"><span class="t2m-brand-mark customer">C</span><strong>Customers</strong></button>
-      <% launchers.forEach(item=>{ %><button type="button" data-os-managed-launcher="<%= item.slot_key %>"><span class="t2m-brand-mark customer"><%= item.icon_text||item.display_name.slice(0,1) %></span><strong><%= item.display_name %></strong></button><% }) %>
+      <button class="t2m-os-launcher-arrow" type="button" data-launcher-scroll="previous" aria-label="Previous launcher">‹</button>
+      <div class="t2m-os-launcher-scroll">
+        <button type="button" data-os-launch="customers"><span class="t2m-brand-mark customer">C</span><strong>Customers</strong></button>
+        <% launchers.forEach(item=>{ %><button type="button" data-os-managed-launcher="<%= item.slot_key %>"><span class="t2m-brand-mark customer"><%= item.icon_text||item.display_name.slice(0,1) %></span><strong><%= item.display_name %></strong></button><% }) %>
+      </div>
+      <button class="t2m-os-launcher-arrow" type="button" data-launcher-scroll="next" aria-label="Next launcher">›</button>
     </nav>
     <main class="t2m-os-workspace" id="os-workspace" aria-label="Talk2Me workspace">
       <section class="t2m-os-desk-widgets" id="os-desk-widgets" aria-label="Today overview">
@@ -64,6 +71,7 @@
           <div class="t2m-os-widget-row is-view-only"><button class="t2m-os-widget-view" type="button" data-os-route="<%= basePath %>/tasks" data-route-title="Messages" data-route-icon="●" aria-label="Open messages and tasks"><span>Messages</span><strong data-status="unreadMessageCount" data-positive="<%= status.unreadMessageCount > 0 %>"><%= status.unreadMessageCount %></strong></button></div>
         </div></article>
         <article class="t2m-os-desk-widget" data-widget="care"><header><div><span>Opportunities</span><strong>Client Care Today</strong></div><button type="button" data-widget-collapse aria-label="Collapse Client Care Today">−</button></header><div class="t2m-os-widget-body">
+          <div class="t2m-os-widget-row is-view-only"><button class="t2m-os-widget-view" type="button" data-os-route="<%= basePath %>/clients/assignment-centre?view=unassigned" data-route-title="Unassigned Clients" data-route-icon="◇" aria-label="Open unassigned clients"><span>Unassigned clients</span><strong data-status="unassignedClientCount" data-positive="<%= unassignedCount > 0 %>"><%= unassignedCount %></strong></button></div>
           <div class="t2m-os-widget-row"><button class="t2m-os-widget-view" type="button" data-os-route="<%= basePath %>/os/my-work/birthdays" data-route-title="Birthdays Today" data-route-icon="★" aria-label="Open birthdays today"><span>Birthdays</span><strong data-status="birthdaysTodayCount" data-positive="<%= status.birthdaysTodayCount > 0 %>"><%= status.birthdaysTodayCount %></strong></button><button class="t2m-os-widget-add" type="button" data-widget-add="birthday" data-add-title="Add or Update Birthday" data-add-icon="★" aria-label="Add or update a customer birthday" title="Add or update customer birthday">+</button></div>
           <div class="t2m-os-widget-row"><button class="t2m-os-widget-view" type="button" data-os-route="<%= basePath %>/os/my-work/upgrades" data-route-title="Upgrades Due" data-route-icon="↗" aria-label="Open upgrade opportunities"><span>Upgrades due</span><strong data-status="upgradesDueCount" data-positive="<%= status.upgradesDueCount > 0 %>"><%= status.upgradesDueCount %></strong></button><button class="t2m-os-widget-add" type="button" data-widget-add="upgrade" data-add-title="Add or Update Upgrade" data-add-icon="↗" aria-label="Add or update upgrade details" title="Add or update upgrade details">+</button></div>
           <div class="t2m-os-widget-row"><button class="t2m-os-widget-view" type="button" data-os-route="<%= basePath %>/os/my-work/callbacks" data-route-title="Scheduled Callbacks" data-route-icon="☎" aria-label="Open scheduled callbacks"><span>Scheduled callbacks</span><strong data-status="callbacksTodayCount" data-positive="<%= status.callbacksTodayCount > 0 %>"><%= status.callbacksTodayCount %></strong></button><button class="t2m-os-widget-add" type="button" data-widget-add="callback" data-add-title="Schedule Callback" data-add-icon="☎" aria-label="Schedule a callback" title="Schedule a callback">+</button></div>
@@ -77,6 +85,7 @@
   <script id="talk2me-os-config" type="application/json"><%- JSON.stringify({basePath,appVersion,user:{id:currentUser.id,name:currentUser.full_name,role:currentUser.role},isManagement,status,launchers}).replace(/</g, '\u003c') %></script>
   <script defer src="<%= basePath %>/public/js/os-v6.js?v=<%= encodeURIComponent(appVersion) %>"></script>
   <script defer src="<%= basePath %>/public/js/os-launchers.js?v=<%= encodeURIComponent(appVersion) %>"></script>
+  <script defer src="<%= basePath %>/public/js/os-launcher-strip.js?v=<%= encodeURIComponent(appVersion) %>"></script>
   <script defer src="<%= basePath %>/public/js/os-v6-alpha21.js?v=<%= encodeURIComponent(appVersion) %>"></script>
   <script defer src="<%= basePath %>/public/js/os-v6-alpha21-7.js?v=<%= encodeURIComponent(appVersion) %>"></script>
   <script defer src="<%= basePath %>/public/js/os-v6-alpha21-8.js?v=<%= encodeURIComponent(appVersion) %>"></script>

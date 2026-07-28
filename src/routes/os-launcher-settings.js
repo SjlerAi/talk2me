@@ -3,17 +3,27 @@ const db = require('../config/db');
 const { requireAuth } = require('../middleware/auth');
 
 const router = express.Router();
-const MANAGED_SLOT_KEYS = ['slot_1', 'slot_2', 'slot_3', 'slot_4', 'slot_5'];
+const MANAGED_SLOT_KEYS = Array.from({ length: 10 }, (_, index) => `slot_${index + 1}`);
 const DEFAULTS = [
   { slot_key: 'slot_1', display_name: 'Vodacom', icon_text: 'V', portal_url: '', open_mode: 'separate', sort_order: 1, is_enabled: 1 },
   { slot_key: 'slot_2', display_name: 'MTN', icon_text: 'MTN', portal_url: '', open_mode: 'separate', sort_order: 2, is_enabled: 1 },
   { slot_key: 'slot_3', display_name: 'Telkom', icon_text: 'T', portal_url: '', open_mode: 'separate', sort_order: 3, is_enabled: 1 },
   { slot_key: 'slot_4', display_name: 'Sage', icon_text: 'S', portal_url: '', open_mode: 'separate', sort_order: 4, is_enabled: 1 },
-  { slot_key: 'slot_5', display_name: 'System 5', icon_text: '5', portal_url: '', open_mode: 'separate', sort_order: 5, is_enabled: 0 }
+  { slot_key: 'slot_5', display_name: 'System 5', icon_text: '5', portal_url: '', open_mode: 'separate', sort_order: 5, is_enabled: 0 },
+  { slot_key: 'slot_6', display_name: 'System 6', icon_text: '6', portal_url: '', open_mode: 'separate', sort_order: 6, is_enabled: 0 },
+  { slot_key: 'slot_7', display_name: 'System 7', icon_text: '7', portal_url: '', open_mode: 'separate', sort_order: 7, is_enabled: 0 },
+  { slot_key: 'slot_8', display_name: 'System 8', icon_text: '8', portal_url: '', open_mode: 'separate', sort_order: 8, is_enabled: 0 },
+  { slot_key: 'slot_9', display_name: 'System 9', icon_text: '9', portal_url: '', open_mode: 'separate', sort_order: 9, is_enabled: 0 },
+  { slot_key: 'slot_10', display_name: 'System 10', icon_text: '10', portal_url: '', open_mode: 'separate', sort_order: 10, is_enabled: 0 }
 ];
 
 function isOwner(user) {
   return Boolean(user && ['owner', 'admin'].includes(user.role));
+}
+
+function slotNumber(key) {
+  const match = String(key || '').match(/(\d+)$/);
+  return match ? Number(match[1]) : 0;
 }
 
 async function ensureOpenModeColumn() {
@@ -97,6 +107,7 @@ router.post('/backoffice/os-launchers', requireAuth, async (req, res, next) => {
     const launchers = await loadLaunchers();
     for (const row of launchers) {
       const key = row.slot_key;
+      const number = slotNumber(key);
       const displayName = String(req.body[`display_name_${key}`] || '').trim().slice(0, 100);
       const iconText = String(req.body[`icon_text_${key}`] || '').trim().slice(0, 12);
       const portalUrl = String(req.body[`portal_url_${key}`] || '').trim();
@@ -108,8 +119,8 @@ router.post('/backoffice/os-launchers', requireAuth, async (req, res, next) => {
         display_name=:displayName,icon_text=:iconText,portal_url=:portalUrl,open_mode=:openMode,
         is_enabled=:isEnabled,updated_by=:updatedBy
         WHERE slot_key=:key`, {
-        displayName: displayName || `System ${key.slice(-1)}`,
-        iconText: iconText || displayName.slice(0, 1).toUpperCase() || key.slice(-1),
+        displayName: displayName || `System ${number}`,
+        iconText: iconText || displayName.slice(0, 1).toUpperCase() || String(number),
         portalUrl: portalUrl || null,
         openMode,
         isEnabled,

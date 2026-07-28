@@ -167,6 +167,10 @@ const osLauncherSettings = require('./src/routes/os-launcher-settings');
 app.use('/', osLauncherSettings);
 if (BASE_PATH) app.use(BASE_PATH, osLauncherSettings);
 
+const clientAssignmentCentre = require('./src/routes/client-assignment-centre');
+app.use('/', clientAssignmentCentre);
+if (BASE_PATH) app.use(BASE_PATH, clientAssignmentCentre);
+
 const osOperations = require('./src/routes/os-operations');
 app.use('/', osOperations);
 if (BASE_PATH) app.use(BASE_PATH, osOperations);

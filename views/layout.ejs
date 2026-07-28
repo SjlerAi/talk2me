@@ -16,6 +16,7 @@
   <link rel="stylesheet" href="<%= basePath %>/public/css/attendance-tabs.css?v=<%= encodeURIComponent(appVersion) %>">
   <link rel="stylesheet" href="<%= basePath %>/public/css/layout-polish.css?v=<%= encodeURIComponent(appVersion) %>">
   <link rel="stylesheet" href="<%= basePath %>/public/css/task-workflow.css?v=<%= encodeURIComponent(appVersion) %>">
+  <link rel="stylesheet" href="<%= basePath %>/public/css/client-assignment-centre.css?v=<%= encodeURIComponent(appVersion) %>">
   <script defer src="<%= basePath %>/public/js/customer-actions.js?v=<%= encodeURIComponent(appVersion) %>"></script>
   <script defer src="<%= basePath %>/public/js/attendance-nightly-settings.js?v=<%= encodeURIComponent(appVersion) %>"></script>
   <% if(currentUser){ %><script defer src="<%= basePath %>/public/js/session-status-monitor.js?v=<%= encodeURIComponent(appVersion) %>" data-base-path="<%= basePath %>"></script><% } %>
@@ -31,6 +32,7 @@
     <a href="<%= basePath %>/attendance/my" data-command-panel><b>◷</b><span>My Attendance</span></a>
     <a href="<%= basePath %>/queries/new" data-command-panel><b>＋</b><span>New Inquiry</span></a>
     <a href="<%= basePath %>/tasks" data-command-panel><b>✓</b><span>Messages & Tasks</span><% if(safeUnreadTaskCount){ %><em><%= safeUnreadTaskCount %></em><% } %></a>
+    <a href="<%= basePath %>/clients/assignment-centre?view=unassigned" data-command-panel><b>◇</b><span>Client Assignment</span></a>
     <% if(management){ %>
     <span class="command-nav-label">Management</span>
     <a href="<%= basePath %>/command-centre"><b>▦</b><span>Shop Command Centre</span></a>
