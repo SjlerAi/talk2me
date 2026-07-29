@@ -23,16 +23,180 @@ function panelSuffix(req, separator = '?') {
   return String(req.body?.panel || req.query?.panel || '') === '1' ? `${separator}panel=1` : '';
 }
 
-async function unassignedCount() {
-  const [[row]] = await db.query(`SELECT COUNT(*) total
+function normaliseAccount(value) {
+  return String(value || '').replace(/\s+/g, '').toUpperCase();
+}
+
+function accountKey(record) {
+  const account = normaliseAccount(record.account_number || record.client_account_number);
+  if (account) return `account:${account}`;
+  const accountId = positiveId(record.account_id);
+  if (accountId) return `account-id:${accountId}`;
+  return `client:${positiveId(record.client_id) || positiveId(record.id) || 'unknown'}`;
+}
+
+function mainRecordScore(row) {
+  let score = 0;
+  if (String(row.account_authority_status || '') === 'confirmed') score += 100;
+  if (String(row.lifecycle_status || '') === 'client') score += 20;
+  if (String(row.line_status || '') === 'active') score += 10;
+  if (clean(row.main_contact_name)) score += 5;
+  if (clean(row.client_name)) score += 2;
+  return score;
+}
+
+function selectMainRecord(rows) {
+  return [...rows].sort((a, b) => {
+    const scoreDifference = mainRecordScore(b) - mainRecordScore(a);
+    if (scoreDifference) return scoreDifference;
+    return Number(a.id) - Number(b.id);
+  })[0];
+}
+
+function requestDetails(row) {
+  try {
+    const proposed = JSON.parse(row.proposed_data_json || '{}');
+    return {
+      ...row,
+      linked_line_count: Number(proposed.linked_line_count || 1),
+      linked_client_ids: Array.isArray(proposed.linked_client_ids) ? proposed.linked_client_ids : []
+    };
+  } catch (_) {
+    return { ...row, linked_line_count: 1, linked_client_ids: [] };
+  }
+}
+
+async function loadAccountGroups() {
+  const [clientRows] = await db.query(`SELECT c.id,c.account_id,c.account_number,c.client_name,c.cell_number,c.email,c.city_town,
+      c.lifecycle_status,c.line_status,c.next_upgrade_date,c.created_at,c.account_authority_status,c.main_contact_name
     FROM clients c
     WHERE c.is_active=1
-      AND NOT EXISTS (
-        SELECT 1 FROM client_assignments a
-        WHERE a.is_active=1
-          AND (a.client_id=c.id OR (c.account_number IS NOT NULL AND c.account_number<>'' AND a.account_number=c.account_number))
-      )`);
-  return Number(row?.total || 0);
+    ORDER BY c.id`);
+
+  const [assignmentRows] = await db.query(`SELECT a.id,a.client_id,a.account_number,a.assigned_staff_id,a.updated_at,
+      c.account_id,c.account_number client_account_number,s.full_name assigned_staff_name
+    FROM client_assignments a
+    LEFT JOIN clients c ON c.id=a.client_id
+    LEFT JOIN staff_users s ON s.id=a.assigned_staff_id
+    WHERE a.is_active=1
+    ORDER BY a.updated_at DESC,a.id DESC`);
+
+  const [pendingRows] = await db.query(`SELECT r.id,r.client_id,r.account_number,r.requested_by,r.created_at,
+      c.account_id,c.account_number client_account_number,u.full_name pending_requested_by_name
+    FROM data_change_requests r
+    LEFT JOIN clients c ON c.id=r.client_id
+    LEFT JOIN staff_users u ON u.id=r.requested_by
+    WHERE r.request_type='claim_client' AND r.status IN ('pending_manager','pending_owner')
+    ORDER BY r.created_at,r.id`);
+
+  const assignmentsByKey = new Map();
+  for (const row of assignmentRows) {
+    const key = accountKey(row);
+    if (!assignmentsByKey.has(key)) assignmentsByKey.set(key, row);
+  }
+
+  const pendingByKey = new Map();
+  for (const row of pendingRows) {
+    const key = accountKey(row);
+    if (!pendingByKey.has(key)) pendingByKey.set(key, row);
+  }
+
+  const groupedRows = new Map();
+  for (const row of clientRows) {
+    const key = accountKey(row);
+    if (!groupedRows.has(key)) groupedRows.set(key, []);
+    groupedRows.get(key).push(row);
+  }
+
+  const groups = [];
+  for (const [key, rows] of groupedRows.entries()) {
+    const main = selectMainRecord(rows);
+    const assignment = assignmentsByKey.get(key) || null;
+    const pending = pendingByKey.get(key) || null;
+    const accountNumber = rows.map(row => clean(row.account_number)).find(Boolean) || null;
+    groups.push({
+      ...main,
+      account_number: accountNumber,
+      account_group_key: key,
+      linked_line_count: rows.length,
+      linked_client_ids: rows.map(row => Number(row.id)),
+      linked_mobile_numbers: [...new Set(rows.map(row => clean(row.cell_number)).filter(Boolean))],
+      assigned_staff_id: assignment?.assigned_staff_id || null,
+      assigned_staff_name: assignment?.assigned_staff_name || null,
+      pending_claim_id: pending?.id || null,
+      pending_requested_by: pending?.requested_by || null,
+      pending_requested_by_name: pending?.pending_requested_by_name || null,
+      pending_requested_at: pending?.created_at || null,
+      search_text: rows.flatMap(row => [row.client_name,row.cell_number,row.email,row.account_number,row.city_town,row.main_contact_name])
+        .filter(Boolean).join(' ').toLowerCase()
+    });
+  }
+
+  return groups;
+}
+
+async function unassignedCount() {
+  const groups = await loadAccountGroups();
+  return groups.filter(group => !group.assigned_staff_id).length;
+}
+
+async function loadScopeClients(conn, client, lock = false) {
+  const normalised = normaliseAccount(client.account_number);
+  const accountId = positiveId(client.account_id);
+  const [rows] = await conn.execute(`SELECT id,account_id,account_number,client_name,cell_number,email,
+      account_authority_status,lifecycle_status,line_status,main_contact_name
+    FROM clients
+    WHERE is_active=1 AND (
+      id=:clientId
+      OR (:normalised<>'' AND UPPER(REPLACE(TRIM(COALESCE(account_number,'')),' ',''))=:normalised)
+      OR (:accountId IS NOT NULL AND account_id=:accountId)
+    )
+    ORDER BY id${lock ? ' FOR UPDATE' : ''}`, {
+    clientId: client.id,
+    normalised,
+    accountId
+  });
+  return rows;
+}
+
+function idPlaceholders(rows) {
+  return rows.map(() => '?').join(',');
+}
+
+async function findGroupAssignment(conn, scopeClients, normalised, lock = false) {
+  const ids = scopeClients.map(row => Number(row.id));
+  const params = [...ids];
+  let where = `a.client_id IN (${idPlaceholders(scopeClients)})`;
+  if (normalised) {
+    where += ` OR UPPER(REPLACE(TRIM(COALESCE(a.account_number,'')),' ',''))=?`;
+    params.push(normalised);
+  }
+  const [rows] = await conn.query(`SELECT a.assigned_staff_id,s.full_name
+    FROM client_assignments a JOIN staff_users s ON s.id=a.assigned_staff_id
+    WHERE a.is_active=1 AND (${where})
+    ORDER BY a.updated_at DESC,a.id DESC LIMIT 1${lock ? ' FOR UPDATE' : ''}`, params);
+  return rows[0] || null;
+}
+
+async function findPendingGroupClaim(conn, scopeClients, normalised, excludeId = null, lock = false) {
+  const ids = scopeClients.map(row => Number(row.id));
+  const params = [...ids];
+  let where = `r.client_id IN (${idPlaceholders(scopeClients)})`;
+  if (normalised) {
+    where += ` OR UPPER(REPLACE(TRIM(COALESCE(r.account_number,'')),' ',''))=?`;
+    params.push(normalised);
+  }
+  let exclude = '';
+  if (excludeId) {
+    exclude = ' AND r.id<>?';
+    params.push(excludeId);
+  }
+  const [rows] = await conn.query(`SELECT r.id,r.requested_by
+    FROM data_change_requests r
+    WHERE r.request_type='claim_client' AND r.status IN ('pending_manager','pending_owner')
+      AND (${where})${exclude}
+    ORDER BY r.created_at,r.id LIMIT 1${lock ? ' FOR UPDATE' : ''}`, params);
+  return rows[0] || null;
 }
 
 router.use(async (req, res, next) => {
@@ -48,16 +212,14 @@ router.use(async (req, res, next) => {
 
 router.get('/api/client-assignments/status', requireAuth, async (req, res, next) => {
   try {
-    const [[mine]] = await db.execute(`SELECT COUNT(DISTINCT c.id) total
-      FROM clients c JOIN client_assignments a ON a.is_active=1 AND a.assigned_staff_id=:userId
-        AND (a.client_id=c.id OR (a.account_number<>'' AND a.account_number=c.account_number))
-      WHERE c.is_active=1`, { userId: req.session.user.id });
+    const userId = Number(req.session.user.id);
+    const groups = await loadAccountGroups();
     const [[requests]] = await db.execute(`SELECT COUNT(*) total FROM data_change_requests
-      WHERE request_type='claim_client' AND requested_by=:userId AND status IN ('pending_manager','pending_owner')`, { userId: req.session.user.id });
+      WHERE request_type='claim_client' AND requested_by=:userId AND status IN ('pending_manager','pending_owner')`, { userId });
     res.json({
       ok: true,
-      unassignedCount: await unassignedCount(),
-      myClientCount: Number(mine?.total || 0),
+      unassignedCount: groups.filter(group => !group.assigned_staff_id).length,
+      myClientCount: groups.filter(group => Number(group.assigned_staff_id) === userId).length,
       myPendingClaimCount: Number(requests?.total || 0)
     });
   } catch (error) {
@@ -73,10 +235,9 @@ router.get('/clients/assignment-centre', requireAuth, async (req, res, next) => 
     let view = allowed.includes(String(req.query.view || '')) ? String(req.query.view) : 'unassigned';
     if (!management && ['pending', 'all'].includes(view)) view = 'unassigned';
     const q = clean(req.query.q, 200);
-    const params = { userId, q: `%${q}%` };
-    const search = q ? ` AND (c.client_name LIKE :q OR c.cell_number LIKE :q OR c.email LIKE :q OR c.account_number LIKE :q OR c.city_town LIKE :q)` : '';
     let clients = [];
     let requests = [];
+    const groups = await loadAccountGroups();
 
     if (view === 'requests') {
       [requests] = await db.execute(`SELECT r.*,c.client_name,c.cell_number,c.email,c.city_town,
@@ -86,6 +247,7 @@ router.get('/clients/assignment-centre', requireAuth, async (req, res, next) => 
         LEFT JOIN staff_users reviewer ON reviewer.id=r.reviewed_by
         WHERE r.request_type='claim_client' AND r.requested_by=:userId
         ORDER BY r.created_at DESC LIMIT 500`, { userId });
+      requests = requests.map(requestDetails);
     } else if (view === 'pending') {
       [requests] = await db.execute(`SELECT r.*,c.client_name,c.cell_number,c.email,c.city_town,
           requester.full_name requested_by_name
@@ -94,35 +256,32 @@ router.get('/clients/assignment-centre', requireAuth, async (req, res, next) => 
         JOIN staff_users requester ON requester.id=r.requested_by
         WHERE r.request_type='claim_client' AND r.status IN ('pending_manager','pending_owner')
         ORDER BY r.created_at LIMIT 500`);
+      requests = requests.map(requestDetails);
     } else {
-      const assignmentJoin = `LEFT JOIN client_assignments a ON a.id=(SELECT a2.id FROM client_assignments a2
-        WHERE a2.is_active=1 AND (a2.client_id=c.id OR (a2.account_number<>'' AND a2.account_number=c.account_number))
-        ORDER BY (a2.client_id=c.id) DESC,a2.updated_at DESC LIMIT 1)`;
-      const pendingJoin = `LEFT JOIN data_change_requests r ON r.id=(SELECT r2.id FROM data_change_requests r2
-        WHERE r2.request_type='claim_client' AND r2.client_id=c.id AND r2.status IN ('pending_manager','pending_owner')
-        ORDER BY r2.created_at LIMIT 1)`;
-      let where = `c.is_active=1`;
-      if (view === 'unassigned') where += ` AND a.assigned_staff_id IS NULL`;
-      if (view === 'mine') where += ` AND a.assigned_staff_id=:userId`;
-      if (view === 'all') where += ` AND a.assigned_staff_id IS NOT NULL`;
-      [clients] = await db.execute(`SELECT c.id,c.client_name,c.cell_number,c.email,c.account_number,c.city_town,
-          c.lifecycle_status,c.line_status,c.next_upgrade_date,c.created_at,a.assigned_staff_id,
-          assigned.full_name assigned_staff_name,r.id pending_claim_id,r.requested_by pending_requested_by,
-          requester.full_name pending_requested_by_name,r.created_at pending_requested_at
-        FROM clients c ${assignmentJoin}
-        LEFT JOIN staff_users assigned ON assigned.id=a.assigned_staff_id
-        ${pendingJoin}
-        LEFT JOIN staff_users requester ON requester.id=r.requested_by
-        WHERE ${where}${search}
-        ORDER BY CASE WHEN r.id IS NULL THEN 0 ELSE 1 END,c.client_name,c.id LIMIT 1000`, params);
+      clients = groups.filter(group => {
+        if (view === 'unassigned' && group.assigned_staff_id) return false;
+        if (view === 'mine' && Number(group.assigned_staff_id) !== userId) return false;
+        if (view === 'all' && !group.assigned_staff_id) return false;
+        if (q && !group.search_text.includes(q.toLowerCase())) return false;
+        return true;
+      }).sort((a, b) => {
+        if (Boolean(a.pending_claim_id) !== Boolean(b.pending_claim_id)) return a.pending_claim_id ? 1 : -1;
+        return String(a.client_name || '').localeCompare(String(b.client_name || '')) || Number(a.id) - Number(b.id);
+      }).slice(0, 1000);
     }
 
-    const [[counts]] = await db.execute(`SELECT
-      (SELECT COUNT(*) FROM clients c WHERE c.is_active=1 AND NOT EXISTS(SELECT 1 FROM client_assignments a WHERE a.is_active=1 AND (a.client_id=c.id OR (c.account_number<>'' AND a.account_number=c.account_number)))) unassigned_count,
-      (SELECT COUNT(DISTINCT c.id) FROM clients c JOIN client_assignments a ON a.is_active=1 AND a.assigned_staff_id=:userId AND (a.client_id=c.id OR (a.account_number<>'' AND a.account_number=c.account_number)) WHERE c.is_active=1) mine_count,
-      (SELECT COUNT(*) FROM data_change_requests WHERE request_type='claim_client' AND requested_by=:userId AND status IN ('pending_manager','pending_owner')) requests_count,
-      (SELECT COUNT(*) FROM data_change_requests WHERE request_type='claim_client' AND status IN ('pending_manager','pending_owner')) pending_count,
-      (SELECT COUNT(DISTINCT c.id) FROM clients c JOIN client_assignments a ON a.is_active=1 AND (a.client_id=c.id OR (a.account_number<>'' AND a.account_number=c.account_number)) WHERE c.is_active=1) assigned_count`, { userId });
+    const [[requestCounts]] = await db.execute(`SELECT
+      SUM(requested_by=:userId AND status IN ('pending_manager','pending_owner')) requests_count,
+      SUM(status IN ('pending_manager','pending_owner')) pending_count
+      FROM data_change_requests WHERE request_type='claim_client'`, { userId });
+
+    const counts = {
+      unassigned_count: groups.filter(group => !group.assigned_staff_id).length,
+      mine_count: groups.filter(group => Number(group.assigned_staff_id) === userId).length,
+      requests_count: Number(requestCounts?.requests_count || 0),
+      pending_count: Number(requestCounts?.pending_count || 0),
+      assigned_count: groups.filter(group => group.assigned_staff_id).length
+    };
 
     res.render('client-assignment-centre', {
       title: 'Client Assignment Centre',
@@ -130,7 +289,7 @@ router.get('/clients/assignment-centre', requireAuth, async (req, res, next) => 
       q,
       clients,
       requests,
-      counts: counts || {},
+      counts,
       isManagement: management,
       requested: req.query.requested,
       reviewed: req.query.reviewed
@@ -141,57 +300,68 @@ router.get('/clients/assignment-centre', requireAuth, async (req, res, next) => 
 });
 
 router.post('/clients/:id/request-claim', requireAuth, async (req, res, next) => {
-  const clientId = positiveId(req.params.id);
-  if (!clientId) return next();
+  const requestedClientId = positiveId(req.params.id);
+  if (!requestedClientId) return next();
   const conn = await db.getConnection();
   try {
     await conn.beginTransaction();
-    const [[client]] = await conn.execute(`SELECT id,client_name,account_number,cell_number,email
-      FROM clients WHERE id=:clientId AND is_active=1 FOR UPDATE`, { clientId });
-    if (!client) throw new Error('Client not found.');
-    const [[assignment]] = await conn.execute(`SELECT a.assigned_staff_id,s.full_name
-      FROM client_assignments a JOIN staff_users s ON s.id=a.assigned_staff_id
-      WHERE a.is_active=1 AND (a.client_id=:clientId OR (:account<>'' AND a.account_number=:account))
-      ORDER BY (a.client_id=:clientId) DESC,a.updated_at DESC LIMIT 1`, { clientId, account: client.account_number || '' });
-    if (assignment) throw new Error(`This client is already assigned to ${assignment.full_name}.`);
-    const [[existing]] = await conn.execute(`SELECT id,requested_by FROM data_change_requests
-      WHERE request_type='claim_client' AND client_id=:clientId AND status IN ('pending_manager','pending_owner')
-      ORDER BY created_at LIMIT 1 FOR UPDATE`, { clientId });
+    const [[requestedClient]] = await conn.execute(`SELECT id,account_id,client_name,account_number,cell_number,email
+      FROM clients WHERE id=:clientId AND is_active=1 FOR UPDATE`, { clientId: requestedClientId });
+    if (!requestedClient) throw new Error('Client not found.');
+
+    const scopeClients = await loadScopeClients(conn, requestedClient, true);
+    const mainClient = selectMainRecord(scopeClients);
+    const normalised = normaliseAccount(mainClient.account_number || requestedClient.account_number);
+    const assignment = await findGroupAssignment(conn, scopeClients, normalised, true);
+    if (assignment) throw new Error(`This account is already assigned to ${assignment.full_name}.`);
+
+    const existing = await findPendingGroupClaim(conn, scopeClients, normalised, null, true);
     if (existing) {
       await conn.rollback();
       return res.redirect(`${res.locals.basePath}/clients/assignment-centre?view=unassigned&requested=existing${panelSuffix(req, '&')}`);
     }
+
+    const accountNumber = scopeClients.map(row => clean(row.account_number)).find(Boolean) || null;
     const proposed = {
-      client_id: client.id,
-      account_number: client.account_number || null,
+      client_id: mainClient.id,
+      linked_client_ids: scopeClients.map(row => Number(row.id)),
+      linked_line_count: scopeClients.length,
+      account_number: accountNumber,
       assigned_staff_id: req.session.user.id,
       assigned_staff_name: req.session.user.full_name,
-      scope: client.account_number ? 'account' : 'client'
+      scope: accountNumber || mainClient.account_id ? 'account' : 'client'
     };
+    const displayName = mainClient.client_name || mainClient.cell_number || `client #${mainClient.id}`;
+    const summary = accountNumber
+      ? `Claim account ${accountNumber} - ${displayName} (${scopeClients.length} linked line${scopeClients.length === 1 ? '' : 's'})`
+      : `Claim ${displayName}`;
+
     const [result] = await conn.execute(`INSERT INTO data_change_requests
       (request_type,entity_type,record_id,client_id,account_number,summary,reason,proposed_data_json,required_approval_role,status,requested_by)
       VALUES ('claim_client','clients',:clientId,:clientId,:account,:summary,:reason,:json,'manager','pending_manager',:requestedBy)`, {
-      clientId,
-      account: client.account_number || null,
-      summary: `Claim ${client.client_name || client.cell_number || `client #${client.id}`}`,
-      reason: clean(req.body.reason, 2000) || 'Staff member requested responsibility for this unassigned client.',
+      clientId: mainClient.id,
+      account: accountNumber,
+      summary,
+      reason: clean(req.body.reason, 2000) || 'Staff member requested responsibility for this unassigned account.',
       json: JSON.stringify(proposed),
       requestedBy: req.session.user.id
     });
+
     await conn.execute(`INSERT INTO staff_tasks
       (type,title,message,priority,status,assigned_to,created_by,due_at,related_client_id,email_status)
       SELECT 'notification','Client claim awaiting approval',:message,'normal','unread',s.id,:createdBy,NOW(),:clientId,'not_configured'
       FROM staff_users s WHERE s.is_active=1 AND s.role IN ('owner','admin','manager')`, {
-      message: `${req.session.user.full_name} requested assignment of ${client.client_name || 'an unassigned client'}. Open the Client Assignment Centre to approve or reject request #${result.insertId}.`,
+      message: `${req.session.user.full_name} requested assignment of ${displayName}${accountNumber ? ` under account ${accountNumber}` : ''}. The claim covers ${scopeClients.length} linked line${scopeClients.length === 1 ? '' : 's'}. Open the Client Assignment Centre to approve or reject request #${result.insertId}.`,
       createdBy: req.session.user.id,
-      clientId
+      clientId: mainClient.id
     });
+
     await conn.commit();
     await audit(req, {
       actionType: 'client_claim_requested',
       entityType: 'data_change_requests',
       entityId: result.insertId,
-      description: `${req.session.user.full_name} requested assignment of ${client.client_name || clientId}`,
+      description: `${req.session.user.full_name} requested assignment of ${displayName} and ${scopeClients.length} linked line${scopeClients.length === 1 ? '' : 's'}`,
       after: proposed
     });
     res.redirect(`${res.locals.basePath}/clients/assignment-centre?view=requests&requested=1${panelSuffix(req, '&')}`);
@@ -218,6 +388,7 @@ router.post('/client-claims/:id/decision', requireAuth, async (req, res, next) =
     if (!request || !['pending_manager', 'pending_owner'].includes(request.status)) throw new Error('This claim request has already been reviewed.');
     const decision = String(req.body.decision || '');
     const comment = clean(req.body.comment, 2000) || null;
+
     if (decision === 'reject') {
       await conn.execute(`UPDATE data_change_requests SET status='rejected',reviewed_by=:reviewedBy,
         reviewed_at=NOW(),review_comment=:comment WHERE id=:requestId`, {
@@ -226,69 +397,121 @@ router.post('/client-claims/:id/decision', requireAuth, async (req, res, next) =
       await conn.execute(`INSERT INTO staff_tasks
         (type,title,message,priority,status,assigned_to,created_by,due_at,related_client_id,email_status)
         VALUES ('notification','Client claim not approved',:message,'normal','unread',:assignedTo,:createdBy,NOW(),:clientId,'not_configured')`, {
-        message: `Your request to claim this client was not approved${comment ? `: ${comment}` : '.'}`,
+        message: `Your request to claim this account was not approved${comment ? `: ${comment}` : '.'}`,
         assignedTo: request.requested_by,
         createdBy: req.session.user.id,
         clientId: request.client_id
       });
       await conn.commit();
-      await audit(req, { actionType: 'client_claim_rejected', entityType: 'data_change_requests', entityId: requestId, description: 'Client claim rejected', after: { comment } });
+      await audit(req, { actionType: 'client_claim_rejected', entityType: 'data_change_requests', entityId: requestId, description: 'Client account claim rejected', after: { comment } });
       return res.redirect(`${res.locals.basePath}/clients/assignment-centre?view=pending&reviewed=rejected${panelSuffix(req, '&')}`);
     }
+
     if (decision !== 'approve') throw new Error('Choose approve or reject.');
-    const [[client]] = await conn.execute(`SELECT id,client_name,account_number FROM clients
+    const [[requestedClient]] = await conn.execute(`SELECT id,account_id,client_name,account_number FROM clients
       WHERE id=:clientId AND is_active=1 FOR UPDATE`, { clientId: request.client_id });
-    if (!client) throw new Error('The client is no longer available.');
-    const [[existingAssignment]] = await conn.execute(`SELECT a.assigned_staff_id,s.full_name
-      FROM client_assignments a JOIN staff_users s ON s.id=a.assigned_staff_id
-      WHERE a.is_active=1 AND (a.client_id=:clientId OR (:account<>'' AND a.account_number=:account))
-      ORDER BY a.updated_at DESC LIMIT 1 FOR UPDATE`, { clientId: client.id, account: client.account_number || '' });
-    if (existingAssignment) throw new Error(`The client is already assigned to ${existingAssignment.full_name}.`);
+    if (!requestedClient) throw new Error('The client is no longer available.');
+
+    const scopeClients = await loadScopeClients(conn, requestedClient, true);
+    const mainClient = selectMainRecord(scopeClients);
+    const accountNumber = scopeClients.map(row => clean(row.account_number)).find(Boolean) || null;
+    const normalised = normaliseAccount(accountNumber);
+    const existingAssignment = await findGroupAssignment(conn, scopeClients, normalised, true);
+    if (existingAssignment && Number(existingAssignment.assigned_staff_id) !== Number(request.requested_by)) {
+      throw new Error(`This account is already assigned to ${existingAssignment.full_name}.`);
+    }
+
     const [[staff]] = await conn.execute(`SELECT id,full_name FROM staff_users WHERE id=:id AND is_active=1 LIMIT 1`, { id: request.requested_by });
     if (!staff) throw new Error('The requesting staff member is no longer active.');
-    const [scopeClients] = client.account_number
-      ? await conn.execute(`SELECT id FROM clients WHERE is_active=1 AND account_number=:account ORDER BY id`, { account: client.account_number })
-      : [[{ id: client.id }]];
-    await conn.execute(`UPDATE client_assignments SET is_active=0,updated_at=NOW()
-      WHERE is_active=1 AND (client_id=:clientId OR (:account<>'' AND account_number=:account))`, { clientId: client.id, account: client.account_number || '' });
+
+    const scopeIds = scopeClients.map(row => Number(row.id));
+    const assignmentParams = [...scopeIds];
+    let assignmentWhere = `client_id IN (${idPlaceholders(scopeClients)})`;
+    if (normalised) {
+      assignmentWhere += ` OR UPPER(REPLACE(TRIM(COALESCE(account_number,'')),' ',''))=?`;
+      assignmentParams.push(normalised);
+    }
+    await conn.query(`UPDATE client_assignments SET is_active=0,updated_at=NOW()
+      WHERE is_active=1 AND (${assignmentWhere})`, assignmentParams);
+
     for (const row of scopeClients) {
       await conn.execute(`INSERT INTO client_assignments (client_id,account_number,assigned_staff_id,assigned_by,is_active)
         VALUES (:clientId,:account,:staffId,:assignedBy,1)
         ON DUPLICATE KEY UPDATE account_number=VALUES(account_number),assigned_staff_id=VALUES(assigned_staff_id),
           assigned_by=VALUES(assigned_by),is_active=1,updated_at=NOW()`, {
         clientId: row.id,
-        account: client.account_number || null,
+        account: accountNumber,
         staffId: staff.id,
         assignedBy: req.session.user.id
       });
     }
-    if (client.account_number) {
+
+    if (normalised) {
       await conn.execute(`UPDATE customer_accounts SET assigned_staff_id=:staffId,assigned_by=:assignedBy,
-        assignment_confirmed_at=NOW() WHERE account_number_normalised=UPPER(REPLACE(TRIM(:account),' ',''))`, {
-        staffId: staff.id, assignedBy: req.session.user.id, account: client.account_number
+        assignment_confirmed_at=NOW() WHERE account_number_normalised=:normalised`, {
+        staffId: staff.id, assignedBy: req.session.user.id, normalised
       });
       await conn.execute(`UPDATE fixed_accounts SET assigned_staff_id=:staffId,updated_at=NOW()
-        WHERE account_number=:account OR linked_mobile_account_number=:account`, { staffId: staff.id, account: client.account_number });
+        WHERE UPPER(REPLACE(TRIM(COALESCE(account_number,'')),' ',''))=:normalised
+           OR UPPER(REPLACE(TRIM(COALESCE(linked_mobile_account_number,'')),' ',''))=:normalised`, {
+        staffId: staff.id, normalised
+      });
     }
+
+    const duplicateClaim = await findPendingGroupClaim(conn, scopeClients, normalised, requestId, true);
+    if (duplicateClaim) {
+      const pendingParams = [req.session.user.id, `Automatically closed because account claim #${requestId} was approved.`, ...scopeIds];
+      let pendingWhere = `client_id IN (${idPlaceholders(scopeClients)})`;
+      if (normalised) {
+        pendingWhere += ` OR UPPER(REPLACE(TRIM(COALESCE(account_number,'')),' ',''))=?`;
+        pendingParams.push(normalised);
+      }
+      pendingParams.push(requestId);
+      await conn.query(`UPDATE data_change_requests SET status='rejected',reviewed_by=?,reviewed_at=NOW(),review_comment=?
+        WHERE request_type='claim_client' AND status IN ('pending_manager','pending_owner')
+          AND (${pendingWhere}) AND id<>?`, pendingParams);
+    }
+
     await conn.execute(`UPDATE data_change_requests SET status='applied',reviewed_by=:reviewedBy,
-      reviewed_at=NOW(),review_comment=:comment,applied_at=NOW() WHERE id=:requestId`, {
-      reviewedBy: req.session.user.id, comment, requestId
+      reviewed_at=NOW(),review_comment=:comment,applied_at=NOW(),
+      proposed_data_json=:proposed WHERE id=:requestId`, {
+      reviewedBy: req.session.user.id,
+      comment,
+      requestId,
+      proposed: JSON.stringify({
+        client_id: mainClient.id,
+        linked_client_ids: scopeIds,
+        linked_line_count: scopeClients.length,
+        account_number: accountNumber,
+        assigned_staff_id: staff.id,
+        assigned_staff_name: staff.full_name,
+        scope: accountNumber || mainClient.account_id ? 'account' : 'client'
+      })
     });
+
     await conn.execute(`INSERT INTO staff_tasks
       (type,title,message,priority,status,assigned_to,created_by,due_at,related_client_id,email_status)
       VALUES ('notification','Client claim approved',:message,'normal','unread',:assignedTo,:createdBy,NOW(),:clientId,'not_configured')`, {
-      message: `${client.client_name || 'The client'} is now assigned to you.`,
+      message: `${mainClient.client_name || 'The client account'} is now assigned to you. ${scopeClients.length} linked line${scopeClients.length === 1 ? ' was' : 's were'} assigned together.`,
       assignedTo: staff.id,
       createdBy: req.session.user.id,
-      clientId: client.id
+      clientId: mainClient.id
     });
+
     await conn.commit();
     await audit(req, {
       actionType: 'client_claim_approved',
       entityType: 'clients',
-      entityId: client.id,
-      description: `${client.client_name || client.id} assigned to ${staff.full_name}`,
-      after: { assigned_staff_id: staff.id, assigned_staff_name: staff.full_name, scope: client.account_number ? 'account' : 'client' }
+      entityId: mainClient.id,
+      description: `${mainClient.client_name || mainClient.id} and ${scopeClients.length} linked line${scopeClients.length === 1 ? '' : 's'} assigned to ${staff.full_name}`,
+      after: {
+        assigned_staff_id: staff.id,
+        assigned_staff_name: staff.full_name,
+        account_number: accountNumber,
+        linked_client_ids: scopeIds,
+        linked_line_count: scopeClients.length,
+        scope: accountNumber || mainClient.account_id ? 'account' : 'client'
+      }
     });
     res.redirect(`${res.locals.basePath}/clients/assignment-centre?view=pending&reviewed=approved${panelSuffix(req, '&')}`);
   } catch (error) {
