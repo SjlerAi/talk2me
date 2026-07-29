@@ -47,13 +47,24 @@ function flattenDetails(value, prefix = '', depth = 0) {
   return [{ label: titleCase(prefix || 'details'), value: String(value) }];
 }
 
-function categoryFor(requestType) {
+function categoryFor(requestType, entityType, proposed = {}) {
   const type = String(requestType || '').toLowerCase();
-  if (type === 'claim_client') return 'client_claims';
-  if (type.includes('account')) return 'account_changes';
-  if (/(staff|attendance|leave|permission|role|access)/.test(type)) return 'staff_requests';
-  if (/(client|customer|mobile|fixed|line|prospect|contact|upgrade|birthday)/.test(type)) return 'customer_changes';
+  const entity = String(entityType || '').toLowerCase();
+  const looksLikeClaim = type === 'claim_client'
+    || type === 'claim_account'
+    || type.startsWith('claim_')
+    || (proposed.assigned_staff_id && (proposed.scope === 'account' || Array.isArray(proposed.linked_client_ids)));
+  if (looksLikeClaim) return 'client_claims';
+  if (type.includes('account') || entity === 'customer_accounts') return 'account_changes';
+  if (/(staff|attendance|leave|permission|role|access)/.test(type) || entity.includes('staff')) return 'staff_requests';
+  if (/(client|customer|mobile|fixed|line|prospect|contact|upgrade|birthday)/.test(type)
+      || entity === 'clients' || entity.startsWith('fixed_')) return 'customer_changes';
   return 'other_requests';
+}
+
+function displayTypeLabel(row, category) {
+  if (category === 'client_claims') return 'Client Claim';
+  return titleCase(row.request_type);
 }
 
 async function loadPendingCount() {
@@ -88,17 +99,17 @@ async function loadPendingChanges(basePath) {
     const proposed = parseJson(row.proposed_data_json);
     const linkedIds = Array.isArray(proposed.linked_client_ids) ? proposed.linked_client_ids : [];
     const affectedCount = Number(proposed.linked_line_count || linkedIds.length || 1);
-    const category = categoryFor(row.request_type);
+    const category = categoryFor(row.request_type, row.entity_type, proposed);
     return {
       kind: 'change',
       category,
       id: Number(row.id),
       requestType: row.request_type,
-      typeLabel: titleCase(row.request_type),
-      title: row.summary || row.client_name || titleCase(row.request_type),
+      typeLabel: displayTypeLabel(row, category),
+      title: row.summary || row.client_name || displayTypeLabel(row, category),
       customerName: row.client_name || null,
       cellphone: row.cell_number || null,
-      accountNumber: row.display_account_number || null,
+      accountNumber: row.display_account_number || proposed.account_number || null,
       town: row.city_town || null,
       requestedBy: row.requested_by_name || 'Unknown staff member',
       createdAt: row.created_at,
@@ -163,7 +174,7 @@ async function loadTaskApprovals(basePath) {
 }
 
 async function loadHistory(basePath) {
-  const [changeRows] = await db.query(`SELECT r.id,r.request_type,r.client_id,r.account_number,r.summary,r.reason,
+  const [changeRows] = await db.query(`SELECT r.id,r.request_type,r.entity_type,r.client_id,r.account_number,r.summary,r.reason,
       r.proposed_data_json,r.status,r.created_at,r.reviewed_at,r.applied_at,r.review_comment,
       requester.full_name requested_by_name,reviewer.full_name reviewed_by_name,
       c.client_name,c.cell_number,COALESCE(r.account_number,c.account_number) display_account_number
@@ -175,23 +186,27 @@ async function loadHistory(basePath) {
     ORDER BY COALESCE(r.applied_at,r.reviewed_at,r.created_at) DESC,r.id DESC
     LIMIT 300`);
 
-  const changes = changeRows.map(row => ({
-    kind: 'history',
-    category: categoryFor(row.request_type),
-    id: `change-${row.id}`,
-    typeLabel: titleCase(row.request_type),
-    title: row.summary || row.client_name || titleCase(row.request_type),
-    customerName: row.client_name || null,
-    accountNumber: row.display_account_number || null,
-    requestedBy: row.requested_by_name || 'Unknown staff member',
-    decidedBy: row.reviewed_by_name || 'System',
-    decisionAt: row.applied_at || row.reviewed_at || row.created_at,
-    decision: ['applied', 'approved'].includes(String(row.status || '').toLowerCase()) ? 'Approved' : titleCase(row.status),
-    comment: row.review_comment || null,
-    reason: row.reason || null,
-    details: flattenDetails(parseJson(row.proposed_data_json)).slice(0, 10),
-    openUrl: row.client_id ? `${basePath}/customers/${row.client_id}/360` : null
-  }));
+  const changes = changeRows.map(row => {
+    const proposed = parseJson(row.proposed_data_json);
+    const category = categoryFor(row.request_type, row.entity_type, proposed);
+    return {
+      kind: 'history',
+      category,
+      id: `change-${row.id}`,
+      typeLabel: displayTypeLabel(row, category),
+      title: row.summary || row.client_name || displayTypeLabel(row, category),
+      customerName: row.client_name || null,
+      accountNumber: row.display_account_number || proposed.account_number || null,
+      requestedBy: row.requested_by_name || 'Unknown staff member',
+      decidedBy: row.reviewed_by_name || 'System',
+      decisionAt: row.applied_at || row.reviewed_at || row.created_at,
+      decision: ['applied', 'approved'].includes(String(row.status || '').toLowerCase()) ? 'Approved' : titleCase(row.status),
+      comment: row.review_comment || null,
+      reason: row.reason || null,
+      details: flattenDetails(proposed).slice(0, 10),
+      openUrl: row.client_id ? `${basePath}/customers/${row.client_id}/360` : null
+    };
+  });
 
   let tasks = [];
   try {
