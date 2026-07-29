@@ -1,0 +1,123 @@
+<% const panel = panelMode ? '&panel=1' : ''; %>
+<% const tabUrl = key => `${basePath}/approvals?tab=${key}${q ? `&q=${encodeURIComponent(q)}` : ''}${panel}`; %>
+<section class="approval-centre" id="approval-centre" data-base-path="<%= basePath %>">
+  <header class="approval-centre-hero">
+    <div>
+      <div class="eyebrow">Management decision inbox</div>
+      <h1>Approval Centre</h1>
+      <p>Review client claims, account changes, customer requests and completed work from one place.</p>
+    </div>
+    <div class="approval-centre-total <%= totalPending ? 'has-work' : '' %>">
+      <span>Approvals needed</span>
+      <strong><%= totalPending %></strong>
+      <small><%= totalPending === 1 ? 'item waiting' : 'items waiting' %></small>
+    </div>
+  </header>
+
+  <% if(updated){ %><div class="success-box">The approval was updated. The remaining queue has been refreshed.</div><% } %>
+  <div class="approval-action-error" id="approval-action-error" hidden></div>
+
+  <nav class="approval-centre-tabs" aria-label="Approval categories">
+    <% tabs.forEach(([key,label])=>{ const count = key === 'history' ? null : Number(counts[key] || 0); %>
+      <a href="<%= tabUrl(key) %>" class="<%= tab===key?'active':'' %>">
+        <span><%= label %></span>
+        <% if(count !== null){ %><b class="<%= count ? 'has-count' : '' %>"><%= count %></b><% } %>
+      </a>
+    <% }) %>
+  </nav>
+
+  <section class="panel approval-centre-filter">
+    <form method="get" action="<%= basePath %>/approvals">
+      <input type="hidden" name="tab" value="<%= tab %>">
+      <% if(panelMode){ %><input type="hidden" name="panel" value="1"><% } %>
+      <label>Search approvals
+        <input type="search" name="q" value="<%= q %>" placeholder="Customer, account, staff member or request type">
+      </label>
+      <button class="btn primary" type="submit">Search</button>
+      <% if(q){ %><a class="btn" href="<%= tabUrl(tab).replace(`&q=${encodeURIComponent(q)}`,'') %>">Clear</a><% } %>
+    </form>
+  </section>
+
+  <section class="approval-centre-list">
+    <% items.forEach(item=>{ %>
+      <article class="approval-card <%= item.kind==='history'?'is-history':'' %> <%= item.category %>">
+        <header>
+          <div>
+            <span class="approval-type"><%= item.typeLabel %></span>
+            <h2><%= item.title %></h2>
+            <p><%= [item.customerName,item.cellphone,item.accountNumber,item.town].filter(Boolean).join(' · ') || 'No linked customer details' %></p>
+          </div>
+          <% if(item.kind==='history'){ %>
+            <span class="approval-decision <%= String(item.decision||'').toLowerCase().includes('reject')?'rejected':'approved' %>"><%= item.decision %></span>
+          <% } else { %>
+            <span class="approval-role"><%= item.requiredRole %></span>
+          <% } %>
+        </header>
+
+        <div class="approval-card-body">
+          <div class="approval-summary-grid">
+            <% if(item.kind==='history'){ %>
+              <div><span>Requested by</span><strong><%= item.requestedBy %></strong></div>
+              <div><span>Decision by</span><strong><%= item.decidedBy %></strong></div>
+              <div><span>Decision date</span><strong><%= item.decisionAt ? new Date(item.decisionAt).toLocaleString('en-ZA') : 'Unknown' %></strong></div>
+            <% } else { %>
+              <div><span>Requested by</span><strong><%= item.requestedBy %></strong></div>
+              <div><span>Waiting since</span><strong><%= item.createdAt ? new Date(item.createdAt).toLocaleString('en-ZA') : 'Unknown' %></strong></div>
+              <div><span>Records affected</span><strong><%= item.affectedCount %></strong></div>
+            <% } %>
+          </div>
+
+          <% if(item.reason){ %><div class="approval-reason"><strong><%= item.kind==='history'?'Request reason':'Reason / completion note' %></strong><p><%= item.reason %></p></div><% } %>
+          <% if(item.comment){ %><div class="approval-reason"><strong>Management comment</strong><p><%= item.comment %></p></div><% } %>
+
+          <% if(item.details && item.details.length){ %>
+            <details class="approval-details">
+              <summary>View request details</summary>
+              <dl>
+                <% item.details.forEach(detail=>{ %><div><dt><%= detail.label %></dt><dd><%= detail.value %></dd></div><% }) %>
+              </dl>
+            </details>
+          <% } %>
+        </div>
+
+        <footer>
+          <div class="approval-links">
+            <% if(item.openUrl){ %><a class="btn" href="<%= item.openUrl %>">Open related record</a><% } %>
+          </div>
+
+          <% if(item.kind==='change'){ %>
+            <form method="post" action="<%= item.actionUrl %>" class="approval-decision-form" data-approval-action data-return-tab="<%= item.category %>">
+              <% if(panelMode){ %><input type="hidden" name="panel" value="1"><% } %>
+              <% if(item.needsAccountNumber){ %><label>Official account number<input name="account_number" placeholder="Enter unique account number" required></label><% } %>
+              <textarea name="comment" rows="2" placeholder="Optional management comment"></textarea>
+              <div>
+                <button class="btn primary" type="submit" name="decision" value="approve"><%= item.category==='client_claims'?'Approve & Assign Account':'Approve' %></button>
+                <button class="btn danger" type="submit" name="decision" value="reject" formnovalidate>Reject</button>
+              </div>
+            </form>
+          <% } else if(item.kind==='task'){ %>
+            <div class="approval-task-actions">
+              <form method="post" action="<%= item.acceptUrl %>" data-approval-action data-return-tab="tasks">
+                <% if(panelMode){ %><input type="hidden" name="panel" value="1"><% } %>
+                <button class="btn primary" type="submit">Accept & Archive</button>
+              </form>
+              <form method="post" action="<%= item.returnUrl %>" class="approval-return-form" data-approval-action data-return-tab="tasks">
+                <% if(panelMode){ %><input type="hidden" name="panel" value="1"><% } %>
+                <input name="reason" placeholder="What still needs to be completed?" required>
+                <button class="btn danger" type="submit">Return for More Work</button>
+              </form>
+            </div>
+          <% } %>
+        </footer>
+      </article>
+    <% }) %>
+
+    <% if(!items.length){ %>
+      <div class="panel empty-state approval-empty">
+        <h2><%= tab==='history'?'No approval history found':'Nothing is waiting in this category' %></h2>
+        <p><%= tab==='history'?'Completed decisions will appear here.':'The owner and manager have no outstanding decisions in this view.' %></p>
+      </div>
+    <% } %>
+  </section>
+</section>
+<script defer src="<%= basePath %>/public/js/approval-centre.js?v=<%= encodeURIComponent(appVersion) %>"></script>

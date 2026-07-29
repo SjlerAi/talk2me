@@ -17,12 +17,14 @@
   <link rel="stylesheet" href="<%= basePath %>/public/css/layout-polish.css?v=<%= encodeURIComponent(appVersion) %>">
   <link rel="stylesheet" href="<%= basePath %>/public/css/task-workflow.css?v=<%= encodeURIComponent(appVersion) %>">
   <link rel="stylesheet" href="<%= basePath %>/public/css/client-assignment-centre.css?v=<%= encodeURIComponent(appVersion) %>">
+  <link rel="stylesheet" href="<%= basePath %>/public/css/approval-centre.css?v=<%= encodeURIComponent(appVersion) %>">
   <script defer src="<%= basePath %>/public/js/customer-actions.js?v=<%= encodeURIComponent(appVersion) %>"></script>
   <script defer src="<%= basePath %>/public/js/attendance-nightly-settings.js?v=<%= encodeURIComponent(appVersion) %>"></script>
   <% if(currentUser){ %><script defer src="<%= basePath %>/public/js/session-status-monitor.js?v=<%= encodeURIComponent(appVersion) %>" data-base-path="<%= basePath %>"></script><% } %>
+  <% if(currentUser && ['owner','admin','manager'].includes(currentUser.role)){ %><script defer src="<%= basePath %>/public/js/approval-badges.js?v=<%= encodeURIComponent(appVersion) %>" data-base-path="<%= basePath %>"></script><% } %>
 </head>
 <body class="command-body <%= panelMode?'panel-mode':'' %>">
-<% if(currentUser && !panelMode){ const management=['owner','admin','manager'].includes(currentUser.role); const safeUnreadTaskCount=typeof unreadTaskCount==='undefined'?0:Number(unreadTaskCount||0); %>
+<% if(currentUser && !panelMode){ const management=['owner','admin','manager'].includes(currentUser.role); const safeUnreadTaskCount=typeof unreadTaskCount==='undefined'?0:Number(unreadTaskCount||0); const safeApprovalCentreCount=typeof approvalCentreCount==='undefined'?0:Number(approvalCentreCount||0); %>
 <aside class="command-sidebar" id="command-sidebar">
   <a class="command-brand" href="<%= basePath %>/workspace"><img src="<%= basePath %>/public/images/talk2me-logo.png" alt="Talk2Me"><div><strong>TALK2ME</strong><span>COMMAND</span></div></a>
   <div class="command-user"><div class="command-avatar"><%= (currentUser.full_name||'?').slice(0,1).toUpperCase() %></div><div><strong><%= currentUser.full_name %></strong><span><%= currentUser.role %></span></div></div>
@@ -37,7 +39,7 @@
     <span class="command-nav-label">Management</span>
     <a href="<%= basePath %>/command-centre"><b>▦</b><span>Shop Command Centre</span></a>
     <a href="<%= basePath %>/backoffice/attendance" data-command-panel><b>◷</b><span>Attendance Register</span></a>
-    <a href="<%= basePath %>/approvals" data-command-panel><b>◆</b><span>Approvals</span></a>
+    <a href="<%= basePath %>/approvals" data-command-panel><b>◆</b><span data-approval-label><%= safeApprovalCentreCount?'Approvals Needed':'Approvals' %></span><em data-approval-count <%= safeApprovalCentreCount?'':'hidden' %>><%= safeApprovalCentreCount %></em></a>
     <a href="<%= basePath %>/upgrade-centre" data-command-panel><b>↗</b><span>Upgrades</span></a>
     <a href="<%= basePath %>/reports?type=birthdays" data-command-panel><b>★</b><span>Reports</span></a>
     <a href="<%= basePath %>/backoffice" data-command-panel><b>⚙</b><span>Administration</span></a>
@@ -50,6 +52,7 @@
     <button id="sidebar-toggle" class="icon-button" aria-label="Toggle menu">☰</button>
     <div class="command-search"><span>⌕</span><input id="universal-client-search" placeholder="Find cellphone, account, customer, email, SIM or MAC" autocomplete="off"><div id="universal-client-results"></div></div>
     <button id="alert-toggle" class="live-status" type="button" title="Enable sound and browser alerts"><i></i><span>Alerts</span></button>
+    <% if(management){ %><a class="top-task-link approval-top-link" href="<%= basePath %>/approvals" data-command-panel><span data-approval-label><%= safeApprovalCentreCount?'Approvals Needed':'Approvals' %></span><b data-approval-count <%= safeApprovalCentreCount?'':'hidden' %>><%= safeApprovalCentreCount %></b></a><% } %>
     <a class="top-task-link" href="<%= basePath %>/tasks" data-command-panel>Messages<% if(safeUnreadTaskCount){ %><b><%= safeUnreadTaskCount %></b><% } %></a>
     <form method="post" action="<%= basePath %>/logout"><button class="logout-button">Clock Out & Logout</button></form>
   </header>
