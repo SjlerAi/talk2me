@@ -175,6 +175,10 @@ const approvalCentre = require('./src/routes/approval-centre');
 app.use('/', approvalCentre);
 if (BASE_PATH) app.use(BASE_PATH, approvalCentre);
 
+const approvalDecisionsSafe = require('./src/routes/approval-decisions-safe');
+app.use('/', approvalDecisionsSafe);
+if (BASE_PATH) app.use(BASE_PATH, approvalDecisionsSafe);
+
 const osOperations = require('./src/routes/os-operations');
 app.use('/', osOperations);
 if (BASE_PATH) app.use(BASE_PATH, osOperations);
