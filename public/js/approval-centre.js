@@ -21,6 +21,23 @@
     } catch (_) {}
   }
 
+  async function responseError(response) {
+    const fallback = `The request could not be completed (HTTP ${response.status}).`;
+    try {
+      const type = String(response.headers.get('content-type') || '');
+      if (type.includes('application/json')) {
+        const payload = await response.json();
+        return payload.message || payload.error || fallback;
+      }
+      const html = await response.text();
+      const documentNode = new DOMParser().parseFromString(html, 'text/html');
+      const message = documentNode.querySelector('.error-box, .alert, main p, .page p')?.textContent?.trim();
+      return message || fallback;
+    } catch (_) {
+      return fallback;
+    }
+  }
+
   document.addEventListener('submit', async event => {
     const form = event.target.closest('form[data-approval-action]');
     if (!form || busy) return;
@@ -33,7 +50,7 @@
     if (new URLSearchParams(window.location.search).get('panel') === '1' && !params.has('panel')) params.set('panel', '1');
 
     busy = true;
-    errorBox.hidden = true;
+    if (errorBox) errorBox.hidden = true;
     const buttons = [...form.querySelectorAll('button')];
     buttons.forEach(button => { button.disabled = true; });
     if (submitter) submitter.textContent = 'Updating...';
@@ -50,9 +67,7 @@
         body: params.toString()
       });
 
-      if (!response.ok) {
-        throw new Error(`The request could not be completed (HTTP ${response.status}).`);
-      }
+      if (!response.ok) throw new Error(await responseError(response));
 
       notifyParent();
       const next = new URL(`${basePath}/approvals`, window.location.origin);
@@ -63,7 +78,7 @@
     } catch (error) {
       busy = false;
       buttons.forEach(button => { button.disabled = false; });
-      if (submitter) submitter.textContent = submitter.dataset.originalLabel || submitter.textContent.replace('Updating...', 'Try Again');
+      if (submitter) submitter.textContent = submitter.dataset.originalLabel || 'Try Again';
       showError(error.message || 'The approval could not be updated. Please refresh and try again.');
     }
   });
