@@ -1,5 +1,8 @@
 const db = require('../config/db');
 
+const DEFAULT_TIMEZONE = 'Africa/Johannesburg';
+const DEFAULT_LOGOUT_TIME = '22:00:00';
+
 let schemaReady = false;
 let schemaPromise = null;
 let running = false;
@@ -36,6 +39,8 @@ async function ensureNightlyLogoutSchema() {
   if (schemaPromise) return schemaPromise;
 
   schemaPromise = (async () => {
+    // Keep nightly logout settings isolated in their own table. This avoids
+    // database-specific SHOW COLUMNS parameter handling on shared hosting.
     await db.execute(`CREATE TABLE IF NOT EXISTS nightly_logout_settings (
       id TINYINT UNSIGNED NOT NULL,
       enabled TINYINT(1) NOT NULL DEFAULT 1,
@@ -50,8 +55,11 @@ async function ensureNightlyLogoutSchema() {
 
     await db.execute(`INSERT INTO nightly_logout_settings
       (id,enabled,logout_time,timezone)
-      VALUES (1,1,'22:00:00','Africa/Johannesburg')
-      ON DUPLICATE KEY UPDATE id=VALUES(id)`);
+      VALUES (1,1,:logoutTime,:timezone)
+      ON DUPLICATE KEY UPDATE id=VALUES(id)`, {
+      logoutTime: DEFAULT_LOGOUT_TIME,
+      timezone: DEFAULT_TIMEZONE
+    });
 
     schemaReady = true;
   })().finally(() => { schemaPromise = null; });
@@ -65,9 +73,9 @@ async function getNightlyLogoutSettings() {
       logout_time auto_logout_time,DATE_FORMAT(last_run_date,'%Y-%m-%d') last_auto_logout_date
     FROM nightly_logout_settings WHERE id=1`);
   return settings || {
-    timezone: 'Africa/Johannesburg',
+    timezone: DEFAULT_TIMEZONE,
     auto_logout_enabled: 1,
-    auto_logout_time: '22:00:00',
+    auto_logout_time: DEFAULT_LOGOUT_TIME,
     last_auto_logout_date: null
   };
 }
@@ -79,7 +87,7 @@ async function runAutomaticLogout(now = new Date()) {
     const settings = await getNightlyLogoutSettings();
     if (!settings.auto_logout_enabled) return { ran: false, reason: 'disabled' };
 
-    const zone = settings.timezone || 'Africa/Johannesburg';
+    const zone = settings.timezone || DEFAULT_TIMEZONE;
     const current = localParts(zone, now);
     const cutoffMinutes = timeMinutes(settings.auto_logout_time);
     const lastRun = settings.last_auto_logout_date || '';
@@ -87,7 +95,7 @@ async function runAutomaticLogout(now = new Date()) {
     if (current.minuteOfDay < cutoffMinutes) return { ran: false, reason: 'before_cutoff' };
     if (lastRun === current.date) return { ran: false, reason: 'already_completed' };
 
-    const cutoff = `${current.date} ${String(settings.auto_logout_time || '22:00:00').slice(0, 8)}`;
+    const cutoff = `${current.date} ${String(settings.auto_logout_time || DEFAULT_LOGOUT_TIME).slice(0, 8)}`;
     const conn = await db.getConnection();
     try {
       await conn.beginTransaction();
