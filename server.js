@@ -171,6 +171,10 @@ const clientAssignmentCentre = require('./src/routes/client-assignment-centre');
 app.use('/', clientAssignmentCentre);
 if (BASE_PATH) app.use(BASE_PATH, clientAssignmentCentre);
 
+const approvalCentre = require('./src/routes/approval-centre');
+app.use('/', approvalCentre);
+if (BASE_PATH) app.use(BASE_PATH, approvalCentre);
+
 const osOperations = require('./src/routes/os-operations');
 app.use('/', osOperations);
 if (BASE_PATH) app.use(BASE_PATH, osOperations);
