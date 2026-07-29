@@ -23,6 +23,7 @@
   <% const attendance = typeof attendanceState !== 'undefined' ? attendanceState : null; %>
   <% const firstName = String(currentUser.full_name || currentUser.username || 'Staff').trim().split(/\s+/)[0]; %>
   <% const unassignedCount = typeof unassignedClientCount === 'undefined' ? 0 : Number(unassignedClientCount || 0); %>
+  <% const approvalCount = typeof approvalCentreCount === 'undefined' ? 0 : Number(approvalCentreCount || 0); %>
   <div class="t2m-os-shell" id="talk2me-os">
     <header class="t2m-os-topbar">
       <a class="t2m-os-brand" href="<%= basePath %>/workspace" aria-label="Talk2Me OS home">
@@ -39,6 +40,7 @@
           <span class="attendance-user-avatar"><%= firstName.slice(0,1).toUpperCase() %></span>
           <span class="attendance-user-copy"><strong><%= firstName %></strong><small><i aria-hidden="true"></i><%= attendance?'Clocked in · '+new Date(attendance.clock_in_at).toLocaleTimeString('en-ZA',{hour:'2-digit',minute:'2-digit'}):'Not clocked in' %></small></span>
         </button>
+        <% if(isManagement){ %><button class="t2m-os-icon-button" type="button" data-os-route="<%= basePath %>/approvals" data-route-title="Approval Centre" data-route-icon="◆" aria-label="Open approval centre"><span aria-hidden="true">◆</span><b class="t2m-os-badge" data-approval-count <%= approvalCount ? '' : 'hidden' %>><%= approvalCount %></b></button><% } %>
         <button class="t2m-os-icon-button" type="button" data-os-app="notifications" aria-label="Notifications"><span aria-hidden="true">🔔</span><b class="t2m-os-badge" data-badge="notifications" <%= status.unreadMessageCount ? '' : 'hidden' %>><%= status.unreadMessageCount %></b></button>
         <form method="post" action="<%= basePath %>/logout"><button class="t2m-os-logout attendance-session-action" type="submit"><%= attendance?'Clock Out & Logout':'Logout' %></button></form>
       </div>
@@ -52,7 +54,7 @@
         <button type="button" data-os-app="calendar"><span>□</span><strong>Calendar</strong></button><button type="button" data-os-app="notes"><span>✎</span><strong>Notes</strong></button><button type="button" data-os-app="calculator"><span>#</span><strong>Calculator</strong></button>
       </div>
       <div class="t2m-os-sidebar-section"><span class="t2m-os-sidebar-label">Information</span><button type="button" data-os-app="reports"><span>▦</span><strong>Reports</strong></button><button type="button" data-os-app="help"><span>?</span><strong>Help</strong></button></div>
-      <% if (isManagement) { %><div class="t2m-os-sidebar-section"><span class="t2m-os-sidebar-label">Management</span><button type="button" data-os-route="<%= basePath %>/command-centre" data-route-title="Command Centre" data-route-icon="◆"><span>◆</span><strong>Command Centre</strong></button><button type="button" data-os-route="<%= basePath %>/backoffice/attendance" data-route-title="Attendance Register" data-route-icon="◷"><span>◷</span><strong>Attendance Register</strong></button><button type="button" data-os-route="<%= basePath %>/approvals" data-route-title="Approvals" data-route-icon="✓"><span>✓</span><strong>Approvals</strong></button><button type="button" data-os-route="<%= basePath %>/upgrade-centre" data-route-title="Upgrade Centre" data-route-icon="↗"><span>↗</span><strong>Upgrades</strong></button><button type="button" data-os-route="<%= basePath %>/backoffice" data-route-title="Administration" data-route-icon="⚙"><span>⚙</span><strong>Administration</strong></button></div><% } %>
+      <% if (isManagement) { %><div class="t2m-os-sidebar-section"><span class="t2m-os-sidebar-label">Management</span><button type="button" data-os-route="<%= basePath %>/command-centre" data-route-title="Command Centre" data-route-icon="◆"><span>◆</span><strong>Command Centre</strong></button><button type="button" data-os-route="<%= basePath %>/backoffice/attendance" data-route-title="Attendance Register" data-route-icon="◷"><span>◷</span><strong>Attendance Register</strong></button><button type="button" data-os-route="<%= basePath %>/approvals" data-route-title="Approval Centre" data-route-icon="✓"><span>✓</span><strong data-approval-label><%= approvalCount?'Approvals Needed':'Approvals' %></strong><b data-approval-count <%= approvalCount?'':'hidden' %>><%= approvalCount %></b></button><button type="button" data-os-route="<%= basePath %>/upgrade-centre" data-route-title="Upgrade Centre" data-route-icon="↗"><span>↗</span><strong>Upgrades</strong></button><button type="button" data-os-route="<%= basePath %>/backoffice" data-route-title="Administration" data-route-icon="⚙"><span>⚙</span><strong>Administration</strong></button></div><% } %>
     </aside>
     <nav class="t2m-os-launcher" aria-label="Primary systems">
       <button class="t2m-os-launcher-arrow" type="button" data-launcher-scroll="previous" aria-label="Previous launcher">‹</button>
@@ -65,6 +67,7 @@
     <main class="t2m-os-workspace" id="os-workspace" aria-label="Talk2Me workspace">
       <section class="t2m-os-desk-widgets" id="os-desk-widgets" aria-label="Today overview">
         <article class="t2m-os-desk-widget" data-widget="work"><header><div><span>My desk</span><strong>Today’s Work</strong></div><button type="button" data-widget-collapse aria-label="Collapse Today’s Work">−</button></header><div class="t2m-os-widget-body">
+          <% if(isManagement){ %><div class="t2m-os-widget-row is-view-only"><button class="t2m-os-widget-view" type="button" data-os-route="<%= basePath %>/approvals" data-route-title="Approval Centre" data-route-icon="◆" aria-label="Open approvals needed"><span data-approval-label><%= approvalCount?'Approvals needed':'Approvals' %></span><strong data-status="approvalCount" data-positive="<%= approvalCount > 0 %>"><%= approvalCount %></strong></button></div><% } %>
           <div class="t2m-os-widget-row is-view-only"><button class="t2m-os-widget-view" type="button" data-os-route="<%= basePath %>/os/my-work/overdue-tasks" data-route-title="Overdue Tasks" data-route-icon="!" aria-label="Open overdue tasks"><span>Overdue tasks</span><strong data-status="overdueTaskCount" data-positive="<%= status.overdueTaskCount > 0 %>"><%= status.overdueTaskCount %></strong></button></div>
           <div class="t2m-os-widget-row"><button class="t2m-os-widget-view" type="button" data-os-route="<%= basePath %>/os/my-work/tasks-today" data-route-title="Tasks Due Today" data-route-icon="✓" aria-label="Open tasks due today"><span>Tasks due today</span><strong data-status="dueTodayTaskCount" data-positive="<%= status.dueTodayTaskCount > 0 %>"><%= status.dueTodayTaskCount %></strong></button><button class="t2m-os-widget-add" type="button" data-widget-add="task" data-add-title="Add Task" data-add-icon="✓" aria-label="Add a task" title="Add a task">+</button></div>
           <div class="t2m-os-widget-row"><button class="t2m-os-widget-view" type="button" data-os-route="<%= basePath %>/os/my-work/follow-ups" data-route-title="Customer Follow-ups" data-route-icon="↻" aria-label="Open customer follow-ups"><span>Customer follow-ups</span><strong data-status="followUpTodayCount" data-positive="<%= status.followUpTodayCount > 0 %>"><%= status.followUpTodayCount %></strong></button><button class="t2m-os-widget-add" type="button" data-widget-add="follow-up" data-add-title="Add Customer Follow-up" data-add-icon="↻" aria-label="Add a customer follow-up" title="Add a customer follow-up">+</button></div>
@@ -90,6 +93,7 @@
   <script defer src="<%= basePath %>/public/js/os-v6-alpha21-7.js?v=<%= encodeURIComponent(appVersion) %>"></script>
   <script defer src="<%= basePath %>/public/js/os-v6-alpha21-8.js?v=<%= encodeURIComponent(appVersion) %>"></script>
   <script defer src="<%= basePath %>/public/js/os-v6-alpha21-17.js?v=<%= encodeURIComponent(appVersion) %>"></script>
+  <% if(isManagement){ %><script defer src="<%= basePath %>/public/js/approval-badges.js?v=<%= encodeURIComponent(appVersion) %>" data-base-path="<%= basePath %>"></script><% } %>
   <script defer src="<%= basePath %>/public/js/pwa-install.js?v=<%= encodeURIComponent(appVersion) %>" data-base-path="<%= basePath %>"></script>
 </body>
 </html>
