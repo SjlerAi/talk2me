@@ -1,6 +1,5 @@
-<% layout('layout') -%>
 <div class="import-centre">
-  <header class="import-hero"><div><span>Administration</span><h1>Data Import Centre</h1><p>Upload and audit monthly B12, Siebel and Fixed Base reports before any customer record is changed.</p></div><a href="<%= basePath %>/workspace">Back to workspace</a></header>
+  <header class="import-hero"><div><span>Administration</span><h1>Data Import Centre</h1><p>Upload and audit monthly B12, Siebel and Fixed Base reports before any customer record is changed.</p></div><a href="<%= basePath %>/backoffice">Back to Administration</a></header>
   <% if (notice) { %><div class="notice success"><%= notice %></div><% } %>
   <% if (error) { %><div class="notice error"><%= error %></div><% } %>
   <% if (!schemaReady) { %>
