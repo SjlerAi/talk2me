@@ -7,12 +7,20 @@ const { parse } = require('../services/monthly-import-parser');
 
 const router = express.Router();
 const roles = new Set(['owner', 'manager', 'admin']);
+const acceptedMimeTypes = new Set([
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/octet-stream'
+]);
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 12 * 1024 * 1024, files: 1 },
   fileFilter(req, file, done) {
     const name = String(file.originalname || '').toLowerCase();
-    done(name.endsWith('.xls') || name.endsWith('.xlsx') ? null : new Error('Only .xls and .xlsx reports are accepted.'), true);
+    const validExtension = name.endsWith('.xls') || name.endsWith('.xlsx');
+    const validMime = acceptedMimeTypes.has(String(file.mimetype || '').toLowerCase());
+    if (!validExtension || !validMime) return done(new Error('Only genuine .xls and .xlsx spreadsheet reports are accepted.'));
+    return done(null, true);
   }
 });
 
@@ -67,11 +75,13 @@ router.post('/backoffice/data-import/upload', requireAuth, managementOnly, uploa
       const [batch] = await connection.execute(`INSERT INTO monthly_import_batches (import_type,source_system,original_filename,file_hash,total_rows,status,imported_by) VALUES (:importType,:sourceSystem,:filename,:fileHash,:totalRows,'preview',:userId)`, {
         importType: parsed.importType, sourceSystem: parsed.sourceSystem, filename: text(req.file.originalname, 255), fileHash, totalRows: parsed.rows.length, userId: req.session.user.id
       });
-      let valid = 0; let duplicates = 0;
+      let valid = 0; let duplicates = 0; let exceptions = 0;
       for (const row of parsed.rows) {
-        const [[duplicate]] = await connection.execute(`SELECT id FROM monthly_import_rows WHERE row_fingerprint=:fingerprint AND import_status IN ('staged','confirmed') LIMIT 1`, { fingerprint: row.rowFingerprint });
-        const importStatus = duplicate ? 'duplicate' : 'staged';
-        if (duplicate) duplicates += 1; else valid += 1;
+        const [[duplicate]] = row.isException ? [[]] : await connection.execute(`SELECT id FROM monthly_import_rows WHERE row_fingerprint=:fingerprint AND import_status IN ('staged','confirmed') LIMIT 1`, { fingerprint: row.rowFingerprint });
+        const importStatus = row.isException ? 'exception' : (duplicate ? 'duplicate' : 'staged');
+        if (row.isException) exceptions += 1;
+        else if (duplicate) duplicates += 1;
+        else valid += 1;
         await connection.execute(`INSERT INTO monthly_import_rows (batch_id,source_row_number,row_fingerprint,import_status,phone_original,phone_normalised,account_number,customer_name,transaction_date,agent_code,deal_sheet_number,imei,order_number,mac_address,solution_id,sim_number,package_name,description,raw_data_json,warning_text) VALUES (:batchId,:sourceRow,:fingerprint,:status,:phoneOriginal,:phoneNormalised,:accountNumber,:customerName,:transactionDate,:agentCode,:dealSheet,:imei,:orderNumber,:macAddress,:solutionId,:simNumber,:packageName,:description,:rawJson,:warningText)`, {
           batchId: batch.insertId, sourceRow: row.sourceRowNumber, fingerprint: row.rowFingerprint, status: importStatus,
           phoneOriginal: row.phoneOriginal || null, phoneNormalised: row.phoneNormalised || null, accountNumber: row.accountNumber || null,
@@ -79,12 +89,12 @@ router.post('/backoffice/data-import/upload', requireAuth, managementOnly, uploa
           dealSheet: row.dealSheetNumber || null, imei: row.imei || null, orderNumber: row.orderNumber || null,
           macAddress: row.macAddress || null, solutionId: row.solutionId || null, simNumber: row.simNumber || null,
           packageName: row.packageName || null, description: row.description || null, rawJson: JSON.stringify(row),
-          warningText: duplicate ? 'This transaction already exists in another import batch.' : null
+          warningText: row.warningText || (duplicate ? 'This transaction already exists in another import batch.' : null)
         });
       }
-      await connection.execute('UPDATE monthly_import_batches SET valid_rows=:valid,duplicate_rows=:duplicates WHERE id=:id', { valid, duplicates, id: batch.insertId });
+      await connection.execute('UPDATE monthly_import_batches SET valid_rows=:valid,duplicate_rows=:duplicates,exception_rows=:exceptions WHERE id=:id', { valid, duplicates, exceptions, id: batch.insertId });
       await connection.commit();
-      return res.redirect(`${res.locals.basePath}/backoffice/data-import/batches/${batch.insertId}?notice=${encodeURIComponent('Report parsed successfully. Review the staged rows before confirming.')}`);
+      return res.redirect(`${res.locals.basePath}/backoffice/data-import/batches/${batch.insertId}?notice=${encodeURIComponent('Report parsed successfully. Review the staged and exception rows before confirming.')}`);
     } catch (error) { await connection.rollback(); throw error; } finally { connection.release(); }
   } catch (error) {
     try { await render(req, res, { error: error.message }, 400); } catch (renderError) { next(renderError); }
@@ -99,7 +109,7 @@ router.post('/backoffice/data-import/batches/:id/confirm', requireAuth, manageme
     await connection.execute(`UPDATE monthly_import_rows SET import_status='confirmed' WHERE batch_id=:id AND import_status='staged'`, { id: batch.id });
     await connection.execute(`UPDATE monthly_import_batches SET status='confirmed',confirmed_by=:userId,confirmed_at=NOW() WHERE id=:id`, { userId: req.session.user.id, id: batch.id });
     await connection.commit();
-    res.redirect(`${res.locals.basePath}/backoffice/data-import/batches/${batch.id}?notice=${encodeURIComponent('Batch confirmed as an audited import. Phase 1 still does not overwrite live customer records.')}`);
+    res.redirect(`${res.locals.basePath}/backoffice/data-import/batches/${batch.id}?notice=${encodeURIComponent('Batch confirmed as an audited import. Exception and duplicate rows remain unchanged for review.')}`);
   } catch (error) { await connection.rollback(); next(error); } finally { connection.release(); }
 });
 
