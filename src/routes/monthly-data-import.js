@@ -5,10 +5,16 @@ const db = require('../config/db');
 const { requireAuth } = require('../middleware/auth');
 const { parse } = require('../services/monthly-import-parser');
 const { runMatching } = require('../services/monthly-import-matcher');
+const {
+  autoApproveDeterministicMatches,
+  previewFinalisation,
+  finaliseMonthlyImport
+} = require('../services/monthly-import-finaliser');
 const { audit } = require('../services/audit');
 
 const router = express.Router();
 const roles = new Set(['owner', 'manager', 'admin']);
+const finaliserRoles = new Set(['owner', 'manager']);
 const acceptedMimeTypes = new Set([
   'application/vnd.ms-excel',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -16,7 +22,7 @@ const acceptedMimeTypes = new Set([
 ]);
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 12 * 1024 * 1024, files: 1 },
+  limits: { fileSize: 12 * 1024 * 1024, files: 10 },
   fileFilter(req, file, done) {
     const name = String(file.originalname || '').toLowerCase();
     const validExtension = name.endsWith('.xls') || name.endsWith('.xlsx');
@@ -29,6 +35,12 @@ const upload = multer({
 function managementOnly(req, res, next) {
   if (!roles.has(String(req.session.user?.role || '').toLowerCase())) {
     return res.status(403).render('error', { title: 'Access denied', message: 'Management access is required.' });
+  }
+  next();
+}
+function managerOwnerOnly(req, res, next) {
+  if (!finaliserRoles.has(String(req.session.user?.role || '').toLowerCase())) {
+    return res.status(403).render('error', { title: 'Access denied', message: 'Manager or owner confirmation is required to finalise a Monthly Import.' });
   }
   next();
 }
@@ -52,15 +64,83 @@ async function dashboard(hasMatchingSchema) {
     : '0';
   const [batches] = await db.query(`SELECT b.*,u.full_name imported_by_name,${matchCount} match_count FROM monthly_import_batches b LEFT JOIN staff_users u ON u.id=b.imported_by ORDER BY b.created_at DESC,b.id DESC LIMIT 100`);
   const [[summary]] = await db.query(`SELECT COUNT(*) batch_count,COALESCE(SUM(total_rows),0) rows_read,COALESCE(SUM(valid_rows),0) valid_rows,COALESCE(SUM(duplicate_rows),0) duplicate_rows,COALESCE(SUM(exception_rows),0) exception_rows FROM monthly_import_batches WHERE created_at>=DATE_FORMAT(CURDATE(),'%Y-%m-01')`);
-  return { batches, summary };
+  let exceptions = [];
+  let conflicts = [];
+  let workflow = {
+    uploaded: Number(summary.batch_count || 0), readyToProcess: 0, conflicts: 0,
+    exceptions: Number(summary.exception_rows || 0), finalised: 0, failed: 0,
+    approvedReady: 0, proposedNew: 0, unresolved: 0, excluded: 0,
+    mobileUpdates: 0, fixedUpdates: 0, provisionalMobile: 0, fixedCreates: 0
+  };
+  const [[pending]] = await db.query(hasMatchingSchema ? `
+    SELECT COUNT(*) ready_to_process FROM monthly_import_batches b
+    WHERE b.status='preview'
+       OR (b.status='confirmed' AND EXISTS (
+         SELECT 1 FROM monthly_import_rows r
+         LEFT JOIN monthly_import_matches m ON m.import_row_id=r.id
+         WHERE r.batch_id=b.id AND r.import_status='confirmed' AND m.id IS NULL
+       ))
+  ` : `
+    SELECT COUNT(*) ready_to_process
+    FROM monthly_import_batches
+    WHERE status IN ('preview','confirmed')
+  `);
+  workflow.readyToProcess = Number(pending.ready_to_process || 0);
+  [exceptions] = await db.query(`
+    SELECT r.*,b.original_filename,b.import_type
+    FROM monthly_import_rows r
+    JOIN monthly_import_batches b ON b.id=r.batch_id
+    WHERE r.import_status='exception'
+    ORDER BY b.created_at DESC,r.source_row_number
+    LIMIT 100
+  `);
+  if (hasMatchingSchema) {
+    const finalisation = await previewFinalisation();
+    workflow = {
+      ...workflow,
+      finalised: finalisation.finalised,
+      failed: finalisation.failed,
+      approvedReady: finalisation.approved_ready,
+      proposedNew: finalisation.proposed_new,
+      unresolved: finalisation.unresolved,
+      excluded: finalisation.excluded,
+      mobileUpdates: finalisation.mobile_updates,
+      fixedUpdates: finalisation.fixed_updates,
+      provisionalMobile: finalisation.provisional_mobile,
+      fixedCreates: finalisation.fixed_creates
+    };
+    [conflicts] = await db.query(`
+      SELECT m.*,r.batch_id,r.source_row_number,r.phone_original,r.phone_normalised,r.account_number,
+        r.customer_name,r.transaction_date,r.order_number,r.solution_id,r.package_name,
+        a.action_type,a.target_entity_type,a.target_entity_id,a.approval_status,a.applied_status,
+        b.original_filename
+      FROM monthly_import_matches m
+      JOIN monthly_import_rows r ON r.id=m.import_row_id
+      JOIN monthly_import_batches b ON b.id=r.batch_id
+      JOIN monthly_import_actions a ON a.match_id=m.id
+      WHERE a.applied_status='not_applied'
+        AND (m.classification='conflict' OR a.action_type='create_fixed_account_and_service')
+      ORDER BY FIELD(m.review_status,'pending','deferred','rejected','approved'),b.created_at DESC,r.source_row_number
+      LIMIT 100
+    `);
+    conflicts = conflicts.map(row => ({ ...row, candidates: jsonCandidates(row.candidate_json) }));
+    workflow.conflicts = conflicts.filter(row => row.review_status === 'pending').length;
+  }
+  return { batches, summary, workflow, exceptions, conflicts };
+}
+function jsonCandidates(value) {
+  try { return JSON.parse(value || '{}'); } catch { return {}; }
 }
 async function render(req, res, extra = {}, status = 200) {
   const schemaReady = await ready();
   const matchingSchemaReady = schemaReady ? await matchingReady() : false;
-  const data = schemaReady ? await dashboard(matchingSchemaReady) : { batches: [], summary: {} };
+  const data = schemaReady
+    ? await dashboard(matchingSchemaReady)
+    : { batches: [], summary: {}, workflow: {}, exceptions: [], conflicts: [] };
   return res.status(status).render('monthly-data-import', {
     title: 'Data Import Centre', schemaReady, matchingSchemaReady,
-    batches: data.batches, summary: data.summary, selectedBatch: null, batchRows: [],
+    batches: data.batches, summary: data.summary, workflow: data.workflow,
+    exceptions: data.exceptions, conflicts: data.conflicts, selectedBatch: null, batchRows: [],
     reviewRows: [], reviewSummary: {}, reviewFilter: 'all', reviewMode: false,
     activeTab: activeTab(extra.activeTab || req.query.tab),
     notice: null, error: null, formatDate: value => {
@@ -144,43 +224,92 @@ router.get('/backoffice/data-import/batches/:id/review', requireAuth, management
     });
   } catch (error) { next(error); }
 });
-router.post('/backoffice/data-import/upload', requireAuth, managementOnly, upload.single('dealer_report'), async (req, res, next) => {
+router.post('/backoffice/data-import/upload', requireAuth, managementOnly, upload.fields([
+  { name: 'dealer_reports', maxCount: 10 },
+  { name: 'dealer_report', maxCount: 1 }
+]), async (req, res, next) => {
   try {
     if (!await ready()) throw new Error('Apply the reviewed one-off import SQL before uploading reports.');
-    if (!req.file?.buffer) throw new Error('Select an .xls or .xlsx report.');
-    const fileHash = crypto.createHash('sha256').update(req.file.buffer).digest('hex');
-    const [[existing]] = await db.execute('SELECT id FROM monthly_import_batches WHERE file_hash=:fileHash LIMIT 1', { fileHash });
-    if (existing) return res.redirect(`${res.locals.basePath}/backoffice/data-import/batches/${existing.id}?notice=${encodeURIComponent('This exact file was already uploaded and was not imported again.')}${panelQuery(req)}`);
-    const parsed = parse(req.file.buffer, req.file.originalname);
+    const files = [...(req.files?.dealer_reports || []), ...(req.files?.dealer_report || [])];
+    if (!files.length) throw new Error('Select one or more .xls or .xlsx reports.');
+    const prepared = files.map(file => ({
+      file,
+      fileHash: crypto.createHash('sha256').update(file.buffer).digest('hex'),
+      parsed: parse(file.buffer, file.originalname)
+    }));
     const connection = await db.getConnection();
     try {
       await connection.beginTransaction();
-      const [batch] = await connection.execute(`INSERT INTO monthly_import_batches (import_type,source_system,original_filename,file_hash,total_rows,status,imported_by) VALUES (:importType,:sourceSystem,:filename,:fileHash,:totalRows,'preview',:userId)`, {
-        importType: parsed.importType, sourceSystem: parsed.sourceSystem, filename: text(req.file.originalname, 255), fileHash, totalRows: parsed.rows.length, userId: req.session.user.id
-      });
-      let valid = 0; let duplicates = 0; let exceptions = 0;
-      for (const row of parsed.rows) {
-        let duplicate = null;
-        if (!row.isException) {
-          [[duplicate]] = await connection.execute(`SELECT id FROM monthly_import_rows WHERE row_fingerprint=:fingerprint AND import_status IN ('staged','confirmed') LIMIT 1`, { fingerprint: row.rowFingerprint });
+      let uploaded = 0;
+      let skipped = 0;
+      let totalRows = 0;
+      for (const item of prepared) {
+        const [[existing]] = await connection.execute(
+          'SELECT id FROM monthly_import_batches WHERE file_hash=:fileHash LIMIT 1 FOR UPDATE',
+          { fileHash: item.fileHash }
+        );
+        if (existing) {
+          skipped += 1;
+          continue;
         }
-        const importStatus = row.isException ? 'exception' : (duplicate ? 'duplicate' : 'staged');
-        if (row.isException) exceptions += 1;
-        else if (duplicate) duplicates += 1;
-        else valid += 1;
-        await connection.execute(`INSERT INTO monthly_import_rows (batch_id,source_row_number,row_fingerprint,import_status,phone_original,phone_normalised,account_number,customer_name,transaction_date,agent_code,deal_sheet_number,imei,order_number,mac_address,solution_id,sim_number,package_name,description,raw_data_json,warning_text) VALUES (:batchId,:sourceRow,:fingerprint,:status,:phoneOriginal,:phoneNormalised,:accountNumber,:customerName,:transactionDate,:agentCode,:dealSheet,:imei,:orderNumber,:macAddress,:solutionId,:simNumber,:packageName,:description,:rawJson,:warningText)`, {
-          batchId: batch.insertId, sourceRow: row.sourceRowNumber, fingerprint: row.rowFingerprint, status: importStatus,
-          phoneOriginal: row.phoneOriginal || null, phoneNormalised: row.phoneNormalised || null, accountNumber: row.accountNumber || null,
-          customerName: row.customerName || null, transactionDate: row.transactionDate || null, agentCode: row.agentCode || null,
-          dealSheet: row.dealSheetNumber || null, imei: row.imei || null, orderNumber: row.orderNumber || null,
-          macAddress: row.macAddress || null, solutionId: row.solutionId || null, simNumber: row.simNumber || null,
-          packageName: row.packageName || null, description: row.description || null, rawJson: JSON.stringify(row),
-          warningText: row.warningText || (duplicate ? 'This transaction already exists in another import batch.' : null)
+        const { parsed, file, fileHash } = item;
+        const [batch] = await connection.execute(`
+          INSERT INTO monthly_import_batches
+            (import_type,source_system,original_filename,file_hash,total_rows,valid_rows,duplicate_rows,
+             exception_rows,status,imported_by,confirmed_by,confirmed_at)
+          VALUES
+            (:importType,:sourceSystem,:filename,:fileHash,:totalRows,0,0,0,'confirmed',:userId,:userId,NOW())
+        `, {
+          importType: parsed.importType, sourceSystem: parsed.sourceSystem,
+          filename: text(file.originalname, 255), fileHash,
+          totalRows: parsed.rows.length, userId: req.session.user.id
         });
+        let valid = 0; let duplicates = 0; let exceptions = 0;
+        for (const row of parsed.rows) {
+          let duplicate = null;
+          if (!row.isException) {
+            [[duplicate]] = await connection.execute(`
+              SELECT id FROM monthly_import_rows
+              WHERE row_fingerprint=:fingerprint AND import_status IN ('staged','confirmed')
+              LIMIT 1
+            `, { fingerprint: row.rowFingerprint });
+          }
+          const importStatus = row.isException ? 'exception' : (duplicate ? 'duplicate' : 'confirmed');
+          if (row.isException) exceptions += 1;
+          else if (duplicate) duplicates += 1;
+          else valid += 1;
+          await connection.execute(`
+            INSERT INTO monthly_import_rows
+              (batch_id,source_row_number,row_fingerprint,import_status,phone_original,phone_normalised,
+               account_number,customer_name,transaction_date,agent_code,deal_sheet_number,imei,order_number,
+               mac_address,solution_id,sim_number,package_name,description,raw_data_json,warning_text)
+            VALUES
+              (:batchId,:sourceRow,:fingerprint,:status,:phoneOriginal,:phoneNormalised,:accountNumber,
+               :customerName,:transactionDate,:agentCode,:dealSheet,:imei,:orderNumber,:macAddress,
+               :solutionId,:simNumber,:packageName,:description,:rawJson,:warningText)
+          `, {
+            batchId: batch.insertId, sourceRow: row.sourceRowNumber, fingerprint: row.rowFingerprint, status: importStatus,
+            phoneOriginal: row.phoneOriginal || null, phoneNormalised: row.phoneNormalised || null, accountNumber: row.accountNumber || null,
+            customerName: row.customerName || null, transactionDate: row.transactionDate || null, agentCode: row.agentCode || null,
+            dealSheet: row.dealSheetNumber || null, imei: row.imei || null, orderNumber: row.orderNumber || null,
+            macAddress: row.macAddress || null, solutionId: row.solutionId || null, simNumber: row.simNumber || null,
+            packageName: row.packageName || null, description: row.description || null, rawJson: JSON.stringify(row),
+            warningText: row.warningText || (duplicate ? 'This transaction already exists in another import batch.' : null)
+          });
+        }
+        await connection.execute(`
+          UPDATE monthly_import_batches
+          SET valid_rows=:valid,duplicate_rows=:duplicates,exception_rows=:exceptions
+          WHERE id=:id
+        `, { valid, duplicates, exceptions, id: batch.insertId });
+        uploaded += 1;
+        totalRows += parsed.rows.length;
       }
-      await connection.execute('UPDATE monthly_import_batches SET valid_rows=:valid,duplicate_rows=:duplicates,exception_rows=:exceptions WHERE id=:id', { valid, duplicates, exceptions, id: batch.insertId });
       await connection.commit();
-      return res.redirect(`${res.locals.basePath}/backoffice/data-import/batches/${batch.insertId}?notice=${encodeURIComponent('Report parsed successfully. Review the staged and exception rows before confirming.')}${panelQuery(req)}`);
+      const notice = uploaded
+        ? `${uploaded} report(s) uploaded and confirmed (${totalRows} rows). ${skipped ? `${skipped} exact duplicate file(s) skipped. ` : ''}Select Process Monthly Import when all files are ready.`
+        : 'Every selected file was already uploaded; no duplicate batches were created.';
+      return res.redirect(`${res.locals.basePath}/backoffice/data-import?notice=${encodeURIComponent(notice)}${panelQuery(req)}`);
     } catch (error) { await connection.rollback(); throw error; } finally { connection.release(); }
   } catch (error) {
     try { await render(req, res, { activeTab: 'upload', error: error.message }, 400); } catch (renderError) { next(renderError); }
@@ -208,6 +337,73 @@ router.post('/backoffice/data-import/batches/:id/match', requireAuth, management
     });
     return res.redirect(`${res.locals.basePath}/backoffice/data-import/batches/${req.params.id}/review?notice=${encodeURIComponent(`Matching completed for ${summary.total} confirmed rows without changing live customer records.`)}${panelQuery(req)}`);
   } catch (error) { next(error); }
+});
+
+router.post('/backoffice/data-import/process', requireAuth, managementOnly, async (req, res, next) => {
+  const connection = await db.getConnection();
+  try {
+    if (!await matchingReady()) throw new Error('Apply the reviewed matching one-off SQL before processing the Monthly Import.');
+    await connection.beginTransaction();
+    const [previewBatches] = await connection.execute(`
+      SELECT id FROM monthly_import_batches WHERE status='preview' FOR UPDATE
+    `);
+    if (previewBatches.length) {
+      await connection.execute(`
+        UPDATE monthly_import_rows r
+        JOIN monthly_import_batches b ON b.id=r.batch_id
+        SET r.import_status='confirmed'
+        WHERE b.status='preview' AND r.import_status='staged'
+      `);
+      await connection.execute(`
+        UPDATE monthly_import_batches
+        SET status='confirmed',confirmed_by=:userId,confirmed_at=NOW()
+        WHERE status='preview'
+      `, { userId: req.session.user.id });
+    }
+    await connection.commit();
+    const summary = await runMatching();
+    const context = {
+      userId: req.session.user.id,
+      ip: req.ip,
+      userAgent: req.headers['user-agent']
+    };
+    const autoApproved = await autoApproveDeterministicMatches(context);
+    await audit(req, {
+      actionType: 'monthly_import_processed',
+      entityType: 'monthly_import_batches',
+      entityId: null,
+      description: `Monthly Import processed ${summary.total} eligible rows and auto-approved ${autoApproved} deterministic exact matches.`,
+      after: { ...summary, autoApproved, confirmedLegacyBatches: previewBatches.length }
+    });
+    return res.redirect(`${res.locals.basePath}/backoffice/data-import?notice=${encodeURIComponent(
+      `Monthly Import processed ${summary.total} rows. ${autoApproved} deterministic exact match(es) were approved; conflicts remain for review.`
+    )}${panelQuery(req)}`);
+  } catch (error) {
+    if (connection) await connection.rollback();
+    try { await render(req, res, { activeTab: 'overview', error: error.message }, 400); } catch (renderError) { next(renderError); }
+  } finally {
+    connection.release();
+  }
+});
+
+router.post('/backoffice/data-import/finalise', requireAuth, managerOwnerOnly, async (req, res, next) => {
+  try {
+    if (String(req.body.confirm_finalise || '') !== 'yes') {
+      throw new Error('Confirm that you reviewed the preview before finalising.');
+    }
+    const result = await finaliseMonthlyImport({
+      userId: req.session.user.id,
+      ip: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+    return res.redirect(`${res.locals.basePath}/backoffice/data-import?notice=${encodeURIComponent(
+      result.applied
+        ? `Monthly Import finalised successfully. ${result.applied} action(s) were applied transactionally.`
+        : 'Monthly Import was already finalised. No duplicate records or updates were created.'
+    )}${panelQuery(req)}`);
+  } catch (error) {
+    try { await render(req, res, { activeTab: 'overview', error: error.message }, 400); } catch (renderError) { next(renderError); }
+  }
 });
 
 router.post('/backoffice/data-import/batches/:batchId/matches/:matchId/decision', requireAuth, managementOnly, async (req, res, next) => {
@@ -293,7 +489,10 @@ router.post('/backoffice/data-import/batches/:batchId/matches/:matchId/decision'
       ip: String(req.ip || '').slice(0, 64), userAgent: String(req.headers['user-agent'] || '').slice(0, 255)
     });
     await connection.commit();
-    return res.redirect(`${res.locals.basePath}/backoffice/data-import/batches/${req.params.batchId}/review?filter=${encodeURIComponent(req.body.return_filter || 'all')}&notice=${encodeURIComponent(`Match ${reviewStatus}. Approval is recorded for Phase 2 review only; no live record was modified.`)}${panelQuery(req)}`);
+    if (req.body.return_to === 'monthly') {
+      return res.redirect(`${res.locals.basePath}/backoffice/data-import?notice=${encodeURIComponent(`Exception ${reviewStatus}. No live record was modified.`)}${panelQuery(req)}#exceptions`);
+    }
+    return res.redirect(`${res.locals.basePath}/backoffice/data-import/batches/${req.params.batchId}/review?filter=${encodeURIComponent(req.body.return_filter || 'all')}&notice=${encodeURIComponent(`Match ${reviewStatus}. No live record was modified.`)}${panelQuery(req)}`);
   } catch (error) {
     await connection.rollback();
     next(error);

@@ -81,7 +81,20 @@ function build(report, map, row, sourceRowNumber) {
     const phoneOriginal = clean(at(row, column(map, ['Handset No', 'Cell Nr'])), 80);
     return validate({ ...report, sourceRowNumber, phoneOriginal, phoneNormalised: phone(phoneOriginal), customerName: '', transactionDate: date(at(row, column(map, ['Order Date']))), packageName: clean(at(row, column(map, ['Current Package'])), 255), agentCode: clean(at(row, column(map, ['Agent'])), 120), imei: code(at(row, column(map, ['IMEI Number', 'IMEI'])), 80), dealSheetNumber: code(at(row, column(map, ['Deal sheet number', 'Deal Sheet'])), 120), description: clean(at(row, column(map, ['Deal description', 'Upgrade Description', 'Upgrade Tariff Name'])), 4000) }, [['phoneNormalised', 'Invalid or missing cellphone number.'], ['transactionDate', 'Order date is missing or invalid.']]);
   }
-  return validate({ ...report, sourceRowNumber, accountNumber: code(at(row, column(map, ['Account number'])), 120), customerName: clean(at(row, column(map, ['Title'])), 255), transactionDate: date(at(row, column(map, ['Activation Date']))), packageName: clean(at(row, column(map, ['Package'])), 255), orderNumber: code(at(row, column(map, ['Order Number'])), 120), macAddress: code(at(row, column(map, ['MAC'])), 120).replace(/[^A-Z0-9]/g, ''), solutionId: code(at(row, column(map, ['Solutution ID', 'Solution ID'])), 120), simNumber: code(at(row, column(map, ['Sim Number', 'SIM Number'])), 120), description: clean(at(row, column(map, ['Branch', 'Router Model'])), 4000) }, [['accountNumber', 'Account number is missing.'], ['orderNumber', 'Order number is missing.']]);
+  const branchName = clean(at(row, column(map, ['Branch'])), 255);
+  const routerModel = clean(at(row, column(map, ['Router Model'])), 255);
+  return validate({
+    ...report, sourceRowNumber,
+    accountNumber: code(at(row, column(map, ['Account number'])), 120),
+    customerName: clean(at(row, column(map, ['Title'])), 255),
+    transactionDate: date(at(row, column(map, ['Activation Date']))),
+    packageName: clean(at(row, column(map, ['Package'])), 255),
+    orderNumber: code(at(row, column(map, ['Order Number'])), 120),
+    macAddress: code(at(row, column(map, ['MAC'])), 120).replace(/[^A-Z0-9]/g, ''),
+    solutionId: code(at(row, column(map, ['Solutution ID', 'Solution ID'])), 120),
+    simNumber: code(at(row, column(map, ['Sim Number', 'SIM Number'])), 120),
+    branchName, routerModel, description: branchName || routerModel
+  }, [['accountNumber', 'Account number is missing.'], ['orderNumber', 'Order number is missing.']]);
 }
 function parse(buffer, filename) {
   const XLSX = require('xlsx');

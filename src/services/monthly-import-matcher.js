@@ -1,7 +1,7 @@
 'use strict';
 
 const db = require('../config/db');
-const { normaliseSouthAfricanMobile } = require('./sa-phone-normalisation');
+const { normaliseSouthAfricanMobile, MOBILE_PHONE_FIELDS } = require('./sa-phone-normalisation');
 
 function normaliseAccount(value) {
   return String(value ?? '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -35,9 +35,8 @@ async function loadReferenceData(connection) {
     WHERE COALESCE(cell_number_normalised,cell_number,main_contact_number_normalised,main_contact_number,alt_number) IS NOT NULL
   `);
   const mobile = new Map();
-  const phoneFields = ['cell_number_normalised', 'cell_number', 'main_contact_number_normalised', 'main_contact_number', 'alt_number'];
   for (const client of clients) {
-    for (const field of phoneFields) {
+    for (const field of MOBILE_PHONE_FIELDS) {
       const canonical = normaliseSouthAfricanMobile(client[field]);
       if (!canonical) continue;
       const candidates = mobile.get(canonical) || new Map();
