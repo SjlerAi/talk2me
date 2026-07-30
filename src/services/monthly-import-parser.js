@@ -1,12 +1,10 @@
 const crypto = require('crypto');
+const { normaliseSouthAfricanMobile } = require('./sa-phone-normalisation');
 
 function clean(value, max = 2000) { return String(value ?? '').trim().slice(0, max); }
 function label(value) { return clean(value, 200).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); }
 function phone(value) {
-  let digits = clean(value, 50).replace(/\D/g, '');
-  if (digits.startsWith('27') && digits.length === 11) digits = `0${digits.slice(2)}`;
-  if (digits.length === 9) digits = `0${digits}`;
-  return /^0\d{9}$/.test(digits) ? digits : '';
+  return normaliseSouthAfricanMobile(clean(value, 50));
 }
 function date(value) {
   if (!value) return null;
