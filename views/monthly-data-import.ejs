@@ -1,16 +1,133 @@
 <div class="import-centre">
-  <header class="import-hero"><div><span>Administration</span><h1>Data Import Centre</h1><p>Upload and audit monthly B12, Siebel and Fixed Base reports before any customer record is changed.</p></div><a href="<%= basePath %>/backoffice">Back to Administration</a></header>
+  <header class="import-hero">
+    <div><span>Administration</span><h1>Data Import Centre</h1><p>Upload, match and review monthly B12, Siebel and Fixed Base reports before any customer record is changed.</p></div>
+    <a href="<%= basePath %>/backoffice<%= panelMode?'?panel=1':'' %>">Back to Administration</a>
+  </header>
   <% if (notice) { %><div class="notice success"><%= notice %></div><% } %>
   <% if (error) { %><div class="notice error"><%= error %></div><% } %>
   <% if (!schemaReady) { %>
     <section class="card"><h2>Database setup required</h2><p>Back up the database and apply only:</p><code>sql/ONE_OFF_057_monthly_data_import.sql</code><p>Do not run the generic migration command.</p></section>
   <% } else { %>
-    <section class="kpis"><article><span>Batches</span><strong><%= Number(summary.batch_count||0) %></strong></article><article><span>Rows</span><strong><%= Number(summary.rows_read||0) %></strong></article><article><span>Valid</span><strong><%= Number(summary.valid_rows||0) %></strong></article><article><span>Duplicates</span><strong><%= Number(summary.duplicate_rows||0) %></strong></article><article><span>Exceptions</span><strong><%= Number(summary.exception_rows||0) %></strong></article></section>
-    <section class="card"><h2>Upload monthly report</h2><form action="<%= basePath %>/backoffice/data-import/upload" method="post" enctype="multipart/form-data"><input type="file" name="dealer_report" accept=".xls,.xlsx" required><button>Parse and preview</button></form><small>Phase 1 stores an audited preview only. It does not overwrite live customers.</small></section>
-    <% if (selectedBatch) { %><section class="card"><div class="heading"><div><span>Batch #<%= selectedBatch.id %></span><h2><%= selectedBatch.original_filename %></h2></div><b><%= selectedBatch.status %></b></div><p><strong>Type:</strong> <%= selectedBatch.import_type %> | <strong>Source:</strong> <%= selectedBatch.source_system %> | <strong>Rows:</strong> <%= selectedBatch.total_rows %></p>
-      <% if (selectedBatch.status === 'preview') { %><form method="post" action="<%= basePath %>/backoffice/data-import/batches/<%= selectedBatch.id %>/confirm"><button>Confirm audited batch</button></form><% } %>
-      <div class="table-wrap"><table><thead><tr><th>Row</th><th>Status</th><th>Phone / Account</th><th>Customer</th><th>Date</th><th>Agent</th><th>Deal / Order</th><th>Warning</th></tr></thead><tbody><% batchRows.forEach(row=>{ %><tr><td><%= row.source_row_number %></td><td><%= row.import_status %></td><td><%= row.phone_normalised||row.account_number||'-' %></td><td><%= row.customer_name||'-' %></td><td><%= row.transaction_date||'-' %></td><td><%= row.agent_code||'-' %></td><td><%= row.deal_sheet_number||row.order_number||'-' %></td><td><%= row.warning_text||'-' %></td></tr><% }) %></tbody></table></div></section><% } %>
-    <section class="card"><h2>Import history</h2><div class="table-wrap"><table><thead><tr><th>Batch</th><th>File</th><th>Type</th><th>Source</th><th>Valid</th><th>Duplicate</th><th>Exception</th><th>Status</th><th></th></tr></thead><tbody><% if(!batches.length){ %><tr><td colspan="9">No imports yet.</td></tr><% } %><% batches.forEach(batch=>{ %><tr><td>#<%= batch.id %></td><td><%= batch.original_filename %></td><td><%= batch.import_type %></td><td><%= batch.source_system %></td><td><%= batch.valid_rows %></td><td><%= batch.duplicate_rows %></td><td><%= batch.exception_rows %></td><td><%= batch.status %></td><td><a href="<%= basePath %>/backoffice/data-import/batches/<%= batch.id %>">Open</a></td></tr><% }) %></tbody></table></div></section>
+    <section class="kpis">
+      <article><span>Batches</span><strong><%= Number(summary.batch_count||0) %></strong></article>
+      <article><span>Rows</span><strong><%= Number(summary.rows_read||0) %></strong></article>
+      <article><span>Valid</span><strong><%= Number(summary.valid_rows||0) %></strong></article>
+      <article><span>Duplicates</span><strong><%= Number(summary.duplicate_rows||0) %></strong></article>
+      <article><span>Exceptions</span><strong><%= Number(summary.exception_rows||0) %></strong></article>
+    </section>
+    <section class="card">
+      <h2>Upload monthly report</h2>
+      <form action="<%= basePath %>/backoffice/data-import/upload<%= panelMode?'?panel=1':'' %>" method="post" enctype="multipart/form-data">
+        <input type="file" name="dealer_report" accept=".xls,.xlsx" required><button>Parse and preview</button>
+      </form>
+      <small>Uploads create an audited preview only. They do not overwrite live customers.</small>
+    </section>
+
+    <% if (selectedBatch) { %>
+      <section class="card">
+        <div class="heading">
+          <div><span>Batch #<%= selectedBatch.id %></span><h2><%= selectedBatch.original_filename %></h2></div>
+          <b class="status-pill"><%= selectedBatch.status %></b>
+        </div>
+        <p><strong>Type:</strong> <%= selectedBatch.import_type %> | <strong>Source:</strong> <%= selectedBatch.source_system %> | <strong>Rows:</strong> <%= selectedBatch.total_rows %><% if(selectedBatch.confirmed_at){ %> | <strong>Confirmed:</strong> <%= formatDate(selectedBatch.confirmed_at) %><% } %></p>
+        <div class="batch-actions">
+          <% if (selectedBatch.status === 'preview') { %>
+            <form method="post" action="<%= basePath %>/backoffice/data-import/batches/<%= selectedBatch.id %>/confirm<%= panelMode?'?panel=1':'' %>"><button>Confirm audited batch</button></form>
+          <% } %>
+          <% if (selectedBatch.status === 'confirmed' && matchingSchemaReady) { %>
+            <form method="post" action="<%= basePath %>/backoffice/data-import/batches/<%= selectedBatch.id %>/match<%= panelMode?'?panel=1':'' %>"><button><%= reviewRows.length ? 'Re-run matching' : 'Run matching' %></button></form>
+            <a class="button secondary" href="<%= basePath %>/backoffice/data-import/batches/<%= selectedBatch.id %>/review<%= panelMode?'?panel=1':'' %>">Management review</a>
+          <% } %>
+          <% if (reviewMode) { %><a class="button secondary" href="<%= basePath %>/backoffice/data-import/batches/<%= selectedBatch.id %><%= panelMode?'?panel=1':'' %>">Raw imported rows</a><% } %>
+        </div>
+        <% if (!matchingSchemaReady) { %>
+          <div class="phase-notice warning"><strong>Phase 2 database setup required</strong><p>Back up production and manually apply <code>sql/ONE_OFF_060_monthly_import_matching_review.sql</code>. Do not run generic migrations.</p></div>
+        <% } %>
+      </section>
+
+      <% if (reviewMode) { %>
+        <section class="phase-notice">
+          <strong>Review only — approval does not modify live customer records</strong>
+          <p>Phase 2 records proposed links and management decisions. Applying approved actions belongs to a later phase.</p>
+        </section>
+        <section class="match-kpis">
+          <article><span>Mobile exact</span><strong><%= Number(reviewSummary.mobile_exact||0) %></strong></article>
+          <article><span>Mobile conflicts</span><strong><%= Number(reviewSummary.mobile_conflicts||0) %></strong></article>
+          <article><span>Mobile unmatched / new</span><strong><%= Number(reviewSummary.mobile_new||0) %></strong></article>
+          <article><span>Fixed account matches</span><strong><%= Number(reviewSummary.fixed_exact||0) %></strong></article>
+          <article><span>Pending review</span><strong><%= Number(reviewSummary.pending||0) %></strong></article>
+        </section>
+        <nav class="review-filters" aria-label="Match review filters">
+          <% [['all','All'],['exact','Exact'],['conflict','Conflicts'],['new','Unmatched / new'],['approved','Approved'],['rejected','Rejected'],['deferred','Deferred']].forEach(([value,label])=>{ %>
+            <a class="<%= reviewFilter===value?'active':'' %>" href="<%= basePath %>/backoffice/data-import/batches/<%= selectedBatch.id %>/review?filter=<%= value %><%= panelMode?'&panel=1':'' %>"><%= label %></a>
+          <% }) %>
+        </nav>
+        <section class="card review-card">
+          <div class="heading"><div><span>Management review</span><h2><%= Number(reviewSummary.total||0) %> calculated matches</h2></div></div>
+          <% if (!reviewRows.length) { %><div class="empty-review"><p>No rows match this filter. Run or re-run matching for a confirmed batch if no results exist yet.</p></div><% } %>
+          <div class="table-wrap review-table-wrap">
+            <table class="review-table">
+              <thead><tr><th>Imported data</th><th>Classification</th><th>Proposed existing record</th><th>Confidence / reason</th><th>Management decision</th></tr></thead>
+              <tbody>
+                <% reviewRows.forEach(row=>{ %>
+                  <tr>
+                    <td>
+                      <strong>Row <%= row.source_row_number %> · <%= row.match_domain %></strong>
+                      <% if(row.phone_original||row.phone_normalised){ %><span><%= row.phone_original||row.phone_normalised %></span><% } %>
+                      <% if(row.account_number){ %><span>Account <%= row.account_number %></span><% } %>
+                      <% if(row.customer_name){ %><span><%= row.customer_name %></span><% } %>
+                      <% if(row.order_number){ %><small>Order <%= row.order_number %></small><% } %>
+                      <% if(row.solution_id){ %><small>Solution <%= row.solution_id %></small><% } %>
+                      <% if(row.transaction_date){ %><small><%= formatDate(row.transaction_date) %></small><% } %>
+                    </td>
+                    <td><span class="classification <%= row.classification %>"><%= row.classification.replaceAll('_',' ') %></span><small class="review-state <%= row.review_status %>"><%= row.review_status %></small></td>
+                    <td>
+                      <% if(row.proposed_client_id){ %><strong>Client #<%= row.proposed_client_id %></strong><span><%= row.proposed_client_name||'Existing mobile client' %></span><% } %>
+                      <% if(row.proposed_account_id){ %><strong>Account #<%= row.proposed_account_id %></strong><span><%= row.proposed_account_number||row.proposed_account_name||'Existing account' %></span><% } %>
+                      <% if(row.proposed_fixed_account_id){ %><small>Fixed account #<%= row.proposed_fixed_account_id %><%= row.proposed_fixed_account_name?' · '+row.proposed_fixed_account_name:'' %></small><% } %>
+                      <% if(row.proposed_fixed_service_id){ %><small>Service #<%= row.proposed_fixed_service_id %><%= row.proposed_service_title||row.proposed_service_branch?' · '+(row.proposed_service_title||row.proposed_service_branch):'' %></small><% } %>
+                      <% if(!row.proposed_client_id&&!row.proposed_account_id&&!row.proposed_fixed_account_id&&!row.proposed_fixed_service_id){ %><span>No existing target proposed</span><% } %>
+                      <small>Action: <%= (row.action_type||'-').replaceAll('_',' ') %></small>
+                    </td>
+                    <td><strong><%= Number(row.confidence_score||0) %>%</strong><p><%= row.match_reason %></p></td>
+                    <td>
+                      <form class="decision-form" method="post" action="<%= basePath %>/backoffice/data-import/batches/<%= selectedBatch.id %>/matches/<%= row.id %>/decision<%= panelMode?'?panel=1':'' %>">
+                        <input type="hidden" name="return_filter" value="<%= reviewFilter %>">
+                        <% if((row.candidates.clients||[]).length>1){ %>
+                          <label>Client<select name="client_id"><option value="">Choose client</option><% row.candidates.clients.forEach(candidate=>{ %><option value="<%= candidate.id %>" <%= Number(row.proposed_client_id)===Number(candidate.id)?'selected':'' %>>#<%= candidate.id %> · <%= candidate.clientName||'Unnamed client' %></option><% }) %></select></label>
+                        <% } %>
+                        <% if((row.candidates.accounts||[]).length>1){ %>
+                          <label>Customer account<select name="account_id"><option value="">Choose account</option><% row.candidates.accounts.forEach(candidate=>{ %><option value="<%= candidate.id %>" <%= Number(row.proposed_account_id)===Number(candidate.id)?'selected':'' %>>#<%= candidate.id %> · <%= candidate.accountNumber||candidate.displayName||'Account' %></option><% }) %></select></label>
+                        <% } %>
+                        <% if((row.candidates.fixedAccounts||[]).length>1 && !(row.candidates.services||[]).length){ %>
+                          <label>Fixed account<select name="fixed_account_id"><option value="">Choose fixed account</option><% row.candidates.fixedAccounts.forEach(candidate=>{ %><option value="<%= candidate.id %>" <%= Number(row.proposed_fixed_account_id)===Number(candidate.id)?'selected':'' %>>#<%= candidate.id %> · <%= candidate.customerName||candidate.accountNumber||'Fixed account' %></option><% }) %></select></label>
+                        <% } %>
+                        <% if((row.candidates.services||[]).length>1){ %>
+                          <label>Fixed service<select name="fixed_service_id"><option value="">Choose service</option><% row.candidates.services.forEach(candidate=>{ %><option value="<%= candidate.id %>" <%= Number(row.proposed_fixed_service_id)===Number(candidate.id)?'selected':'' %>>#<%= candidate.id %> · <%= candidate.title||candidate.solutionId||candidate.orderNumber||'Service' %></option><% }) %></select></label>
+                        <% } %>
+                        <textarea name="review_notes" rows="2" maxlength="2000" placeholder="Review note"><%= row.review_notes||'' %></textarea>
+                        <div><button name="decision" value="approve">Approve</button><button class="danger" name="decision" value="reject">Reject</button><button class="secondary" name="decision" value="defer">Defer</button></div>
+                        <% if(row.reviewed_by_name){ %><small>Reviewed by <%= row.reviewed_by_name %> · <%= formatDate(row.reviewed_at) %></small><% } %>
+                      </form>
+                    </td>
+                  </tr>
+                <% }) %>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      <% } else { %>
+        <section class="card">
+          <h2>Imported rows</h2>
+          <div class="table-wrap"><table><thead><tr><th>Row</th><th>Status</th><th>Phone / Account</th><th>Customer</th><th>Date</th><th>Agent</th><th>Deal / Order</th><th>Warning</th></tr></thead><tbody><% batchRows.forEach(row=>{ %><tr><td><%= row.source_row_number %></td><td><%= row.import_status %></td><td><%= row.phone_normalised||row.account_number||'-' %></td><td><%= row.customer_name||'-' %></td><td><%= formatDate(row.transaction_date) %></td><td><%= row.agent_code||'-' %></td><td><%= row.deal_sheet_number||row.order_number||'-' %></td><td><%= row.warning_text||'-' %></td></tr><% }) %></tbody></table></div>
+        </section>
+      <% } %>
+    <% } %>
+
+    <section class="card">
+      <h2>Import history</h2>
+      <div class="table-wrap"><table><thead><tr><th>Batch</th><th>File</th><th>Type</th><th>Source</th><th>Valid</th><th>Duplicate</th><th>Exception</th><th>Status</th><th></th></tr></thead><tbody><% if(!batches.length){ %><tr><td colspan="9">No imports yet.</td></tr><% } %><% batches.forEach(batch=>{ %><tr><td>#<%= batch.id %></td><td><%= batch.original_filename %></td><td><%= batch.import_type %></td><td><%= batch.source_system %></td><td><%= batch.valid_rows %></td><td><%= batch.duplicate_rows %></td><td><%= batch.exception_rows %></td><td><%= batch.status %></td><td><a href="<%= basePath %>/backoffice/data-import/batches/<%= batch.id %><%= panelMode?'?panel=1':'' %>">Open</a><% if(batch.status==='confirmed'&&matchingSchemaReady){ %> · <a href="<%= basePath %>/backoffice/data-import/batches/<%= batch.id %>/review<%= panelMode?'?panel=1':'' %>">Review</a><% } %></td></tr><% }) %></tbody></table></div>
+    </section>
   <% } %>
 </div>
 <link rel="stylesheet" href="<%= basePath %>/public/css/monthly-data-import.css?v=<%= encodeURIComponent(appVersion) %>">
