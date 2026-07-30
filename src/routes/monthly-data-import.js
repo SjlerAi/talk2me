@@ -77,7 +77,10 @@ router.post('/backoffice/data-import/upload', requireAuth, managementOnly, uploa
       });
       let valid = 0; let duplicates = 0; let exceptions = 0;
       for (const row of parsed.rows) {
-        const [[duplicate]] = row.isException ? [[]] : await connection.execute(`SELECT id FROM monthly_import_rows WHERE row_fingerprint=:fingerprint AND import_status IN ('staged','confirmed') LIMIT 1`, { fingerprint: row.rowFingerprint });
+        let duplicate = null;
+        if (!row.isException) {
+          [[duplicate]] = await connection.execute(`SELECT id FROM monthly_import_rows WHERE row_fingerprint=:fingerprint AND import_status IN ('staged','confirmed') LIMIT 1`, { fingerprint: row.rowFingerprint });
+        }
         const importStatus = row.isException ? 'exception' : (duplicate ? 'duplicate' : 'staged');
         if (row.isException) exceptions += 1;
         else if (duplicate) duplicates += 1;
