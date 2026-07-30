@@ -21,6 +21,43 @@
       .replaceAll("'", '&#039;');
   }
 
+  function applyLaunchers(items) {
+    const enabled = (Array.isArray(items) ? items : [])
+      .filter(item => Number(item.is_enabled) === 1)
+      .sort((left, right) => Number(left.sort_order) - Number(right.sort_order));
+    for (const key of Object.keys(byKey)) delete byKey[key];
+    for (const item of enabled) byKey[item.slot_key] = item;
+
+    const strip = document.querySelector('.t2m-os-launcher-scroll');
+    if (!strip) return;
+    strip.querySelectorAll('[data-os-managed-launcher]').forEach(node => node.remove());
+    for (const item of enabled) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.dataset.osManagedLauncher = item.slot_key;
+      button.innerHTML = `<span class="t2m-brand-mark customer">${esc(item.icon_text || item.display_name.slice(0, 1))}</span><strong>${esc(item.display_name)}</strong>`;
+      strip.appendChild(button);
+    }
+  }
+
+  async function refreshManagedLaunchers() {
+    try {
+      const response = await fetch(`${config.basePath || ''}/api/os/launchers`, {
+        cache: 'no-store',
+        headers: { Accept: 'application/json' }
+      });
+      if (!response.ok) return false;
+      const data = await response.json();
+      if (!data?.ok || !Array.isArray(data.launchers)) return false;
+      applyLaunchers(data.launchers);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  window.Talk2MeOS.refreshManagedLaunchers = refreshManagedLaunchers;
+
   function toast(title, message) {
     const region = document.getElementById('os-toast-region');
     if (!region) return;
@@ -203,6 +240,11 @@
     event.stopImmediatePropagation();
     openManagedLauncher(button.dataset.osManagedLauncher);
   }, true);
+
+  window.addEventListener('message', event => {
+    if (event.origin !== window.location.origin) return;
+    if (event.data?.type === 'talk2me:launcher-settings-saved') refreshManagedLaunchers();
+  });
 
   setInterval(() => {
     let changed = false;
