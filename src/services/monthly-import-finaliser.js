@@ -38,6 +38,57 @@ function requireUniqueMobileTarget(clients, canonicalPhone, targetId) {
   return candidateIds[0];
 }
 
+function resolvedMobileCandidateIds(candidateJson) {
+  let candidates;
+  try {
+    const parsed = typeof candidateJson === 'string' ? JSON.parse(candidateJson) : candidateJson;
+    if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.clients)) throw new Error('invalid');
+    candidates = parsed.clients;
+  } catch {
+    throw new Error('The stored mobile conflict candidates are invalid. Re-run Process Monthly Import and review the conflict again.');
+  }
+  const ids = [...new Set(candidates
+    .map(candidate => Number(candidate?.id))
+    .filter(id => Number.isSafeInteger(id) && id > 0))];
+  if (ids.length < 2) {
+    throw new Error('The stored mobile conflict candidates are invalid. Re-run Process Monthly Import and review the conflict again.');
+  }
+  return ids;
+}
+
+function requireResolvedMobileTarget(action, selectedClient, canonicalPhone) {
+  if (action.action_type !== 'resolve_mobile_conflict' || action.classification !== 'conflict') {
+    throw new Error(`Mobile action #${action.id} is not a manager-resolved conflict.`);
+  }
+  if (action.review_status !== 'approved' || action.approval_status !== 'approved') {
+    throw new Error('This mobile conflict is not approved for finalisation.');
+  }
+  if (action.applied_status !== 'not_applied') {
+    throw new Error('This mobile conflict action has already been applied.');
+  }
+  if (action.target_entity_type !== 'clients') {
+    throw new Error('The resolved mobile conflict target type must be clients.');
+  }
+  const targetId = Number(action.target_entity_id);
+  const proposedClientId = Number(action.proposed_client_id);
+  if (!Number.isSafeInteger(targetId) || targetId < 1) {
+    throw new Error(`Mobile action #${action.id} has no selected client.`);
+  }
+  if (!Number.isSafeInteger(proposedClientId) || proposedClientId !== targetId) {
+    throw new Error('The resolved mobile conflict target disagrees with the stored manager selection.');
+  }
+  if (!resolvedMobileCandidateIds(action.candidate_json).includes(targetId)) {
+    throw new Error('The selected client was not an allowed candidate for this mobile conflict.');
+  }
+  if (!selectedClient || Number(selectedClient.id) !== targetId) {
+    throw new Error(`The selected client #${targetId} no longer exists. Re-run Process Monthly Import and review the conflict again.`);
+  }
+  if (!matchingClientIds([selectedClient], canonicalPhone).includes(targetId)) {
+    throw new Error('The selected client no longer matches this imported phone. Re-run Process Monthly Import and review the conflict again.');
+  }
+  return targetId;
+}
+
 function isFinalisableAction(action) {
   if (action.applied_status !== 'not_applied') return false;
   return action.approval_status === 'approved'
@@ -162,13 +213,29 @@ async function loadCanonicalPhoneCandidates(connection) {
 }
 
 async function updateMobile(connection, action, row, context) {
-  const targetId = Number(action.target_entity_id || action.proposed_client_id);
-  if (!targetId) throw new Error(`Mobile action #${action.id} has no selected client.`);
   const canonical = normaliseSouthAfricanMobile(row.phone_original || row.phone_normalised);
-  requireUniqueMobileTarget(await loadCanonicalPhoneCandidates(connection), canonical, targetId);
+  const manuallyResolved = action.action_type === 'resolve_mobile_conflict';
+  const targetId = Number(action.target_entity_id);
+  if (!targetId) throw new Error(`Mobile action #${action.id} has no selected client.`);
+  if (!manuallyResolved) {
+    if (action.action_type !== 'link_mobile_client' || action.classification !== 'exact_match') {
+      throw new Error(`Mobile action #${action.id} is not a deterministic exact match.`);
+    }
+    if (action.target_entity_type !== 'clients') {
+      throw new Error(`Mobile action #${action.id} does not target a client.`);
+    }
+    if (Number(action.proposed_client_id) !== targetId) {
+      throw new Error(`Mobile action #${action.id} target disagrees with its deterministic match.`);
+    }
+    requireUniqueMobileTarget(await loadCanonicalPhoneCandidates(connection), canonical, targetId);
+  }
   const [[before]] = await connection.execute('SELECT * FROM clients WHERE id=:id FOR UPDATE', { id: targetId });
-  if (!before) throw new Error(`Client #${targetId} no longer exists.`);
-  requireUniqueMobileTarget([before], canonical, targetId);
+  if (manuallyResolved) {
+    requireResolvedMobileTarget(action, before, canonical);
+  } else {
+    if (!before) throw new Error(`Client #${targetId} no longer exists.`);
+    requireUniqueMobileTarget([before], canonical, targetId);
+  }
   const isUpgrade = row.import_type === 'upgrade';
   await connection.execute(`
     UPDATE clients SET
@@ -197,8 +264,11 @@ async function updateMobile(connection, action, row, context) {
     defaultTerm: SIM_CONTRACT_MONTHS
   });
   const [[after]] = await connection.execute('SELECT * FROM clients WHERE id=:id', { id: targetId });
+  const auditDescription = manuallyResolved
+    ? `Monthly import action #${action.id} applied the manually resolved mobile conflict to selected client #${targetId}; other matching client records were not changed.`
+    : `Monthly import action #${action.id} safely updated uniquely matched mobile client #${targetId}.`;
   await writeAudit(connection, context, 'monthly_import_mobile_updated', 'clients', targetId,
-    `Monthly import action #${action.id} safely updated matched mobile client #${targetId}.`, before, after);
+    auditDescription, before, after);
   return { targetType: 'clients', targetId, before, after };
 }
 
@@ -446,8 +516,8 @@ async function finaliseMonthlyImport(context) {
         a.id action_id,a.import_row_id,a.match_id,a.action_type,a.target_entity_type,a.target_entity_id,
         a.before_json,a.proposed_json,a.approval_status,a.approved_by,a.approved_at,
         a.applied_status,a.applied_by,a.applied_at,a.error_text,
-        m.classification,m.review_status,m.proposed_client_id,m.proposed_account_id,
-        m.proposed_fixed_account_id,m.proposed_fixed_service_id,
+        m.classification,m.review_status,m.reviewed_by,m.reviewed_at,m.review_notes,m.candidate_json,
+        m.proposed_client_id,m.proposed_account_id,m.proposed_fixed_account_id,m.proposed_fixed_service_id,
         r.id row_id,r.batch_id,r.source_row_number,r.row_fingerprint,r.import_status,
         r.phone_original,r.phone_normalised,r.account_number,r.customer_name,r.transaction_date,
         r.agent_code,r.deal_sheet_number,r.imei,r.order_number,r.mac_address,r.solution_id,
@@ -525,6 +595,8 @@ module.exports = {
   effectiveContractTerm,
   matchingClientIds,
   requireUniqueMobileTarget,
+  resolvedMobileCandidateIds,
+  requireResolvedMobileTarget,
   isFinalisableAction,
   SIM_CONTRACT_MONTHS,
   MOBILE_PHONE_FIELDS,
