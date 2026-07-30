@@ -34,6 +34,10 @@ function managementOnly(req, res, next) {
 }
 function text(value, max = 1000) { return String(value ?? '').trim().slice(0, max); }
 function panelQuery(req) { return String(req.query.panel || '') === '1' ? '&panel=1' : ''; }
+function activeTab(value) {
+  const selected = String(value || 'overview').toLowerCase();
+  return ['overview', 'upload', 'history', 'review'].includes(selected) ? selected : 'overview';
+}
 async function ready() {
   const [rows] = await db.query(`SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN ('monthly_import_batches','monthly_import_rows')`);
   return new Set(rows.map(row => row.TABLE_NAME)).size === 2;
@@ -42,18 +46,23 @@ async function matchingReady() {
   const [rows] = await db.query(`SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN ('monthly_import_matches','monthly_import_actions')`);
   return new Set(rows.map(row => row.TABLE_NAME)).size === 2;
 }
-async function dashboard() {
-  const [batches] = await db.query(`SELECT b.*,u.full_name imported_by_name FROM monthly_import_batches b LEFT JOIN staff_users u ON u.id=b.imported_by ORDER BY b.created_at DESC,b.id DESC LIMIT 100`);
+async function dashboard(hasMatchingSchema) {
+  const matchCount = hasMatchingSchema
+    ? `(SELECT COUNT(*) FROM monthly_import_rows r JOIN monthly_import_matches m ON m.import_row_id=r.id WHERE r.batch_id=b.id)`
+    : '0';
+  const [batches] = await db.query(`SELECT b.*,u.full_name imported_by_name,${matchCount} match_count FROM monthly_import_batches b LEFT JOIN staff_users u ON u.id=b.imported_by ORDER BY b.created_at DESC,b.id DESC LIMIT 100`);
   const [[summary]] = await db.query(`SELECT COUNT(*) batch_count,COALESCE(SUM(total_rows),0) rows_read,COALESCE(SUM(valid_rows),0) valid_rows,COALESCE(SUM(duplicate_rows),0) duplicate_rows,COALESCE(SUM(exception_rows),0) exception_rows FROM monthly_import_batches WHERE created_at>=DATE_FORMAT(CURDATE(),'%Y-%m-01')`);
   return { batches, summary };
 }
 async function render(req, res, extra = {}, status = 200) {
   const schemaReady = await ready();
-  const data = schemaReady ? await dashboard() : { batches: [], summary: {} };
+  const matchingSchemaReady = schemaReady ? await matchingReady() : false;
+  const data = schemaReady ? await dashboard(matchingSchemaReady) : { batches: [], summary: {} };
   return res.status(status).render('monthly-data-import', {
-    title: 'Data Import Centre', schemaReady, matchingSchemaReady: schemaReady ? await matchingReady() : false,
+    title: 'Data Import Centre', schemaReady, matchingSchemaReady,
     batches: data.batches, summary: data.summary, selectedBatch: null, batchRows: [],
     reviewRows: [], reviewSummary: {}, reviewFilter: 'all', reviewMode: false,
+    activeTab: activeTab(extra.activeTab || req.query.tab),
     notice: null, error: null, formatDate: value => {
       if (!value) return '-';
       const date = new Date(`${String(value).slice(0, 10)}T12:00:00+02:00`);
@@ -63,20 +72,20 @@ async function render(req, res, extra = {}, status = 200) {
 }
 
 router.get('/backoffice/data-import', requireAuth, managementOnly, async (req, res, next) => {
-  try { await render(req, res, { notice: text(req.query.notice, 300) }); } catch (error) { next(error); }
+  try { await render(req, res, { activeTab: activeTab(req.query.tab), notice: text(req.query.notice, 300) }); } catch (error) { next(error); }
 });
 router.get('/backoffice/data-import/batches/:id', requireAuth, managementOnly, async (req, res, next) => {
   try {
-    if (!await ready()) return res.redirect(`${res.locals.basePath}/backoffice/data-import`);
+    if (!await ready()) return res.redirect(`${res.locals.basePath}/backoffice/data-import?tab=overview${panelQuery(req)}`);
     const [[selectedBatch]] = await db.execute(`SELECT b.*,u.full_name imported_by_name FROM monthly_import_batches b LEFT JOIN staff_users u ON u.id=b.imported_by WHERE b.id=:id`, { id: req.params.id });
     if (!selectedBatch) return res.status(404).render('error', { title: 'Import not found', message: 'The requested import batch does not exist.' });
     const [batchRows] = await db.execute('SELECT * FROM monthly_import_rows WHERE batch_id=:id ORDER BY source_row_number,id', { id: req.params.id });
-    await render(req, res, { selectedBatch, batchRows, notice: text(req.query.notice, 300) });
+    await render(req, res, { activeTab: 'history', selectedBatch, batchRows, notice: text(req.query.notice, 300) });
   } catch (error) { next(error); }
 });
 router.get('/backoffice/data-import/batches/:id/review', requireAuth, managementOnly, async (req, res, next) => {
   try {
-    if (!await ready()) return res.redirect(`${res.locals.basePath}/backoffice/data-import`);
+    if (!await ready()) return res.redirect(`${res.locals.basePath}/backoffice/data-import?tab=overview${panelQuery(req)}`);
     const [[selectedBatch]] = await db.execute(`SELECT b.*,u.full_name imported_by_name FROM monthly_import_batches b LEFT JOIN staff_users u ON u.id=b.imported_by WHERE b.id=:id`, { id: req.params.id });
     if (!selectedBatch) return res.status(404).render('error', { title: 'Import not found', message: 'The requested import batch does not exist.' });
     const reviewFilter = ['all', 'exact', 'conflict', 'new', 'approved', 'rejected', 'deferred'].includes(String(req.query.filter || 'all')) ? String(req.query.filter || 'all') : 'all';
@@ -130,7 +139,7 @@ router.get('/backoffice/data-import/batches/:id/review', requireAuth, management
       });
     }
     await render(req, res, {
-      selectedBatch, reviewRows, reviewSummary, reviewFilter, reviewMode: true,
+      activeTab: 'review', selectedBatch, reviewRows, reviewSummary, reviewFilter, reviewMode: true,
       notice: text(req.query.notice, 300)
     });
   } catch (error) { next(error); }
@@ -174,7 +183,7 @@ router.post('/backoffice/data-import/upload', requireAuth, managementOnly, uploa
       return res.redirect(`${res.locals.basePath}/backoffice/data-import/batches/${batch.insertId}?notice=${encodeURIComponent('Report parsed successfully. Review the staged and exception rows before confirming.')}${panelQuery(req)}`);
     } catch (error) { await connection.rollback(); throw error; } finally { connection.release(); }
   } catch (error) {
-    try { await render(req, res, { error: error.message }, 400); } catch (renderError) { next(renderError); }
+    try { await render(req, res, { activeTab: 'upload', error: error.message }, 400); } catch (renderError) { next(renderError); }
   }
 });
 router.post('/backoffice/data-import/batches/:id/confirm', requireAuth, managementOnly, async (req, res, next) => {
