@@ -1,14 +1,47 @@
 'use strict';
 
 const db = require('../config/db');
-const { normaliseSouthAfricanMobile } = require('./sa-phone-normalisation');
+const { normaliseSouthAfricanMobile, MOBILE_PHONE_FIELDS } = require('./sa-phone-normalisation');
 
+const SIM_CONTRACT_MONTHS = 36;
 const AUTO_APPROVED_ACTIONS = new Set(['link_mobile_client', 'link_fixed_service']);
 const FINALISABLE_NEW_ACTIONS = new Set(['create_mobile_record', 'create_fixed_service']);
 
 function json(value, fallback = {}) {
   if (!value) return fallback;
   try { return typeof value === 'string' ? JSON.parse(value) : value; } catch { return fallback; }
+}
+
+function effectiveContractTerm(value) {
+  const term = Number(value);
+  return Number.isInteger(term) && term > 0 ? term : SIM_CONTRACT_MONTHS;
+}
+
+function matchingClientIds(clients, canonicalPhone) {
+  const canonical = normaliseSouthAfricanMobile(canonicalPhone);
+  if (!canonical) return [];
+  return [...new Set(clients
+    .filter(client => MOBILE_PHONE_FIELDS.some(field => normaliseSouthAfricanMobile(client[field]) === canonical))
+    .map(client => Number(client.id))
+    .filter(Number.isFinite))];
+}
+
+function requireUniqueMobileTarget(clients, canonicalPhone, targetId) {
+  const canonical = normaliseSouthAfricanMobile(canonicalPhone);
+  const candidateIds = matchingClientIds(clients, canonical);
+  if (candidateIds.length > 1) {
+    throw new Error(`Mobile ${canonical} now matches multiple clients and requires conflict review.`);
+  }
+  if (candidateIds.length !== 1 || candidateIds[0] !== Number(targetId)) {
+    throw new Error(`Client #${targetId} no longer has the imported canonical phone.`);
+  }
+  return candidateIds[0];
+}
+
+function isFinalisableAction(action) {
+  if (action.applied_status !== 'not_applied') return false;
+  return action.approval_status === 'approved'
+    || (action.approval_status === 'pending' && FINALISABLE_NEW_ACTIONS.has(action.action_type));
 }
 
 function auditValues(context, actionType, entityType, entityId, description, before, after) {
@@ -116,23 +149,42 @@ async function previewFinalisation(connection = db) {
   return Object.fromEntries(Object.entries(counts || {}).map(([key, value]) => [key, Number(value || 0)]));
 }
 
+async function loadCanonicalPhoneCandidates(connection) {
+  const [clients] = await connection.execute(`
+    SELECT id,cell_number_normalised,cell_number,
+      main_contact_number_normalised,main_contact_number,alt_number
+    FROM clients
+    WHERE COALESCE(cell_number_normalised,cell_number,
+      main_contact_number_normalised,main_contact_number,alt_number) IS NOT NULL
+    FOR UPDATE
+  `);
+  return clients;
+}
+
 async function updateMobile(connection, action, row, context) {
   const targetId = Number(action.target_entity_id || action.proposed_client_id);
   if (!targetId) throw new Error(`Mobile action #${action.id} has no selected client.`);
+  const canonical = normaliseSouthAfricanMobile(row.phone_original || row.phone_normalised);
+  requireUniqueMobileTarget(await loadCanonicalPhoneCandidates(connection), canonical, targetId);
   const [[before]] = await connection.execute('SELECT * FROM clients WHERE id=:id FOR UPDATE', { id: targetId });
   if (!before) throw new Error(`Client #${targetId} no longer exists.`);
-  const canonical = normaliseSouthAfricanMobile(row.phone_original || row.phone_normalised);
-  if (!canonical || normaliseSouthAfricanMobile(before.cell_number_normalised || before.cell_number) !== canonical) {
-    throw new Error(`Client #${targetId} no longer has the imported canonical phone.`);
-  }
+  requireUniqueMobileTarget([before], canonical, targetId);
   const isUpgrade = row.import_type === 'upgrade';
   await connection.execute(`
     UPDATE clients SET
       package_name=COALESCE(NULLIF(TRIM(package_name),''),:packageName),
       previous_upgrade_date=CASE WHEN :isUpgrade=1 THEN COALESCE(previous_upgrade_date,:transactionDate) ELSE previous_upgrade_date END,
-      contract_term_months=CASE WHEN :isUpgrade=1 THEN COALESCE(contract_term_months,24) ELSE contract_term_months END,
-      next_upgrade_date=CASE WHEN :isUpgrade=1 THEN COALESCE(next_upgrade_date,DATE_ADD(:transactionDate,INTERVAL COALESCE(contract_term_months,24) MONTH)) ELSE next_upgrade_date END,
-      upgrade_date=CASE WHEN :isUpgrade=1 THEN COALESCE(upgrade_date,DATE_ADD(:transactionDate,INTERVAL COALESCE(contract_term_months,24) MONTH)) ELSE upgrade_date END,
+      contract_term_months=CASE WHEN :isUpgrade=1
+        THEN CASE WHEN contract_term_months IS NULL OR contract_term_months<=0 THEN :defaultTerm ELSE contract_term_months END
+        ELSE contract_term_months END,
+      next_upgrade_date=CASE WHEN :isUpgrade=1 THEN COALESCE(next_upgrade_date,
+        DATE_ADD(:transactionDate,INTERVAL
+          (CASE WHEN contract_term_months IS NULL OR contract_term_months<=0 THEN :defaultTerm ELSE contract_term_months END) MONTH))
+        ELSE next_upgrade_date END,
+      upgrade_date=CASE WHEN :isUpgrade=1 THEN COALESCE(upgrade_date,
+        DATE_ADD(:transactionDate,INTERVAL
+          (CASE WHEN contract_term_months IS NULL OR contract_term_months<=0 THEN :defaultTerm ELSE contract_term_months END) MONTH))
+        ELSE upgrade_date END,
       last_upgrade_consultant=CASE WHEN :isUpgrade=1 THEN COALESCE(NULLIF(TRIM(last_upgrade_consultant),''),:agentCode) ELSE last_upgrade_consultant END,
       updated_at=NOW()
     WHERE id=:id
@@ -141,7 +193,8 @@ async function updateMobile(connection, action, row, context) {
     packageName: row.package_name || null,
     isUpgrade: isUpgrade ? 1 : 0,
     transactionDate: row.transaction_date || null,
-    agentCode: row.agent_code || null
+    agentCode: row.agent_code || null,
+    defaultTerm: SIM_CONTRACT_MONTHS
   });
   const [[after]] = await connection.execute('SELECT * FROM clients WHERE id=:id', { id: targetId });
   await writeAudit(connection, context, 'monthly_import_mobile_updated', 'clients', targetId,
@@ -152,16 +205,10 @@ async function updateMobile(connection, action, row, context) {
 async function createProvisionalMobile(connection, action, row, context) {
   const canonical = normaliseSouthAfricanMobile(row.phone_original || row.phone_normalised);
   if (!canonical) throw new Error(`Mobile action #${action.id} does not contain a valid South African mobile number.`);
-  const [duplicates] = await connection.execute(`
-    SELECT * FROM clients
-    WHERE cell_number_normalised=:phone
-    ORDER BY id
-    LIMIT 2
-    FOR UPDATE
-  `, { phone: canonical });
-  if (duplicates.length > 1) throw new Error(`Mobile ${canonical} now matches multiple clients and requires conflict review.`);
-  if (duplicates.length === 1) {
-    throw new Error(`Mobile ${canonical} now matches client #${duplicates[0].id}. Re-run Process Monthly Import before finalising.`);
+  const duplicateIds = matchingClientIds(await loadCanonicalPhoneCandidates(connection), canonical);
+  if (duplicateIds.length > 1) throw new Error(`Mobile ${canonical} now matches multiple clients and requires conflict review.`);
+  if (duplicateIds.length === 1) {
+    throw new Error(`Mobile ${canonical} now matches client #${duplicateIds[0]}. Re-run Process Monthly Import before finalising.`);
   }
 
   const isUpgrade = row.import_type === 'upgrade';
@@ -172,8 +219,8 @@ async function createProvisionalMobile(connection, action, row, context) {
        next_upgrade_date,upgrade_date,last_upgrade_consultant,customer_type,lifecycle_status,line_status,
        created_by_staff_id,notes,is_active)
     VALUES
-      (:clientName,:cell,:phone,:packageName,:previousDate,24,
-       DATE_ADD(:previousDate,INTERVAL 24 MONTH),DATE_ADD(:previousDate,INTERVAL 24 MONTH),:agentCode,
+      (:clientName,:cell,:phone,:packageName,:previousDate,:contractTerm,
+       DATE_ADD(:previousDate,INTERVAL :contractTerm MONTH),DATE_ADD(:previousDate,INTERVAL :contractTerm MONTH),:agentCode,
        'unknown','client','active',:userId,:notes,1)
   `, {
     clientName,
@@ -182,6 +229,7 @@ async function createProvisionalMobile(connection, action, row, context) {
     packageName: row.package_name || null,
     previousDate: isUpgrade ? row.transaction_date : null,
     agentCode: isUpgrade ? (row.agent_code || null) : null,
+    contractTerm: SIM_CONTRACT_MONTHS,
     userId: context.userId,
     notes: `Provisional mobile created by Monthly Import row #${row.row_id}; official account number still requires the existing safe assignment workflow.`
   });
@@ -420,7 +468,7 @@ async function finaliseMonthlyImport(context) {
     let applied = 0;
     for (const storedAction of actions) {
       const action = { ...storedAction, id: Number(storedAction.action_id), row_id: Number(storedAction.row_id) };
-      if (action.approval_status === 'pending' && !FINALISABLE_NEW_ACTIONS.has(action.action_type)) {
+      if (!isFinalisableAction(action)) {
         throw new Error(`Action #${action.id} is not approved for finalisation.`);
       }
       const actionBefore = {
@@ -474,6 +522,12 @@ module.exports = {
   autoApproveDeterministicMatches,
   previewFinalisation,
   finaliseMonthlyImport,
+  effectiveContractTerm,
+  matchingClientIds,
+  requireUniqueMobileTarget,
+  isFinalisableAction,
+  SIM_CONTRACT_MONTHS,
+  MOBILE_PHONE_FIELDS,
   AUTO_APPROVED_ACTIONS,
   FINALISABLE_NEW_ACTIONS
 };
