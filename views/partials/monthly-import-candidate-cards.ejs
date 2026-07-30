@@ -1,0 +1,49 @@
+<% if (row.selection) { %>
+  <section class="candidate-review" aria-label="<%= row.selection.label %> candidates">
+    <div class="candidate-review-heading">
+      <div>
+        <span class="eyebrow">Choose one <%= row.selection.label %></span>
+        <h3><%= row.selection.candidateCount %> candidate records</h3>
+      </div>
+      <% if (row.selection.candidates.length !== row.selection.candidateCount) { %>
+        <span class="candidate-stale-warning">Candidate data changed — process the import again</span>
+      <% } %>
+    </div>
+    <div class="candidate-choice-grid">
+      <% row.selection.candidates.forEach((candidate,index) => { %>
+        <label class="candidate-choice-card">
+          <input type="radio" name="<%= row.selection.inputName %>" value="<%= candidate.id %>" required>
+          <span class="candidate-choice-marker" aria-hidden="true"></span>
+          <span class="candidate-choice-content">
+            <span class="candidate-number">Candidate <%= index + 1 %></span>
+            <strong><%= candidate.title %></strong>
+            <small><%= candidate.subtitle %></small>
+            <% if (candidate.contacts.length) { %>
+              <span class="candidate-detail-list">
+                <% candidate.contacts.forEach(detail => { %><span><%= detail %></span><% }) %>
+              </span>
+            <% } %>
+            <% if (candidate.facts.length) { %>
+              <span class="candidate-facts">
+                <% candidate.facts.forEach(detail => { %><span><%= detail %></span><% }) %>
+              </span>
+            <% } %>
+            <span class="candidate-evidence">
+              <b>Matched on</b>
+              <% if (candidate.evidence.length) { %>
+                <span><%= candidate.evidence.map(item => item.label).join(', ') %></span>
+              <% } else { %>
+                <span class="candidate-stale-warning">No current matching field</span>
+              <% } %>
+            </span>
+            <% if (candidate.openPath) { %>
+              <% const panelSeparator = candidate.openPath.includes('?') ? '&' : '?'; %>
+              <a class="candidate-open-link" href="<%= basePath + candidate.openPath + (panelMode?panelSeparator+'panel=1':'') + (candidate.openHash?'#'+candidate.openHash:'') %>">Open <%= row.selection.label %> record</a>
+            <% } %>
+          </span>
+        </label>
+      <% }) %>
+    </div>
+    <p class="candidate-safety-note">Selecting a <%= row.selection.label %> resolves this import only. The other customer record is not deleted.</p>
+  </section>
+<% } %>

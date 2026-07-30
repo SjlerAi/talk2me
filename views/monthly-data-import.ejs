@@ -66,19 +66,16 @@
               <section><h3>Reason</h3><p><%= row.match_reason %></p><small><%= Number(row.confidence_score||0) %>% confidence</small></section>
               <section class="decision-section">
                 <h3>Decision</h3>
-                <form class="decision-form" method="post" action="<%= basePath %>/backoffice/data-import/batches/<%= selectedBatch.id %>/matches/<%= row.id %>/decision<%= panelMode?'?panel=1':'' %>">
+                <form class="decision-form conflict-decision-form" data-conflict-decision method="post" action="<%= basePath %>/backoffice/data-import/batches/<%= selectedBatch.id %>/matches/<%= row.id %>/decision<%= panelMode?'?panel=1':'' %>">
                   <input type="hidden" name="return_filter" value="<%= reviewFilter %>">
-                  <% if ((row.candidates.clients||[]).length > 1) { %>
-                    <label>Client<select name="client_id"><option value="">Choose client</option><% row.candidates.clients.forEach(item => { %><option value="<%= item.id %>">#<%= item.id %> · <%= item.clientName||'Client' %></option><% }) %></select></label>
-                  <% } %>
-                  <% if ((row.candidates.accounts||[]).length > 1) { %>
-                    <label>Account<select name="account_id"><option value="">Choose account</option><% row.candidates.accounts.forEach(item => { %><option value="<%= item.id %>">#<%= item.id %> · <%= item.accountNumber||item.displayName||'Account' %></option><% }) %></select></label>
-                  <% } %>
-                  <% if ((row.candidates.services||[]).length > 1) { %>
-                    <label>Service<select name="fixed_service_id"><option value="">Choose service</option><% row.candidates.services.forEach(item => { %><option value="<%= item.id %>">#<%= item.id %> · <%= item.title||item.solutionId||item.orderNumber||'Service' %></option><% }) %></select></label>
-                  <% } %>
+                  <% if(panelMode){ %><input type="hidden" name="panel" value="1"><% } %>
+                  <%- include('partials/monthly-import-candidate-cards', { row }) %>
                   <textarea name="review_notes" rows="2" maxlength="2000" placeholder="Review note"><%= row.review_notes||'' %></textarea>
-                  <div class="decision-actions"><button name="decision" value="approve">Approve</button><button class="danger" name="decision" value="reject">Reject</button><button class="secondary" name="decision" value="defer">Defer</button></div>
+                  <div class="decision-actions">
+                    <% if (row.selection) { %><button data-use-selected disabled name="decision" value="approve"><%= row.selection.buttonLabel %></button><% } %>
+                    <button class="danger" formnovalidate name="decision" value="reject">Exclude this imported row</button>
+                    <button class="secondary" formnovalidate name="decision" value="defer">Defer decision</button>
+                  </div>
                 </form>
               </section>
             </div>
@@ -144,6 +141,7 @@
         <span class="eyebrow">Review only conflicts and exceptions</span>
         <h2><%= Number(workflow.conflicts||0) + Number(exceptions.length||0) %> item(s) need attention</h2>
         <p>Exact matches and proposed safe new records do not need row-by-row review. Resolve a conflict, or explicitly reject/defer it. Conflicts are never automatically applied.</p>
+        <% if(error){ %><div class="conflict-inline-error" role="alert"><strong>Conflict not updated</strong><span><%= error %></span></div><% } %>
 
         <% if (!conflicts.length && !exceptions.length) { %>
           <div class="empty-state compact"><strong>No conflicts or source exceptions</strong><p>This step is clear.</p></div>
@@ -156,26 +154,31 @@
                 <div><span class="eyebrow"><%= row.original_filename %> · row <%= row.source_row_number %></span><strong><%= row.phone_original||row.account_number||row.customer_name||'Imported row' %></strong></div>
                 <span class="review-state <%= row.review_status %>"><%= row.review_status %></span>
               </header>
-              <p><%= row.match_reason %></p>
-              <form class="decision-form" method="post" action="<%= basePath %>/backoffice/data-import/batches/<%= row.batch_id %>/matches/<%= row.id %>/decision<%= panelMode?'?panel=1':'' %>">
+              <div class="imported-conflict-card">
+                <span class="eyebrow">Imported record</span>
+                <div class="imported-conflict-grid">
+                  <span><b>Source</b><%= row.original_filename %> · row <%= row.source_row_number %></span>
+                  <span><b>Name</b><%= row.customer_name||'-' %></span>
+                  <% if(row.phone_original||row.phone_normalised){ %><span><b>Original phone</b><%= row.phone_original||'-' %></span><span><b>Canonical phone</b><%= row.imported_canonical_phone||row.phone_normalised||'-' %></span><% } %>
+                  <% if(row.account_number){ %><span><b>Account</b><%= row.account_number %></span><% } %>
+                  <% if(row.transaction_date){ %><span><b>Transaction / upgrade</b><%= formatDate(row.transaction_date) %></span><% } %>
+                  <% if(row.package_name){ %><span><b>Package</b><%= row.package_name %></span><% } %>
+                  <% if(row.order_number){ %><span><b>Order</b><%= row.order_number %></span><% } %>
+                  <% if(row.solution_id){ %><span><b>Solution</b><%= row.solution_id %></span><% } %>
+                  <% if(row.mac_address){ %><span><b>MAC</b><%= row.mac_address %></span><% } %>
+                  <% if(row.sim_number){ %><span><b>SIM</b><%= row.sim_number %></span><% } %>
+                </div>
+                <p><%= row.match_reason %></p>
+              </div>
+              <form class="decision-form conflict-decision-form" data-conflict-decision method="post" action="<%= basePath %>/backoffice/data-import/batches/<%= row.batch_id %>/matches/<%= row.id %>/decision<%= panelMode?'?panel=1':'' %>">
                 <input type="hidden" name="return_to" value="monthly">
-                <% if ((row.candidates.clients||[]).length > 1) { %>
-                  <label>Choose client<select name="client_id"><option value="">Select</option><% row.candidates.clients.forEach(item => { %><option value="<%= item.id %>">#<%= item.id %> · <%= item.clientName||'Client' %></option><% }) %></select></label>
-                <% } %>
-                <% if ((row.candidates.accounts||[]).length > 1) { %>
-                  <label>Choose customer account<select name="account_id"><option value="">Select</option><% row.candidates.accounts.forEach(item => { %><option value="<%= item.id %>">#<%= item.id %> · <%= item.accountNumber||item.displayName||'Account' %></option><% }) %></select></label>
-                <% } %>
-                <% if ((row.candidates.fixedAccounts||[]).length > 1 && !(row.candidates.services||[]).length) { %>
-                  <label>Choose fixed account<select name="fixed_account_id"><option value="">Select</option><% row.candidates.fixedAccounts.forEach(item => { %><option value="<%= item.id %>">#<%= item.id %> · <%= item.customerName||item.accountNumber||'Fixed account' %></option><% }) %></select></label>
-                <% } %>
-                <% if ((row.candidates.services||[]).length > 1) { %>
-                  <label>Choose fixed service<select name="fixed_service_id"><option value="">Select</option><% row.candidates.services.forEach(item => { %><option value="<%= item.id %>">#<%= item.id %> · <%= item.title||item.solutionId||item.orderNumber||'Service' %></option><% }) %></select></label>
-                <% } %>
+                <% if(panelMode){ %><input type="hidden" name="panel" value="1"><% } %>
+                <%- include('partials/monthly-import-candidate-cards', { row }) %>
                 <textarea name="review_notes" rows="2" maxlength="2000" placeholder="Review note"><%= row.review_notes||'' %></textarea>
                 <div class="decision-actions">
-                  <% if (row.action_type !== 'create_fixed_account_and_service') { %><button name="decision" value="approve">Approve selection</button><% } %>
-                  <button class="danger" name="decision" value="reject">Exclude</button>
-                  <button class="secondary" name="decision" value="defer">Defer</button>
+                  <% if (row.selection) { %><button data-use-selected disabled name="decision" value="approve"><%= row.selection.buttonLabel %></button><% } %>
+                  <button class="danger" formnovalidate name="decision" value="reject">Exclude this imported row</button>
+                  <button class="secondary" formnovalidate name="decision" value="defer">Defer decision</button>
                 </div>
               </form>
             </article>
@@ -239,3 +242,4 @@
   <% } %>
 </div>
 <link rel="stylesheet" href="<%= basePath %>/public/css/monthly-data-import.css?v=<%= encodeURIComponent(appVersion) %>-monthly-import-64">
+<script defer src="<%= basePath %>/public/js/monthly-import-conflict-review.js?v=<%= encodeURIComponent(appVersion) %>-conflict-review-66"></script>

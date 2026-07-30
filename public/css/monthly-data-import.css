@@ -671,6 +671,214 @@
   font-size: .84rem;
 }
 
+.conflict-inline-error {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 10px 0;
+  padding: 10px 12px;
+  border: 1px solid #e7b7b7;
+  border-radius: 10px;
+  color: #8f2525;
+  background: #fff0f0;
+}
+
+.imported-conflict-card {
+  margin: 10px 0 12px;
+  padding: 11px;
+  border: 1px solid #dce4e9;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.imported-conflict-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(190px, 100%), 1fr));
+  gap: 7px;
+  margin: 7px 0;
+}
+
+.imported-conflict-grid span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-wrap: anywhere;
+  color: #394752;
+  font-size: .8rem;
+}
+
+.imported-conflict-grid b {
+  color: #71808b;
+  font-size: .67rem;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.imported-conflict-card > p {
+  margin: 7px 0 0;
+  color: #53616c;
+  font-size: .82rem;
+}
+
+.decision-form.conflict-decision-form {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.candidate-review {
+  grid-column: 1 / -1;
+  width: 100%;
+  overflow: hidden;
+}
+
+.candidate-review-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.candidate-review-heading h3 {
+  margin: 2px 0 0;
+  color: #202832;
+  font-size: .95rem;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.candidate-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(270px, 100%), 1fr));
+  gap: 9px;
+  width: 100%;
+}
+
+.candidate-choice-card {
+  position: relative;
+  display: grid !important;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 9px;
+  min-width: 0;
+  padding: 11px;
+  border: 2px solid #dce3e8;
+  border-radius: 11px;
+  color: #34424d !important;
+  background: #fff;
+  cursor: pointer;
+  transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
+}
+
+.candidate-choice-card:hover {
+  border-color: #9fb1bf;
+}
+
+.candidate-choice-card.selected,
+.candidate-choice-card:has(input:checked) {
+  border-color: #176b3a;
+  background: #f0faf4;
+  box-shadow: 0 0 0 2px rgba(23, 107, 58, .1);
+}
+
+.candidate-choice-card > input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.candidate-choice-marker {
+  display: block;
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  border: 2px solid #94a2ad;
+  border-radius: 50%;
+  background: #fff;
+}
+
+.candidate-choice-card.selected .candidate-choice-marker,
+.candidate-choice-card:has(input:checked) .candidate-choice-marker {
+  border: 5px solid #176b3a;
+}
+
+.candidate-choice-content,
+.candidate-detail-list,
+.candidate-facts,
+.candidate-evidence {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.candidate-choice-content {
+  gap: 5px;
+}
+
+.candidate-choice-content > strong {
+  overflow-wrap: anywhere;
+  color: #202832;
+  font-size: .94rem;
+}
+
+.candidate-choice-content > small,
+.candidate-number {
+  color: #697680;
+}
+
+.candidate-number {
+  font-size: .66rem;
+  font-weight: 900;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+.candidate-detail-list,
+.candidate-facts {
+  gap: 2px;
+  overflow-wrap: anywhere;
+  font-size: .76rem;
+  font-weight: 500;
+}
+
+.candidate-facts {
+  margin-top: 3px;
+  padding-top: 5px;
+  border-top: 1px solid #e7ecef;
+  color: #53616c;
+}
+
+.candidate-evidence {
+  gap: 2px;
+  margin-top: 3px;
+  padding: 6px 7px;
+  border-radius: 7px;
+  color: #176b3a;
+  background: #e8f8ef;
+  font-size: .73rem;
+}
+
+.candidate-stale-warning {
+  overflow-wrap: anywhere;
+  color: #9c3030;
+  font-size: .72rem;
+  font-weight: 800;
+}
+
+.candidate-open-link {
+  align-self: flex-start;
+  margin-top: 3px;
+  color: #174b7a;
+  font-size: .76rem;
+  font-weight: 800;
+  text-decoration: underline;
+}
+
+.candidate-safety-note {
+  margin: 8px 0 0;
+  color: #68747d;
+  font-size: .74rem;
+}
+
 .source-exception {
   border-color: #ead59d;
   background: #fffaf0;
@@ -861,6 +1069,10 @@
 
   .finalise-form {
     align-items: stretch;
+    flex-direction: column;
+  }
+
+  .candidate-review-heading {
     flex-direction: column;
   }
 }
