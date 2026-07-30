@@ -10,6 +10,11 @@ const {
   previewFinalisation,
   finaliseMonthlyImport
 } = require('../services/monthly-import-finaliser');
+const {
+  ConflictReviewValidationError,
+  hydrateConflictCandidates,
+  requireValidSelection
+} = require('../services/monthly-import-conflict-review');
 const { audit } = require('../services/audit');
 
 const router = express.Router();
@@ -111,7 +116,7 @@ async function dashboard(hasMatchingSchema) {
     };
     [conflicts] = await db.query(`
       SELECT m.*,r.batch_id,r.source_row_number,r.phone_original,r.phone_normalised,r.account_number,
-        r.customer_name,r.transaction_date,r.order_number,r.solution_id,r.package_name,
+        r.customer_name,r.transaction_date,r.order_number,r.solution_id,r.mac_address,r.sim_number,r.package_name,
         a.action_type,a.target_entity_type,a.target_entity_id,a.approval_status,a.applied_status,
         b.original_filename
       FROM monthly_import_matches m
@@ -119,17 +124,16 @@ async function dashboard(hasMatchingSchema) {
       JOIN monthly_import_batches b ON b.id=r.batch_id
       JOIN monthly_import_actions a ON a.match_id=m.id
       WHERE a.applied_status='not_applied'
+        AND a.approval_status='pending'
+        AND m.review_status='pending'
         AND (m.classification='conflict' OR a.action_type='create_fixed_account_and_service')
       ORDER BY FIELD(m.review_status,'pending','deferred','rejected','approved'),b.created_at DESC,r.source_row_number
       LIMIT 100
     `);
-    conflicts = conflicts.map(row => ({ ...row, candidates: jsonCandidates(row.candidate_json) }));
-    workflow.conflicts = conflicts.filter(row => row.review_status === 'pending').length;
+    conflicts = await hydrateConflictCandidates(db, conflicts);
+    workflow.conflicts = conflicts.filter(row => row.classification === 'conflict').length;
   }
   return { batches, summary, workflow, exceptions, conflicts };
-}
-function jsonCandidates(value) {
-  try { return JSON.parse(value || '{}'); } catch { return {}; }
 }
 async function render(req, res, extra = {}, status = 200) {
   const schemaReady = await ready();
@@ -152,7 +156,13 @@ async function render(req, res, extra = {}, status = 200) {
 }
 
 router.get('/backoffice/data-import', requireAuth, managementOnly, async (req, res, next) => {
-  try { await render(req, res, { activeTab: activeTab(req.query.tab), notice: text(req.query.notice, 300) }); } catch (error) { next(error); }
+  try {
+    await render(req, res, {
+      activeTab: activeTab(req.query.tab),
+      notice: text(req.query.notice, 300),
+      error: text(req.query.error, 500)
+    });
+  } catch (error) { next(error); }
 });
 router.get('/backoffice/data-import/batches/:id', requireAuth, managementOnly, async (req, res, next) => {
   try {
@@ -214,9 +224,13 @@ router.get('/backoffice/data-import/batches/:id/review', requireAuth, management
         ORDER BY FIELD(m.review_status,'pending','deferred','rejected','approved'),
           FIELD(m.classification,'conflict','new_record','possible_match','exact_match'),r.source_row_number,m.id
       `, params);
-      reviewRows = reviewRows.map(row => {
-        try { return { ...row, candidates: JSON.parse(row.candidate_json || '{}') }; } catch { return { ...row, candidates: {} }; }
-      });
+      const conflictRows = reviewRows
+        .filter(row => row.classification === 'conflict')
+        .map(row => ({ ...row, original_filename: selectedBatch.original_filename }));
+      const hydratedConflicts = new Map(
+        (await hydrateConflictCandidates(db, conflictRows)).map(row => [Number(row.id), row])
+      );
+      reviewRows = reviewRows.map(row => hydratedConflicts.get(Number(row.id)) || { ...row, selection: null });
     }
     await render(req, res, {
       activeTab: 'review', selectedBatch, reviewRows, reviewSummary, reviewFilter, reviewMode: true,
@@ -411,52 +425,75 @@ router.post('/backoffice/data-import/batches/:batchId/matches/:matchId/decision'
   try {
     const decision = String(req.body.decision || '').toLowerCase();
     const statusByDecision = { approve: 'approved', reject: 'rejected', defer: 'deferred' };
-    if (!statusByDecision[decision]) throw new Error('Choose approve, reject or defer.');
-    const selected = {
-      clientId: Number(req.body.client_id) || null,
-      accountId: Number(req.body.account_id) || null,
-      fixedAccountId: Number(req.body.fixed_account_id) || null,
-      fixedServiceId: Number(req.body.fixed_service_id) || null
-    };
+    if (!statusByDecision[decision]) throw new ConflictReviewValidationError('Choose approve, exclude or defer.');
     await connection.beginTransaction();
-    const [[match]] = await connection.execute(`
-      SELECT m.*,r.batch_id,a.id action_id,a.action_type,a.target_entity_type,a.target_entity_id,a.approval_status,a.applied_status
+    let [[match]] = await connection.execute(`
+      SELECT m.*,r.batch_id,r.source_row_number,r.phone_original,r.phone_normalised,r.account_number,
+        r.customer_name,r.transaction_date,r.order_number,r.solution_id,r.mac_address,r.sim_number,
+        r.package_name,b.original_filename
       FROM monthly_import_matches m
       JOIN monthly_import_rows r ON r.id=m.import_row_id
-      LEFT JOIN monthly_import_actions a ON a.match_id=m.id
+      JOIN monthly_import_batches b ON b.id=r.batch_id
       WHERE m.id=:matchId AND r.batch_id=:batchId FOR UPDATE
     `, { matchId: req.params.matchId, batchId: req.params.batchId });
-    if (!match) throw new Error('The selected match does not belong to this batch.');
-    if (!match.action_id) throw new Error('The proposed action is missing. Re-run matching before review.');
-    if (match.applied_status !== 'not_applied') throw new Error('An applied action cannot be changed from the Phase 2 review centre.');
-    let candidates = {};
-    try { candidates = JSON.parse(match.candidate_json || '{}'); } catch { throw new Error('Stored match candidates are invalid. Re-run matching before review.'); }
-    const allowed = {
-      clientId: new Set((candidates.clients || []).map(item => Number(item.id))),
-      accountId: new Set((candidates.accounts || []).map(item => Number(item.id))),
-      fixedAccountId: new Set((candidates.fixedAccounts || []).map(item => Number(item.id))),
-      fixedServiceId: new Set((candidates.services || []).map(item => Number(item.id)))
-    };
-    for (const [key, value] of Object.entries(selected)) {
-      if (value && !allowed[key].has(value)) throw new Error('The selected candidate is not valid for this imported row.');
+    if (!match) throw new ConflictReviewValidationError('This conflict no longer exists. Run Process Monthly Import again.');
+    const [[action]] = await connection.execute(`
+      SELECT * FROM monthly_import_actions WHERE match_id=:matchId FOR UPDATE
+    `, { matchId: match.id });
+    if (!action) throw new ConflictReviewValidationError('The proposed action is missing. Run Process Monthly Import again.');
+    if (action.applied_status !== 'not_applied') {
+      throw new ConflictReviewValidationError('This conflict action has already been applied and cannot be changed.');
     }
-    if (decision === 'approve' && match.classification === 'conflict') {
-      if (match.match_domain === 'mobile' && !selected.clientId) throw new Error('Choose the client to approve for this mobile conflict.');
-      if (match.match_domain === 'fixed' && (candidates.services || []).length > 1 && !selected.fixedServiceId) throw new Error('Choose the fixed service to approve for this conflict.');
-      if (match.match_domain === 'fixed' && (candidates.accounts || []).length > 1 && !selected.accountId) throw new Error('Choose the customer account to approve for this conflict.');
-      if (match.match_domain === 'fixed' && !(candidates.services || []).length && (candidates.fixedAccounts || []).length > 1 && !selected.fixedAccountId) throw new Error('Choose the fixed account to approve for this conflict.');
+    if (match.review_status !== 'pending' || action.approval_status !== 'pending') {
+      throw new ConflictReviewValidationError('Another manager already resolved this conflict. Refresh Monthly Import.');
     }
-    if (selected.fixedServiceId) {
-      const service = (candidates.services || []).find(item => Number(item.id) === selected.fixedServiceId);
-      if (service?.fixedAccountId) selected.fixedAccountId = Number(service.fixedAccountId);
+
+    let selectedCandidate = null;
+    let selection = null;
+    if (decision === 'approve') {
+      [match] = await hydrateConflictCandidates(connection, [match]);
+      selection = match.selection;
+      selectedCandidate = requireValidSelection(selection, req.body);
+      const tableByTarget = {
+        clients: 'clients',
+        customer_accounts: 'customer_accounts',
+        fixed_accounts: 'fixed_accounts',
+        fixed_services: 'fixed_services'
+      };
+      const table = tableByTarget[selection.targetType];
+      if (!table) throw new ConflictReviewValidationError('This candidate type cannot be approved. Run Process Monthly Import again.');
+      const [[lockedCandidate]] = await connection.execute(
+        `SELECT id FROM ${table} WHERE id=:id FOR UPDATE`,
+        { id: selectedCandidate.id }
+      );
+      if (!lockedCandidate) {
+        throw new ConflictReviewValidationError('The selected candidate no longer exists. Run Process Monthly Import again.');
+      }
+      [match] = await hydrateConflictCandidates(connection, [match]);
+      selection = match.selection;
+      selectedCandidate = requireValidSelection(selection, req.body);
     }
+
     const before = {
       reviewStatus: match.review_status, proposedClientId: match.proposed_client_id,
       proposedAccountId: match.proposed_account_id, proposedFixedAccountId: match.proposed_fixed_account_id,
-      proposedFixedServiceId: match.proposed_fixed_service_id, reviewNotes: match.review_notes
+      proposedFixedServiceId: match.proposed_fixed_service_id, reviewNotes: match.review_notes,
+      action: {
+        approvalStatus: action.approval_status, appliedStatus: action.applied_status,
+        targetEntityType: action.target_entity_type, targetEntityId: action.target_entity_id
+      }
     };
     const reviewStatus = statusByDecision[decision];
     const notes = text(req.body.review_notes, 2000) || null;
+    const selected = {
+      clientId: selection?.targetType === 'clients' ? selectedCandidate.id : null,
+      accountId: selection?.targetType === 'customer_accounts' ? selectedCandidate.id : null,
+      fixedAccountId: selection?.targetType === 'fixed_accounts' ? selectedCandidate.id : null,
+      fixedServiceId: selection?.targetType === 'fixed_services' ? selectedCandidate.id : null
+    };
+    if (selected.fixedServiceId && selectedCandidate.live.fixed_account_id) {
+      selected.fixedAccountId = Number(selectedCandidate.live.fixed_account_id);
+    }
     await connection.execute(`
       UPDATE monthly_import_matches SET review_status=:reviewStatus,reviewed_by=:userId,reviewed_at=NOW(),review_notes=:notes,
         proposed_client_id=COALESCE(:clientId,proposed_client_id),
@@ -465,19 +502,27 @@ router.post('/backoffice/data-import/batches/:batchId/matches/:matchId/decision'
         proposed_fixed_service_id=COALESCE(:fixedServiceId,proposed_fixed_service_id)
       WHERE id=:matchId
     `, { reviewStatus, userId: req.session.user.id, notes, matchId: match.id, ...selected });
-    let targetType = match.target_entity_type;
-    let targetId = match.target_entity_id;
-    if (selected.clientId) { targetType = 'clients'; targetId = selected.clientId; }
-    else if (selected.fixedServiceId) { targetType = 'fixed_services'; targetId = selected.fixedServiceId; }
-    else if (selected.fixedAccountId) { targetType = 'fixed_accounts'; targetId = selected.fixedAccountId; }
-    else if (selected.accountId) { targetType = 'customer_accounts'; targetId = selected.accountId; }
+    const targetType = selectedCandidate ? selection.targetType : action.target_entity_type;
+    const targetId = selectedCandidate ? selectedCandidate.id : action.target_entity_id;
     await connection.execute(`
       UPDATE monthly_import_actions SET approval_status=:reviewStatus,approved_by=:userId,approved_at=NOW(),
         target_entity_type=:targetType,target_entity_id=:targetId,applied_status='not_applied',
         applied_by=NULL,applied_at=NULL,error_text=NULL
       WHERE match_id=:matchId
     `, { reviewStatus, userId: req.session.user.id, targetType, targetId, matchId: match.id });
-    const after = { reviewStatus, ...selected, reviewNotes: notes, targetType, targetId, appliedStatus: 'not_applied' };
+    const after = {
+      reviewStatus, ...selected, reviewNotes: notes,
+      selectedCandidate: selectedCandidate ? {
+        id: selectedCandidate.id,
+        kind: selectedCandidate.kind,
+        title: selectedCandidate.title,
+        matchedFields: selectedCandidate.evidence.map(item => item.field)
+      } : null,
+      action: {
+        approvalStatus: reviewStatus, appliedStatus: 'not_applied',
+        targetEntityType: targetType, targetEntityId: targetId
+      }
+    };
     await connection.execute(`
       INSERT INTO audit_log
         (staff_id,action_type,entity_type,entity_id,description,before_json,after_json,ip_address,user_agent)
@@ -490,11 +535,17 @@ router.post('/backoffice/data-import/batches/:batchId/matches/:matchId/decision'
     });
     await connection.commit();
     if (req.body.return_to === 'monthly') {
-      return res.redirect(`${res.locals.basePath}/backoffice/data-import?notice=${encodeURIComponent(`Exception ${reviewStatus}. No live record was modified.`)}${panelQuery(req)}#exceptions`);
+      const success = selectedCandidate
+        ? `${selectedCandidate.title} selected for this imported row. The other record was not changed.`
+        : `Imported row ${reviewStatus}. No live customer record was modified.`;
+      return res.redirect(`${res.locals.basePath}/backoffice/data-import?notice=${encodeURIComponent(success)}${panelQuery(req)}#exceptions`);
     }
     return res.redirect(`${res.locals.basePath}/backoffice/data-import/batches/${req.params.batchId}/review?filter=${encodeURIComponent(req.body.return_filter || 'all')}&notice=${encodeURIComponent(`Match ${reviewStatus}. No live record was modified.`)}${panelQuery(req)}`);
   } catch (error) {
     await connection.rollback();
+    if (error instanceof ConflictReviewValidationError) {
+      return res.redirect(`${res.locals.basePath}/backoffice/data-import?error=${encodeURIComponent(error.message)}${panelQuery(req)}#exceptions`);
+    }
     next(error);
   } finally {
     connection.release();
