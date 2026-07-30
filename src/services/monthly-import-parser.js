@@ -29,6 +29,7 @@ function column(map, names) {
   return -1;
 }
 function at(row, index) { return index >= 0 ? row[index] : null; }
+function isBlankRow(row) { return !row.some(value => clean(value, 200)); }
 function detect(matrix, filename) {
   const text = `${label(filename)} ${matrix.slice(0, 12).flat().map(label).join(' ')}`;
   const fixed = text.includes('account number') && text.includes('router model') && text.includes('mac');
@@ -48,25 +49,26 @@ function headerIndex(matrix, type) {
 }
 function fingerprint(row) {
   const source = row.importType === 'activation'
-    ? [row.sourceSystem, row.phoneNormalised, row.transactionDate, row.dealSheetNumber]
+    ? [row.sourceSystem, row.phoneNormalised || row.phoneOriginal, row.transactionDate, row.dealSheetNumber, row.sourceRowNumber]
     : row.importType === 'upgrade'
-      ? [row.sourceSystem, row.phoneNormalised, row.transactionDate, row.dealSheetNumber, row.imei]
-      : [row.macAddress || row.solutionId || row.orderNumber || row.simNumber || row.accountNumber];
+      ? [row.sourceSystem, row.phoneNormalised || row.phoneOriginal, row.transactionDate, row.dealSheetNumber, row.imei, row.sourceRowNumber]
+      : [row.macAddress || row.solutionId || row.orderNumber || row.simNumber || row.accountNumber, row.sourceRowNumber];
   return crypto.createHash('sha256').update(source.join('|')).digest('hex');
+}
+function validate(result, required) {
+  const missing = required.filter(([key]) => !result[key]).map(([, message]) => message);
+  return { ...result, warningText: missing.length ? missing.join(' ') : null, isException: missing.length > 0 };
 }
 function build(report, map, row, sourceRowNumber) {
   if (report.importType === 'activation') {
     const phoneOriginal = clean(at(row, column(map, ['Cell Nr', 'Cell Number'])), 80);
-    const result = { ...report, sourceRowNumber, phoneOriginal, phoneNormalised: phone(phoneOriginal), customerName: clean(at(row, column(map, ['Customer'])), 255), transactionDate: date(at(row, column(map, ['Activation Date']))), packageName: clean(at(row, column(map, ['Package'])), 255), agentCode: clean(at(row, column(map, ['Created By', 'Agent'])), 120), imei: code(at(row, column(map, ['IMEI', 'IMEI Number'])), 80), dealSheetNumber: code(at(row, column(map, ['Deal Sheet', 'Deal sheet number'])), 120), description: clean(at(row, column(map, ['Deal Sheet Description', 'Deal description'])), 4000) };
-    return result.phoneNormalised && result.customerName && result.transactionDate ? result : null;
+    return validate({ ...report, sourceRowNumber, phoneOriginal, phoneNormalised: phone(phoneOriginal), customerName: clean(at(row, column(map, ['Customer'])), 255), transactionDate: date(at(row, column(map, ['Activation Date']))), packageName: clean(at(row, column(map, ['Package'])), 255), agentCode: clean(at(row, column(map, ['Created By', 'Agent'])), 120), imei: code(at(row, column(map, ['IMEI', 'IMEI Number'])), 80), dealSheetNumber: code(at(row, column(map, ['Deal Sheet', 'Deal sheet number'])), 120), description: clean(at(row, column(map, ['Deal Sheet Description', 'Deal description'])), 4000) }, [['phoneNormalised', 'Invalid or missing cellphone number.'], ['customerName', 'Customer name is missing.'], ['transactionDate', 'Activation date is missing or invalid.']]);
   }
   if (report.importType === 'upgrade') {
     const phoneOriginal = clean(at(row, column(map, ['Handset No', 'Cell Nr'])), 80);
-    const result = { ...report, sourceRowNumber, phoneOriginal, phoneNormalised: phone(phoneOriginal), customerName: '', transactionDate: date(at(row, column(map, ['Order Date']))), packageName: clean(at(row, column(map, ['Current Package'])), 255), agentCode: clean(at(row, column(map, ['Agent'])), 120), imei: code(at(row, column(map, ['IMEI Number', 'IMEI'])), 80), dealSheetNumber: code(at(row, column(map, ['Deal sheet number', 'Deal Sheet'])), 120), description: clean(at(row, column(map, ['Deal description', 'Upgrade Description', 'Upgrade Tariff Name'])), 4000) };
-    return result.phoneNormalised && result.transactionDate ? result : null;
+    return validate({ ...report, sourceRowNumber, phoneOriginal, phoneNormalised: phone(phoneOriginal), customerName: '', transactionDate: date(at(row, column(map, ['Order Date']))), packageName: clean(at(row, column(map, ['Current Package'])), 255), agentCode: clean(at(row, column(map, ['Agent'])), 120), imei: code(at(row, column(map, ['IMEI Number', 'IMEI'])), 80), dealSheetNumber: code(at(row, column(map, ['Deal sheet number', 'Deal Sheet'])), 120), description: clean(at(row, column(map, ['Deal description', 'Upgrade Description', 'Upgrade Tariff Name'])), 4000) }, [['phoneNormalised', 'Invalid or missing cellphone number.'], ['transactionDate', 'Order date is missing or invalid.']]);
   }
-  const result = { ...report, sourceRowNumber, accountNumber: code(at(row, column(map, ['Account number'])), 120), customerName: clean(at(row, column(map, ['Title'])), 255), transactionDate: date(at(row, column(map, ['Activation Date']))), packageName: clean(at(row, column(map, ['Package'])), 255), orderNumber: code(at(row, column(map, ['Order Number'])), 120), macAddress: code(at(row, column(map, ['MAC'])), 120).replace(/[^A-Z0-9]/g, ''), solutionId: code(at(row, column(map, ['Solutution ID', 'Solution ID'])), 120), simNumber: code(at(row, column(map, ['Sim Number', 'SIM Number'])), 120), description: clean(at(row, column(map, ['Branch', 'Router Model'])), 4000) };
-  return result.accountNumber && (result.orderNumber || result.macAddress || result.solutionId) ? result : null;
+  return validate({ ...report, sourceRowNumber, accountNumber: code(at(row, column(map, ['Account number'])), 120), customerName: clean(at(row, column(map, ['Title'])), 255), transactionDate: date(at(row, column(map, ['Activation Date']))), packageName: clean(at(row, column(map, ['Package'])), 255), orderNumber: code(at(row, column(map, ['Order Number'])), 120), macAddress: code(at(row, column(map, ['MAC'])), 120).replace(/[^A-Z0-9]/g, ''), solutionId: code(at(row, column(map, ['Solutution ID', 'Solution ID'])), 120), simNumber: code(at(row, column(map, ['Sim Number', 'SIM Number'])), 120), description: clean(at(row, column(map, ['Branch', 'Router Model'])), 4000) }, [['accountNumber', 'Account number is missing.'], ['orderNumber', 'Order number is missing.']]);
 }
 function parse(buffer, filename) {
   const XLSX = require('xlsx');
@@ -77,8 +79,12 @@ function parse(buffer, filename) {
   const report = detect(matrix, filename);
   const index = headerIndex(matrix, report.importType);
   const map = headers(matrix[index]);
-  const rows = matrix.slice(index + 1).map((row, offset) => build(report, map, row, index + offset + 2)).filter(Boolean).map(row => ({ ...row, rowFingerprint: fingerprint(row) }));
-  if (!rows.length) throw new Error('No valid data rows were found.');
+  const rows = matrix.slice(index + 1)
+    .map((row, offset) => ({ row, sourceRowNumber: index + offset + 2 }))
+    .filter(item => !isBlankRow(item.row))
+    .map(item => build(report, map, item.row, item.sourceRowNumber))
+    .map(row => ({ ...row, rowFingerprint: fingerprint(row) }));
+  if (!rows.length) throw new Error('No data rows were found.');
   return { ...report, rows };
 }
 module.exports = { parse, phone };
