@@ -30,6 +30,21 @@ function column(map, names) {
 }
 function at(row, index) { return index >= 0 ? row[index] : null; }
 function isBlankRow(row) { return !row.some(value => clean(value, 200)); }
+function rowText(row) { return row.map(value => label(value)).filter(Boolean).join(' | '); }
+function isPresentationRow(row, report) {
+  const text = rowText(row);
+  if (!text) return true;
+  if (text.includes('total sales for')) return true;
+  if (text.includes('dealership total')) return true;
+  if (text.includes('total number of upgrades performed for period')) return true;
+  if (text.includes('total number of upgrades fulfilled for period')) return true;
+  if (report.importType === 'activation' && text.includes('cell nr') && text.includes('activation date')) return true;
+  if (report.importType === 'upgrade' && text.includes('handset no') && text.includes('order date')) return true;
+  if (report.importType === 'fixed_base' && text.includes('account number') && text.includes('router model')) return true;
+  const populated = row.filter(value => clean(value, 200)).length;
+  if (populated === 1 && !/\d{9,}/.test(text)) return true;
+  return false;
+}
 function detect(matrix, filename) {
   const text = `${label(filename)} ${matrix.slice(0, 12).flat().map(label).join(' ')}`;
   const fixed = text.includes('account number') && text.includes('router model') && text.includes('mac');
@@ -81,7 +96,7 @@ function parse(buffer, filename) {
   const map = headers(matrix[index]);
   const rows = matrix.slice(index + 1)
     .map((row, offset) => ({ row, sourceRowNumber: index + offset + 2 }))
-    .filter(item => !isBlankRow(item.row))
+    .filter(item => !isBlankRow(item.row) && !isPresentationRow(item.row, report))
     .map(item => build(report, map, item.row, item.sourceRowNumber))
     .map(row => ({ ...row, rowFingerprint: fingerprint(row) }));
   if (!rows.length) throw new Error('No data rows were found.');
