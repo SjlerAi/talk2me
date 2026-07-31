@@ -8,6 +8,9 @@ const createAssignmentRouter = require('./assignment-routes');
 const createApprovalRouter = require('./approval-routes');
 const createNotificationRouter = require('./notification-routes');
 const createAttendanceRouter = require('./attendance-routes');
+const createOpportunityRouter = require('./opportunity-routes');
+const createReportRouter = require('./report-routes');
+const createImportRouter = require('./import-routes');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -29,7 +32,7 @@ const pool = dbConfigured ? mysql.createPool({
 }) : null;
 
 app.disable('x-powered-by');
-app.use(express.json({ limit: '100kb' }));
+app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: false }));
 app.use(express.static(publicDir, { index: false, etag: true, maxAge: process.env.NODE_ENV === 'production' ? '5m' : 0 }));
 
@@ -158,8 +161,11 @@ app.use(createAssignmentRouter({ pool, requireAuth, requestIp }));
 app.use(createApprovalRouter({ pool, requireAuth, requestIp }));
 app.use(createNotificationRouter({ pool, requireAuth, requestIp }));
 app.use(createAttendanceRouter({ pool, requireAuth, requestIp }));
+app.use(createOpportunityRouter({ pool, requireAuth, requestIp }));
+app.use(createReportRouter({ pool, requireAuth, requestIp }));
+app.use(createImportRouter({ pool, requireAuth, requestIp }));
 app.get('/api/admin/session-check', requireRole('owner','manager'), (req,res)=>res.json({ok:true,role:req.user.role}));
 app.get('/', requireAuth, (req,res)=>res.sendFile(path.join(publicDir,'index.html')));
 app.get('*', (req,res)=>req.user?res.redirect('/'):res.redirect('/login'));
 setInterval(()=>{if(pool)pool.execute('DELETE FROM app_sessions WHERE expires_at<=NOW()').catch(error=>console.error('Session cleanup failed',error.code||error.message));},60*60*1000).unref();
-app.listen(port,()=>console.log(`Talk2Me OS2 running on port ${port}; notifications and attendance enabled; database ${dbConfigured?'configured':'not configured'}`));
+app.listen(port,()=>console.log(`Talk2Me OS2 running on port ${port}; imports enabled; database ${dbConfigured?'configured':'not configured'}`));
