@@ -1,4 +1,5 @@
 const express = require('express');
+const createOpportunityRouter = require('./opportunity-routes');
 
 module.exports = function createAttendanceRouter({ pool, requireAuth, requestIp }) {
   const router = express.Router();
@@ -196,5 +197,6 @@ module.exports = function createAttendanceRouter({ pool, requireAuth, requestIp 
     }
   });
 
+  router.use(createOpportunityRouter({ pool, requireAuth, requestIp }));
   return router;
 };
