@@ -9,7 +9,7 @@
     return r;
   }
 
-  function notify(message){if(typeof window.toast==='function')return window.toast(message);alert(message);}
+  function notify(message){if(typeof window.toast==='function')return window.toast(message);}
   function ensureView(){
     if(view)return view;
     const style=document.createElement('style');
@@ -40,8 +40,16 @@
 
   async function decide(button){
     const decision=button.dataset.decision;
-    const note=prompt(decision==='reject'?'Reason for rejection:':'Optional approval note:') ?? null;
-    if(note===null)return;
+    if(typeof window.talk2meDialog!=='function'){notify('Approval form is not ready. Refresh and try again.');return;}
+    const result=await window.talk2meDialog({
+      title:decision==='reject'?'Reject client claim':'Approve client claim',
+      message:decision==='reject'?'Enter the reason for rejecting this request.':'Add an optional approval note.',
+      confirmText:decision==='reject'?'Reject claim':'Approve claim',
+      fields:[{label:decision==='reject'?'Rejection reason':'Approval note',type:'textarea',rows:4,required:decision==='reject'}]
+    });
+    if(!result.confirmed)return;
+    const note=result.values[0]||'';
+    if(decision==='reject'&&!note.trim()){notify('Enter a reason for rejection.');return;}
     button.disabled=true;
     try{
       const r=await api(`/api/approvals/${button.dataset.id}/decision`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({decision,note})});
