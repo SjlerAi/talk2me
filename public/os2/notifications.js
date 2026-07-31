@@ -33,16 +33,17 @@
       .notification-list{display:grid;gap:10px;padding-bottom:28px}
       .notification-card{border:1px solid var(--line);border-radius:14px;padding:14px;background:#fff}
       .notification-card.unread{border-left:4px solid var(--red);background:#fffafa}
+      .notification-card.seen{opacity:.84}
       .notification-card h3{margin:0 0 5px;font-size:15px}
       .notification-card p{margin:0 0 8px;color:var(--muted);font-size:13px;white-space:pre-wrap}
       .notification-meta{display:flex;justify-content:space-between;gap:10px;align-items:center;font-size:11px;color:var(--muted)}
       .notification-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}
+      .notification-actions .complete{background:var(--green);color:#fff;border-color:var(--green)}
       .broadcast-form{margin:14px 0;padding:14px;border:1px solid var(--line);border-radius:14px;background:var(--blue-pale);display:grid;gap:9px}
       .broadcast-form input,.broadcast-form textarea,.broadcast-form select{width:100%;padding:10px;border:1px solid var(--line);border-radius:10px;background:#fff}
       .broadcast-form button{background:var(--red);color:#fff;border-color:var(--red)}
-      .broadcast-target-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
       .notification-empty{text-align:center;color:var(--muted);padding:30px 10px}
-      @media(max-width:640px){.broadcast-target-row{grid-template-columns:1fr}.notification-scroll{padding:0 12px 20px}}
+      @media(max-width:640px){.notification-scroll{padding:0 12px 20px}}
     `;
     document.head.appendChild(style);
   }
@@ -53,7 +54,7 @@
     drawer.innerHTML = `<div class="drawer-head"><div><h2>Notifications</h2><span id="notificationSummary">Loading...</span></div><button id="closeDrawer">×</button></div>
       <div class="notification-scroll" id="notificationScroll">
         <div id="broadcastArea"></div>
-        <div class="notification-toolbar"><strong>Latest messages</strong><button id="refreshNotifications">Refresh</button></div>
+        <div class="notification-toolbar"><strong>Active messages</strong><button id="refreshNotifications">Refresh</button></div>
         <div class="notification-list" id="notificationList"><div class="notification-empty">Loading notifications...</div></div>
       </div>`;
     byId('closeDrawer').addEventListener('click', () => drawer.classList.remove('open'));
@@ -64,27 +65,22 @@
     const area = byId('broadcastArea');
     if (!area) return;
     if (!canBroadcast) { area.innerHTML = ''; return; }
-    const staffOptions = recipients.map(person => `<option value="${person.id}">${esc(person.full_name)} · ${esc(person.role)}</option>`).join('');
+    const staffOptions = recipients.map(person => `<option value="staff:${person.id}">${esc(person.full_name)} · ${esc(person.role)}</option>`).join('');
     area.innerHTML = `<form class="broadcast-form" id="broadcastForm">
       <strong>Send message</strong>
-      <div class="broadcast-target-row">
-        <label>Send to<select id="broadcastTarget"><option value="team">Whole team</option><option value="staff">One staff member</option></select></label>
-        <label id="broadcastStaffWrap" hidden>Staff member<select id="broadcastStaff"><option value="">Select staff member</option>${staffOptions}</select></label>
-      </div>
+      <label>Recipient<select id="broadcastRecipient"><option value="team">Whole team</option>${staffOptions}</select></label>
       <input id="broadcastTitle" maxlength="160" placeholder="Message title" required>
       <textarea id="broadcastMessage" rows="3" maxlength="3000" placeholder="Write the message" required></textarea>
-      <button type="submit" id="sendBroadcast">Send to team</button>
+      <button type="submit" id="sendBroadcast">Send to whole team</button>
     </form>`;
-    byId('broadcastTarget').addEventListener('change', updateTargetControls);
+    byId('broadcastRecipient').addEventListener('change', updateSendButton);
     byId('broadcastForm').addEventListener('submit', sendBroadcast);
-    updateTargetControls();
+    updateSendButton();
   }
 
-  function updateTargetControls() {
-    const direct = byId('broadcastTarget')?.value === 'staff';
-    if (byId('broadcastStaffWrap')) byId('broadcastStaffWrap').hidden = !direct;
-    if (byId('broadcastStaff')) byId('broadcastStaff').required = direct;
-    if (byId('sendBroadcast')) byId('sendBroadcast').textContent = direct ? 'Send to staff member' : 'Send to team';
+  function updateSendButton() {
+    const value = byId('broadcastRecipient')?.value || 'team';
+    if (byId('sendBroadcast')) byId('sendBroadcast').textContent = value === 'team' ? 'Send to whole team' : 'Send to staff member';
   }
 
   function isUnread(status) {
@@ -95,15 +91,25 @@
     const list = byId('notificationList');
     if (!list) return;
     if (!items.length) {
-      list.innerHTML = '<div class="notification-empty">No notifications yet.</div>';
+      list.innerHTML = '<div class="notification-empty">No active notifications.</div>';
       return;
     }
     list.innerHTML = items.map(item => {
       const unread = isUnread(item.status);
       const date = item.created_at ? new Intl.DateTimeFormat('en-ZA',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}).format(new Date(item.created_at)) : '';
-      return `<article class="notification-card ${unread ? 'unread' : ''}" data-notification-id="${item.id}"><h3>${esc(item.title || 'Notification')}</h3><p>${esc(item.message || '')}</p><div class="notification-meta"><span>${esc(date)}</span><span>${unread ? 'unread' : 'seen'}</span></div><div class="notification-actions">${item.client_id ? `<button data-open-client="${item.client_id}">Open customer</button>` : ''}${unread ? `<button data-mark-read="${item.id}">Mark as read</button>` : ''}</div></article>`;
+      return `<article class="notification-card ${unread ? 'unread' : 'seen'}" data-notification-id="${item.id}">
+        <h3>${esc(item.title || 'Notification')}</h3>
+        <p>${esc(item.message || '')}</p>
+        <div class="notification-meta"><span>${esc(date)}</span><span>${unread ? 'unread' : 'seen'}</span></div>
+        <div class="notification-actions">
+          ${item.client_id ? `<button data-open-client="${item.client_id}">Open customer</button>` : ''}
+          ${unread ? `<button data-mark-read="${item.id}">Mark as read</button>` : ''}
+          <button class="complete" data-complete="${item.id}">Complete</button>
+        </div>
+      </article>`;
     }).join('');
     list.querySelectorAll('[data-mark-read]').forEach(button => button.addEventListener('click', () => markRead(button)));
+    list.querySelectorAll('[data-complete]').forEach(button => button.addEventListener('click', () => completeMessage(button)));
     list.querySelectorAll('[data-open-client]').forEach(button => button.addEventListener('click', async () => {
       const id = Number(button.dataset.openClient);
       drawer.classList.remove('open');
@@ -122,7 +128,7 @@
       recipients = Array.isArray(data.recipients) ? data.recipients : [];
       renderBroadcast();
       renderItems(data.items || []);
-      byId('notificationSummary').textContent = `${data.unread} unread · ${(data.items || []).length} shown`;
+      byId('notificationSummary').textContent = `${data.unread} unread · ${(data.items || []).length} active`;
       byId('alertBadge').textContent = data.unread;
       byId('alertBadge').hidden = Number(data.unread) === 0;
     } catch (error) {
@@ -139,6 +145,7 @@
       const data = await response.json();
       if (!response.ok || !data.ok) throw new Error(data.error || 'NOTIFICATION_READ_FAILED');
       await loadNotifications();
+      notify('Message moved below unread messages');
     } catch (error) {
       notify(`Could not mark notification as read: ${error.message}`);
       button.disabled = false;
@@ -146,12 +153,28 @@
     }
   }
 
+  async function completeMessage(button) {
+    button.disabled = true;
+    button.textContent = 'Completing...';
+    try {
+      const response = await api(`/api/notifications/${button.dataset.complete}/complete`, {method:'POST'});
+      const data = await response.json();
+      if (!response.ok || !data.ok) throw new Error(data.error || 'NOTIFICATION_COMPLETE_FAILED');
+      await loadNotifications();
+      notify('Message completed and removed from the active queue');
+    } catch (error) {
+      notify(`Could not complete message: ${error.message}`);
+      button.disabled = false;
+      button.textContent = 'Complete';
+    }
+  }
+
   async function sendBroadcast(event) {
     event.preventDefault();
     const button = byId('sendBroadcast');
-    const target = byId('broadcastTarget').value;
-    const staffId = Number(byId('broadcastStaff').value || 0);
-    if (target === 'staff' && !staffId) return notify('Select a staff member first');
+    const recipientValue = byId('broadcastRecipient').value;
+    const target = recipientValue === 'team' ? 'team' : 'staff';
+    const staffId = target === 'staff' ? Number(recipientValue.split(':')[1]) : 0;
     button.disabled = true;
     button.textContent = 'Sending...';
     try {
@@ -160,13 +183,13 @@
       if (!response.ok || !data.ok) throw new Error(data.error || 'NOTIFICATION_SEND_FAILED');
       notify(target === 'staff' ? `Message sent to ${data.recipientName}` : `Broadcast sent to ${data.recipients} staff members`);
       byId('broadcastForm').reset();
-      updateTargetControls();
+      updateSendButton();
       await loadNotifications();
     } catch (error) {
       notify(`Could not send message: ${error.message}`);
     } finally {
       button.disabled = false;
-      updateTargetControls();
+      updateSendButton();
     }
   }
 
