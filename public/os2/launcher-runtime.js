@@ -18,8 +18,6 @@
       if (!target || target.closed) {
         target = window.open(item.link_url, name);
         if (target) launcherWindows.set(name, target);
-      } else {
-        target.location.href = item.link_url;
       }
       target?.focus();
     } catch (error) {
