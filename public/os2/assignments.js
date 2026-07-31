@@ -93,6 +93,7 @@
         if (!response.ok || !result.ok) throw new Error(result.error || 'CLIENT_CLAIM_FAILED');
         notify('Claim request sent for approval');
         await loadAssignment(activeCustomerId);
+        if (typeof window.loadDashboard === 'function') window.loadDashboard();
       } catch (error) { notify(`Could not request claim: ${error.message}`); }
       finally { if (button.isConnected) { button.disabled=false; button.textContent='Request claim'; } }
     });
@@ -105,5 +106,11 @@
       await loadAssignment(id);
       return result;
     };
+  }
+
+  if (!document.querySelector('script[src$="approvals.js"]')) {
+    const script = document.createElement('script');
+    script.src = './approvals.js';
+    document.body.appendChild(script);
   }
 })();
