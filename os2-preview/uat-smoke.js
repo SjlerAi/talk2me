@@ -3,16 +3,20 @@ const assert = require('node:assert/strict');
 const baseUrl = String(process.env.OS2_BASE_URL || 'https://talk2me.kloka.co.za').replace(/\/$/, '');
 const identity = String(process.env.OS2_UAT_IDENTITY || '').trim();
 const password = String(process.env.OS2_UAT_PASSWORD || '');
+const timeoutMs = Math.max(3000, Number(process.env.OS2_UAT_TIMEOUT_MS || 15000));
 
 async function request(path, options = {}) {
+  console.log(`Checking ${path} ...`);
   const response = await fetch(`${baseUrl}${path}`, {
     redirect: 'manual',
+    signal: AbortSignal.timeout(timeoutMs),
     ...options,
     headers: {
       Accept: 'application/json, text/html;q=0.9, */*;q=0.8',
       ...(options.headers || {})
     }
   });
+  console.log(`  ${response.status} ${path}`);
   return response;
 }
 
@@ -28,6 +32,7 @@ async function expectStatus(path, statuses, options = {}) {
 }
 
 async function runPublicChecks() {
+  console.log('Running public and security checks...');
   const health = await expectStatus('/health', [200]);
   const healthBody = await health.json();
   assert.equal(healthBody.application, 'Talk2Me OS2', 'Health endpoint returned the wrong application name');
@@ -50,6 +55,7 @@ async function runAuthenticatedChecks() {
     return;
   }
 
+  console.log('Running authenticated checks...');
   const login = await expectStatus('/api/auth/login', [200], {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -91,10 +97,12 @@ async function runAuthenticatedChecks() {
 
 (async () => {
   console.log(`Talk2Me OS2 UAT smoke test: ${baseUrl}`);
+  console.log(`Per-request timeout: ${timeoutMs}ms`);
   await runPublicChecks();
   await runAuthenticatedChecks();
   console.log('UAT smoke test passed.');
 })().catch(error => {
-  console.error(`UAT smoke test failed: ${error.message}`);
+  const detail = error.name === 'TimeoutError' ? `request exceeded ${timeoutMs}ms` : error.message;
+  console.error(`UAT smoke test failed: ${detail}`);
   process.exitCode = 1;
 });
