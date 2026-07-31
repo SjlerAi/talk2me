@@ -25,10 +25,12 @@
   let dismissed = false;
 
   function hideResults() {
+    dismissed = true;
     results.classList.remove('show');
   }
 
   function showResults() {
+    dismissed = false;
     if (results.innerHTML.trim()) results.classList.add('show');
   }
 
@@ -42,6 +44,7 @@
   async function fetchCustomers(value, signal) {
     const response = await fetch(`/api/customers/search?q=${encodeURIComponent(value)}`, {
       headers: { Accept:'application/json' },
+      cache: 'no-store',
       signal
     });
     if (response.status === 401) {
@@ -105,14 +108,12 @@
   });
 
   search.addEventListener('focus', () => {
-    dismissed = false;
     if (search.value.trim().length >= 2) showResults();
   });
 
   results.addEventListener('click', event => {
     const item = event.target.closest('[data-id]');
     if (!item) return;
-    dismissed = true;
     hideResults();
     search.value = item.dataset.name || '';
     if (typeof window.openCustomer === 'function') window.openCustomer(item.dataset.id);
@@ -120,12 +121,27 @@
 
   document.addEventListener('keydown', event => {
     if (event.key !== 'Escape') return;
-    dismissed = true;
     hideResults();
   }, true);
 
   document.addEventListener('click', event => {
     if (event.target.closest('.search')) return;
-    if (!dismissed && search.value.trim().length >= 2) showResults();
+    hideResults();
   }, true);
+
+  const visibilityGuard = new MutationObserver(() => {
+    const hasRenderedResults = Boolean(results.querySelector('[data-id], .result'));
+    const searchIsActive = document.activeElement === search;
+    const shouldRemainVisible = !dismissed && searchIsActive && search.value.trim().length >= 2 && hasRenderedResults;
+    if (shouldRemainVisible && !results.classList.contains('show')) {
+      results.classList.add('show');
+    }
+  });
+
+  visibilityGuard.observe(results, {
+    attributes: true,
+    attributeFilter: ['class'],
+    childList: true,
+    subtree: true
+  });
 })();
