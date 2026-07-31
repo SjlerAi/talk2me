@@ -108,14 +108,11 @@
     };
   }
 
-  if (!document.querySelector('script[src$="approvals.js"]')) {
-    const script = document.createElement('script');
-    script.src = './approvals.js';
-    document.body.appendChild(script);
-  }
-  if (!document.querySelector('script[src$="attendance.js"]')) {
-    const script = document.createElement('script');
-    script.src = './attendance.js';
-    document.body.appendChild(script);
+  for (const source of ['./approvals.js','./attendance.js','./opportunities.js']) {
+    if (!document.querySelector(`script[src$="${source.slice(2)}"]`)) {
+      const script = document.createElement('script');
+      script.src = source;
+      document.body.appendChild(script);
+    }
   }
 })();
