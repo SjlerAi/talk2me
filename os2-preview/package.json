@@ -1,12 +1,12 @@
 {
   "name": "talk2me-os2-preview",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "description": "Talk2Me OS2 test application for talk2me.kloka.co.za",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "check": "node --check server.js"
+    "check": "node --check server.js && node --check my-work-routes.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
