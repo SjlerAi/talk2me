@@ -25,29 +25,26 @@
   <main>
     <header class="topbar">
       <button class="menu" id="menu">☰</button>
-      <div class="search"><span>⌕</span><input id="search" placeholder="Search customer, account, phone, SIM or MAC..."><div class="results" id="results"></div></div>
+      <div class="search"><span>⌕</span><input id="search" placeholder="Search customer, account, phone, package or handset..."><div class="results" id="results"></div></div>
       <button class="quick" id="newInquiry">+ New inquiry</button>
       <button class="icon" id="alerts">🔔<b id="alertBadge">0</b></button>
     </header>
 
-    <section class="content" id="content">
+    <section class="content" id="dashboardView">
       <div class="page-head"><div><span id="todayLabel">LOADING</span><h1>Good morning, Stephan</h1><p id="systemMessage">Connecting to the Talk2Me OS2 test database…</p></div><button class="secondary" id="refreshDashboard">Refresh</button></div>
-
       <div class="attention-grid">
         <article class="metric urgent" data-view="admin"><span>Approvals waiting</span><strong id="metricApprovals">–</strong><small>Pending manager or owner action</small></article>
         <article class="metric warning" data-view="work"><span>Overdue work</span><strong id="metricOverdue">–</strong><small>Open tasks past their due time</small></article>
         <article class="metric blue" data-view="customers"><span>Unassigned accounts</span><strong id="metricUnassigned">–</strong><small>Ready for assignment</small></article>
         <article class="metric green"><span>Staff clocked in</span><strong id="metricClockedIn">–</strong><small id="activeStaffText">Loading active staff</small></article>
       </div>
-
       <div class="workspace-grid">
         <section class="panel">
           <div class="panel-head"><div><span>MY WORK</span><h2>Today</h2></div><button data-view="work">View all</button></div>
           <div class="task"><div class="task-icon red">!</div><div><strong>Live test database connected</strong><span>OS2 now reads operational totals from kloka_talk2me</span></div><button id="databaseStatus">Check</button></div>
-          <div class="task"><div class="task-icon blue">⌕</div><div><strong>Search real customer records</strong><span>Use the global search above with at least two characters</span></div><button onclick="document.getElementById('search').focus()">Search</button></div>
-          <div class="task"><div class="task-icon amber">✓</div><div><strong>Workflow integration follows</strong><span>Customer 360 and inquiry saving remain read-only in this phase</span></div><button data-toast="Controlled integration phase">Info</button></div>
+          <div class="task"><div class="task-icon blue">⌕</div><div><strong>Search real customer records</strong><span>Select a result to open Customer 360</span></div><button onclick="document.getElementById('search').focus()">Search</button></div>
+          <div class="task"><div class="task-icon amber">✓</div><div><strong>Customer 360 is read-only</strong><span>Profile, lines and inquiry history are connected</span></div><button data-toast="Controlled integration phase">Info</button></div>
         </section>
-
         <section class="panel">
           <div class="panel-head"><div><span>OPPORTUNITIES</span><h2>Client care</h2></div><button data-view="opportunities">View all</button></div>
           <div class="opportunity"><div><strong id="metricUpgrades">–</strong><span>Upgrades due</span></div><em>Next 7 days</em></div>
@@ -56,17 +53,30 @@
           <div class="opportunity"><div><strong id="metricProspects">–</strong><span>New prospects</span></div><em>Open pipeline</em></div>
         </section>
       </div>
-
       <section class="panel activity">
         <div class="panel-head"><div><span>TEAM PULSE</span><h2>Latest activity</h2></div><button data-view="reports">Open report</button></div>
         <table><thead><tr><th>Staff member</th><th>Latest action</th><th>Customer</th><th>Status</th><th>Time</th></tr></thead><tbody id="activityRows"><tr><td colspan="5">Loading live activity…</td></tr></tbody></table>
       </section>
     </section>
+
+    <section class="content customer-view" id="customerView" hidden>
+      <div class="customer-hero panel">
+        <button class="secondary" id="backDashboard">← Dashboard</button>
+        <div class="customer-title"><span>CUSTOMER 360 · READ ONLY</span><h1 id="customerName">Customer</h1><p id="customerSummary">Loading customer information…</p></div>
+        <div class="customer-actions"><button class="secondary" id="copyPhone">Copy phone</button><button class="quick" id="customerNewInquiry">+ New inquiry</button></div>
+      </div>
+      <div class="customer-grid">
+        <section class="panel"><div class="panel-head"><div><span>PROFILE</span><h2>Customer details</h2></div></div><div class="detail-grid" id="customerDetails"></div></section>
+        <section class="panel"><div class="panel-head"><div><span>OWNERSHIP</span><h2>Account status</h2></div></div><div class="summary-stack" id="customerStatus"></div></section>
+      </div>
+      <section class="panel customer-section"><div class="panel-head"><div><span>SERVICES</span><h2>Mobile lines</h2></div><strong id="lineCount">0</strong></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Number</th><th>Package</th><th>Handset</th><th>Next upgrade</th><th>Status</th></tr></thead><tbody id="customerLines"></tbody></table></div></section>
+      <section class="panel customer-section"><div class="panel-head"><div><span>HISTORY</span><h2>Recent inquiries</h2></div><strong id="inquiryCount">0</strong></div><div id="customerInquiries" class="timeline"></div></section>
+    </section>
   </main>
 </div>
 
 <div class="drawer" id="drawer"><div class="drawer-head"><h2>Notifications</h2><button id="closeDrawer">×</button></div><div class="notice"><b>OS2 test environment</b><span>This site is connected to the copied kloka_talk2me database, not the original production database.</span></div></div>
-<div class="modal" id="modal"><form><div class="modal-head"><div><span>CONTROLLED PHASE</span><h2>New inquiry</h2></div><button type="button" id="closeModal">×</button></div><label>Customer<input placeholder="Search and select a customer first"></label><label>Action taken<textarea placeholder="Inquiry saving will be connected in the next integration slice."></textarea></label><div class="modal-actions"><button type="button" class="secondary" id="cancelModal">Cancel</button><button type="submit" class="quick">Preview only</button></div></form></div>
+<div class="modal" id="modal"><form><div class="modal-head"><div><span>CONTROLLED PHASE</span><h2>New inquiry</h2></div><button type="button" id="closeModal">×</button></div><label>Customer<input id="inquiryCustomer" placeholder="Search and select a customer first"></label><label>Action taken<textarea placeholder="Inquiry saving will be connected in the next integration slice."></textarea></label><div class="modal-actions"><button type="button" class="secondary" id="cancelModal">Cancel</button><button type="submit" class="quick">Preview only</button></div></form></div>
 <div class="toast" id="toast"></div>
 <script src="./os2.js"></script>
 </body>
