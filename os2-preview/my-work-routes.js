@@ -1,4 +1,5 @@
 const express = require('express');
+const createAssignmentRouter = require('./assignment-routes');
 
 const OPEN_STATUSES = ['open', 'follow_up', 'waiting_customer', 'waiting_network', 'waiting_supplier'];
 const UPDATE_STATUSES = new Set(['open', 'resolved', 'follow_up', 'waiting_customer', 'waiting_network', 'waiting_supplier']);
@@ -167,5 +168,6 @@ module.exports = function createMyWorkRouter({ pool, requireAuth, requestIp }) {
     }
   });
 
+  router.use(createAssignmentRouter({ pool, requireAuth, requestIp }));
   return router;
 };
