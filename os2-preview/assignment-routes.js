@@ -74,10 +74,10 @@ module.exports = function createAssignmentRouter({ pool, requireAuth, requestIp 
       let pendingClaim = null;
       const sc = await schema();
       if (sc.requests.size && sc.requests.has('status')) {
-        const entityColumn = sc.requests.has('entity_id') ? 'entity_id' : sc.requests.has('client_id') ? 'client_id' : null;
+        const entityColumn = sc.requests.has('record_id') ? 'record_id' : sc.requests.has('client_id') ? 'client_id' : sc.requests.has('entity_id') ? 'entity_id' : null;
         const typeColumn = sc.requests.has('request_type') ? 'request_type' : sc.requests.has('change_type') ? 'change_type' : null;
         if (entityColumn) {
-          const [rows] = await pool.execute(`SELECT * FROM data_change_requests WHERE \`${entityColumn}\`=:clientId AND status IN ('pending','pending_manager','pending_owner') ${typeColumn ? `AND \`${typeColumn}\` IN ('client_claim','claim_client','assignment_claim')` : ''} ORDER BY id DESC LIMIT 1`, { clientId });
+          const [rows] = await pool.execute(`SELECT * FROM data_change_requests WHERE \`${entityColumn}\`=:clientId AND status IN ('pending_manager','pending_owner') ${typeColumn ? `AND \`${typeColumn}\`='claim_account'` : ''} ORDER BY id DESC LIMIT 1`, { clientId });
           pendingClaim = rows[0] || null;
         }
       }
@@ -183,27 +183,37 @@ module.exports = function createAssignmentRouter({ pool, requireAuth, requestIp 
       await connection.beginTransaction();
       const [[customer]] = await connection.execute('SELECT id, client_name, account_number FROM clients WHERE id=:clientId AND is_active=1 LIMIT 1', { clientId });
       if (!customer) { await connection.rollback(); return res.status(404).json({ ok:false, error:'CUSTOMER_NOT_FOUND' }); }
+
+      const [[pending]] = await connection.execute(`SELECT id FROM data_change_requests
+        WHERE request_type='claim_account'
+          AND status IN ('pending_manager','pending_owner')
+          AND requested_by=:requestedBy
+          AND (record_id=:clientId OR client_id=:clientId)
+        ORDER BY id DESC LIMIT 1`, { requestedBy:req.user.id, clientId });
+      if (pending) {
+        await connection.rollback();
+        return res.status(409).json({ ok:false, error:'CLAIM_ALREADY_PENDING', requestId:Number(pending.id) });
+      }
+
       const sc = await schema();
+      const claimReason = reason || `Claim requested for ${customer.client_name}`;
       const values = {
-        request_type: 'client_claim',
-        change_type: 'client_claim',
-        entity_type: 'clients',
-        entity_id: clientId,
+        request_type: 'claim_account',
+        entity_type: 'client',
+        record_id: clientId,
         client_id: clientId,
-        requested_by: req.user.id,
-        requested_by_staff_id: req.user.id,
-        staff_id: req.user.id,
-        status: 'pending_manager',
-        reason: reason || `Claim requested for ${customer.client_name}`,
-        description: reason || `Claim requested for ${customer.client_name}`,
+        account_number: customer.account_number || null,
+        summary: `Claim account: ${customer.client_name}`.slice(0,255),
+        reason: claimReason,
         proposed_json: JSON.stringify({ client_id:clientId, account_number:customer.account_number || '', assigned_staff_id:req.user.id }),
-        after_json: JSON.stringify({ client_id:clientId, assigned_staff_id:req.user.id }),
+        status: 'pending_manager',
+        requested_by: req.user.id,
         created_at: new Date(),
         updated_at: new Date()
       };
       const insert = buildInsert('data_change_requests', sc.requests, values);
       const [result] = await connection.execute(insert.sql, insert.params);
-      await audit(connection, req, 'client_claim_requested', clientId, `Requested claim for ${customer.client_name}`, null, { request_id:result.insertId, requested_staff_id:req.user.id, reason });
+      await audit(connection, req, 'client_claim_requested', clientId, `Requested claim for ${customer.client_name}`, null, { request_id:result.insertId, requested_staff_id:req.user.id, reason:claimReason });
       await connection.commit();
       res.status(201).json({ ok:true, requestId:Number(result.insertId), customerId:clientId });
     } catch (error) {
