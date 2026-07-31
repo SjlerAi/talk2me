@@ -11,14 +11,18 @@
     });
   }
 
+  function prepareCustomerView() {
+    hideDynamicViews('customerView');
+    const customerView = document.getElementById('customerView');
+    if (customerView) customerView.hidden = false;
+  }
+
   function installCustomerGuard() {
     const original = window.openCustomer;
     if (typeof original !== 'function' || original.__talk2meGuarded) return false;
 
     const guarded = function customerGuardedOpen(...args) {
-      hideDynamicViews('customerView');
-      const customerView = document.getElementById('customerView');
-      if (customerView) customerView.hidden = false;
+      prepareCustomerView();
       return original.apply(this, args);
     };
     guarded.__talk2meGuarded = true;
@@ -35,6 +39,13 @@
   }
 
   document.addEventListener('click', event => {
+    const searchResult = event.target.closest('#results [data-id]');
+    const customerButton = event.target.closest('[data-client]');
+    if (searchResult || customerButton) {
+      prepareCustomerView();
+      return;
+    }
+
     const trigger = event.target.closest('[data-view]');
     if (!trigger || trigger.hidden) return;
 
