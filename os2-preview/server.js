@@ -97,13 +97,30 @@ app.get('/api/customers/search', async (req, res) => {
   if (query.length < 2) return res.json({ ok: true, customers: [] });
   try {
     const like = `%${query}%`;
-    const [rows] = await pool.execute(`SELECT id, client_name, account_number, cell_number, email, city_town
+    const [rows] = await pool.execute(`SELECT
+        id,
+        client_name,
+        account_number,
+        cell_number,
+        email,
+        city_town
       FROM clients
       WHERE is_active=1 AND (
-        client_name LIKE :like OR account_number LIKE :like OR cell_number LIKE :like OR email LIKE :like OR
-        sim_number LIKE :like OR mac_address LIKE :like
+        client_name LIKE :like OR
+        account_number LIKE :like OR
+        cell_number LIKE :like OR
+        cell_number_normalised LIKE :like OR
+        alt_number LIKE :like OR
+        email LIKE :like OR
+        city_town LIKE :like OR
+        id_number LIKE :like OR
+        package_name LIKE :like OR
+        handset LIKE :like OR
+        main_contact_name LIKE :like OR
+        main_contact_number LIKE :like
       )
-      ORDER BY client_name ASC LIMIT 10`, { like });
+      ORDER BY client_name ASC, account_number ASC
+      LIMIT 10`, { like });
     res.json({ ok: true, customers: rows });
   } catch (error) {
     console.error('Customer search failed', error);
