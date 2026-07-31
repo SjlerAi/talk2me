@@ -1,6 +1,26 @@
+const fs = require('fs');
 const mysql = require('mysql2/promise');
 
+function loadHtaccessEnv() {
+  const htaccessPath = '/home/kloka/talk2me.kloka.co.za/.htaccess';
+  if (!fs.existsSync(htaccessPath)) return;
+
+  const allowed = new Set(['DB_HOST', 'DB_PORT', 'DB_USER', 'DB_PASSWORD', 'DB_NAME']);
+  for (const rawLine of fs.readFileSync(htaccessPath, 'utf8').split(/\r?\n/)) {
+    const match = rawLine.match(/^\s*SetEnv\s+([A-Z0-9_]+)\s+(.+?)\s*$/);
+    if (!match || !allowed.has(match[1]) || process.env[match[1]]) continue;
+
+    let value = match[2].trim();
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
+    process.env[match[1]] = value;
+  }
+}
+
 async function main() {
+  loadHtaccessEnv();
+
   const required = ['DB_HOST', 'DB_USER', 'DB_NAME'];
   const missing = required.filter(key => !process.env[key]);
   if (missing.length) throw new Error(`Missing database settings: ${missing.join(', ')}`);
