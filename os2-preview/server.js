@@ -1,10 +1,14 @@
 const express = require('express');
 const path = require('path');
+const crypto = require('crypto');
+const bcrypt = require('bcryptjs');
 const mysql = require('mysql2/promise');
 
 const app = express();
 const port = process.env.PORT || 3000;
 const publicDir = path.join(__dirname, '..', 'public', 'os2');
+const sessionHours = 8;
+const sessionCookie = 'os2_session';
 
 const dbConfigured = Boolean(process.env.DB_HOST && process.env.DB_USER && process.env.DB_NAME);
 const pool = dbConfigured ? mysql.createPool({
@@ -21,13 +25,114 @@ const pool = dbConfigured ? mysql.createPool({
 }) : null;
 
 app.disable('x-powered-by');
-app.use(express.json());
-app.use(express.static(publicDir, { etag: true, maxAge: process.env.NODE_ENV === 'production' ? '5m' : 0 }));
+app.use(express.json({ limit: '100kb' }));
+app.use(express.urlencoded({ extended: false }));
+app.use(express.static(publicDir, { index: false, etag: true, maxAge: process.env.NODE_ENV === 'production' ? '5m' : 0 }));
+
+function parseCookies(req) {
+  return String(req.headers.cookie || '').split(';').reduce((cookies, item) => {
+    const index = item.indexOf('=');
+    if (index < 0) return cookies;
+    const key = item.slice(0, index).trim();
+    const value = item.slice(index + 1).trim();
+    if (key) cookies[key] = decodeURIComponent(value);
+    return cookies;
+  }, {});
+}
+
+function requestIp(req) {
+  return String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim().slice(0, 45);
+}
+
+function sessionExpiresAt() {
+  return new Date(Date.now() + sessionHours * 60 * 60 * 1000);
+}
+
+function setSessionCookie(res, token, expires) {
+  const parts = [
+    `${sessionCookie}=${encodeURIComponent(token)}`,
+    'Path=/',
+    'HttpOnly',
+    'SameSite=Lax',
+    `Expires=${expires.toUTCString()}`,
+    `Max-Age=${sessionHours * 60 * 60}`
+  ];
+  if (process.env.NODE_ENV === 'production') parts.push('Secure');
+  res.setHeader('Set-Cookie', parts.join('; '));
+}
+
+function clearSessionCookie(res) {
+  const parts = [`${sessionCookie}=`, 'Path=/', 'HttpOnly', 'SameSite=Lax', 'Expires=Thu, 01 Jan 1970 00:00:00 GMT', 'Max-Age=0'];
+  if (process.env.NODE_ENV === 'production') parts.push('Secure');
+  res.setHeader('Set-Cookie', parts.join('; '));
+}
+
+async function writeAudit(req, user, actionType, description) {
+  if (!pool || !user) return;
+  try {
+    await pool.execute(`INSERT INTO audit_log
+      (staff_id, action_type, entity_type, entity_id, description, ip_address, user_agent, created_at)
+      VALUES (:staffId, :actionType, 'session', :entityId, :description, :ip, :userAgent, NOW())`, {
+      staffId: user.id,
+      actionType,
+      entityId: String(user.id),
+      description,
+      ip: requestIp(req),
+      userAgent: String(req.headers['user-agent'] || '').slice(0, 500)
+    });
+  } catch (error) {
+    console.error('OS2 audit write failed', error.code || error.message);
+  }
+}
+
+async function loadSession(req, res, next) {
+  req.user = null;
+  req.sessionToken = null;
+  if (!pool) return next();
+  const token = parseCookies(req)[sessionCookie];
+  if (!/^[a-f0-9]{64}$/i.test(String(token || ''))) return next();
+  try {
+    const [[row]] = await pool.execute(`SELECT session_data
+      FROM app_sessions
+      WHERE session_id=:token AND expires_at>NOW()
+      LIMIT 1`, { token });
+    if (!row) {
+      clearSessionCookie(res);
+      return next();
+    }
+    const data = JSON.parse(row.session_data || '{}');
+    if (!data.os2 || !data.user?.id) {
+      clearSessionCookie(res);
+      return next();
+    }
+    req.user = data.user;
+    req.sessionToken = token;
+  } catch (error) {
+    console.error('OS2 session load failed', error.code || error.message);
+  }
+  next();
+}
+
+function requireAuth(req, res, next) {
+  if (req.user) return next();
+  if (req.path.startsWith('/api/')) return res.status(401).json({ ok: false, error: 'AUTHENTICATION_REQUIRED' });
+  return res.redirect('/login');
+}
+
+function requireRole(...roles) {
+  return (req, res, next) => {
+    if (!req.user) return res.status(401).json({ ok: false, error: 'AUTHENTICATION_REQUIRED' });
+    if (!roles.includes(req.user.role)) return res.status(403).json({ ok: false, error: 'INSUFFICIENT_PERMISSION' });
+    next();
+  };
+}
 
 async function count(sql, params = {}) {
   const [[row]] = await pool.execute(sql, params);
   return Number(row.total || 0);
 }
+
+app.use(loadSession);
 
 app.get('/health', async (req, res) => {
   let database = { configured: dbConfigured, connected: false };
@@ -39,12 +144,65 @@ app.get('/health', async (req, res) => {
     ok: !database.configured || database.connected,
     application: 'Talk2Me OS2',
     environment: process.env.NODE_ENV || 'development',
+    authentication: { enabled: true, signedIn: Boolean(req.user) },
     database,
     time: new Date().toISOString()
   });
 });
 
-app.get('/api/dashboard', async (req, res) => {
+app.get('/login', (req, res) => {
+  if (req.user) return res.redirect('/');
+  res.sendFile(path.join(publicDir, 'login.html'));
+});
+
+app.post('/api/auth/login', async (req, res) => {
+  if (!pool) return res.status(503).json({ ok: false, error: 'DATABASE_NOT_CONFIGURED' });
+  const identity = String(req.body.identity || '').trim();
+  const password = String(req.body.password || '');
+  if (!identity || !password) return res.status(400).json({ ok: false, error: 'ENTER_USERNAME_AND_PASSWORD' });
+  try {
+    const [[user]] = await pool.execute(`SELECT id, full_name, username, email, role, password_hash
+      FROM staff_users
+      WHERE is_active=1 AND (LOWER(username)=LOWER(:identity) OR LOWER(email)=LOWER(:identity))
+      LIMIT 1`, { identity });
+    const valid = Boolean(user?.password_hash) && await bcrypt.compare(password, user.password_hash);
+    if (!valid) return res.status(401).json({ ok: false, error: 'INVALID_LOGIN' });
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const expires = sessionExpiresAt();
+    const sessionUser = { id: Number(user.id), full_name: user.full_name, username: user.username, email: user.email, role: user.role };
+    const sessionData = JSON.stringify({ os2: true, user: sessionUser, createdAt: new Date().toISOString() });
+    await pool.execute(`INSERT INTO app_sessions (session_id, session_data, expires_at, created_at, updated_at)
+      VALUES (:token, :sessionData, :expires, NOW(), NOW())`, { token, sessionData, expires });
+    await pool.execute('UPDATE staff_users SET last_login_at=NOW() WHERE id=:id', { id: user.id });
+    setSessionCookie(res, token, expires);
+    await writeAudit(req, sessionUser, 'os2_login', `Signed in to Talk2Me OS2 as ${sessionUser.role}`);
+    res.json({ ok: true, user: sessionUser });
+  } catch (error) {
+    console.error('OS2 login failed', error);
+    res.status(500).json({ ok: false, error: error.code || 'LOGIN_FAILED' });
+  }
+});
+
+app.post('/api/auth/logout', requireAuth, async (req, res) => {
+  try {
+    if (req.sessionToken) await pool.execute('DELETE FROM app_sessions WHERE session_id=:token', { token: req.sessionToken });
+    await writeAudit(req, req.user, 'os2_logout', 'Signed out of Talk2Me OS2');
+  } finally {
+    clearSessionCookie(res);
+  }
+  res.json({ ok: true });
+});
+
+app.get('/api/auth/me', requireAuth, (req, res) => {
+  res.json({ ok: true, user: req.user, permissions: {
+    canManage: ['owner', 'manager'].includes(req.user.role),
+    canDelete: req.user.role === 'owner',
+    canWrite: false
+  } });
+});
+
+app.get('/api/dashboard', requireAuth, async (req, res) => {
   if (!pool) return res.status(503).json({ ok: false, error: 'Database environment variables are not configured.' });
   try {
     const [approvals, overdue, unassigned, clockedIn, activeStaff, upgrades, birthdays, callbacks, prospects] = await Promise.all([
@@ -59,15 +217,14 @@ app.get('/api/dashboard', async (req, res) => {
       count("SELECT COUNT(*) total FROM clients WHERE is_active=1 AND lifecycle_status='prospect' AND COALESCE(lead_status,'new') IN ('new','contacted','qualified')")
     ]);
     const [activity] = await pool.execute(`SELECT COALESCE(s.full_name,'Unassigned') staff_member, COALESCE(i.action_taken,i.query_text,'Inquiry updated') latest_action, COALESCE(i.client_name,'Unknown customer') customer, i.status, DATE_FORMAT(i.updated_at,'%H:%i') activity_time FROM inquiries i LEFT JOIN staff_users s ON s.id=COALESCE(i.assigned_staff_id,i.staff_id) ORDER BY i.updated_at DESC LIMIT 5`);
-    res.json({ ok: true, metrics: { approvals, overdue, unassigned, clockedIn, activeStaff, upgrades, birthdays, callbacks, prospects }, activity });
+    res.json({ ok: true, user: req.user, metrics: { approvals, overdue, unassigned, clockedIn, activeStaff, upgrades, birthdays, callbacks, prospects }, activity });
   } catch (error) {
     console.error('Dashboard query failed', error);
     res.status(500).json({ ok: false, error: error.code || 'DASHBOARD_QUERY_FAILED' });
   }
 });
 
-app.get('/api/customers/search', async (req, res) => {
-  if (!pool) return res.status(503).json({ ok: false, error: 'Database environment variables are not configured.' });
+app.get('/api/customers/search', requireAuth, async (req, res) => {
   const query = String(req.query.q || '').trim();
   if (query.length < 2) return res.json({ ok: true, customers: [] });
   try {
@@ -80,8 +237,7 @@ app.get('/api/customers/search', async (req, res) => {
   }
 });
 
-app.get('/api/customers/:id', async (req, res) => {
-  if (!pool) return res.status(503).json({ ok: false, error: 'Database environment variables are not configured.' });
+app.get('/api/customers/:id', requireAuth, async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id < 1) return res.status(400).json({ ok: false, error: 'INVALID_CUSTOMER_ID' });
   try {
@@ -93,7 +249,6 @@ app.get('/api/customers/:id', async (req, res) => {
       LEFT JOIN staff_users su ON su.id=a.assigned_staff_id
       WHERE c.id=:id LIMIT 1`, { id });
     if (!customer) return res.status(404).json({ ok: false, error: 'CUSTOMER_NOT_FOUND' });
-
     const accountNumber = customer.account_number || '';
     const [lines] = await pool.execute(`SELECT id, cell_number, package_name, handset, line_status, previous_upgrade_date, next_upgrade_date, monthly_invoice_amount FROM clients WHERE is_active=1 AND ((:accountNumber<>'' AND account_number=:accountNumber) OR id=:id) ORDER BY next_upgrade_date ASC, id ASC`, { accountNumber, id });
     const lineIds = lines.map(line => line.id);
@@ -110,5 +265,15 @@ app.get('/api/customers/:id', async (req, res) => {
   }
 });
 
-app.get('*', (req, res) => res.sendFile(path.join(publicDir, 'index.html')));
-app.listen(port, () => console.log(`Talk2Me OS2 running on port ${port}; database ${dbConfigured ? 'configured' : 'not configured'}`));
+app.get('/api/admin/session-check', requireRole('owner', 'manager'), (req, res) => {
+  res.json({ ok: true, role: req.user.role });
+});
+
+app.get('/', requireAuth, (req, res) => res.sendFile(path.join(publicDir, 'index.html')));
+app.get('*', (req, res) => req.user ? res.redirect('/') : res.redirect('/login'));
+
+setInterval(() => {
+  if (pool) pool.execute('DELETE FROM app_sessions WHERE expires_at<=NOW()').catch(error => console.error('Session cleanup failed', error.code || error.message));
+}, 60 * 60 * 1000).unref();
+
+app.listen(port, () => console.log(`Talk2Me OS2 running on port ${port}; authentication enabled; database ${dbConfigured ? 'configured' : 'not configured'}`));
