@@ -7,6 +7,10 @@
   const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({
     '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
   }[char]));
+  const normalise = value => String(value ?? '')
+    .toLowerCase()
+    .replace(/[\u0000-\u001f\u007f\u00a0\s]+/g, '')
+    .trim();
 
   let timer = null;
   let controller = null;
@@ -28,22 +32,38 @@
     showResults();
   }
 
+  async function fetchCustomers(value, signal) {
+    const response = await fetch(`/api/customers/search?q=${encodeURIComponent(value)}`, {
+      headers: { Accept:'application/json' },
+      signal
+    });
+    if (response.status === 401) {
+      window.location.replace('/login');
+      return null;
+    }
+    const data = await response.json();
+    if (!response.ok || !data.ok) throw new Error(data.error || 'SEARCH_FAILED');
+    return Array.isArray(data.customers) ? data.customers : [];
+  }
+
   async function runSearch(value, requestSequence) {
     if (controller) controller.abort();
     controller = new AbortController();
     try {
-      const response = await fetch(`/api/customers/search?q=${encodeURIComponent(value)}`, {
-        headers: { Accept:'application/json' },
-        signal: controller.signal
-      });
-      if (response.status === 401) {
-        window.location.replace('/login');
-        return;
+      let customers = await fetchCustomers(value, controller.signal);
+      if (!customers) return;
+
+      const normalisedValue = normalise(value);
+      const atIndex = normalisedValue.indexOf('@');
+      if (!customers.length && atIndex > 0 && normalisedValue.length > atIndex + 2) {
+        const broadEmailPrefix = normalisedValue.slice(0, atIndex + 2);
+        const broadCustomers = await fetchCustomers(broadEmailPrefix, controller.signal);
+        if (!broadCustomers) return;
+        customers = broadCustomers.filter(item => normalise(item.email).startsWith(normalisedValue));
       }
-      const data = await response.json();
-      if (requestSequence !== sequence || search.value.trim() !== value) return;
-      if (!response.ok || !data.ok) throw new Error(data.error || 'SEARCH_FAILED');
-      renderCustomers(Array.isArray(data.customers) ? data.customers : []);
+
+      if (requestSequence !== sequence || normalise(search.value) !== normalisedValue) return;
+      renderCustomers(customers);
     } catch (error) {
       if (error.name === 'AbortError') return;
       if (requestSequence !== sequence) return;
