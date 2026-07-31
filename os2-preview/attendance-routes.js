@@ -24,31 +24,59 @@ module.exports = function createAttendanceRouter({ pool, requireAuth, requestIp 
 
   router.get('/api/attendance', requireAuth, async (req, res) => {
     try {
-      const [[mine]] = await pool.execute(`SELECT id, staff_id, work_date, clock_in_at, clock_out_at, status,
-          TIMESTAMPDIFF(MINUTE, clock_in_at, COALESCE(clock_out_at, NOW())) minutes_today
+      const [[summary]] = await pool.execute(`SELECT
+          MIN(clock_in_at) first_clock_in_at,
+          SUM(TIMESTAMPDIFF(MINUTE, clock_in_at, COALESCE(clock_out_at, NOW()))) minutes_today,
+          COUNT(*) session_count,
+          SUM(CASE WHEN status='active' AND clock_out_at IS NULL THEN 1 ELSE 0 END) active_sessions
+        FROM attendance_sessions
+        WHERE staff_id=:staffId AND work_date=CURRENT_DATE()`, { staffId: req.user.id });
+
+      const [[activeSession]] = await pool.execute(`SELECT id, staff_id, work_date, clock_in_at, clock_out_at, status
+        FROM attendance_sessions
+        WHERE staff_id=:staffId AND work_date=CURRENT_DATE() AND status='active' AND clock_out_at IS NULL
+        ORDER BY id DESC LIMIT 1`, { staffId: req.user.id });
+
+      const [mySessions] = await pool.execute(`SELECT id, staff_id, work_date, clock_in_at, clock_out_at, status,
+          TIMESTAMPDIFF(MINUTE, clock_in_at, COALESCE(clock_out_at, NOW())) session_minutes
         FROM attendance_sessions
         WHERE staff_id=:staffId AND work_date=CURRENT_DATE()
-        ORDER BY id DESC LIMIT 1`, { staffId: req.user.id });
+        ORDER BY clock_in_at ASC, id ASC`, { staffId: req.user.id });
 
       let team = [];
       if (canManage(req.user)) {
         const [rows] = await pool.execute(`SELECT a.id, a.staff_id, s.full_name, s.role, a.work_date,
             a.clock_in_at, a.clock_out_at, a.status,
-            TIMESTAMPDIFF(MINUTE, a.clock_in_at, COALESCE(a.clock_out_at, NOW())) minutes_today,
-            CASE WHEN TIME(a.clock_in_at) > '08:15:00' THEN 1 ELSE 0 END late
+            TIMESTAMPDIFF(MINUTE, a.clock_in_at, COALESCE(a.clock_out_at, NOW())) session_minutes,
+            totals.minutes_today,
+            CASE WHEN TIME(a.clock_in_at) > '08:15:00' AND a.id=totals.first_session_id THEN 1 ELSE 0 END late
           FROM attendance_sessions a
           JOIN staff_users s ON s.id=a.staff_id
+          JOIN (
+            SELECT staff_id,
+              MIN(id) first_session_id,
+              SUM(TIMESTAMPDIFF(MINUTE, clock_in_at, COALESCE(clock_out_at, NOW()))) minutes_today
+            FROM attendance_sessions
+            WHERE work_date=CURRENT_DATE()
+            GROUP BY staff_id
+          ) totals ON totals.staff_id=a.staff_id
           WHERE a.work_date=CURRENT_DATE()
-          ORDER BY a.clock_in_at ASC, s.full_name ASC`);
+          ORDER BY s.full_name ASC, a.clock_in_at ASC, a.id ASC`);
         team = rows;
       }
 
       res.json({
         ok: true,
         canManage: canManage(req.user),
-        mine: mine || null,
+        mine: Number(summary?.session_count || 0) ? {
+          first_clock_in_at: summary.first_clock_in_at,
+          minutes_today: Number(summary.minutes_today || 0),
+          session_count: Number(summary.session_count || 0),
+          activeSession: activeSession || null,
+          sessions: mySessions
+        } : null,
         team,
-        clockedIn: Boolean(mine && mine.status === 'active' && !mine.clock_out_at)
+        clockedIn: Boolean(activeSession)
       });
     } catch (error) {
       console.error('Attendance query failed', error);
@@ -60,23 +88,24 @@ module.exports = function createAttendanceRouter({ pool, requireAuth, requestIp 
     const connection = await pool.getConnection();
     try {
       await connection.beginTransaction();
-      const [[existing]] = await connection.execute(`SELECT id, status, clock_out_at FROM attendance_sessions
-        WHERE staff_id=:staffId AND work_date=CURRENT_DATE() ORDER BY id DESC LIMIT 1 FOR UPDATE`, { staffId: req.user.id });
-      if (existing && existing.status === 'active' && !existing.clock_out_at) {
+      const [[active]] = await connection.execute(`SELECT id FROM attendance_sessions
+        WHERE staff_id=:staffId AND work_date=CURRENT_DATE() AND status='active' AND clock_out_at IS NULL
+        ORDER BY id DESC LIMIT 1 FOR UPDATE`, { staffId: req.user.id });
+      if (active) {
         await connection.rollback();
         return res.status(409).json({ ok: false, error: 'ALREADY_CLOCKED_IN' });
-      }
-      if (existing) {
-        await connection.rollback();
-        return res.status(409).json({ ok: false, error: 'ATTENDANCE_ALREADY_COMPLETED_TODAY' });
       }
 
       const [result] = await connection.execute(`INSERT INTO attendance_sessions
         (staff_id, work_date, clock_in_at, clock_out_at, status, created_at, updated_at)
         VALUES (:staffId, CURRENT_DATE(), NOW(), NULL, 'active', NOW(), NOW())`, { staffId: req.user.id });
-      await audit(connection, req, 'attendance_clock_in', result.insertId, `${req.user.full_name} clocked in`, null, { status: 'active' });
+      const [[countRow]] = await connection.execute(`SELECT COUNT(*) total FROM attendance_sessions WHERE staff_id=:staffId AND work_date=CURRENT_DATE()`, { staffId: req.user.id });
+      await audit(connection, req, 'attendance_clock_in', result.insertId, `${req.user.full_name} clocked in`, null, {
+        status: 'active',
+        session_number: Number(countRow.total || 1)
+      });
       await connection.commit();
-      res.status(201).json({ ok: true, attendanceId: Number(result.insertId) });
+      res.status(201).json({ ok: true, attendanceId: Number(result.insertId), sessionNumber: Number(countRow.total || 1) });
     } catch (error) {
       await connection.rollback();
       console.error('Clock in failed', error);
@@ -91,13 +120,17 @@ module.exports = function createAttendanceRouter({ pool, requireAuth, requestIp 
     try {
       await connection.beginTransaction();
       const [[session]] = await connection.execute(`SELECT id, clock_in_at, clock_out_at, status FROM attendance_sessions
-        WHERE staff_id=:staffId AND work_date=CURRENT_DATE() ORDER BY id DESC LIMIT 1 FOR UPDATE`, { staffId: req.user.id });
-      if (!session || session.status !== 'active' || session.clock_out_at) {
+        WHERE staff_id=:staffId AND work_date=CURRENT_DATE() AND status='active' AND clock_out_at IS NULL
+        ORDER BY id DESC LIMIT 1 FOR UPDATE`, { staffId: req.user.id });
+      if (!session) {
         await connection.rollback();
         return res.status(409).json({ ok: false, error: 'NOT_CLOCKED_IN' });
       }
       await connection.execute(`UPDATE attendance_sessions SET clock_out_at=NOW(), status='completed', updated_at=NOW() WHERE id=:id`, { id: session.id });
-      await audit(connection, req, 'attendance_clock_out', session.id, `${req.user.full_name} clocked out`, { status: session.status, clock_out_at: session.clock_out_at }, { status: 'completed' });
+      await audit(connection, req, 'attendance_clock_out', session.id, `${req.user.full_name} clocked out`, {
+        status: session.status,
+        clock_out_at: session.clock_out_at
+      }, { status: 'completed' });
       await connection.commit();
       res.json({ ok: true, attendanceId: Number(session.id) });
     } catch (error) {
@@ -117,6 +150,7 @@ module.exports = function createAttendanceRouter({ pool, requireAuth, requestIp 
     const note = String(req.body.note || '').trim().slice(0, 1000);
     if (!Number.isInteger(id) || id < 1) return res.status(400).json({ ok: false, error: 'INVALID_ATTENDANCE_ID' });
     if (!clockIn) return res.status(400).json({ ok: false, error: 'CLOCK_IN_REQUIRED' });
+    if (!note) return res.status(400).json({ ok: false, error: 'CORRECTION_REASON_REQUIRED' });
     const inDate = new Date(clockIn);
     const outDate = clockOut ? new Date(clockOut) : null;
     if (Number.isNaN(inDate.getTime()) || (outDate && Number.isNaN(outDate.getTime()))) return res.status(400).json({ ok: false, error: 'INVALID_ATTENDANCE_TIME' });
@@ -130,14 +164,23 @@ module.exports = function createAttendanceRouter({ pool, requireAuth, requestIp 
         await connection.rollback();
         return res.status(404).json({ ok: false, error: 'ATTENDANCE_NOT_FOUND' });
       }
+      if (!outDate) {
+        const [[otherActive]] = await connection.execute(`SELECT id FROM attendance_sessions
+          WHERE staff_id=:staffId AND work_date=DATE(:clockIn) AND status='active' AND clock_out_at IS NULL AND id<>:id
+          LIMIT 1 FOR UPDATE`, { staffId: before.staff_id, clockIn: inDate, id });
+        if (otherActive) {
+          await connection.rollback();
+          return res.status(409).json({ ok: false, error: 'STAFF_ALREADY_HAS_ACTIVE_SESSION' });
+        }
+      }
       const status = outDate ? 'completed' : 'active';
-      await connection.execute(`UPDATE attendance_sessions SET clock_in_at=:clockIn, clock_out_at=:clockOut, status=:status, updated_at=NOW() WHERE id=:id`, {
+      await connection.execute(`UPDATE attendance_sessions SET work_date=DATE(:clockIn), clock_in_at=:clockIn, clock_out_at=:clockOut, status=:status, updated_at=NOW() WHERE id=:id`, {
         id,
         clockIn: inDate,
         clockOut: outDate,
         status
       });
-      await audit(connection, req, 'attendance_corrected', id, `Attendance corrected${note ? `: ${note}` : ''}`, {
+      await audit(connection, req, 'attendance_corrected', id, `Attendance corrected: ${note}`, {
         clock_in_at: before.clock_in_at,
         clock_out_at: before.clock_out_at,
         status: before.status
@@ -147,7 +190,7 @@ module.exports = function createAttendanceRouter({ pool, requireAuth, requestIp 
     } catch (error) {
       await connection.rollback();
       console.error('Attendance correction failed', error);
-      res.status(500).json({ ok: false, error: error.code || 'ATTENDANCE_CORRECTION_FAILED' });
+      res.status(500).json({ ok: false, error: error.code || error.message || 'ATTENDANCE_CORRECTION_FAILED' });
     } finally {
       connection.release();
     }
