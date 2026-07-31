@@ -179,11 +179,16 @@ module.exports = function createAssignmentRouter({ pool, requireAuth, requestIp 
     const reason = String(req.body.reason || '').trim().slice(0,1000);
     if (!Number.isInteger(clientId) || clientId < 1) return res.status(400).json({ ok:false, error:'INVALID_CUSTOMER_ID' });
     const connection = await pool.getConnection();
+    let stage = 'CLAIM_BEGIN';
     try {
+      stage = 'CLAIM_TRANSACTION';
       await connection.beginTransaction();
+
+      stage = 'CLAIM_CUSTOMER_LOOKUP';
       const [[customer]] = await connection.execute('SELECT id, client_name, account_number FROM clients WHERE id=:clientId AND is_active=1 LIMIT 1', { clientId });
       if (!customer) { await connection.rollback(); return res.status(404).json({ ok:false, error:'CUSTOMER_NOT_FOUND' }); }
 
+      stage = 'CLAIM_DUPLICATE_CHECK';
       const [[pending]] = await connection.execute(`SELECT id FROM data_change_requests
         WHERE request_type='claim_account'
           AND status IN ('pending_manager','pending_owner')
@@ -195,6 +200,7 @@ module.exports = function createAssignmentRouter({ pool, requireAuth, requestIp 
         return res.status(409).json({ ok:false, error:'CLAIM_ALREADY_PENDING', requestId:Number(pending.id) });
       }
 
+      stage = 'CLAIM_SCHEMA';
       const sc = await schema();
       const claimReason = reason || `Claim requested for ${customer.client_name}`;
       const values = {
@@ -211,15 +217,22 @@ module.exports = function createAssignmentRouter({ pool, requireAuth, requestIp 
         created_at: new Date(),
         updated_at: new Date()
       };
+
+      stage = 'CLAIM_INSERT';
       const insert = buildInsert('data_change_requests', sc.requests, values);
       const [result] = await connection.execute(insert.sql, insert.params);
+
+      stage = 'CLAIM_AUDIT';
       await audit(connection, req, 'client_claim_requested', clientId, `Requested claim for ${customer.client_name}`, null, { request_id:result.insertId, requested_staff_id:req.user.id, reason:claimReason });
+
+      stage = 'CLAIM_COMMIT';
       await connection.commit();
       res.status(201).json({ ok:true, requestId:Number(result.insertId), customerId:clientId });
     } catch (error) {
       await connection.rollback();
-      console.error('Client claim failed', error);
-      res.status(500).json({ ok:false, error:error.code || error.message || 'CLIENT_CLAIM_FAILED' });
+      console.error('Client claim failed', { stage, code:error.code, message:error.message, sqlMessage:error.sqlMessage });
+      const databaseError = error.code || error.message || 'CLIENT_CLAIM_FAILED';
+      res.status(500).json({ ok:false, error:`${stage}:${databaseError}`, stage, databaseError });
     } finally { connection.release(); }
   });
 
