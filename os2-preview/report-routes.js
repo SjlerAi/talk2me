@@ -54,7 +54,19 @@ module.exports = function createReportRouter({ pool, requireAuth }) {
     }
     if (report === 'assignments') {
       const scope = canManage(user) ? { sql: '', params: {} } : { sql: ' AND COALESCE(a.assigned_staff_id,0)=:staffId', params: { staffId: user.id } };
-      const [rows] = await pool.execute(`SELECT c.client_name Customer,c.account_number Account,c.cell_number Cell,COALESCE(s.full_name,'Unassigned') Assigned_To,c.city_town Town,c.line_status Status FROM clients c LEFT JOIN client_assignments a ON a.is_active=1 AND (a.client_id=c.id OR (a.account_number<>'' AND a.account_number=c.account_number)) LEFT JOIN staff_users s ON s.id=a.assigned_staff_id WHERE c.is_active=1${scope.sql} ORDER BY Assigned_To,c.client_name LIMIT ${Number(limit)}`, scope.params);
+      const [rows] = await pool.execute(`SELECT
+        COALESCE(NULLIF(NULLIF(TRIM(c.client_name),''),'null'),'—') Customer,
+        COALESCE(NULLIF(NULLIF(TRIM(c.account_number),''),'null'),'—') Account,
+        COALESCE(NULLIF(NULLIF(TRIM(c.cell_number),''),'null'),'—') Cell,
+        COALESCE(NULLIF(NULLIF(TRIM(s.full_name),''),'null'),'Unassigned') Assigned_To,
+        COALESCE(NULLIF(NULLIF(TRIM(c.city_town),''),'null'),'—') Town,
+        COALESCE(NULLIF(NULLIF(TRIM(c.line_status),''),'null'),'—') Status
+        FROM clients c
+        LEFT JOIN client_assignments a ON a.is_active=1 AND (a.client_id=c.id OR (a.account_number<>'' AND a.account_number=c.account_number))
+        LEFT JOIN staff_users s ON s.id=a.assigned_staff_id
+        WHERE c.is_active=1${scope.sql}
+        ORDER BY Assigned_To,c.client_name
+        LIMIT ${Number(limit)}`, scope.params);
       return { columns: ['Customer','Account','Cell','Assigned To','Town','Status'], rows };
     }
     if (report === 'opportunities') {
