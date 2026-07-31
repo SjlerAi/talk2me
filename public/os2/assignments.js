@@ -1,5 +1,5 @@
 (() => {
-  const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
+  const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt',"'":'&#39;','"':'&quot;'}[char]));
   let activeCustomerId = null;
   let options = null;
 
@@ -108,7 +108,7 @@
     };
   }
 
-  for (const source of ['./approvals.js','./attendance.js','./opportunities.js']) {
+  for (const source of ['./approvals.js','./attendance.js','./opportunities.js','./reports.js']) {
     if (!document.querySelector(`script[src$="${source.slice(2)}"]`)) {
       const script = document.createElement('script');
       script.src = source;
