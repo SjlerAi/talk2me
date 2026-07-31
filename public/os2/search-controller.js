@@ -1,8 +1,11 @@
 (() => {
-  const search = document.getElementById('search');
+  const existingSearch = document.getElementById('search');
   const results = document.getElementById('results');
-  if (!search || !results || search.dataset.controllerInstalled === '1') return;
+  if (!existingSearch || !results || existingSearch.dataset.controllerInstalled === '1') return;
+
+  const search = existingSearch.cloneNode(true);
   search.dataset.controllerInstalled = '1';
+  existingSearch.replaceWith(search);
 
   const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({
     '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
@@ -82,8 +85,7 @@
     }
   }
 
-  search.addEventListener('input', event => {
-    event.stopImmediatePropagation();
+  search.addEventListener('input', () => {
     clearTimeout(timer);
     dismissed = false;
     sequence += 1;
@@ -100,7 +102,7 @@
     results.innerHTML = '<div class="result"><b>Searching…</b><span>Reading the OS2 test database</span></div>';
     showResults();
     timer = setTimeout(() => runSearch(value, requestSequence), 250);
-  }, true);
+  });
 
   search.addEventListener('focus', () => {
     dismissed = false;
