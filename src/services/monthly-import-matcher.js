@@ -206,7 +206,20 @@ function proposedPayload(row, result) {
   };
 }
 
-async function upsertResult(connection, row, result) {
+async function upsertResult(connection, row, result, { resetDecision = false } = {}) {
+  if (resetDecision) {
+    await connection.execute(`
+      UPDATE monthly_import_matches
+      SET review_status='pending',reviewed_by=NULL,reviewed_at=NULL,review_notes=NULL
+      WHERE import_row_id=:rowId
+    `, { rowId: row.id });
+    await connection.execute(`
+      UPDATE monthly_import_actions
+      SET approval_status='pending',approved_by=NULL,approved_at=NULL,
+        applied_status='not_applied',applied_by=NULL,applied_at=NULL,error_text=NULL
+      WHERE import_row_id=:rowId AND applied_status<>'applied'
+    `, { rowId: row.id });
+  }
   const [matchWrite] = await connection.execute(`
     INSERT INTO monthly_import_matches
       (import_row_id,classification,match_domain,confidence_score,proposed_client_id,proposed_account_id,
@@ -243,6 +256,14 @@ async function upsertResult(connection, row, result) {
     rowId: row.id, matchId, actionType: result.actionType, targetType: result.targetType,
     targetId: result.targetId || null, proposed: JSON.stringify(proposed)
   });
+  return matchId;
+}
+
+async function matchSingleRow(connection, row, { references = null, resetDecision = false } = {}) {
+  const source = references || await loadReferenceData(connection);
+  const result = row.import_type === 'fixed_base' ? fixedResult(row, source) : mobileResult(row, source);
+  const matchId = await upsertResult(connection, row, result, { resetDecision });
+  return { ...result, matchId };
 }
 
 async function runMatching({ batchId = null } = {}) {
@@ -270,8 +291,7 @@ async function runMatching({ batchId = null } = {}) {
     const references = await loadReferenceData(connection);
     const summary = { total: 0, exact_match: 0, possible_match: 0, new_record: 0, conflict: 0 };
     for (const row of rows) {
-      const result = row.import_type === 'fixed_base' ? fixedResult(row, references) : mobileResult(row, references);
-      await upsertResult(connection, row, result);
+      const result = await matchSingleRow(connection, row, { references });
       summary.total += 1;
       summary[result.classification] = (summary[result.classification] || 0) + 1;
     }
@@ -287,6 +307,9 @@ async function runMatching({ batchId = null } = {}) {
 
 module.exports = {
   runMatching,
+  loadReferenceData,
+  upsertResult,
+  matchSingleRow,
   normaliseAccount,
   normaliseIdentifier,
   normaliseMac,

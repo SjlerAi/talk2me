@@ -12,6 +12,12 @@ const {
   loadBulkPreview,
   finaliseBulkSafe
 } = require('../services/monthly-import-bulk-finaliser');
+const {
+  loadExceptionQueue,
+  correctExceptionRow,
+  linkExistingTarget,
+  decideException
+} = require('../services/monthly-import-exceptions');
 
 const router = express.Router();
 const allowedRoles = new Set(['owner', 'manager']);
@@ -34,6 +40,22 @@ function returnQuery(req) {
   const query = new URLSearchParams(String(req.body.return_query || ''));
   if (panelMode(req)) query.set('panel', '1');
   return query;
+}
+
+function operationContext(req) {
+  return {
+    userId: req.session.user.id,
+    ip: req.ip,
+    userAgent: req.headers['user-agent']
+  };
+}
+
+function exceptionRedirect(req, res, message, isError = false) {
+  const query = returnQuery(req);
+  query.delete('focus_row');
+  query.delete('live_search');
+  query.set(isError ? 'error' : 'notice', message);
+  return res.redirect(`${res.locals.basePath}/backoffice/monthly-import-management/exceptions?${query.toString()}`);
 }
 
 router.get('/backoffice/monthly-import-management', requireAuth, ownerManagerOnly, async (req, res, next) => {
@@ -63,6 +85,64 @@ router.get('/backoffice/monthly-import-management/bulk/preview',
         returnQuery: new URLSearchParams(req.query).toString()
       });
     } catch (error) { next(error); }
+  });
+
+router.get('/backoffice/monthly-import-management/exceptions',
+  requireAuth, ownerManagerOnly, async (req, res, next) => {
+    try {
+      const queue = await loadExceptionQueue(req.query, { panelMode: panelMode(req) });
+      res.render('monthly-import-exceptions', {
+        title: 'Resolve Monthly Import Exceptions',
+        ...queue,
+        returnQuery: new URLSearchParams(req.query).toString(),
+        notice: String(req.query.notice || '').slice(0, 500),
+        error: String(req.query.error || '').slice(0, 500)
+      });
+    } catch (error) { next(error); }
+  });
+
+router.post('/backoffice/monthly-import-management/exceptions/:rowId/correct',
+  requireAuth, ownerManagerOnly, async (req, res) => {
+    try {
+      const fields = {};
+      for (const key of ['customer_name', 'phone_original', 'account_number']) {
+        if (Object.prototype.hasOwnProperty.call(req.body, key)) fields[key] = req.body[key];
+      }
+      const safety = await correctExceptionRow(req.params.rowId, fields, operationContext(req));
+      return exceptionRedirect(req, res, safety.safe
+        ? 'Record corrected and rechecked. It is now safe and has returned to bulk approval.'
+        : `Record corrected and rechecked. It still needs attention: ${safety.reason}`);
+    } catch (error) {
+      return exceptionRedirect(req, res, error.message, true);
+    }
+  });
+
+router.post('/backoffice/monthly-import-management/exceptions/:rowId/link',
+  requireAuth, ownerManagerOnly, async (req, res) => {
+    try {
+      const safety = await linkExistingTarget(
+        req.params.rowId, req.body.target_type, req.body.target_id, operationContext(req)
+      );
+      return exceptionRedirect(req, res, safety.safe
+        ? 'Live record selected and rechecked. The imported record is now safe for bulk approval.'
+        : `Live record selected, but the imported record still needs attention: ${safety.reason}`);
+    } catch (error) {
+      return exceptionRedirect(req, res, error.message, true);
+    }
+  });
+
+router.post('/backoffice/monthly-import-management/exceptions/:rowId/decision',
+  requireAuth, ownerManagerOnly, async (req, res) => {
+    try {
+      const safety = await decideException(
+        req.params.rowId, req.body.decision, req.body.reason, operationContext(req)
+      );
+      return exceptionRedirect(req, res, safety.safe
+        ? 'Decision saved. This record is now safe for bulk approval.'
+        : `Decision saved. The record remains excluded: ${safety.reason}`);
+    } catch (error) {
+      return exceptionRedirect(req, res, error.message, true);
+    }
   });
 
 router.post('/backoffice/monthly-import-management/bulk/finalise',
@@ -97,16 +177,18 @@ router.post('/backoffice/monthly-import-management/actions/:id/retry',
     const query = returnQuery(req);
     try {
       const result = await retryMonthlyImportAction(req.params.id, {
-        userId: req.session.user.id,
-        ip: req.ip,
-        userAgent: req.headers['user-agent']
+        ...operationContext(req)
       });
       query.set('notice', `Action #${result.actionId} completed safely. Live ${result.targetType} #${result.targetId} is now linked.`);
     } catch (error) {
       query.set('error', error.message);
+    }
+    if (req.body.return_to === 'exceptions') {
+      return res.redirect(`${res.locals.basePath}/backoffice/monthly-import-management/exceptions?${query.toString()}`);
     }
     res.redirect(`${res.locals.basePath}/backoffice/monthly-import-management?${query.toString()}`);
   });
 
 module.exports = router;
 module.exports.ownerManagerOnly = ownerManagerOnly;
+module.exports.operationContext = operationContext;

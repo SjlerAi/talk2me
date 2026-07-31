@@ -104,7 +104,7 @@ const humanExceptions = bulkCounts.excluded - bulkCounts.completed;
         <div><dt>Already completed</dt><dd><%= bulkCounts.completed %></dd></div>
       </dl>
       <nav aria-label="Exception actions">
-        <a class="btn" href="<%= basePath %>/backoffice/monthly-import-management/bulk/preview?<%= bulkQuery %>#exceptions">Review <%= humanExceptions %> exceptions</a>
+        <a class="btn" href="<%= basePath %>/backoffice/monthly-import-management/exceptions?<%= bulkQuery %>">Review <%= humanExceptions %> exceptions</a>
       </nav>
     </article>
   </section>

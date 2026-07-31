@@ -101,7 +101,7 @@
       <a href="#upload"><span>1</span><strong>Upload Files</strong></a>
       <a href="#process"><span>2</span><strong>Process Monthly Import</strong></a>
       <a href="#exceptions"><span>3</span><strong>Review Exceptions</strong></a>
-      <a href="#finalise"><span>4</span><strong>Finalise Import</strong></a>
+      <a href="#finalise"><span>4</span><strong>Technical History</strong></a>
     </nav>
 
     <section id="upload" class="workflow-card">
@@ -197,9 +197,9 @@
     <section id="finalise" class="workflow-card finalise-card">
       <div class="step-number">4</div>
       <div class="workflow-content">
-        <span class="eyebrow">Finalise Import</span>
-        <h2>Review the live-write preview</h2>
-        <p>Finalisation runs in one database transaction. Every customer write and action transition is audited. If any action fails, all writes roll back and the import remains reviewable.</p>
+        <span class="eyebrow">Technical history</span>
+        <h2>Legacy finalisation is no longer used</h2>
+        <p>Only records classified as safe may be approved through Monthly Import Management. This page cannot apply imported records.</p>
         <div class="finalise-preview">
           <article><span>Matched mobile updates</span><strong><%= Number(workflow.mobileUpdates||0) %></strong><small>Trusted non-empty fields are preserved.</small></article>
           <article><span>Matched fixed updates</span><strong><%= Number(workflow.fixedUpdates||0) %></strong><small>Unique service identifiers are checked again.</small></article>
@@ -208,13 +208,11 @@
           <article><span>Excluded / deferred</span><strong><%= Number(workflow.excluded||0) %></strong><small>No live write.</small></article>
           <article><span>Already finalised</span><strong><%= Number(workflow.finalised||0) %></strong><small>Skipped on every repeat run.</small></article>
         </div>
-        <% if (Number(workflow.unresolved||0) > 0) { %>
-          <div class="phase-notice warning"><strong>Finalisation is blocked</strong><p>Resolve, reject, or defer <%= Number(workflow.unresolved) %> conflict/exception item(s) first.</p></div>
-        <% } %>
-        <form class="finalise-form" method="post" action="<%= basePath %>/backoffice/data-import/finalise<%= panelMode?'?panel=1':'' %>">
-          <label class="confirm-check"><input type="checkbox" name="confirm_finalise" value="yes" required> I reviewed this preview and confirm the Monthly Import finalisation.</label>
-          <button <%= !matchingSchemaReady||Number(workflow.unresolved||0)>0?'disabled':'' %>>Finalise Import</button>
-        </form>
+        <div class="phase-notice warning"><strong>Legacy finalisation is blocked</strong><p><%= Number(workflow.unresolved||0) %> outstanding exception(s) still need attention. Preview and finalise safe records through the protected bulk workflow.</p></div>
+        <nav class="finalise-form">
+          <a class="button-link" href="<%= basePath %>/backoffice/monthly-import-management<%= panelMode?'?panel=1':'' %>">Open Monthly Import Management</a>
+          <a class="button-link secondary" href="<%= basePath %>/backoffice/monthly-import-management/exceptions<%= panelMode?'?panel=1':'' %>">Resolve exceptions</a>
+        </nav>
       </div>
     </section>
 

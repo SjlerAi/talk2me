@@ -218,7 +218,7 @@ function decorate(row) {
     if (row.live_fixed_service_id) livePath += `#service-${Number(row.live_fixed_service_id)}`;
   }
   let requiredAction = '';
-  if (status.key === 'conflict') requiredAction = 'Open conflict review';
+  if (status.key === 'conflict') requiredAction = 'Resolve exception';
   else if (status.key === 'new_mobile_account') requiredAction = 'Open account-number approval';
   else if (status.key === 'failed') requiredAction = 'Retry through Monthly Import finalisation';
   else if (status.key === 'ready') requiredAction = 'Finalise Monthly Import';
