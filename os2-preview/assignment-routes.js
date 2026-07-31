@@ -27,6 +27,15 @@ module.exports = function createAssignmentRouter({ pool, requireAuth, requestIp 
     };
   }
 
+  function buildUpdate(table, available, values, id) {
+    const entries = Object.entries(values).filter(([key, value]) => available.has(key) && value !== undefined);
+    if (!entries.length) throw new Error(`NO_SUPPORTED_COLUMNS_${table}`);
+    return {
+      sql: `UPDATE ${table} SET ${entries.map(([key]) => `\`${key}\`=:${key}`).join(',')} WHERE id=:assignmentId`,
+      params: { ...Object.fromEntries(entries), assignmentId: id }
+    };
+  }
+
   async function audit(connection, req, actionType, entityId, description, beforeJson, afterJson) {
     await connection.execute(`INSERT INTO audit_log
       (staff_id, action_type, entity_type, entity_id, description, before_json, after_json, ip_address, user_agent, created_at)
@@ -90,8 +99,14 @@ module.exports = function createAssignmentRouter({ pool, requireAuth, requestIp 
       const [[customer]] = await connection.execute('SELECT id, client_name, account_number FROM clients WHERE id=:clientId AND is_active=1 LIMIT 1 FOR UPDATE', { clientId });
       const [[staff]] = await connection.execute('SELECT id, full_name FROM staff_users WHERE id=:staffId AND is_active=1 LIMIT 1', { staffId });
       if (!customer || !staff) { await connection.rollback(); return res.status(404).json({ ok:false, error:!customer?'CUSTOMER_NOT_FOUND':'STAFF_NOT_FOUND' }); }
-      const [[before]] = await connection.execute(`SELECT a.id, a.assigned_staff_id, s.full_name assigned_staff FROM client_assignments a LEFT JOIN staff_users s ON s.id=a.assigned_staff_id WHERE a.is_active=1 AND (a.client_id=:clientId OR (:accountNumber<>'' AND a.account_number=:accountNumber)) ORDER BY a.id DESC LIMIT 1`, { clientId, accountNumber:customer.account_number || '' });
-      await connection.execute(`UPDATE client_assignments SET is_active=0 WHERE is_active=1 AND (client_id=:clientId OR (:accountNumber<>'' AND account_number=:accountNumber))`, { clientId, accountNumber:customer.account_number || '' });
+
+      const [[existing]] = await connection.execute(`SELECT a.id, a.assigned_staff_id, a.is_active, s.full_name assigned_staff
+        FROM client_assignments a
+        LEFT JOIN staff_users s ON s.id=a.assigned_staff_id
+        WHERE a.client_id=:clientId OR (:accountNumber<>'' AND a.account_number=:accountNumber)
+        ORDER BY a.is_active DESC, a.id DESC
+        LIMIT 1 FOR UPDATE`, { clientId, accountNumber:customer.account_number || '' });
+
       const sc = await schema();
       const values = {
         client_id: clientId,
@@ -99,16 +114,37 @@ module.exports = function createAssignmentRouter({ pool, requireAuth, requestIp 
         assigned_staff_id: staffId,
         is_active: 1,
         assigned_by: req.user.id,
-        created_by: req.user.id,
-        created_at: new Date(),
         updated_at: new Date()
       };
-      const insert = buildInsert('client_assignments', sc.assignments, values);
-      const [result] = await connection.execute(insert.sql, insert.params);
+
+      let assignmentId;
+      if (existing) {
+        const update = buildUpdate('client_assignments', sc.assignments, values, existing.id);
+        await connection.execute(update.sql, update.params);
+        assignmentId = Number(existing.id);
+      } else {
+        const insertValues = {
+          ...values,
+          created_by: req.user.id,
+          created_at: new Date()
+        };
+        const insert = buildInsert('client_assignments', sc.assignments, insertValues);
+        const [result] = await connection.execute(insert.sql, insert.params);
+        assignmentId = Number(result.insertId);
+      }
+
+      await connection.execute(`UPDATE client_assignments SET is_active=0
+        WHERE id<>:assignmentId AND is_active=1
+          AND (client_id=:clientId OR (:accountNumber<>'' AND account_number=:accountNumber))`, {
+        assignmentId,
+        clientId,
+        accountNumber: customer.account_number || ''
+      });
+
       await connection.execute('UPDATE inquiries SET assigned_staff_id=:staffId, updated_at=NOW() WHERE client_id=:clientId AND status IN (\'open\',\'follow_up\',\'waiting_customer\',\'waiting_network\',\'waiting_supplier\')', { staffId, clientId });
-      await audit(connection, req, 'client_assigned', clientId, `Assigned ${customer.client_name} to ${staff.full_name}`, before || null, { assignment_id:result.insertId, assigned_staff_id:staffId, assigned_staff:staff.full_name });
+      await audit(connection, req, 'client_assigned', clientId, `Assigned ${customer.client_name} to ${staff.full_name}`, existing || null, { assignment_id:assignmentId, assigned_staff_id:staffId, assigned_staff:staff.full_name });
       await connection.commit();
-      res.json({ ok:true, assignmentId:Number(result.insertId), customerId:clientId, staffId, staffName:staff.full_name });
+      res.json({ ok:true, assignmentId, customerId:clientId, staffId, staffName:staff.full_name });
     } catch (error) {
       await connection.rollback();
       console.error('Client assignment failed', error);
