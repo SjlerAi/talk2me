@@ -1,4 +1,5 @@
 const express = require('express');
+const createNotificationRouter = require('./notification-routes');
 
 module.exports = function createApprovalRouter({ pool, requireAuth, requestIp }) {
   const router = express.Router();
@@ -177,5 +178,6 @@ module.exports = function createApprovalRouter({ pool, requireAuth, requestIp })
     } finally { connection.release(); }
   });
 
+  router.use(createNotificationRouter({ pool, requireAuth, requestIp }));
   return router;
 };
