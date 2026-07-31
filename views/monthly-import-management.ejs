@@ -44,6 +44,9 @@ const needsFor = row => {
   return 'No action needed';
 };
 const accountFor = row => row.live_account_number || row.live_fixed_account_number || row.imported_account_number || '';
+const bulkQuery = makeQuery({}, ['page','page_size']);
+const bulkCounts = bulkPreview.counts;
+const humanExceptions = bulkCounts.excluded - bulkCounts.completed;
 %>
 <main class="mim-shell">
   <header class="mim-hero">
@@ -67,6 +70,27 @@ const accountFor = row => row.live_account_number || row.live_fixed_account_numb
 
   <section class="mim-summary" aria-label="Import summary">
     <% statusCards.forEach(card => { %><a class="mim-summary-card <%= card[2] %>" href="<%= ['total','excluded','completed','new_mobile'].includes(card[2])?'#results':basePath+'/backoffice/monthly-import-management?'+makeQuery({business_status:card[2],page:1}) %>"><span><%= card[0] %></span><strong><%= Number(card[1]||0) %></strong></a><% }) %>
+  </section>
+
+  <section class="panel mim-bulk-workflow">
+    <header><div><span class="eyebrow">Bulk processing</span><h2>Safe records and exceptions</h2><p>Process routine rows together. Conflicts, incomplete records, approvals and failures stay in the review queue.</p></div><strong><%= bulkCounts.safe %> safe</strong></header>
+    <div class="mim-bulk-counts">
+      <span><b><%= bulkCounts.safe %></b> Safe to process</span>
+      <span><b><%= bulkCounts.existingMobile %></b> Existing customers to update</span>
+      <span><b><%= bulkCounts.newMobile %></b> New customers to create</span>
+      <span><b><%= bulkCounts.fixed %></b> Fixed records</span>
+      <span><b><%= humanExceptions %></b> Exceptions</span>
+      <span><b><%= bulkCounts.conflicts %></b> Conflicts</span>
+      <span><b><%= bulkCounts.missingInformation %></b> Missing information</span>
+      <span><b><%= bulkCounts.fixedApprovals %></b> Fixed approvals</span>
+      <span><b><%= bulkCounts.failed %></b> Failed</span>
+      <span><b><%= bulkCounts.completed %></b> Already completed</span>
+    </div>
+    <nav>
+      <a class="btn" href="<%= basePath %>/backoffice/monthly-import-management/bulk/preview?<%= bulkQuery %>#safe">Preview safe records</a>
+      <a class="btn primary" href="<%= basePath %>/backoffice/monthly-import-management/bulk/preview?<%= bulkQuery %>#confirm">Approve and finalise safe records</a>
+      <a class="btn" href="<%= basePath %>/backoffice/monthly-import-management/bulk/preview?<%= bulkQuery %>#exceptions">Review exceptions</a>
+    </nav>
   </section>
 
   <section class="panel mim-filters">

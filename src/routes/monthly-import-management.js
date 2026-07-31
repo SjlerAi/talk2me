@@ -8,6 +8,10 @@ const {
   toCsv
 } = require('../services/monthly-import-management');
 const { retryMonthlyImportAction } = require('../services/monthly-import-finaliser');
+const {
+  loadBulkPreview,
+  finaliseBulkSafe
+} = require('../services/monthly-import-bulk-finaliser');
 
 const router = express.Router();
 const allowedRoles = new Set(['owner', 'manager']);
@@ -34,16 +38,50 @@ function returnQuery(req) {
 
 router.get('/backoffice/monthly-import-management', requireAuth, ownerManagerOnly, async (req, res, next) => {
   try {
-    const management = await loadManagement(req.query, { panelMode: panelMode(req) });
+    const [management, bulkPreview] = await Promise.all([
+      loadManagement(req.query, { panelMode: panelMode(req) }),
+      loadBulkPreview(req.query)
+    ]);
     res.render('monthly-import-management', {
       title: 'Monthly Import Management',
       ...management,
+      bulkPreview,
       statusRules: STATUS_RULES,
       notice: String(req.query.notice || '').slice(0, 500),
       error: String(req.query.error || '').slice(0, 500)
     });
   } catch (error) { next(error); }
 });
+
+router.get('/backoffice/monthly-import-management/bulk/preview',
+  requireAuth, ownerManagerOnly, async (req, res, next) => {
+    try {
+      const preview = await loadBulkPreview(req.query);
+      res.render('monthly-import-bulk-preview', {
+        title: 'Preview Safe Monthly Import Records',
+        preview,
+        returnQuery: new URLSearchParams(req.query).toString()
+      });
+    } catch (error) { next(error); }
+  });
+
+router.post('/backoffice/monthly-import-management/bulk/finalise',
+  requireAuth, ownerManagerOnly, async (req, res, next) => {
+    try {
+      if (String(req.body.confirm_bulk || '') !== 'yes') throw new Error('Confirm the bulk-safe finalisation before continuing.');
+      const scope = Object.fromEntries(new URLSearchParams(String(req.body.return_query || '')));
+      const result = await finaliseBulkSafe(scope, {
+        userId: req.session.user.id,
+        ip: req.ip,
+        userAgent: req.headers['user-agent']
+      });
+      res.render('monthly-import-bulk-results', {
+        title: 'Bulk Monthly Import Results',
+        result,
+        returnQuery: new URLSearchParams(scope).toString()
+      });
+    } catch (error) { next(error); }
+  });
 
 router.get('/backoffice/monthly-import-management.csv', requireAuth, ownerManagerOnly, async (req, res, next) => {
   try {
