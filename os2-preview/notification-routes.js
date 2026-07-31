@@ -24,6 +24,11 @@ module.exports = function createNotificationRouter({ pool, requireAuth, requestI
     };
   }
 
+  function unreadSql(statusColumn) {
+    if (!statusColumn) return '1=1';
+    return `LOWER(COALESCE(\`${statusColumn}\`,'unread')) NOT IN ('seen','read','completed','done','archived')`;
+  }
+
   async function audit(connection, req, actionType, entityId, description, afterJson) {
     await connection.execute(`INSERT INTO audit_log
       (staff_id,action_type,entity_type,entity_id,description,before_json,after_json,ip_address,user_agent,created_at)
@@ -41,7 +46,8 @@ module.exports = function createNotificationRouter({ pool, requireAuth, requestI
   router.get('/api/notifications', requireAuth, async (req, res) => {
     try {
       const columns = await taskColumns();
-      if (!columns.size) return res.json({ ok:true, unread:0, items:[], canBroadcast:['owner','manager'].includes(req.user.role) });
+      const canBroadcast = ['owner','manager'].includes(req.user.role);
+      if (!columns.size) return res.json({ ok:true, unread:0, items:[], canBroadcast, recipients:[] });
       const recipient = firstSupported(columns, ['assigned_staff_id','assigned_to','recipient_staff_id','staff_id','user_id']);
       const title = firstSupported(columns, ['title','task_title','subject','name']);
       const message = firstSupported(columns, ['message','description','task_description','details','body']);
@@ -49,7 +55,7 @@ module.exports = function createNotificationRouter({ pool, requireAuth, requestI
       const created = firstSupported(columns, ['created_at','created_on','created_date']);
       const client = firstSupported(columns, ['client_id','customer_id','entity_id']);
       const inquiry = firstSupported(columns, ['inquiry_id','related_inquiry_id']);
-      if (!recipient) return res.json({ ok:true, unread:0, items:[], canBroadcast:['owner','manager'].includes(req.user.role) });
+      if (!recipient) return res.json({ ok:true, unread:0, items:[], canBroadcast, recipients:[] });
 
       const select = [
         'id',
@@ -60,9 +66,15 @@ module.exports = function createNotificationRouter({ pool, requireAuth, requestI
         client ? `\`${client}\` client_id` : 'NULL client_id',
         inquiry ? `\`${inquiry}\` inquiry_id` : 'NULL inquiry_id'
       ].join(',');
-      const [items] = await pool.execute(`SELECT ${select} FROM staff_tasks WHERE \`${recipient}\`=:staffId ORDER BY ${created ? `\`${created}\`` : 'id'} DESC LIMIT 50`, { staffId:req.user.id });
-      const unread = items.filter(item => !['seen','read','completed','done','archived'].includes(String(item.status || '').toLowerCase())).length;
-      res.json({ ok:true, unread, items, canBroadcast:['owner','manager'].includes(req.user.role) });
+
+      const [items] = await pool.execute(`SELECT ${select} FROM staff_tasks WHERE \`${recipient}\`=:staffId ORDER BY ${created ? `\`${created}\`` : 'id'} DESC LIMIT 100`, { staffId:req.user.id });
+      const [[unreadRow]] = await pool.execute(`SELECT COUNT(*) unread FROM staff_tasks WHERE \`${recipient}\`=:staffId AND ${unreadSql(status)}`, { staffId:req.user.id });
+      let recipients = [];
+      if (canBroadcast) {
+        const [staff] = await pool.execute('SELECT id, full_name, role FROM staff_users WHERE is_active=1 ORDER BY full_name');
+        recipients = staff;
+      }
+      res.json({ ok:true, unread:Number(unreadRow.unread || 0), items, canBroadcast, recipients });
     } catch (error) {
       console.error('Notification query failed', error);
       res.status(500).json({ ok:false, error:error.code || error.message || 'NOTIFICATION_QUERY_FAILED' });
@@ -82,11 +94,12 @@ module.exports = function createNotificationRouter({ pool, requireAuth, requestI
       await connection.beginTransaction();
       const updates = [`\`${status}\`='seen'`];
       if (readAt) updates.push(`\`${readAt}\`=NOW()`);
+      if (columns.has('updated_at')) updates.push('`updated_at`=NOW()');
       const [result] = await connection.execute(`UPDATE staff_tasks SET ${updates.join(',')} WHERE id=:id AND \`${recipient}\`=:staffId`, { id, staffId:req.user.id });
       if (!result.affectedRows) { await connection.rollback(); return res.status(404).json({ ok:false, error:'NOTIFICATION_NOT_FOUND' }); }
-      await audit(connection, req, 'notification_read', id, `Notification ${id} marked as read`, { notification_id:id });
+      await audit(connection, req, 'notification_read', id, `Notification ${id} marked as read`, { notification_id:id, status:'seen' });
       await connection.commit();
-      res.json({ ok:true, id });
+      res.json({ ok:true, id, status:'seen' });
     } catch (error) {
       await connection.rollback();
       console.error('Notification read failed', error);
@@ -98,13 +111,22 @@ module.exports = function createNotificationRouter({ pool, requireAuth, requestI
     if (!['owner','manager'].includes(req.user.role)) return res.status(403).json({ ok:false, error:'INSUFFICIENT_PERMISSION' });
     const titleText = String(req.body.title || '').trim().slice(0,160);
     const messageText = String(req.body.message || '').trim().slice(0,3000);
+    const target = String(req.body.target || 'team').trim();
+    const staffId = Number(req.body.staffId || 0);
     if (!titleText || !messageText) return res.status(400).json({ ok:false, error:'TITLE_AND_MESSAGE_REQUIRED' });
+    if (!['team','staff'].includes(target)) return res.status(400).json({ ok:false, error:'INVALID_MESSAGE_TARGET' });
+    if (target === 'staff' && (!Number.isInteger(staffId) || staffId < 1)) return res.status(400).json({ ok:false, error:'SELECT_STAFF_MEMBER' });
+
     const connection = await pool.getConnection();
     try {
       const columns = await taskColumns();
       const recipient = firstSupported(columns, ['assigned_staff_id','assigned_to','recipient_staff_id','staff_id','user_id']);
       if (!recipient) return res.status(409).json({ ok:false, error:'TASK_RECIPIENT_COLUMN_NOT_FOUND' });
-      const [staff] = await connection.execute('SELECT id FROM staff_users WHERE is_active=1');
+      const [staff] = target === 'team'
+        ? await connection.execute('SELECT id, full_name FROM staff_users WHERE is_active=1 ORDER BY full_name')
+        : await connection.execute('SELECT id, full_name FROM staff_users WHERE id=:staffId AND is_active=1 LIMIT 1', { staffId });
+      if (!staff.length) return res.status(404).json({ ok:false, error:'STAFF_NOT_FOUND' });
+
       await connection.beginTransaction();
       let createdCount = 0;
       for (const person of staff) {
@@ -122,7 +144,7 @@ module.exports = function createNotificationRouter({ pool, requireAuth, requestI
           status: 'unread',
           task_status: 'unread',
           priority: 'normal',
-          task_type: 'broadcast',
+          task_type: target === 'team' ? 'broadcast' : 'direct_message',
           created_by: req.user.id,
           created_by_staff_id: req.user.id,
           sender_staff_id: req.user.id,
@@ -133,13 +155,16 @@ module.exports = function createNotificationRouter({ pool, requireAuth, requestI
         await connection.execute(insert.sql, insert.params);
         createdCount += 1;
       }
-      await audit(connection, req, 'notification_broadcast', req.user.id, `Broadcast sent to ${createdCount} staff members`, { title:titleText, recipients:createdCount });
+      const description = target === 'team'
+        ? `Broadcast sent to ${createdCount} staff members`
+        : `Direct message sent to ${staff[0].full_name}`;
+      await audit(connection, req, target === 'team' ? 'notification_broadcast' : 'notification_direct_message', req.user.id, description, { title:titleText, target, staff_id:target === 'staff' ? staffId : null, recipients:createdCount });
       await connection.commit();
-      res.status(201).json({ ok:true, recipients:createdCount });
+      res.status(201).json({ ok:true, recipients:createdCount, target, recipientName:target === 'staff' ? staff[0].full_name : null });
     } catch (error) {
       await connection.rollback();
-      console.error('Notification broadcast failed', error);
-      res.status(500).json({ ok:false, error:error.code || error.message || 'NOTIFICATION_BROADCAST_FAILED' });
+      console.error('Notification send failed', error);
+      res.status(500).json({ ok:false, error:error.code || error.message || 'NOTIFICATION_SEND_FAILED' });
     } finally { connection.release(); }
   });
 
