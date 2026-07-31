@@ -222,6 +222,45 @@ const mockConnection = {
   }
   assert(rendered.includes('/backoffice/monthly-import-management.csv?panel=1'),
     'CSV export URL and panel state must remain available');
+  const bulkSummary = rendered.match(/<section class="mim-bulk-workflow"[\s\S]*?<\/section>/);
+  assert(bulkSummary, 'Structured bulk processing summary must render');
+  assert.strictEqual((bulkSummary[0].match(/class="panel mim-bulk-section/g) || []).length, 2,
+    'Safe records and exceptions must render as separate structured sections');
+  assert.strictEqual((bulkSummary[0].match(/class="mim-bulk-breakdown"/g) || []).length, 2,
+    'Safe records and exceptions must each render a structured breakdown');
+  assert(!bulkSummary[0].includes('mim-bulk-counts'),
+    'The former dense inline bulk count sentence must not render');
+  const bulkSummaryText = bulkSummary[0].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  for (const wording of [
+    '2 safe to process',
+    'These records can be approved together',
+    'Preview 2 safe records',
+    'Approve and finalise 2 safe records',
+    '3 exceptions',
+    'These records need individual attention',
+    'Review 3 exceptions'
+  ]) {
+    assert(bulkSummaryText.includes(wording), `Bulk summary wording or dynamic count missing: ${wording}`);
+  }
+  for (const actionPath of [
+    '/backoffice/monthly-import-management/bulk/preview?panel=1#safe',
+    '/backoffice/monthly-import-management/bulk/preview?panel=1#confirm',
+    '/backoffice/monthly-import-management/bulk/preview?panel=1#exceptions'
+  ]) {
+    assert(bulkSummary[0].includes(actionPath),
+      `Bulk action URL changed or panel=1 was not preserved: ${actionPath}`);
+  }
+  assert(!/overflow-x\s*:\s*(auto|scroll)/i.test(css),
+    'Bulk summary must not introduce horizontal scrolling');
+  for (const responsiveRule of [
+    '.mim-bulk-workflow{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))',
+    '@media(max-width:850px){.mim-bulk-workflow,.mim-bulk-confirm{grid-template-columns:1fr}',
+    '.mim-bulk-section .btn{display:block;width:100%;min-width:0;white-space:normal',
+    '.mim-bulk-breakdown dt{min-width:0'
+  ]) {
+    assert(css.includes(responsiveRule),
+      `Bulk summary overflow protection is missing: ${responsiveRule}`);
+  }
 
   const finaliser = fs.readFileSync(finaliserPath, 'utf8');
   for (const guard of ['beginTransaction()', 'FOR UPDATE', "applied_status === 'applied'",
