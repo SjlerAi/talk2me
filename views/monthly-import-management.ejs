@@ -12,79 +12,124 @@ const makeQuery = (changes = {}, exclude = []) => {
 const preservedQuery = makeQuery();
 const batch = filters.batch ? batches.find(item => Number(item.id) === Number(filters.batch)) : null;
 const statusCards = [
-  ['Total imported', summary.total, 'total'],
-  ['Existing customers updated', summary.mobile_updated, 'mobile_updated'],
-  ['New customers created', summary.new_customers_created_total, 'new_mobile'],
-  ['New customers needing an account number', summary.new_mobile_account, 'new_mobile_account'],
-  ['Fixed accounts/services created', summary.fixed_created, 'fixed_created'],
-  ['Fixed accounts/services updated', summary.fixed_updated, 'fixed_updated'],
-  ['Needs conflict review', summary.conflict, 'conflict'],
-  ['Ready to finalise', summary.ready, 'ready'],
-  ['Rejected/deferred', Number(summary.rejected||0)+Number(summary.deferred||0), 'excluded'],
+  ['Imported', summary.total, 'total'],
+  ['Customers updated', summary.mobile_updated, 'mobile_updated'],
+  ['New customers', summary.new_customers_created_total, 'new_mobile'],
+  ['Need account number', summary.new_mobile_account, 'new_mobile_account'],
+  ['Fixed created', summary.fixed_created, 'fixed_created'],
+  ['Fixed updated', summary.fixed_updated, 'fixed_updated'],
+  ['Conflicts', summary.conflict, 'conflict'],
+  ['Ready', summary.ready, 'ready'],
+  ['Rejected / deferred', Number(summary.rejected||0)+Number(summary.deferred||0), 'excluded'],
   ['Failed', summary.failed, 'failed'],
   ['Completed', summary.completed_total, 'completed']
 ];
+const supplierName = value => ({ B12:'B12', SIEBEL:'Siebel', FIXED_BASE:'Fixed Base' }[value] || value || 'Unknown');
+const importName = value => ({ activation:'Activation', upgrade:'Upgrade', fixed_base:'Fixed' }[value] || 'Import');
+const resultFor = row => ({
+  mobile_updated: 'Existing customer updated',
+  new_mobile: 'New customer',
+  new_mobile_account: 'Needs account number',
+  conflict: 'Conflict',
+  fixed_created: 'Fixed account created',
+  fixed_updated: 'Fixed account updated',
+  failed: 'Failed'
+}[row.status_key] || 'Waiting');
+const needsFor = row => {
+  if (row.status_key === 'new_mobile_account') return 'Approve account number';
+  if (row.status_key === 'conflict') return 'Review conflict';
+  if (row.status_key === 'failed') return 'Retry';
+  if (row.status_key === 'ready') return 'Finalise';
+  if (row.action_type === 'create_fixed_account_and_service' && row.approval_status === 'pending' && row.applied_status === 'not_applied') return 'Approve fixed creation';
+  return 'No action needed';
+};
+const accountFor = row => row.live_account_number || row.live_fixed_account_number || row.imported_account_number || '';
 %>
 <main class="mim-shell">
   <header class="mim-hero">
-    <div><span class="eyebrow">Owner operations</span><h1>Monthly Import Management</h1><p>Operational status for each imported row, based on its current match, action and live CRM record.</p></div>
+    <div><span class="eyebrow">Owner operations</span><h1>Monthly Import Management</h1><p>See each imported customer, the result, and the next management step.</p></div>
     <nav>
       <a class="btn" href="<%= basePath %>/backoffice<%= panelMode?'?panel=1':'' %>">Back to Administration</a>
       <a class="btn" href="<%= basePath %>/backoffice/data-import<%= panelMode?'?panel=1':'' %>">Open Monthly Import</a>
-      <a class="btn primary" href="<%= basePath %>/backoffice/monthly-import-management.csv?<%= makeQuery({}, ['page','page_size']) %>">Export filtered CSV</a>
+      <a class="btn primary" href="<%= basePath %>/backoffice/monthly-import-management.csv?<%= makeQuery({}, ['page','page_size']) %>">Export CSV</a>
     </nav>
   </header>
+
   <% if(notice){ %><div class="notice success"><%= notice %></div><% } %>
   <% if(error){ %><div class="notice error"><%= error %></div><% } %>
-  <% if(batch){ %><section class="mim-batch panel"><div><span class="eyebrow">Batch #<%= batch.id %></span><h2><%= batch.original_filename %></h2><p><%= new Date(batch.created_at).toLocaleString('en-ZA') %> · <%= batch.status %></p></div><div class="mim-batch-totals"><span><b><%= batch.total_rows %></b> read</span><span><b><%= batch.valid_rows %></b> valid</span><span><b><%= batch.duplicate_rows %></b> duplicate</span><span><b><%= batch.exception_rows %></b> exception</span><span><b><%= summary.completed_total %></b> completed</span><span><b><%= summary.total-summary.completed_total %></b> outstanding</span></div></section><% } %>
-  <section class="mim-summary" aria-label="Import summary"><% statusCards.forEach(card => { %><a class="mim-summary-card <%= card[2] %>" href="<%= ['total','excluded','completed','new_mobile'].includes(card[2])?'#results':basePath+'/backoffice/monthly-import-management?'+makeQuery({business_status:card[2],page:1}) %>"><span><%= card[0] %></span><strong><%= Number(card[1]||0) %></strong></a><% }) %></section>
-  <details class="panel mim-filters" open>
-    <summary><strong>Filters</strong><span><%= pagination.total %> matching row(s)</span></summary>
-    <form method="get" action="<%= basePath %>/backoffice/monthly-import-management">
+
+  <% if(batch){ %>
+    <section class="mim-batch panel">
+      <div><span class="eyebrow">Batch #<%= batch.id %></span><h2><%= batch.original_filename %></h2><p><%= new Date(batch.created_at).toLocaleString('en-ZA') %> · <%= batch.status %></p></div>
+      <div class="mim-batch-totals"><span><b><%= batch.total_rows %></b> read</span><span><b><%= batch.valid_rows %></b> valid</span><span><b><%= summary.completed_total %></b> completed</span><span><b><%= summary.total-summary.completed_total %></b> outstanding</span></div>
+    </section>
+  <% } %>
+
+  <section class="mim-summary" aria-label="Import summary">
+    <% statusCards.forEach(card => { %><a class="mim-summary-card <%= card[2] %>" href="<%= ['total','excluded','completed','new_mobile'].includes(card[2])?'#results':basePath+'/backoffice/monthly-import-management?'+makeQuery({business_status:card[2],page:1}) %>"><span><%= card[0] %></span><strong><%= Number(card[1]||0) %></strong></a><% }) %>
+  </section>
+
+  <section class="panel mim-filters">
+    <form class="mim-primary-filters" method="get" action="<%= basePath %>/backoffice/monthly-import-management">
       <% if(panelMode){ %><input type="hidden" name="panel" value="1"><% } %>
       <label>Batch<select name="batch"><option value="">All batches</option><% batches.forEach(item=>{ %><option value="<%= item.id %>" <%= Number(filters.batch)===Number(item.id)?'selected':'' %>>#<%= item.id %> — <%= item.original_filename %></option><% }) %></select></label>
-      <label>Uploaded from<input type="date" name="date_from" value="<%= filters.date_from %>"></label><label>Uploaded to<input type="date" name="date_to" value="<%= filters.date_to %>"></label>
-      <label>Source filename<input name="filename" value="<%= filters.filename %>"></label><label>Customer / business<input name="customer_name" value="<%= filters.customer_name %>"></label>
-      <label>Original mobile<input name="phone" value="<%= filters.phone %>"></label><label>Canonical mobile<input name="canonical_phone" value="<%= filters.canonical_phone %>"></label><label>Account / B / VB / I<input name="account_number" value="<%= filters.account_number %>"></label>
-      <label>Mobile / fixed<select name="domain"><option value="">All</option><option value="mobile" <%= filters.domain==='mobile'?'selected':'' %>>Mobile</option><option value="fixed" <%= filters.domain==='fixed'?'selected':'' %>>Fixed</option></select></label>
-      <label>Activation / upgrade<select name="import_type"><option value="">All</option><option value="activation" <%= filters.import_type==='activation'?'selected':'' %>>Activation</option><option value="upgrade" <%= filters.import_type==='upgrade'?'selected':'' %>>Upgrade</option><option value="fixed_base" <%= filters.import_type==='fixed_base'?'selected':'' %>>Fixed base</option></select></label>
-      <label>Source system<select name="source_system"><option value="">All</option><% ['B12','SIEBEL','FIXED_BASE'].forEach(value=>{ %><option value="<%= value %>" <%= filters.source_system===value?'selected':'' %>><%= value %></option><% }) %></select></label>
-      <label>Match classification<select name="classification"><option value="">All</option><% ['exact_match','possible_match','new_record','conflict','already_applied','ignored'].forEach(value=>{ %><option value="<%= value %>" <%= filters.classification===value?'selected':'' %>><%= value.replaceAll('_',' ') %></option><% }) %></select></label>
-      <label>Business status<select name="business_status"><option value="">All</option><% statusRules.forEach(rule=>{ %><option value="<%= rule.key %>" <%= filters.business_status===rule.key?'selected':'' %>><%= rule.label %></option><% }) %></select></label>
-      <label>Review status<select name="review_status"><option value="">All</option><% ['pending','approved','rejected','deferred'].forEach(value=>{ %><option value="<%= value %>" <%= filters.review_status===value?'selected':'' %>><%= value %></option><% }) %></select></label>
-      <label>Approval status<select name="approval_status"><option value="">All</option><% ['pending','approved','rejected','deferred'].forEach(value=>{ %><option value="<%= value %>" <%= filters.approval_status===value?'selected':'' %>><%= value %></option><% }) %></select></label>
-      <label>Applied status<select name="applied_status"><option value="">All</option><% ['not_applied','applied','failed'].forEach(value=>{ %><option value="<%= value %>" <%= filters.applied_status===value?'selected':'' %>><%= value.replaceAll('_',' ') %></option><% }) %></select></label>
-      <label>Completed / outstanding<select name="completion"><option value="">All</option><option value="completed" <%= filters.completion==='completed'?'selected':'' %>>Completed</option><option value="outstanding" <%= filters.completion==='outstanding'?'selected':'' %>>Outstanding</option></select></label>
-      <label>Rows per page<select name="page_size"><% [25,50,100].forEach(value=>{ %><option value="<%= value %>" <%= filters.page_size===value?'selected':'' %>><%= value %></option><% }) %></select></label>
+      <fieldset><legend>Search name / phone / account</legend><input aria-label="Customer or business name" name="customer_name" value="<%= filters.customer_name %>" placeholder="Name"><input aria-label="Phone number" name="phone" value="<%= filters.phone %>" placeholder="Phone"><input aria-label="Account number" name="account_number" value="<%= filters.account_number %>" placeholder="B / VB / I number"></fieldset>
+      <fieldset><legend>Supplier</legend><select aria-label="Supplier" name="source_system"><option value="">All suppliers</option><% ['B12','SIEBEL','FIXED_BASE'].forEach(value=>{ %><option value="<%= value %>" <%= filters.source_system===value?'selected':'' %>><%= supplierName(value) %></option><% }) %></select><select aria-label="Import type" name="import_type"><option value="">All import types</option><option value="activation" <%= filters.import_type==='activation'?'selected':'' %>>Activation</option><option value="upgrade" <%= filters.import_type==='upgrade'?'selected':'' %>>Upgrade</option><option value="fixed_base" <%= filters.import_type==='fixed_base'?'selected':'' %>>Fixed</option></select></fieldset>
+      <label>Status<select name="business_status"><option value="">All statuses</option><% statusRules.forEach(rule=>{ %><option value="<%= rule.key %>" <%= filters.business_status===rule.key?'selected':'' %>><%= rule.label %></option><% }) %></select></label>
+      <label>Completion<select name="completion"><option value="">Completed and outstanding</option><option value="completed" <%= filters.completion==='completed'?'selected':'' %>>Completed</option><option value="outstanding" <%= filters.completion==='outstanding'?'selected':'' %>>Outstanding</option></select></label>
+      <details class="mim-advanced">
+        <summary>Advanced filters</summary>
+        <div class="mim-advanced-grid">
+          <label>Uploaded from<input type="date" name="date_from" value="<%= filters.date_from %>"></label><label>Uploaded to<input type="date" name="date_to" value="<%= filters.date_to %>"></label>
+          <label>Source filename<input name="filename" value="<%= filters.filename %>"></label><label>Canonical phone<input name="canonical_phone" value="<%= filters.canonical_phone %>"></label>
+          <label>Mobile / fixed<select name="domain"><option value="">All</option><option value="mobile" <%= filters.domain==='mobile'?'selected':'' %>>Mobile</option><option value="fixed" <%= filters.domain==='fixed'?'selected':'' %>>Fixed</option></select></label>
+          <label>Match classification<select name="classification"><option value="">All</option><% ['exact_match','possible_match','new_record','conflict','already_applied','ignored'].forEach(value=>{ %><option value="<%= value %>" <%= filters.classification===value?'selected':'' %>><%= value.replaceAll('_',' ') %></option><% }) %></select></label>
+          <label>Review status<select name="review_status"><option value="">All</option><% ['pending','approved','rejected','deferred'].forEach(value=>{ %><option value="<%= value %>" <%= filters.review_status===value?'selected':'' %>><%= value %></option><% }) %></select></label>
+          <label>Approval status<select name="approval_status"><option value="">All</option><% ['pending','approved','rejected','deferred'].forEach(value=>{ %><option value="<%= value %>" <%= filters.approval_status===value?'selected':'' %>><%= value %></option><% }) %></select></label>
+          <label>Applied status<select name="applied_status"><option value="">All</option><% ['not_applied','applied','failed'].forEach(value=>{ %><option value="<%= value %>" <%= filters.applied_status===value?'selected':'' %>><%= value.replaceAll('_',' ') %></option><% }) %></select></label>
+          <label>Rows per page<select name="page_size"><% [25,50,100].forEach(value=>{ %><option value="<%= value %>" <%= filters.page_size===value?'selected':'' %>><%= value %></option><% }) %></select></label>
+        </div>
+      </details>
       <div class="mim-filter-actions"><button class="btn primary">Apply filters</button><a class="btn" href="<%= basePath %>/backoffice/monthly-import-management<%= panelMode?'?panel=1':'' %>">Clear</a></div>
     </form>
-  </details>
-  <section class="panel mim-results" id="results">
-    <header><div><span class="eyebrow">Operational results</span><h2><%= pagination.total %> imported row(s)</h2></div><span>Page <%= pagination.page %> of <%= pagination.pages %></span></header>
-    <div class="mim-table-wrap"><table><thead><tr><th>Import</th><th>Imported customer</th><th>Match</th><th>Action</th><th>Status</th><th>Live result / next step</th></tr></thead><tbody>
-    <% rows.forEach(row => { %><tr>
-      <td data-label="Import"><strong>#<%= row.batch_id %> · row <%= row.source_row_number %></strong><span><%= row.original_filename %></span><small><%= row.source_system %> · <%= row.import_type.replaceAll('_',' ') %> · <%= row.match_domain||'unclassified' %></small></td>
-      <td data-label="Imported customer"><strong><%= row.customer_name||'Name not supplied' %></strong><span><%= row.phone_original||'No phone' %></span><small>Canonical: <%= row.phone_normalised||'—' %><br>Account: <%= row.imported_account_number||'—' %></small></td>
-      <td data-label="Match"><strong><%= row.classification?row.classification.replaceAll('_',' '):'Not matched' %></strong><span><%= row.confidence_score==null?'—':Number(row.confidence_score).toFixed(0)+'%' %></span><small>Review: <%= row.review_status||'—' %><br>Targets: C <%= row.proposed_client_id||'—' %> · A <%= row.proposed_account_id||'—' %> · FA <%= row.proposed_fixed_account_id||'—' %> · FS <%= row.proposed_fixed_service_id||'—' %></small></td>
-      <td data-label="Action"><strong><%= row.action_type?row.action_type.replaceAll('_',' '):'No action' %></strong><span>Approval: <%= row.approval_status||'—' %></span><small>Applied: <%= row.applied_status||'—' %><% if(row.error_text){ %><br><b class="mim-error"><%= row.error_text %></b><% } %></small></td>
-      <td data-label="Status"><span class="mim-badge <%= row.status_key %>"><%= row.business_status_label %></span><small><%= row.required_action||'No further import action required' %></small></td>
-      <td data-label="Live result / next step">
-        <% if(row.live_client_id){ %><strong>Client #<%= row.live_client_id %> · <%= row.live_client_name||'Unnamed client' %></strong><span><%= row.live_client_phone||'No phone' %> · <%= row.live_account_number||'Provisional — account number pending' %></span><small><%= row.pending_account_request_id?'Account approval #'+row.pending_account_request_id:'Customer record is usable' %></small>
-        <% } else if(row.live_fixed_account_id){ %><strong>Fixed account #<%= row.live_fixed_account_id %> · <%= row.live_fixed_account_number||'—' %></strong><span><%= row.live_fixed_service_id?'Service #'+row.live_fixed_service_id+' · '+(row.live_fixed_service_title||'Fixed service'):'No linked service' %></span>
-        <% } else { %><strong>No live record yet</strong><span><%= row.error_text||row.match_reason||row.warning_text||row.required_action||'This row has not been processed.' %></span><% } %>
-        <div class="mim-row-actions">
-          <% if(row.live_path){ %><a class="btn small" href="<%= basePath+row.live_path %>">Open record</a><% } %>
-          <% if(row.status_key==='new_mobile_account'){ %><a class="btn small primary" href="<%= basePath %>/approvals?q=<%= encodeURIComponent(row.live_client_name||row.live_client_phone||row.live_client_id) %><%= panelMode?'&panel=1':'' %>">Open account-number approval</a><% } %>
-          <% if(row.status_key==='conflict'){ %><a class="btn small primary" href="<%= basePath %>/backoffice/data-import/batches/<%= row.batch_id %>/review?filter=conflict<%= panelMode?'&panel=1':'' %>">Open conflict review</a><% } %>
-          <% if(row.status_key==='ready'){ %><a class="btn small primary" href="<%= basePath %>/backoffice/data-import<%= panelMode?'?panel=1':'' %>#finalise">Open finalisation</a><% } %>
-          <% if(row.status_key==='failed' && row.action_id){ %><form method="post" action="<%= basePath %>/backoffice/monthly-import-management/actions/<%= row.action_id %>/retry<%= panelMode?'?panel=1':'' %>"><input type="hidden" name="return_query" value="<%= preservedQuery %>"><% if(panelMode){ %><input type="hidden" name="panel" value="1"><% } %><button class="btn small primary">Retry safely</button></form><% } %>
-          <% if(row.action_type==='create_fixed_account_and_service' && row.approval_status==='pending' && row.applied_status==='not_applied'){ %><form method="post" action="<%= basePath %>/backoffice/data-import/batches/<%= row.batch_id %>/matches/<%= row.match_id %>/decision<%= panelMode?'?panel=1':'' %>"><input type="hidden" name="return_to" value="management"><input type="hidden" name="return_query" value="<%= preservedQuery %>"><% if(panelMode){ %><input type="hidden" name="panel" value="1"><% } %><button class="btn small primary" name="decision" value="approve">Approve fixed creation</button><button class="btn small danger" name="decision" value="reject">Reject</button><button class="btn small" name="decision" value="defer">Defer</button></form><% } %>
-        </div>
-      </td>
-    </tr><% }) %>
-    <% if(!rows.length){ %><tr><td colspan="6" class="mim-empty">No imported rows match these filters.</td></tr><% } %>
-    </tbody></table></div>
+  </section>
+
+  <section class="mim-results" id="results">
+    <header><div><span class="eyebrow">Import results</span><h2><%= pagination.total %> customer record(s)</h2></div><span>Page <%= pagination.page %> of <%= pagination.pages %></span></header>
+    <div class="mim-result-list">
+      <% rows.forEach(row => { const nextStep=needsFor(row); %>
+        <article class="mim-result-card">
+          <section class="mim-manager-group mim-customer"><span class="mim-group-label">Customer</span><strong><%= row.customer_name||row.live_client_name||row.live_fixed_account_name||'Name not supplied' %></strong><span><%= row.phone_original||row.live_client_phone||'No phone supplied' %></span><small><%= accountFor(row)?'Account '+accountFor(row):'No account number' %></small></section>
+          <section class="mim-manager-group mim-supplier"><span class="mim-group-label">Supplier</span><strong><%= supplierName(row.source_system) %></strong><span><%= importName(row.import_type) %></span></section>
+          <section class="mim-manager-group mim-result"><span class="mim-group-label">Result</span><span class="mim-badge <%= row.status_key %>"><%= resultFor(row) %></span></section>
+          <section class="mim-manager-group mim-next-step"><span class="mim-group-label">What needs to happen</span><strong><%= nextStep %></strong></section>
+          <section class="mim-manager-group mim-action"><span class="mim-group-label">Action</span>
+            <% if(row.action_type==='create_fixed_account_and_service' && row.approval_status==='pending' && row.applied_status==='not_applied'){ %><form method="post" action="<%= basePath %>/backoffice/data-import/batches/<%= row.batch_id %>/matches/<%= row.match_id %>/decision<%= panelMode?'?panel=1':'' %>"><input type="hidden" name="return_to" value="management"><input type="hidden" name="return_query" value="<%= preservedQuery %>"><% if(panelMode){ %><input type="hidden" name="panel" value="1"><% } %><button class="btn primary" name="decision" value="approve">Approve fixed creation</button></form>
+            <% } else if(row.status_key==='new_mobile_account'){ %><a class="btn primary" href="<%= basePath %>/approvals?q=<%= encodeURIComponent(row.live_client_name||row.live_client_phone||row.live_client_id) %><%= panelMode?'&panel=1':'' %>">Approve account number</a>
+            <% } else if(row.status_key==='conflict'){ %><a class="btn primary" href="<%= basePath %>/backoffice/data-import/batches/<%= row.batch_id %>/review?filter=conflict<%= panelMode?'&panel=1':'' %>">Review conflict</a>
+            <% } else if(row.status_key==='failed' && row.action_id){ %><form method="post" action="<%= basePath %>/backoffice/monthly-import-management/actions/<%= row.action_id %>/retry<%= panelMode?'?panel=1':'' %>"><input type="hidden" name="return_query" value="<%= preservedQuery %>"><% if(panelMode){ %><input type="hidden" name="panel" value="1"><% } %><button class="btn primary">Retry</button></form>
+            <% } else if(row.status_key==='ready'){ %><a class="btn primary" href="<%= basePath %>/backoffice/data-import<%= panelMode?'?panel=1':'' %>#finalise">Finalise</a>
+            <% } else if(row.live_path){ %><a class="btn primary" href="<%= basePath+row.live_path %>"><%= row.live_client_id?'Open customer':'Open account' %></a>
+            <% } else { %><span class="mim-no-action">No action</span><% } %>
+          </section>
+
+          <details class="mim-technical">
+            <summary>View details</summary>
+            <dl>
+              <div><dt>Batch ID</dt><dd><%= row.batch_id %></dd></div><div><dt>Source row</dt><dd><%= row.source_row_number %></dd></div><div class="mim-wide-detail"><dt>Source filename</dt><dd><%= row.original_filename %></dd></div>
+              <div><dt>Canonical phone</dt><dd><%= row.phone_normalised||'—' %></dd></div><div><dt>Match classification</dt><dd><%= row.classification||'—' %></dd></div><div><dt>Confidence</dt><dd><%= row.confidence_score==null?'—':Number(row.confidence_score).toFixed(0)+'%' %></dd></div>
+              <div><dt>Review status</dt><dd><%= row.review_status||'—' %></dd></div><div><dt>Action type</dt><dd><%= row.action_type||'—' %></dd></div><div><dt>Approval status</dt><dd><%= row.approval_status||'—' %></dd></div><div><dt>Applied status</dt><dd><%= row.applied_status||'—' %></dd></div>
+              <div class="mim-wide-detail"><dt>Proposed IDs</dt><dd>Client <%= row.proposed_client_id||'—' %> · Account <%= row.proposed_account_id||'—' %> · Fixed account <%= row.proposed_fixed_account_id||'—' %> · Fixed service <%= row.proposed_fixed_service_id||'—' %></dd></div>
+              <div class="mim-wide-detail"><dt>Live IDs</dt><dd>Client <%= row.live_client_id||'—' %> · Account <%= row.live_account_id||'—' %> · Fixed account <%= row.live_fixed_account_id||'—' %> · Fixed service <%= row.live_fixed_service_id||'—' %></dd></div>
+              <% if(row.error_text){ %><div class="mim-wide-detail mim-error-detail"><dt>Error</dt><dd><%= row.error_text %></dd></div><% } %>
+            </dl>
+            <% if(row.action_type==='create_fixed_account_and_service' && row.approval_status==='pending' && row.applied_status==='not_applied'){ %><div class="mim-secondary-actions"><form method="post" action="<%= basePath %>/backoffice/data-import/batches/<%= row.batch_id %>/matches/<%= row.match_id %>/decision<%= panelMode?'?panel=1':'' %>"><input type="hidden" name="return_to" value="management"><input type="hidden" name="return_query" value="<%= preservedQuery %>"><% if(panelMode){ %><input type="hidden" name="panel" value="1"><% } %><button class="btn danger" name="decision" value="reject">Reject</button><button class="btn" name="decision" value="defer">Defer</button></form></div><% } %>
+          </details>
+        </article>
+      <% }) %>
+      <% if(!rows.length){ %><div class="panel mim-empty">No imported customers match these filters.</div><% } %>
+    </div>
     <% if(pagination.pages>1){ %><nav class="mim-pagination" aria-label="Results pages"><% if(pagination.page>1){ %><a class="btn" href="?<%= makeQuery({page:pagination.page-1}) %>">Previous</a><% } %><span><%= (pagination.page-1)*pagination.pageSize+1 %>–<%= Math.min(pagination.page*pagination.pageSize,pagination.total) %> of <%= pagination.total %></span><% if(pagination.page<pagination.pages){ %><a class="btn" href="?<%= makeQuery({page:pagination.page+1}) %>">Next</a><% } %></nav><% } %>
   </section>
 </main>
-<link rel="stylesheet" href="<%= basePath %>/public/css/monthly-import-management.css?v=<%= encodeURIComponent(appVersion) %>">
+<link rel="stylesheet" href="<%= basePath %>/public/css/monthly-import-management.css?v=<%= encodeURIComponent(appVersion) %>-manager-layout">

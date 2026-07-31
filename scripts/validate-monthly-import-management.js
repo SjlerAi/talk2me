@@ -11,6 +11,7 @@ const finaliserPath = path.join(root, 'src', 'services', 'monthly-import-finalis
 const routePath = path.join(root, 'src', 'routes', 'monthly-import-management.js');
 const importRoutePath = path.join(root, 'src', 'routes', 'monthly-data-import.js');
 const viewPath = path.join(root, 'views', 'monthly-import-management.ejs');
+const cssPath = path.join(root, 'public', 'css', 'monthly-import-management.css');
 
 const {
   classifyBusinessStatus,
@@ -136,10 +137,84 @@ const mockConnection = {
 
   ejs.compile(fs.readFileSync(viewPath, 'utf8'), { filename: viewPath });
   const view = fs.readFileSync(viewPath, 'utf8');
+  const css = fs.readFileSync(cssPath, 'utf8');
   assert(view.includes("panelMode?'?panel=1'"), 'panel=1 navigation must be preserved');
   assert(view.includes('row.error_text'), 'Failed actions must display their stored error');
-  assert(view.includes('Open conflict review'));
-  assert(view.includes('Open account-number approval'));
+  assert(!view.includes('<table'), 'The manager view must not use the former technical table');
+  assert(!/min-width\s*:\s*1180px/i.test(css), 'No table min-width may force horizontal scrolling');
+  assert(!/overflow-x\s*:\s*(auto|scroll)/i.test(css), 'The result layout must not require horizontal scrolling');
+  assert(css.includes('@media(max-width:1100px)') && css.includes('@media(max-width:650px)'),
+    'Companion-window and mobile responsive layouts are required');
+  for (const label of ['Customer', 'Supplier', 'Result', 'What needs to happen', 'Action']) {
+    assert(view.includes(`>${label}<`), `Default manager group is missing: ${label}`);
+  }
+  assert(view.includes('<summary>Advanced filters</summary>'));
+  assert(view.includes('<summary>View details</summary>'));
+  for (const detail of ['Batch ID', 'Source row', 'Source filename', 'Canonical phone',
+    'Match classification', 'Confidence', 'Review status', 'Action type', 'Approval status',
+    'Applied status', 'Proposed IDs', 'Live IDs', 'Error']) {
+    assert(view.includes(`>${detail}<`), `Technical details are missing: ${detail}`);
+  }
+
+  const baseRow = {
+    batch_id: 7, source_row_number: 12, original_filename: 'very-long-source-file.xlsx',
+    customer_name: 'Manager View Customer', phone_original: '0820000000', phone_normalised: '27820000000',
+    imported_account_number: 'VB100', source_system: 'B12', import_type: 'activation',
+    classification: 'new_record', confidence_score: 42, review_status: 'pending',
+    action_type: 'create_mobile_record', approval_status: 'pending', applied_status: 'not_applied',
+    proposed_client_id: 101, proposed_account_id: 102, proposed_fixed_account_id: null,
+    proposed_fixed_service_id: null, live_client_id: null, live_account_id: null,
+    live_fixed_account_id: null, live_fixed_service_id: null, error_text: null
+  };
+  const rendered = ejs.render(view, {
+    basePath: '/talk2me', panelMode: true, appVersion: 'test',
+    filters: {
+      batch: '', customer_name: '', phone: '', account_number: '', source_system: '', import_type: '',
+      business_status: '', completion: '', date_from: '', date_to: '', filename: '', canonical_phone: '',
+      domain: '', classification: '', review_status: '', approval_status: '', applied_status: '',
+      page_size: 50
+    },
+    batches: [], summary: {
+      total: 5, mobile_updated: 0, new_customers_created_total: 1, new_mobile_account: 1,
+      fixed_created: 0, fixed_updated: 0, conflict: 1, ready: 1, rejected: 0, deferred: 0,
+      failed: 1, completed_total: 0
+    },
+    pagination: { total: 5, page: 1, pages: 1, pageSize: 50 },
+    statusRules: [
+      { key: 'new_mobile_account', label: 'New customer needs account number' },
+      { key: 'conflict', label: 'Needs conflict review' }
+    ],
+    notice: '', error: '',
+    rows: [
+      { ...baseRow, status_key: 'new_mobile_account', live_client_id: 201, live_client_name: 'New Customer' },
+      { ...baseRow, status_key: 'conflict', action_type: 'resolve_mobile_conflict', match_id: 21 },
+      { ...baseRow, status_key: 'failed', action_id: 31, error_text: 'Finalisation failed' },
+      { ...baseRow, status_key: 'ready', action_type: 'link_mobile_client' },
+      {
+        ...baseRow, status_key: 'approval_required', action_type: 'create_fixed_account_and_service',
+        match_id: 41, approval_status: 'pending', applied_status: 'not_applied'
+      }
+    ]
+  }, { filename: viewPath });
+  const defaultMarkup = [...rendered.matchAll(/<article class="mim-result-card">([\s\S]*?)<details class="mim-technical">/g)]
+    .map(match => match[1]).join('\n');
+  for (const rawValue of ['create_mobile_record', 'new_record', 'not_applied', 'proposed_client_id']) {
+    assert(!defaultMarkup.includes(rawValue), `Raw technical value leaked into the default manager row: ${rawValue}`);
+  }
+  for (const rawValue of ['create_mobile_record', 'new_record', 'not_applied']) {
+    assert(rendered.includes(rawValue), `View details must expose technical value: ${rawValue}`);
+  }
+  for (const actionPath of [
+    '/approvals?q=',
+    '/backoffice/data-import/batches/7/review?filter=conflict&amp;panel=1',
+    '/backoffice/monthly-import-management/actions/31/retry?panel=1',
+    '/backoffice/data-import?panel=1#finalise',
+    '/backoffice/data-import/batches/7/matches/41/decision?panel=1'
+  ]) {
+    assert(rendered.includes(actionPath), `Existing action URL changed or disappeared: ${actionPath}`);
+  }
+  assert(rendered.includes('/backoffice/monthly-import-management.csv?panel=1'),
+    'CSV export URL and panel state must remain available');
 
   const finaliser = fs.readFileSync(finaliserPath, 'utf8');
   for (const guard of ['beginTransaction()', 'FOR UPDATE', "applied_status === 'applied'",
