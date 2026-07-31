@@ -20,16 +20,18 @@
     byId('reportPrev').onclick=()=>{if(page>1){page--;renderTable();}};byId('reportNext').onclick=()=>{const pages=Math.max(1,Math.ceil(filteredRows().length/pageSize));if(page<pages){page++;renderTable();}};
     return view;
   }
-  function minutes(v){const n=Number(v||0);return `${Math.floor(n/60)}h ${String(n%60).padStart(2,'0')}m`;}
+  function minutes(v){const n=Math.max(0,Number(v||0));return `${Math.floor(n/60)}h ${String(Math.floor(n%60)).padStart(2,'0')}m`;}
   function renderSummary(s){const stats=[['Inquiries',s.inquiries],['Resolved',s.resolved],['Active',s.active],['Overdue',s.overdue],['Attendance',minutes(s.attendanceMinutes)],['Unassigned',s.unassigned],['Upgrades',s.upgrades],['Prospects',s.prospects],['Birthdays today',s.birthdays]];byId('reportSummary').innerHTML=stats.map(x=>`<div class="report-stat"><span>${esc(x[0])}</span><strong>${esc(x[1])}</strong></div>`).join('');}
   function rowKey(row){return Object.values(row).map(v=>String(v??'').trim().toLowerCase()).join('|');}
   function uniqueRows(){const seen=new Set();return tableData.rows.filter(row=>{const key=rowKey(row);if(seen.has(key))return false;seen.add(key);return true;});}
   function filteredRows(){const rows=uniqueRows();if(!query)return rows;return rows.filter(row=>Object.values(row).some(v=>String(v??'').toLowerCase().includes(query)));}
+  function displayColumn(column){return report==='attendance'&&String(column).toLowerCase()==='minutes'?'Duration':column;}
+  function displayValue(column,value){if(value===null||value===undefined||value==='')return '—';if(report==='attendance'&&String(column).toLowerCase()==='minutes')return minutes(value);return value;}
   function renderTable(){
-    byId('reportTitle').textContent=report.charAt(0).toUpperCase()+report.slice(1);byId('reportHead').innerHTML=`<tr>${tableData.columns.map(c=>`<th>${esc(c)}</th>`).join('')}</tr>`;
+    byId('reportTitle').textContent=report.charAt(0).toUpperCase()+report.slice(1);byId('reportHead').innerHTML=`<tr>${tableData.columns.map(c=>`<th>${esc(displayColumn(c))}</th>`).join('')}</tr>`;
     const rows=filteredRows(),pages=Math.max(1,Math.ceil(rows.length/pageSize));if(page>pages)page=pages;const start=(page-1)*pageSize,visible=rows.slice(start,start+pageSize);
     byId('reportResultCount').textContent=rows.length?`Showing ${start+1}-${Math.min(start+pageSize,rows.length)} of ${rows.length}`:'0 results';byId('reportPageLabel').textContent=`Page ${page} of ${pages}`;byId('reportPrev').disabled=page<=1;byId('reportNext').disabled=page>=pages;byId('reportPagination').hidden=rows.length<=pageSize;
-    byId('reportRows').innerHTML=visible.length?visible.map(r=>`<tr>${Object.values(r).map(v=>`<td>${esc(v??'—')}</td>`).join('')}</tr>`).join(''):`<tr><td colspan="${tableData.columns.length}">No records for this period.</td></tr>`;
+    byId('reportRows').innerHTML=visible.length?visible.map(r=>`<tr>${tableData.columns.map(c=>`<td>${esc(displayValue(c,r[c]))}</td>`).join('')}</tr>`).join(''):`<tr><td colspan="${tableData.columns.length}">No records for this period.</td></tr>`;
   }
   async function load(){ensure();byId('reportStatus').textContent='Loading reports...';try{const [sr,tr]=await Promise.all([api(`/api/reporting/summary?days=${days}`),api(`/api/reporting/table?report=${encodeURIComponent(report)}&days=${days}`)]);const s=await sr.json(),t=await tr.json();if(!sr.ok||!s.ok)throw new Error(s.error||'REPORT_SUMMARY_FAILED');if(!tr.ok||!t.ok)throw new Error(t.error||'REPORT_TABLE_FAILED');tableData={columns:t.columns||[],rows:t.rows||[]};renderSummary(s.summary);renderTable();byId('reportStatus').textContent=`${s.teamView?'Team report':'Your personal report'} · Last ${days} days · ${uniqueRows().length} rows`;}catch(e){byId('reportStatus').textContent=`Could not load reports: ${e.message}`;byId('reportSummary').innerHTML='';byId('reportRows').innerHTML='';}}
   async function show(){ensure();hide();view.hidden=false;document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active',n.dataset.view==='reports'));await load();}
