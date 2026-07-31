@@ -11,10 +11,19 @@
     });
   }
 
+  function scrollWorkspaceTop() {
+    window.requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+      const main = document.querySelector('main');
+      if (main && typeof main.scrollTo === 'function') main.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    });
+  }
+
   function prepareCustomerView() {
     hideDynamicViews('customerView');
     const customerView = document.getElementById('customerView');
     if (customerView) customerView.hidden = false;
+    scrollWorkspaceTop();
   }
 
   function installCustomerGuard() {
@@ -46,6 +55,12 @@
       return;
     }
 
+    const dashboardButton = event.target.closest('#backDashboard');
+    if (dashboardButton) {
+      window.setTimeout(scrollWorkspaceTop, 0);
+      return;
+    }
+
     const trigger = event.target.closest('[data-view]');
     if (!trigger || trigger.hidden) return;
 
@@ -56,6 +71,7 @@
       hideDynamicViews('dashboardView');
       const dashboard = document.getElementById('dashboardView');
       if (dashboard) dashboard.hidden = false;
+      scrollWorkspaceTop();
       return;
     }
 
