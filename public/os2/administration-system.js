@@ -5,6 +5,12 @@
     document.body.appendChild(toastScript);
   }
 
+  if (!document.querySelector('script[src$="workspace-window.js"]')) {
+    const workspaceScript = document.createElement('script');
+    workspaceScript.src = './workspace-window.js';
+    document.body.appendChild(workspaceScript);
+  }
+
   const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({
     '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
   }[char]));
