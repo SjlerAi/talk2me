@@ -1,4 +1,10 @@
 (() => {
+  if (!document.querySelector('script[src$="opportunities-layout.js"]')) {
+    const layoutScript = document.createElement('script');
+    layoutScript.src = './opportunities-layout.js';
+    document.body.appendChild(layoutScript);
+  }
+
   function hideDynamicViews(exceptId = '') {
     document.querySelectorAll('main > .content').forEach(view => {
       if (view.id && view.id !== exceptId) view.hidden = true;
