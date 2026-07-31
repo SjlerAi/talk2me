@@ -67,11 +67,26 @@
     const target = String(trigger.dataset.view || '');
     if (!target) return;
 
+    const viewIds = {
+      home: 'dashboardView',
+      customers: 'customerView',
+      work: 'workView',
+      opportunities: 'opportunityView',
+      attendance: 'attendanceView',
+      reports: 'reportView',
+      import: 'importView',
+      admin: 'administrationView'
+    };
+
+    const targetViewId = viewIds[target];
+    if (targetViewId) {
+      hideDynamicViews(targetViewId);
+      scrollWorkspaceTop();
+    }
+
     if (target === 'home') {
-      hideDynamicViews('dashboardView');
       const dashboard = document.getElementById('dashboardView');
       if (dashboard) dashboard.hidden = false;
-      scrollWorkspaceTop();
       return;
     }
 
