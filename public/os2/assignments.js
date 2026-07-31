@@ -113,4 +113,9 @@
     script.src = './approvals.js';
     document.body.appendChild(script);
   }
+  if (!document.querySelector('script[src$="attendance.js"]')) {
+    const script = document.createElement('script');
+    script.src = './attendance.js';
+    document.body.appendChild(script);
+  }
 })();
