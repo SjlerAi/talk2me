@@ -1,6 +1,17 @@
 (() => {
   const launcherWindows = new Map();
 
+  if (typeof window.toast !== 'function') {
+    window.toast = message => {
+      const toast = document.getElementById('toast');
+      if (!toast) return;
+      toast.textContent = String(message || '');
+      toast.classList.add('show');
+      clearTimeout(window.__toastTimer);
+      window.__toastTimer = setTimeout(() => toast.classList.remove('show'), 3000);
+    };
+  }
+
   function escapeHtml(value) {
     return String(value ?? '').replace(/[&<>"']/g, char => ({
       '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
