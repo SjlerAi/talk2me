@@ -41,7 +41,7 @@ const counts = preview.counts;
 
   <section class="panel mim-bulk-list mim-exception-list" id="exceptions">
     <header><div><span class="eyebrow">Exceptions requiring individual review</span><h2><%= counts.excluded %> excluded row(s)</h2></div>
-      <a class="btn" href="<%= basePath %>/backoffice/data-import<%= panelMode?'?panel=1':'' %>#exceptions">Open conflict review</a>
+      <a class="btn" href="<%= basePath %>/backoffice/monthly-import-management/exceptions?<%= returnQuery %>">Resolve exceptions</a>
     </header>
     <div class="mim-bulk-rows">
       <% preview.excludedRows.forEach(row => { %><article class="<%= row.category %>"><strong><%= row.customer_name||row.account_number||row.phone_original||'Imported record' %></strong><span><%= row.reference %> · <%= row.source %></span><small><b><%= row.requiredAction %>:</b> <%= row.reason %></small></article><% }) %>

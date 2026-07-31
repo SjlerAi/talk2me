@@ -147,7 +147,11 @@ assert(service.includes('main_contact_number_normalised,main_contact_number,alt_
 assert(routes.includes("name: 'dealer_reports', maxCount: 10"), 'Monthly upload must accept multiple report files.');
 assert(routes.includes("router.post('/backoffice/data-import/process'"), 'The unified process route must exist.');
 assert(routes.includes("router.post('/backoffice/data-import/finalise', requireAuth, managerOwnerOnly"), 'Only managers and owners may finalise.');
-assert(view.includes("name=\"confirm_finalise\" value=\"yes\" required"), 'Finalisation must require explicit confirmation.');
+assert(routes.includes('Legacy finalisation is disabled. Finalise only safe records through Monthly Import Management.'),
+  'The legacy finalisation POST must refuse to bypass bulk-safe processing.');
+assert(!view.includes('name="confirm_finalise"'), 'The retired legacy finalisation form must not be rendered.');
+assert(view.includes('/backoffice/monthly-import-management'), 'The legacy page must link to bulk-safe management.');
+assert(view.includes('/backoffice/monthly-import-management/exceptions'), 'The legacy page must link to exception review.');
 assert(view.includes("panelMode?'?panel=1':''"), 'Monthly Import links and forms must preserve panel mode.');
 assert(view.includes('-monthly-import-64'), 'The Monthly Import stylesheet cache key must be versioned for issue 64.');
 

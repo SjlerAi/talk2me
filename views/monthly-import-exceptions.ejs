@@ -1,0 +1,150 @@
+<%
+const makeQuery = (changes = {}, remove = []) => {
+  const params = new URLSearchParams();
+  Object.entries({ ...scope, ...filters, ...changes }).forEach(([key,value]) => {
+    if (!remove.includes(key) && value !== '' && value != null && !['notice','error'].includes(key)) params.set(key, value);
+  });
+  if (panelMode) params.set('panel', '1');
+  return params.toString();
+};
+const managementParams = new URLSearchParams(scope);
+if (panelMode) managementParams.set('panel', '1');
+const managementUrl = `${basePath}/backoffice/monthly-import-management${managementParams.toString()?'?'+managementParams.toString():''}`;
+%>
+<main class="mim-shell mie-shell">
+  <header class="mim-hero">
+    <div>
+      <span class="eyebrow">Monthly Import</span>
+      <h1>Resolve exceptions</h1>
+      <p>Fix missing information, recheck the record, and send safe records back to bulk approval.</p>
+    </div>
+    <nav><a class="btn" href="<%= managementUrl %>">Back to Monthly Import Management</a></nav>
+  </header>
+
+  <% if(notice){ %><div class="notice success"><%= notice %></div><% } %>
+  <% if(error){ %><div class="notice error"><%= error %></div><% } %>
+
+  <section class="panel mie-guide" aria-label="How exception review works">
+    <ol>
+      <li><strong>Fix missing information</strong><span>Correct the imported record only.</span></li>
+      <li><strong>Recheck the record</strong><span>Matching and safety run again.</span></li>
+      <li><strong>Safe records return to bulk approval</strong><span>No live customer is created by saving a correction.</span></li>
+      <li><strong>Conflicts stay here</strong><span>A manager must select the correct live record.</span></li>
+    </ol>
+  </section>
+
+  <section class="panel mie-toolbar">
+    <header><div><span class="eyebrow">Outstanding work</span><h2><%= total %> exception<%= total===1?'':'s' %></h2></div></header>
+    <form method="get" action="<%= basePath %>/backoffice/monthly-import-management/exceptions">
+      <% if(panelMode){ %><input type="hidden" name="panel" value="1"><% } %>
+      <% Object.entries(scope).forEach(item=>{ if(item[0]!=='batch'){ %><input type="hidden" name="<%= item[0] %>" value="<%= item[1] %>"><% }}); %>
+      <label>Type<select name="exception"><% exceptionFilters.forEach(item=>{ %><option value="<%= item[0] %>" <%= filters.exception===item[0]?'selected':'' %>><%= item[1] %></option><% }) %></select></label>
+      <label>Batch<input name="batch" inputmode="numeric" value="<%= filters.batch %>" placeholder="All batches"></label>
+      <label>Search<input name="search" value="<%= filters.search %>" placeholder="Phone, name, account or file"></label>
+      <label>Rows<select name="page_size"><% [10,25,50].forEach(size=>{ %><option value="<%= size %>" <%= filters.page_size===size?'selected':'' %>><%= size %></option><% }) %></select></label>
+      <button class="btn primary">Apply filters</button>
+      <a class="btn" href="<%= basePath %>/backoffice/monthly-import-management/exceptions<%= panelMode?'?panel=1':'' %>">Clear</a>
+    </form>
+  </section>
+
+  <section class="mie-list" aria-label="Monthly Import exception records">
+    <% rows.forEach(row => { const formQuery=makeQuery({}, ['focus_row','live_search','page']); %>
+      <article class="panel mie-card <%= row.exception_kind %>">
+        <header>
+          <div>
+            <span class="eyebrow"><%= row.exception_kind.replaceAll('_',' ') %></span>
+            <h2><%= row.customer_name||'Customer or business name needed' %></h2>
+            <p><strong><%= row.phone_original||'No phone supplied' %></strong><%= row.account_number?' · Account '+row.account_number:'' %></p>
+          </div>
+          <div class="mie-blocked"><span>Why it is blocked</span><strong><%= row.reason %></strong><small><%= row.manager_action %></small></div>
+        </header>
+
+        <dl class="mie-source">
+          <div><dt>Source file</dt><dd><%= row.original_filename %></dd></div>
+          <div><dt>Source row</dt><dd><%= row.source_row_number %></dd></div>
+          <div><dt>Batch</dt><dd>#<%= row.batch_id %></dd></div>
+          <div><dt>Current status</dt><dd><%= row.requiredAction %></dd></div>
+        </dl>
+
+        <% if(row.applied_status!=='failed'){ %>
+          <form class="mie-correction" method="post" action="<%= basePath %>/backoffice/monthly-import-management/exceptions/<%= row.row_id %>/correct<%= panelMode?'?panel=1':'' %>">
+            <input type="hidden" name="return_query" value="<%= formQuery %>">
+            <% if(panelMode){ %><input type="hidden" name="panel" value="1"><% } %>
+            <label>Customer or business name<input name="customer_name" value="<%= row.customer_name||'' %>" placeholder="Enter the correct name"></label>
+            <label>Phone number<input name="phone_original" value="<%= row.phone_original||'' %>" placeholder="e.g. 082 123 4567"></label>
+            <label>Account number<input name="account_number" value="<%= row.account_number||'' %>" placeholder="Enter account number"></label>
+            <button class="btn primary">Save and recheck</button>
+          </form>
+
+          <section class="mie-link">
+            <form method="get" action="<%= basePath %>/backoffice/monthly-import-management/exceptions">
+              <% if(panelMode){ %><input type="hidden" name="panel" value="1"><% } %>
+              <% Object.entries(scope).forEach(item=>{ if(item[0]!=='batch'){ %><input type="hidden" name="<%= item[0] %>" value="<%= item[1] %>"><% }}); %>
+              <input type="hidden" name="exception" value="<%= filters.exception %>">
+              <input type="hidden" name="batch" value="<%= filters.batch %>">
+              <input type="hidden" name="search" value="<%= filters.search %>">
+              <input type="hidden" name="page_size" value="<%= filters.page_size %>">
+              <input type="hidden" name="page" value="<%= filters.page %>">
+              <input type="hidden" name="focus_row" value="<%= row.row_id %>">
+              <label>Search live CRM by phone, name or account number
+                <input name="live_search" value="<%= Number(filters.focus_row)===Number(row.row_id)?filters.live_search:'' %>" placeholder="Search before linking">
+              </label>
+              <button class="btn">Search live CRM</button>
+            </form>
+            <% if(Number(filters.focus_row)===Number(row.row_id) && filters.live_search){ %>
+              <div class="mie-matches">
+                <% liveMatches.forEach(match=>{ %>
+                  <form method="post" action="<%= basePath %>/backoffice/monthly-import-management/exceptions/<%= row.row_id %>/link<%= panelMode?'?panel=1':'' %>">
+                    <input type="hidden" name="return_query" value="<%= formQuery %>">
+                    <% if(panelMode){ %><input type="hidden" name="panel" value="1"><% } %>
+                    <input type="hidden" name="target_type" value="<%= match.kind %>">
+                    <input type="hidden" name="target_id" value="<%= match.id %>">
+                    <span><strong><%= match.title %></strong><small><%= match.reference %> · ID <%= match.id %></small></span>
+                    <button class="btn">Link existing <%= match.kind==='client'?'customer':'customer account' %></button>
+                  </form>
+                <% }) %>
+                <% if(!liveMatches.length){ %><p>No current match candidates were found. Correct the imported details and recheck.</p><% } %>
+              </div>
+            <% } %>
+          </section>
+
+          <form class="mie-decisions" method="post" action="<%= basePath %>/backoffice/monthly-import-management/exceptions/<%= row.row_id %>/decision<%= panelMode?'?panel=1':'' %>">
+            <input type="hidden" name="return_query" value="<%= formQuery %>">
+            <% if(panelMode){ %><input type="hidden" name="panel" value="1"><% } %>
+            <label>Reason required for defer or reject<input name="reason" placeholder="Explain what still needs attention"></label>
+            <% if(row.exception_kind==='fixed_approval'){ %><button class="btn primary" name="decision" value="approve_fixed">Approve fixed creation</button><% } %>
+            <button class="btn" name="decision" value="defer">Defer</button>
+            <button class="btn danger" name="decision" value="reject">Reject</button>
+          </form>
+        <% } else { %>
+          <form method="post" action="<%= basePath %>/backoffice/monthly-import-management/actions/<%= row.action_id %>/retry<%= panelMode?'?panel=1':'' %>">
+            <input type="hidden" name="return_to" value="exceptions">
+            <input type="hidden" name="return_query" value="<%= formQuery %>">
+            <% if(panelMode){ %><input type="hidden" name="panel" value="1"><% } %>
+            <button class="btn primary">Retry supported failed action</button>
+          </form>
+        <% } %>
+
+        <details class="mim-technical">
+          <summary>View technical details</summary>
+          <dl>
+            <div><dt>Classification</dt><dd><%= row.classification||'—' %></dd></div>
+            <div><dt>Action status</dt><dd><%= row.technical_status %></dd></div>
+            <div><dt>Action type</dt><dd><%= row.action_type||'—' %></dd></div>
+            <div><dt>Import row ID</dt><dd><%= row.row_id %></dd></div>
+          </dl>
+        </details>
+      </article>
+    <% }) %>
+    <% if(!rows.length){ %><div class="panel mim-empty">No outstanding exceptions match these filters.</div><% } %>
+  </section>
+
+  <% if(pagination.pages>1){ %>
+    <nav class="mim-pagination" aria-label="Exception pages">
+      <% if(pagination.page>1){ %><a class="btn" href="?<%= makeQuery({page:pagination.page-1}, ['focus_row','live_search']) %>">Previous</a><% } %>
+      <span>Page <%= pagination.page %> of <%= pagination.pages %></span>
+      <% if(pagination.page<pagination.pages){ %><a class="btn" href="?<%= makeQuery({page:pagination.page+1}, ['focus_row','live_search']) %>">Next</a><% } %>
+    </nav>
+  <% } %>
+</main>
+<link rel="stylesheet" href="<%= basePath %>/public/css/monthly-import-management.css?v=<%= encodeURIComponent(appVersion) %>-exception-workflow">

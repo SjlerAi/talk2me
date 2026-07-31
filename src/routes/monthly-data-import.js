@@ -7,14 +7,14 @@ const { parse } = require('../services/monthly-import-parser');
 const { runMatching } = require('../services/monthly-import-matcher');
 const {
   autoApproveDeterministicMatches,
-  previewFinalisation,
-  finaliseMonthlyImport
+  previewFinalisation
 } = require('../services/monthly-import-finaliser');
 const {
   ConflictReviewValidationError,
   hydrateConflictCandidates,
   requireValidSelection
 } = require('../services/monthly-import-conflict-review');
+const { loadBulkPreview } = require('../services/monthly-import-bulk-finaliser');
 const { audit } = require('../services/audit');
 
 const router = express.Router();
@@ -101,13 +101,14 @@ async function dashboard(hasMatchingSchema) {
   `);
   if (hasMatchingSchema) {
     const finalisation = await previewFinalisation();
+    const bulkPreview = await loadBulkPreview({});
     workflow = {
       ...workflow,
       finalised: finalisation.finalised,
       failed: finalisation.failed,
       approvedReady: finalisation.approved_ready,
       proposedNew: finalisation.proposed_new,
-      unresolved: finalisation.unresolved,
+      unresolved: bulkPreview.counts.excluded - bulkPreview.counts.completed,
       excluded: finalisation.excluded,
       mobileUpdates: finalisation.mobile_updates,
       fixedUpdates: finalisation.fixed_updates,
@@ -402,19 +403,7 @@ router.post('/backoffice/data-import/process', requireAuth, managementOnly, asyn
 
 router.post('/backoffice/data-import/finalise', requireAuth, managerOwnerOnly, async (req, res, next) => {
   try {
-    if (String(req.body.confirm_finalise || '') !== 'yes') {
-      throw new Error('Confirm that you reviewed the preview before finalising.');
-    }
-    const result = await finaliseMonthlyImport({
-      userId: req.session.user.id,
-      ip: req.ip,
-      userAgent: req.headers['user-agent']
-    });
-    return res.redirect(`${res.locals.basePath}/backoffice/data-import?notice=${encodeURIComponent(
-      result.applied
-        ? `Monthly Import finalised successfully. ${result.applied} action(s) were applied transactionally.`
-        : 'Monthly Import was already finalised. No duplicate records or updates were created.'
-    )}${panelQuery(req)}`);
+    throw new Error('Legacy finalisation is disabled. Finalise only safe records through Monthly Import Management.');
   } catch (error) {
     try { await render(req, res, { activeTab: 'overview', error: error.message }, 400); } catch (renderError) { next(renderError); }
   }

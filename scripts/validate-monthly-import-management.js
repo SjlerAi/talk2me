@@ -245,7 +245,7 @@ const mockConnection = {
   for (const actionPath of [
     '/backoffice/monthly-import-management/bulk/preview?panel=1#safe',
     '/backoffice/monthly-import-management/bulk/preview?panel=1#confirm',
-    '/backoffice/monthly-import-management/bulk/preview?panel=1#exceptions'
+    '/backoffice/monthly-import-management/exceptions?panel=1'
   ]) {
     assert(bulkSummary[0].includes(actionPath),
       `Bulk action URL changed or panel=1 was not preserved: ${actionPath}`);
