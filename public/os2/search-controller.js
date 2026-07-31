@@ -3,6 +3,8 @@
   const results = document.getElementById('results');
   if (!existingSearch || !results || existingSearch.dataset.controllerInstalled === '1') return;
 
+  // Replace the original input to remove the legacy input listener from os2.js.
+  // The search controller below is the single owner of customer-search requests.
   const search = existingSearch.cloneNode(true);
   search.dataset.controllerInstalled = '1';
   existingSearch.replaceWith(search);
@@ -22,15 +24,12 @@
   let timer = null;
   let controller = null;
   let sequence = 0;
-  let dismissed = false;
 
   function hideResults() {
-    dismissed = true;
     results.classList.remove('show');
   }
 
   function showResults() {
-    dismissed = false;
     if (results.innerHTML.trim()) results.classList.add('show');
   }
 
@@ -59,6 +58,7 @@
   async function runSearch(value, requestSequence) {
     if (controller) controller.abort();
     controller = new AbortController();
+
     try {
       const canonicalValue = canonicalEmail(value);
       const isEmailSearch = canonicalValue.includes('@');
@@ -81,8 +81,7 @@
       if (requestSequence !== sequence || normaliseText(search.value) !== normaliseText(value)) return;
       renderCustomers(customers);
     } catch (error) {
-      if (error.name === 'AbortError') return;
-      if (requestSequence !== sequence) return;
+      if (error.name === 'AbortError' || requestSequence !== sequence) return;
       results.innerHTML = `<div class="result"><b>Search unavailable</b><span>${escapeHtml(error.message)}</span></div>`;
       showResults();
     }
@@ -90,7 +89,6 @@
 
   search.addEventListener('input', () => {
     clearTimeout(timer);
-    dismissed = false;
     sequence += 1;
     const requestSequence = sequence;
     const value = search.value.trim();
@@ -120,28 +118,6 @@
   }, true);
 
   document.addEventListener('keydown', event => {
-    if (event.key !== 'Escape') return;
-    hideResults();
+    if (event.key === 'Escape') hideResults();
   }, true);
-
-  document.addEventListener('click', event => {
-    if (event.target.closest('.search')) return;
-    hideResults();
-  }, true);
-
-  const visibilityGuard = new MutationObserver(() => {
-    const hasRenderedResults = Boolean(results.querySelector('[data-id], .result'));
-    const searchIsActive = document.activeElement === search;
-    const shouldRemainVisible = !dismissed && searchIsActive && search.value.trim().length >= 2 && hasRenderedResults;
-    if (shouldRemainVisible && !results.classList.contains('show')) {
-      results.classList.add('show');
-    }
-  });
-
-  visibilityGuard.observe(results, {
-    attributes: true,
-    attributeFilter: ['class'],
-    childList: true,
-    subtree: true
-  });
 })();
