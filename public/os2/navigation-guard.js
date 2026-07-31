@@ -11,6 +11,29 @@
     });
   }
 
+  function installCustomerGuard() {
+    const original = window.openCustomer;
+    if (typeof original !== 'function' || original.__talk2meGuarded) return false;
+
+    const guarded = function customerGuardedOpen(...args) {
+      hideDynamicViews('customerView');
+      const customerView = document.getElementById('customerView');
+      if (customerView) customerView.hidden = false;
+      return original.apply(this, args);
+    };
+    guarded.__talk2meGuarded = true;
+    window.openCustomer = guarded;
+    return true;
+  }
+
+  if (!installCustomerGuard()) {
+    let attempts = 0;
+    const timer = window.setInterval(() => {
+      attempts += 1;
+      if (installCustomerGuard() || attempts >= 40) window.clearInterval(timer);
+    }, 250);
+  }
+
   document.addEventListener('click', event => {
     const trigger = event.target.closest('[data-view]');
     if (!trigger || trigger.hidden) return;
