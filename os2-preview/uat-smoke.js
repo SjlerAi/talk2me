@@ -1,0 +1,100 @@
+const assert = require('node:assert/strict');
+
+const baseUrl = String(process.env.OS2_BASE_URL || 'https://talk2me.kloka.co.za').replace(/\/$/, '');
+const identity = String(process.env.OS2_UAT_IDENTITY || '').trim();
+const password = String(process.env.OS2_UAT_PASSWORD || '');
+
+async function request(path, options = {}) {
+  const response = await fetch(`${baseUrl}${path}`, {
+    redirect: 'manual',
+    ...options,
+    headers: {
+      Accept: 'application/json, text/html;q=0.9, */*;q=0.8',
+      ...(options.headers || {})
+    }
+  });
+  return response;
+}
+
+function cookieFrom(response) {
+  const raw = response.headers.get('set-cookie') || '';
+  return raw.split(';')[0];
+}
+
+async function expectStatus(path, statuses, options = {}) {
+  const response = await request(path, options);
+  assert.ok(statuses.includes(response.status), `${path} returned ${response.status}; expected ${statuses.join(' or ')}`);
+  return response;
+}
+
+async function runPublicChecks() {
+  const health = await expectStatus('/health', [200]);
+  const healthBody = await health.json();
+  assert.equal(healthBody.application, 'Talk2Me OS2', 'Health endpoint returned the wrong application name');
+  assert.equal(healthBody.database?.connected, true, 'Database is not connected');
+
+  await expectStatus('/login', [200]);
+  await expectStatus('/os2.js', [200]);
+  await expectStatus('/launcher-runtime.js', [200]);
+  await expectStatus('/reports.js', [200]);
+  await expectStatus('/administration.js', [200]);
+
+  const protectedApi = await expectStatus('/api/auth/me', [401]);
+  const protectedBody = await protectedApi.json();
+  assert.equal(protectedBody.error, 'AUTHENTICATION_REQUIRED', 'Protected API did not reject an anonymous request correctly');
+}
+
+async function runAuthenticatedChecks() {
+  if (!identity || !password) {
+    console.log('Authenticated checks skipped: set OS2_UAT_IDENTITY and OS2_UAT_PASSWORD.');
+    return;
+  }
+
+  const login = await expectStatus('/api/auth/login', [200], {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ identity, password })
+  });
+  const loginBody = await login.json();
+  assert.equal(loginBody.ok, true, 'Login response was not successful');
+  const cookie = cookieFrom(login);
+  assert.ok(cookie.startsWith('os2_session='), 'Login did not return the OS2 session cookie');
+
+  const authHeaders = { Cookie: cookie };
+  const endpoints = [
+    '/api/auth/me',
+    '/api/dashboard',
+    '/api/my-work',
+    '/api/attendance',
+    '/api/opportunities?type=upgrades&days=7',
+    '/api/reports/summary?days=30',
+    '/api/reports/table?report=inquiries&days=30',
+    '/api/launchers'
+  ];
+
+  for (const endpoint of endpoints) {
+    const response = await expectStatus(endpoint, [200], { headers: authHeaders });
+    const body = await response.json();
+    assert.equal(body.ok, true, `${endpoint} returned ok=false`);
+  }
+
+  const meResponse = await request('/api/auth/me', { headers: authHeaders });
+  const me = await meResponse.json();
+  if (['owner', 'manager'].includes(me.user?.role)) {
+    const admin = await expectStatus('/api/administration', [200], { headers: authHeaders });
+    const adminBody = await admin.json();
+    assert.equal(adminBody.ok, true, 'Administration endpoint returned ok=false');
+  }
+
+  await expectStatus('/api/auth/logout', [200], { method: 'POST', headers: authHeaders });
+}
+
+(async () => {
+  console.log(`Talk2Me OS2 UAT smoke test: ${baseUrl}`);
+  await runPublicChecks();
+  await runAuthenticatedChecks();
+  console.log('UAT smoke test passed.');
+})().catch(error => {
+  console.error(`UAT smoke test failed: ${error.message}`);
+  process.exitCode = 1;
+});
