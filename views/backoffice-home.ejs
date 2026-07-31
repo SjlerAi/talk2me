@@ -11,5 +11,6 @@
   <a class="module-card" href="<%= basePath %>/work-centre"><span class="module-icon">⏰</span><h2>Work Centre</h2><p>Open, overdue, due-today and unassigned customer work.</p></a>
   <a class="module-card" href="<%= basePath %>/backoffice/reports/new-contacts"><span class="module-icon">📊</span><h2>Reports</h2><p>Walk-ins, staff activity and birthday correction history.</p></a>
   <% if(['owner','manager','admin'].includes(currentUser.role)){ %><a class="module-card" href="<%= basePath %>/backoffice/data-import"><span class="module-icon">📥</span><h2>Data Import Centre</h2><p>Upload, preview and audit monthly B12, Siebel and Fixed Base reports.</p></a><% } %>
+  <% if(['owner','manager'].includes(currentUser.role)){ %><a class="module-card" href="<%= basePath %>/backoffice/monthly-import-management<%= panelMode?'?panel=1':'' %>"><span class="module-icon">MI</span><h2>Monthly Import Management</h2><p>Track every imported customer, approval, live record, failure and completed action.</p></a><% } %>
   <% if(['owner','admin'].includes(currentUser.role)){ %><a class="module-card" href="<%= basePath %>/backoffice/os-launchers"><span class="module-icon">⚙️</span><h2>Workstation Launchers</h2><p>Configure ten top-strip names, icons and secure external-system links for all staff.</p></a><% } %>
 </div>

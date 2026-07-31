@@ -450,7 +450,7 @@ router.post('/backoffice/data-import/batches/:batchId/matches/:matchId/decision'
 
     let selectedCandidate = null;
     let selection = null;
-    if (decision === 'approve') {
+    if (decision === 'approve' && match.classification === 'conflict') {
       [match] = await hydrateConflictCandidates(connection, [match]);
       selection = match.selection;
       selectedCandidate = requireValidSelection(selection, req.body);
@@ -502,6 +502,10 @@ router.post('/backoffice/data-import/batches/:batchId/matches/:matchId/decision'
         proposed_fixed_service_id=COALESCE(:fixedServiceId,proposed_fixed_service_id)
       WHERE id=:matchId
     `, { reviewStatus, userId: req.session.user.id, notes, matchId: match.id, ...selected });
+    if (decision === 'approve' && match.classification !== 'conflict'
+      && action.action_type !== 'create_fixed_account_and_service') {
+      throw new ConflictReviewValidationError('This proposed action cannot be approved from conflict review.');
+    }
     const targetType = selectedCandidate ? selection.targetType : action.target_entity_type;
     const targetId = selectedCandidate ? selectedCandidate.id : action.target_entity_id;
     await connection.execute(`
@@ -534,6 +538,13 @@ router.post('/backoffice/data-import/batches/:batchId/matches/:matchId/decision'
       ip: String(req.ip || '').slice(0, 64), userAgent: String(req.headers['user-agent'] || '').slice(0, 255)
     });
     await connection.commit();
+    if (req.body.return_to === 'management') {
+      const query = new URLSearchParams(String(req.body.return_query || ''));
+      query.set('notice', selectedCandidate
+        ? `${selectedCandidate.title} selected. The other live record was not changed.`
+        : `Imported row ${reviewStatus}. No live record was modified.`);
+      return res.redirect(`${res.locals.basePath}/backoffice/monthly-import-management?${query.toString()}`);
+    }
     if (req.body.return_to === 'monthly') {
       const success = selectedCandidate
         ? `${selectedCandidate.title} selected for this imported row. The other record was not changed.`

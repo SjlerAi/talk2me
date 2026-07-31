@@ -78,6 +78,7 @@ router.get('/api/os/launchers', requireAuth, async (req, res, next) => {
 });
 
 router.use(require('./monthly-data-import'));
+router.use(require('./monthly-import-management'));
 router.use(require('./attendance'));
 
 module.exports = router;
