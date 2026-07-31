@@ -1,4 +1,10 @@
 (() => {
+  if (!document.querySelector('script[src$="toast-runtime.js"]')) {
+    const toastScript = document.createElement('script');
+    toastScript.src = './toast-runtime.js';
+    document.body.appendChild(toastScript);
+  }
+
   const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({
     '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
   }[char]));
