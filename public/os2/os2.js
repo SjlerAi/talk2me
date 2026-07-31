@@ -62,6 +62,14 @@ function showDashboard(){
   document.querySelectorAll('.nav-item').forEach(item=>item.classList.toggle('active',item.dataset.view==='home'));
 }
 
+async function loadWorkBadge(){
+  try{
+    const response=await apiFetch('/api/my-work?filter=all');
+    const data=await response.json();
+    if(response.ok&&data.ok)byId('workBadge').textContent=data.counts.total;
+  }catch(error){if(error.message!=='AUTHENTICATION_REQUIRED')console.error('My Work badge could not load',error);}
+}
+
 async function loadDashboard(){
   byId('systemMessage').textContent='Loading live information from the OS2 test database…';
   try{
@@ -72,10 +80,10 @@ async function loadDashboard(){
     ['Approvals','Overdue','Unassigned','Upgrades','Birthdays','Callbacks','Prospects'].forEach(k=>byId(`metric${k}`).textContent=m[k.charAt(0).toLowerCase()+k.slice(1)]);
     byId('metricClockedIn').textContent=`${m.clockedIn}/${m.activeStaff}`;
     byId('activeStaffText').textContent=`${m.activeStaff} active staff accounts`;
-    byId('workBadge').textContent=m.overdue;
     byId('alertBadge').textContent=m.approvals;
     byId('systemMessage').textContent='Secure live test data loaded from kloka_talk2me.';
     byId('activityRows').innerHTML=data.activity.length?data.activity.map(row=>`<tr><td>${escapeHtml(row.staff_member)}</td><td>${escapeHtml(row.latest_action)}</td><td>${escapeHtml(row.customer)}</td><td><span class="status ${statusClass(row.status)}">${escapeHtml(row.status)}</span></td><td>${escapeHtml(row.activity_time)}</td></tr>`).join(''):'<tr><td colspan="5">No activity found.</td></tr>';
+    await loadWorkBadge();
   }catch(error){if(error.message==='AUTHENTICATION_REQUIRED')return;byId('systemMessage').textContent=`Database connection not ready: ${error.message}`;toast('Dashboard could not load');}
 }
 
