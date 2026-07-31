@@ -71,7 +71,27 @@ module.exports = function createAdministrationRouter({ pool, requireAuth, reques
       const [launchers] = await pool.execute('SELECT * FROM os2_launcher_links ORDER BY sort_order,link_name');
       const [[sessions]] = await pool.execute('SELECT COUNT(*) total FROM app_sessions WHERE expires_at>NOW()');
       const [[clients]] = await pool.execute('SELECT COUNT(*) total FROM clients WHERE is_active=1');
-      res.json({ok:true,canDelete:isOwner(req.user),staff,launchers,system:{version:require('./package.json').version,environment:process.env.NODE_ENV||'development',database:process.env.DB_NAME||'',activeSessions:Number(sessions.total||0),activeClients:Number(clients.total||0)}});
+      const [auditItems] = await pool.execute(`SELECT a.id, a.action_type, a.entity_type, a.entity_id,
+          a.description, a.before_json, a.after_json, a.created_at,
+          COALESCE(s.full_name, CONCAT('Staff #', a.staff_id)) staff_name
+        FROM audit_log a
+        LEFT JOIN staff_users s ON s.id=a.staff_id
+        ORDER BY a.id DESC
+        LIMIT 100`);
+      res.json({
+        ok:true,
+        canDelete:isOwner(req.user),
+        staff,
+        launchers,
+        audit:auditItems,
+        system:{
+          version:require('./package.json').version,
+          environment:process.env.NODE_ENV||'development',
+          database:process.env.DB_NAME||'',
+          activeSessions:Number(sessions.total||0),
+          activeClients:Number(clients.total||0)
+        }
+      });
     } catch(error) { console.error('Administration load failed',error); res.status(500).json({ok:false,error:error.code||'ADMINISTRATION_LOAD_FAILED'}); }
   });
 
