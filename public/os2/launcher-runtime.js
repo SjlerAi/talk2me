@@ -13,7 +13,7 @@
   }
 
   function escapeHtml(value) {
-    return String(value ?? '').replace(/[&<>"']/g, char => ({
+    return String(value ?? '').replace(/[<>"'&]/g, char => ({
       '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
     }[char]));
   }
@@ -95,6 +95,14 @@
     }
   }
 
+  function loadAdministrationSystem() {
+    if (document.querySelector('script[src$="administration-system.js"]')) return;
+    const script = document.createElement('script');
+    script.src = './administration-system.js';
+    document.body.appendChild(script);
+  }
+
   window.loadLaunchers = loadLaunchers;
   loadLaunchers();
+  loadAdministrationSystem();
 })();
