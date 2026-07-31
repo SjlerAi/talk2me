@@ -1,14 +1,13 @@
 {
   "name": "talk2me-os2-preview",
-  "version": "0.15.3",
+  "version": "0.15.4",
   "private": true,
   "description": "Talk2Me OS2 test application for talk2me.kloka.co.za",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "check": "node --check server.js && node --check my-work-routes.js && node --check assignment-routes.js && node --check approval-routes.js && node --check notification-routes.js && node --check attendance-routes.js && node --check opportunity-routes.js && node --check report-routes.js && node --check import-routes.js && node --check administration-routes.js && node --check uat-smoke.js && node --check diagnose-search.js",
-    "uat:smoke": "node uat-smoke.js",
-    "diagnose:search": "node diagnose-search.js"
+    "check": "node --check server.js && node --check my-work-routes.js && node --check assignment-routes.js && node --check approval-routes.js && node --check notification-routes.js && node --check attendance-routes.js && node --check opportunity-routes.js && node --check report-routes.js && node --check import-routes.js && node --check administration-routes.js && node --check uat-smoke.js",
+    "uat:smoke": "node uat-smoke.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
