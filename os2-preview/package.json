@@ -1,0 +1,14 @@
+{
+  "name": "talk2me-os2-preview",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Standalone Talk2Me OS2 preview application for talk2me.kloka.co.za",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "check": "node --check server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}
