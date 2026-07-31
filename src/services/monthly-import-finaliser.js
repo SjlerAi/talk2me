@@ -200,15 +200,21 @@ async function previewFinalisation(connection = db) {
   return Object.fromEntries(Object.entries(counts || {}).map(([key, value]) => [key, Number(value || 0)]));
 }
 
-async function loadCanonicalPhoneCandidates(connection) {
+async function loadCanonicalPhoneCandidates(connection, canonicalPhone) {
+  const canonical = normaliseSouthAfricanMobile(canonicalPhone);
+  if (!canonical) return [];
+  const national = `0${canonical.slice(-9)}`;
+  const international = `+${canonical}`;
   const [clients] = await connection.execute(`
     SELECT id,cell_number_normalised,cell_number,
       main_contact_number_normalised,main_contact_number,alt_number
     FROM clients
-    WHERE COALESCE(cell_number_normalised,cell_number,
-      main_contact_number_normalised,main_contact_number,alt_number) IS NOT NULL
+    WHERE cell_number_normalised=:canonical OR main_contact_number_normalised=:canonical
+      OR cell_number IN (:canonical,:national,:international)
+      OR main_contact_number IN (:canonical,:national,:international)
+      OR alt_number IN (:canonical,:national,:international)
     FOR UPDATE
-  `);
+  `, { canonical, national, international });
   return clients;
 }
 
@@ -227,7 +233,7 @@ async function updateMobile(connection, action, row, context) {
     if (Number(action.proposed_client_id) !== targetId) {
       throw new Error(`Mobile action #${action.id} target disagrees with its deterministic match.`);
     }
-    requireUniqueMobileTarget(await loadCanonicalPhoneCandidates(connection), canonical, targetId);
+    requireUniqueMobileTarget(await loadCanonicalPhoneCandidates(connection, canonical), canonical, targetId);
   }
   const [[before]] = await connection.execute('SELECT * FROM clients WHERE id=:id FOR UPDATE', { id: targetId });
   if (manuallyResolved) {
@@ -275,7 +281,7 @@ async function updateMobile(connection, action, row, context) {
 async function createProvisionalMobile(connection, action, row, context) {
   const canonical = normaliseSouthAfricanMobile(row.phone_original || row.phone_normalised);
   if (!canonical) throw new Error(`Mobile action #${action.id} does not contain a valid South African mobile number.`);
-  const duplicateIds = matchingClientIds(await loadCanonicalPhoneCandidates(connection), canonical);
+  const duplicateIds = matchingClientIds(await loadCanonicalPhoneCandidates(connection, canonical), canonical);
   if (duplicateIds.length > 1) throw new Error(`Mobile ${canonical} now matches multiple clients and requires conflict review.`);
   if (duplicateIds.length === 1) {
     throw new Error(`Mobile ${canonical} now matches client #${duplicateIds[0]}. Re-run Process Monthly Import before finalising.`);
@@ -553,70 +559,123 @@ async function applyAction(connection, action, context) {
   throw new Error(`Action ${action.action_type} is not safe for monthly finalisation.`);
 }
 
+const ACTION_SELECT_SQL = `
+  SELECT
+    a.id action_id,a.import_row_id,a.match_id,a.action_type,a.target_entity_type,a.target_entity_id,
+    a.before_json,a.proposed_json,a.approval_status,a.approved_by,a.approved_at,
+    a.applied_status,a.applied_by,a.applied_at,a.error_text,
+    m.classification,m.match_domain,m.confidence_score,m.review_status,
+    m.reviewed_by,m.reviewed_at,m.review_notes,m.candidate_json,
+    m.proposed_client_id,m.proposed_account_id,m.proposed_fixed_account_id,m.proposed_fixed_service_id,
+    r.id row_id,r.batch_id,r.source_row_number,r.row_fingerprint,r.import_status,
+    r.phone_original,r.phone_normalised,r.account_number,r.customer_name,r.transaction_date,
+    r.agent_code,r.deal_sheet_number,r.imei,r.order_number,r.mac_address,r.solution_id,
+    r.sim_number,r.package_name,r.description,r.raw_data_json,r.warning_text,
+    b.original_filename,b.import_type,b.source_system
+  FROM monthly_import_actions a
+  JOIN monthly_import_matches m ON m.id=a.match_id
+  JOIN monthly_import_rows r ON r.id=a.import_row_id
+  JOIN monthly_import_batches b ON b.id=r.batch_id
+`;
+
+function actionRecord(storedAction) {
+  return {
+    ...storedAction,
+    id: Number(storedAction.action_id),
+    row_id: Number(storedAction.row_id),
+    match_id: Number(storedAction.match_id)
+  };
+}
+
+async function loadMonthlyImportActions(connection, actionIds, { lock = false } = {}) {
+  const ids = [...new Set((actionIds || []).map(Number).filter(id => Number.isSafeInteger(id) && id > 0))];
+  if (!ids.length) return [];
+  const params = {};
+  const placeholders = ids.map((id, index) => {
+    params[`actionId${index}`] = id;
+    return `:actionId${index}`;
+  });
+  const [rows] = await connection.execute(`
+    ${ACTION_SELECT_SQL}
+    WHERE a.id IN (${placeholders.join(',')})
+    ORDER BY a.id
+    ${lock ? 'FOR UPDATE' : ''}
+  `, params);
+  return rows.map(actionRecord);
+}
+
+async function completeMonthlyImportAction(connection, action, context, {
+  approvePending = false,
+  allowedStatuses = ['not_applied'],
+  auditActionType = 'monthly_import_action_applied',
+  auditDescription = null,
+  reviewNote = 'Approved during explicit Monthly Import finalisation.'
+} = {}) {
+  if (!allowedStatuses.includes(action.applied_status)) {
+    throw new Error(action.applied_status === 'applied'
+      ? `Action #${action.id} has already been applied and cannot be reapplied.`
+      : `Action #${action.id} is not eligible for this finalisation.`);
+  }
+  if (!approvePending && !isFinalisableAction(action)) {
+    throw new Error(`Action #${action.id} is not approved for finalisation.`);
+  }
+  const before = {
+    approvalStatus: action.approval_status,
+    appliedStatus: action.applied_status,
+    errorText: action.error_text,
+    targetEntityType: action.target_entity_type,
+    targetEntityId: action.target_entity_id
+  };
+  const result = await applyAction(connection, action, context);
+  const [updated] = await connection.execute(`
+    UPDATE monthly_import_actions
+    SET approval_status='approved',approved_by=COALESCE(approved_by,:userId),
+      approved_at=COALESCE(approved_at,NOW()),target_entity_type=:targetType,target_entity_id=:targetId,
+      before_json=:beforeJson,applied_status='applied',applied_by=:userId,applied_at=NOW(),error_text=NULL
+    WHERE id=:id AND applied_status=:expectedStatus
+  `, {
+    userId: context.userId,
+    targetType: result.targetType,
+    targetId: result.targetId,
+    beforeJson: result.before == null ? null : JSON.stringify(result.before),
+    expectedStatus: action.applied_status,
+    id: action.id
+  });
+  if (updated.affectedRows !== 1) throw new Error(`Action #${action.id} changed while it was being finalised.`);
+  await connection.execute(`
+    UPDATE monthly_import_matches
+    SET review_status='approved',reviewed_by=COALESCE(reviewed_by,:userId),
+      reviewed_at=COALESCE(reviewed_at,NOW()),review_notes=COALESCE(review_notes,:reviewNote)
+    WHERE id=:matchId
+  `, { userId: context.userId, reviewNote, matchId: action.match_id });
+  await writeAudit(connection, context, auditActionType, 'monthly_import_actions', action.id,
+    auditDescription || `Monthly import action #${action.id} was applied after its live write completed.`,
+    before,
+    { approvalStatus: 'approved', appliedStatus: 'applied', targetEntityType: result.targetType, targetEntityId: result.targetId });
+  return { actionId: action.id, targetType: result.targetType, targetId: result.targetId };
+}
+
 async function retryMonthlyImportAction(actionId, context) {
   const id = Number(actionId);
   if (!Number.isSafeInteger(id) || id < 1) throw new Error('A valid Monthly Import action is required.');
   const connection = await db.getConnection();
   try {
     await connection.beginTransaction();
-    const [[storedAction]] = await connection.execute(`
-      SELECT
-        a.id action_id,a.import_row_id,a.match_id,a.action_type,a.target_entity_type,a.target_entity_id,
-        a.before_json,a.proposed_json,a.approval_status,a.approved_by,a.approved_at,
-        a.applied_status,a.applied_by,a.applied_at,a.error_text,
-        m.classification,m.review_status,m.reviewed_by,m.reviewed_at,m.review_notes,m.candidate_json,
-        m.proposed_client_id,m.proposed_account_id,m.proposed_fixed_account_id,m.proposed_fixed_service_id,
-        r.id row_id,r.batch_id,r.source_row_number,r.row_fingerprint,r.import_status,
-        r.phone_original,r.phone_normalised,r.account_number,r.customer_name,r.transaction_date,
-        r.agent_code,r.deal_sheet_number,r.imei,r.order_number,r.mac_address,r.solution_id,
-        r.sim_number,r.package_name,r.description,r.raw_data_json,r.warning_text,
-        b.import_type,b.source_system
-      FROM monthly_import_actions a
-      JOIN monthly_import_matches m ON m.id=a.match_id
-      JOIN monthly_import_rows r ON r.id=a.import_row_id
-      JOIN monthly_import_batches b ON b.id=r.batch_id
-      WHERE a.id=:id FOR UPDATE
-    `, { id });
-    if (!storedAction) throw new Error('This Monthly Import action no longer exists.');
-    const action = { ...storedAction, id: Number(storedAction.action_id), row_id: Number(storedAction.row_id) };
+    const [action] = await loadMonthlyImportActions(connection, [id], { lock: true });
+    if (!action) throw new Error('This Monthly Import action no longer exists.');
     if (action.applied_status === 'applied') throw new Error(`Action #${id} has already been applied and cannot be reapplied.`);
     if (!['failed', 'not_applied'].includes(action.applied_status)) throw new Error(`Action #${id} is not retryable.`);
     if (!(action.approval_status === 'approved'
       || (action.approval_status === 'pending' && FINALISABLE_NEW_ACTIONS.has(action.action_type)))) {
       throw new Error(`Action #${id} still requires approval or conflict review.`);
     }
-    const before = {
-      approvalStatus: action.approval_status,
-      appliedStatus: action.applied_status,
-      errorText: action.error_text,
-      targetEntityType: action.target_entity_type,
-      targetEntityId: action.target_entity_id
-    };
-    const result = await applyAction(connection, action, context);
-    const [updated] = await connection.execute(`
-      UPDATE monthly_import_actions
-      SET approval_status='approved',approved_by=COALESCE(approved_by,:userId),
-        approved_at=COALESCE(approved_at,NOW()),target_entity_type=:targetType,target_entity_id=:targetId,
-        before_json=:beforeJson,applied_status='applied',applied_by=:userId,applied_at=NOW(),error_text=NULL
-      WHERE id=:id AND applied_status IN ('failed','not_applied')
-    `, {
-      userId: context.userId,
-      targetType: result.targetType,
-      targetId: result.targetId,
-      beforeJson: result.before == null ? null : JSON.stringify(result.before),
-      id
+    const result = await completeMonthlyImportAction(connection, action, context, {
+      approvePending: true,
+      allowedStatuses: ['failed', 'not_applied'],
+      auditActionType: 'monthly_import_action_retried',
+      auditDescription: `Monthly import action #${id} was safely retried through the existing finalisation service.`,
+      reviewNote: 'Approved during supported Monthly Import retry.'
     });
-    if (updated.affectedRows !== 1) throw new Error(`Action #${id} changed while it was being retried.`);
-    await connection.execute(`
-      UPDATE monthly_import_matches
-      SET review_status='approved',reviewed_by=COALESCE(reviewed_by,:userId),
-        reviewed_at=COALESCE(reviewed_at,NOW())
-      WHERE id=:matchId
-    `, { userId: context.userId, matchId: action.match_id });
-    await writeAudit(connection, context, 'monthly_import_action_retried', 'monthly_import_actions', id,
-      `Monthly import action #${id} was safely retried through the existing finalisation service.`,
-      before,
-      { appliedStatus: 'applied', targetEntityType: result.targetType, targetEntityId: result.targetId });
     await connection.commit();
     return { actionId: id, targetType: result.targetType, targetId: result.targetId };
   } catch (error) {
@@ -635,22 +694,10 @@ async function finaliseMonthlyImport(context) {
     if (preview.unresolved > 0) {
       throw new Error(`${preview.unresolved} conflict or exception item(s) must be approved, rejected or deferred before finalisation.`);
     }
-    const [actions] = await connection.execute(`
-      SELECT
-        a.id action_id,a.import_row_id,a.match_id,a.action_type,a.target_entity_type,a.target_entity_id,
-        a.before_json,a.proposed_json,a.approval_status,a.approved_by,a.approved_at,
-        a.applied_status,a.applied_by,a.applied_at,a.error_text,
-        m.classification,m.review_status,m.reviewed_by,m.reviewed_at,m.review_notes,m.candidate_json,
-        m.proposed_client_id,m.proposed_account_id,m.proposed_fixed_account_id,m.proposed_fixed_service_id,
-        r.id row_id,r.batch_id,r.source_row_number,r.row_fingerprint,r.import_status,
-        r.phone_original,r.phone_normalised,r.account_number,r.customer_name,r.transaction_date,
-        r.agent_code,r.deal_sheet_number,r.imei,r.order_number,r.mac_address,r.solution_id,
-        r.sim_number,r.package_name,r.description,r.raw_data_json,r.warning_text,
-        b.import_type,b.source_system
+    const [storedActions] = await connection.execute(`
+      SELECT a.id
       FROM monthly_import_actions a
       JOIN monthly_import_matches m ON m.id=a.match_id
-      JOIN monthly_import_rows r ON r.id=a.import_row_id
-      JOIN monthly_import_batches b ON b.id=r.batch_id
       WHERE a.applied_status='not_applied'
         AND (
           a.approval_status='approved'
@@ -659,44 +706,13 @@ async function finaliseMonthlyImport(context) {
       ORDER BY a.id
       FOR UPDATE
     `);
+    const actions = await loadMonthlyImportActions(connection, storedActions.map(row => row.id), { lock: true });
     let applied = 0;
-    for (const storedAction of actions) {
-      const action = { ...storedAction, id: Number(storedAction.action_id), row_id: Number(storedAction.row_id) };
+    for (const action of actions) {
       if (!isFinalisableAction(action)) {
         throw new Error(`Action #${action.id} is not approved for finalisation.`);
       }
-      const actionBefore = {
-        approvalStatus: action.approval_status,
-        appliedStatus: action.applied_status,
-        targetEntityType: action.target_entity_type,
-        targetEntityId: action.target_entity_id
-      };
-      const result = await applyAction(connection, action, context);
-      await connection.execute(`
-        UPDATE monthly_import_actions
-        SET approval_status='approved',
-          approved_by=COALESCE(approved_by,:userId),approved_at=COALESCE(approved_at,NOW()),
-          target_entity_type=:targetType,target_entity_id=:targetId,before_json=:beforeJson,
-          applied_status='applied',applied_by=:userId,applied_at=NOW(),error_text=NULL
-        WHERE id=:id AND applied_status='not_applied'
-      `, {
-        userId: context.userId,
-        targetType: result.targetType,
-        targetId: result.targetId,
-        beforeJson: result.before == null ? null : JSON.stringify(result.before),
-        id: action.id
-      });
-      await connection.execute(`
-        UPDATE monthly_import_matches
-        SET review_status='approved',reviewed_by=COALESCE(reviewed_by,:userId),
-          reviewed_at=COALESCE(reviewed_at,NOW()),
-          review_notes=COALESCE(review_notes,'Approved during explicit Monthly Import finalisation.')
-        WHERE id=:matchId
-      `, { userId: context.userId, matchId: action.match_id });
-      await writeAudit(connection, context, 'monthly_import_action_applied', 'monthly_import_actions', action.id,
-        `Monthly import action #${action.id} was applied after its live write completed.`,
-        actionBefore,
-        { approvalStatus: 'approved', appliedStatus: 'applied', targetEntityType: result.targetType, targetEntityId: result.targetId });
+      await completeMonthlyImportAction(connection, action, context);
       applied += 1;
     }
     await writeAudit(connection, context, 'monthly_import_finalised', 'monthly_import_actions', null,
@@ -717,6 +733,10 @@ module.exports = {
   previewFinalisation,
   finaliseMonthlyImport,
   retryMonthlyImportAction,
+  loadMonthlyImportActions,
+  completeMonthlyImportAction,
+  writeAudit,
+  ACTION_SELECT_SQL,
   effectiveContractTerm,
   matchingClientIds,
   requireUniqueMobileTarget,

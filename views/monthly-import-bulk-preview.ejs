@@ -1,0 +1,52 @@
+<%
+const scopeSuffix = returnQuery ? `?${returnQuery}` : '';
+const panelSuffix = panelMode ? (scopeSuffix ? '&panel=1' : '?panel=1') : '';
+const managementUrl = `${basePath}/backoffice/monthly-import-management${scopeSuffix}${panelMode && !returnQuery.includes('panel=1') ? panelSuffix : ''}`;
+const counts = preview.counts;
+%>
+<main class="mim-shell mim-bulk-page">
+  <header class="mim-hero">
+    <div><span class="eyebrow">Bulk Monthly Import</span><h1>Preview safe records</h1><p>Every row has been checked against its current action and live CRM targets. Finalisation checks them again under lock.</p></div>
+    <nav><a class="btn" href="<%= managementUrl %>">Back to Monthly Import Management</a></nav>
+  </header>
+
+  <section class="mim-summary mim-bulk-preview-summary" aria-label="Bulk preview totals">
+    <article class="mim-summary-card completed"><span>Total selected</span><strong><%= counts.selected %></strong></article>
+    <article class="mim-summary-card completed"><span>Safe to process</span><strong><%= counts.safe %></strong></article>
+    <article class="mim-summary-card mobile_updated"><span>Customer updates</span><strong><%= counts.existingMobile %></strong></article>
+    <article class="mim-summary-card new_mobile"><span>New mobile customers</span><strong><%= counts.newMobile %></strong></article>
+    <article class="mim-summary-card fixed_created"><span>Fixed creates / updates</span><strong><%= counts.fixed %></strong></article>
+    <article class="mim-summary-card failed"><span>Excluded</span><strong><%= counts.excluded %></strong></article>
+  </section>
+
+  <section class="panel mim-bulk-confirm" id="confirm">
+    <div><span class="eyebrow">Manager confirmation</span><h2>Approve and finalise <%= counts.safe %> safe record(s)</h2>
+      <ul><li><strong><%= counts.existingMobile %></strong> live customer record(s) will be updated.</li><li><strong><%= counts.newMobile %></strong> new customer record(s) will be created.</li><li><strong><%= counts.fixed %></strong> fixed record(s) will be created or updated.</li><li><strong><%= counts.excluded %></strong> row(s) are excluded and will not be changed.</li></ul>
+      <p class="mim-safety-statement"><strong>No live customer records will be merged or deleted.</strong> No rejected, deferred, unresolved, failed or already-completed action will be applied.</p>
+    </div>
+    <form method="post" action="<%= basePath %>/backoffice/monthly-import-management/bulk/finalise<%= panelMode?'?panel=1':'' %>">
+      <input type="hidden" name="return_query" value="<%= returnQuery %>"><% if(panelMode){ %><input type="hidden" name="panel" value="1"><% } %>
+      <label><input type="checkbox" name="confirm_bulk" value="yes" required> I reviewed this preview and confirm bulk-safe finalisation.</label>
+      <button class="btn primary" <%= counts.safe?'':'disabled' %>>Approve and finalise safe records</button>
+    </form>
+  </section>
+
+  <section class="panel mim-bulk-list" id="safe">
+    <header><div><span class="eyebrow">Safe to process</span><h2><%= counts.safe %> record(s)</h2></div></header>
+    <div class="mim-bulk-rows">
+      <% preview.safeRows.forEach(row => { %><article><strong><%= row.customer_name||row.account_number||row.phone_original||'Imported record' %></strong><span><%= row.reference %> · <%= row.source %></span><small><%= row.reason %></small></article><% }) %>
+      <% if(!preview.safeRows.length){ %><p>No rows in this filter scope currently pass every bulk-safety check.</p><% } %>
+    </div>
+  </section>
+
+  <section class="panel mim-bulk-list mim-exception-list" id="exceptions">
+    <header><div><span class="eyebrow">Exceptions requiring individual review</span><h2><%= counts.excluded %> excluded row(s)</h2></div>
+      <a class="btn" href="<%= basePath %>/backoffice/data-import<%= panelMode?'?panel=1':'' %>#exceptions">Open conflict review</a>
+    </header>
+    <div class="mim-bulk-rows">
+      <% preview.excludedRows.forEach(row => { %><article class="<%= row.category %>"><strong><%= row.customer_name||row.account_number||row.phone_original||'Imported record' %></strong><span><%= row.reference %> · <%= row.source %></span><small><b><%= row.requiredAction %>:</b> <%= row.reason %></small></article><% }) %>
+      <% if(!preview.excludedRows.length){ %><p>No exceptions in this filter scope.</p><% } %>
+    </div>
+  </section>
+</main>
+<link rel="stylesheet" href="<%= basePath %>/public/css/monthly-import-management.css?v=<%= encodeURIComponent(appVersion) %>-bulk-safe">

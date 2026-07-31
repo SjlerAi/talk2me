@@ -311,6 +311,7 @@ module.exports = {
   classifyBusinessStatus,
   filtersFrom,
   whereFor,
+  FROM_SQL,
   loadManagement,
   toCsv
 };

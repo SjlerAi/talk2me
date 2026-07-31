@@ -184,6 +184,13 @@ const mockConnection = {
       { key: 'new_mobile_account', label: 'New customer needs account number' },
       { key: 'conflict', label: 'Needs conflict review' }
     ],
+    bulkPreview: {
+      counts: {
+        safe: 2, existingMobile: 1, newMobile: 1, fixed: 0, excluded: 3,
+        exceptions: 0, conflicts: 1, missingInformation: 1, fixedApprovals: 0,
+        failed: 1, completed: 0
+      }
+    },
     notice: '', error: '',
     rows: [
       { ...baseRow, status_key: 'new_mobile_account', live_client_id: 201, live_client_name: 'New Customer' },
