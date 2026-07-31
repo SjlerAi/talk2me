@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Talk2Me OS2</title>
+  <link rel="stylesheet" href="./os2.css">
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar" id="sidebar">
+    <div class="brand"><div class="brand-mark">T</div><div><strong>Talk2Me</strong><span>OS2 Workspace</span></div></div>
+    <nav>
+      <button class="nav-item active" data-view="home"><span>⌂</span>Home</button>
+      <button class="nav-item" data-view="customers"><span>◎</span>Customers</button>
+      <button class="nav-item" data-view="work"><span>✓</span>My Work <b>7</b></button>
+      <button class="nav-item" data-view="opportunities"><span>↗</span>Opportunities</button>
+      <button class="nav-item" data-view="reports"><span>▦</span>Reports</button>
+      <button class="nav-item management" data-view="admin"><span>⚙</span>Administration</button>
+    </nav>
+    <div class="tools">
+      <p>WORK TOOLS</p>
+      <button data-toast="Opening Vodacom portal">V</button><button data-toast="Opening MTN portal">M</button><button data-toast="Opening Telkom portal">T</button><button data-toast="Opening Sage">S</button>
+    </div>
+    <div class="profile"><div class="avatar">SL</div><div><strong>Stephan</strong><span>Owner · Clocked in</span></div></div>
+  </aside>
+
+  <main>
+    <header class="topbar">
+      <button class="menu" id="menu">☰</button>
+      <div class="search"><span>⌕</span><input id="search" placeholder="Search customer, account, phone, SIM or MAC..."><div class="results" id="results"></div></div>
+      <button class="quick" id="newInquiry">+ New inquiry</button>
+      <button class="icon" id="alerts">🔔<b>3</b></button>
+    </header>
+
+    <section class="content" id="content">
+      <div class="page-head"><div><span>FRIDAY, 31 JULY 2026</span><h1>Good morning, Stephan</h1><p>Here is where the business needs your attention today.</p></div><button class="secondary" data-toast="Dashboard refreshed">Refresh</button></div>
+
+      <div class="attention-grid">
+        <article class="metric urgent" data-view="admin"><span>Approvals waiting</span><strong>4</strong><small>2 require action today</small></article>
+        <article class="metric warning" data-view="work"><span>Overdue work</span><strong>7</strong><small>Across 3 staff members</small></article>
+        <article class="metric blue" data-view="customers"><span>Unassigned accounts</span><strong>12</strong><small>Ready for assignment</small></article>
+        <article class="metric green"><span>Staff clocked in</span><strong>5/5</strong><small>All staff active</small></article>
+      </div>
+
+      <div class="workspace-grid">
+        <section class="panel">
+          <div class="panel-head"><div><span>MY WORK</span><h2>Today</h2></div><button data-view="work">View all</button></div>
+          <div class="task"><div class="task-icon red">!</div><div><strong>Follow up with Coastal Office Solutions</strong><span>Upgrade quotation · Overdue by 1 day</span></div><button data-toast="Task opened">Open</button></div>
+          <div class="task"><div class="task-icon blue">☎</div><div><strong>Call Michelle Jacobs</strong><span>Scheduled callback · 09:30</span></div><button data-toast="Customer opened">Open</button></div>
+          <div class="task"><div class="task-icon amber">✓</div><div><strong>Review staff claim request</strong><span>Submitted by Johnny · 10:00</span></div><button data-view="admin">Review</button></div>
+          <div class="task"><div class="task-icon green">↗</div><div><strong>Three upgrades due today</strong><span>Potential monthly value R4,280</span></div><button data-view="opportunities">View</button></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head"><div><span>OPPORTUNITIES</span><h2>Client care</h2></div><button data-view="opportunities">View all</button></div>
+          <div class="opportunity"><div><strong>8</strong><span>Upgrades due</span></div><em>Next 7 days</em></div>
+          <div class="opportunity"><div><strong>3</strong><span>Birthdays today</span></div><em>Send a message</em></div>
+          <div class="opportunity"><div><strong>6</strong><span>Scheduled callbacks</span></div><em>Today</em></div>
+          <div class="opportunity"><div><strong>5</strong><span>New prospects</span></div><em>This week</em></div>
+        </section>
+      </div>
+
+      <section class="panel activity">
+        <div class="panel-head"><div><span>TEAM PULSE</span><h2>Latest activity</h2></div><button data-view="reports">Open report</button></div>
+        <table><thead><tr><th>Staff member</th><th>Latest action</th><th>Customer</th><th>Status</th><th>Time</th></tr></thead><tbody>
+          <tr><td>Johnny</td><td>Completed follow-up</td><td>West Coast Steel</td><td><span class="status done">Completed</span></td><td>08:31</td></tr>
+          <tr><td>Annazel</td><td>Created inquiry</td><td>Michelle Jacobs</td><td><span class="status progress">In progress</span></td><td>08:24</td></tr>
+          <tr><td>Sias</td><td>Requested client claim</td><td>Coastal Office Solutions</td><td><span class="status pending">Approval</span></td><td>08:16</td></tr>
+        </tbody></table>
+      </section>
+    </section>
+  </main>
+</div>
+
+<div class="drawer" id="drawer"><div class="drawer-head"><h2>Notifications</h2><button id="closeDrawer">×</button></div><div class="notice"><b>Approval required</b><span>Johnny requested ownership of account VB10452.</span></div><div class="notice"><b>Task returned</b><span>Follow-up notes need more detail.</span></div><div class="notice"><b>Import ready</b><span>Monthly import processing completed successfully.</span></div></div>
+<div class="modal" id="modal"><form><div class="modal-head"><div><span>QUICK ACTION</span><h2>New inquiry</h2></div><button type="button" id="closeModal">×</button></div><label>Customer<input value="Michelle Jacobs"></label><div class="fields"><label>Category<select><option>Upgrade</option><option>New contract</option><option>Repair</option></select></label><label>Follow-up<input type="date" value="2026-07-31"></label></div><label>Action taken<textarea placeholder="Add the discussion and next step..."></textarea></label><div class="modal-actions"><button type="button" class="secondary" id="cancelModal">Cancel</button><button type="submit" class="quick">Save inquiry</button></div></form></div>
+<div class="toast" id="toast"></div>
+<script src="./os2.js"></script>
+</body>
+</html>
