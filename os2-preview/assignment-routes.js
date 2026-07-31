@@ -88,6 +88,27 @@ module.exports = function createAssignmentRouter({ pool, requireAuth, requestIp 
     }
   });
 
+  router.get('/api/diagnostics/claim-table', requireAuth, async (req, res) => {
+    if (req.user.role !== 'owner') return res.status(403).json({ ok:false, error:'OWNER_ONLY' });
+    try {
+      const [[status]] = await pool.execute(`SELECT ENGINE, ROW_FORMAT, TABLE_ROWS, AUTO_INCREMENT, CREATE_OPTIONS,
+          DATA_LENGTH, INDEX_LENGTH, DATA_FREE
+        FROM INFORMATION_SCHEMA.TABLES
+        WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='data_change_requests'
+        LIMIT 1`);
+      const [requestColumns] = await pool.execute(`SELECT ORDINAL_POSITION, COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE,
+          COLUMN_DEFAULT, EXTRA, CHARACTER_MAXIMUM_LENGTH
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='data_change_requests'
+        ORDER BY ORDINAL_POSITION`);
+      const [[summary]] = await pool.execute('SELECT COUNT(*) row_count, MAX(id) max_id FROM data_change_requests');
+      res.json({ ok:true, table_status:status || null, row_summary:summary || null, columns:requestColumns });
+    } catch (error) {
+      console.error('Claim table diagnostic failed', error);
+      res.status(500).json({ ok:false, error:error.code || error.message || 'CLAIM_TABLE_DIAGNOSTIC_FAILED' });
+    }
+  });
+
   router.post('/api/customers/:id/assign', requireAuth, async (req, res) => {
     if (!['owner','manager'].includes(req.user.role)) return res.status(403).json({ ok:false, error:'INSUFFICIENT_PERMISSION' });
     const clientId = Number(req.params.id);
