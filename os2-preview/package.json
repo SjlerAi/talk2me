@@ -1,6 +1,6 @@
 {
   "name": "talk2me-os2-preview",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Talk2Me OS2 test application for talk2me.kloka.co.za",
   "main": "server.js",
@@ -9,6 +9,7 @@
     "check": "node --check server.js"
   },
   "dependencies": {
+    "bcryptjs": "^2.4.3",
     "express": "^4.19.2",
     "mysql2": "^3.11.0"
   }
