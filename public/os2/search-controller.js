@@ -7,10 +7,14 @@
   const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({
     '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
   }[char]));
-  const normalise = value => String(value ?? '')
+
+  const normaliseText = value => String(value ?? '')
+    .normalize('NFKC')
     .toLowerCase()
-    .replace(/[\u0000-\u001f\u007f\u00a0\s]+/g, '')
     .trim();
+
+  const canonicalEmail = value => normaliseText(value)
+    .replace(/[^a-z0-9@._+\-]/g, '');
 
   let timer = null;
   let controller = null;
@@ -50,19 +54,25 @@
     if (controller) controller.abort();
     controller = new AbortController();
     try {
-      let customers = await fetchCustomers(value, controller.signal);
-      if (!customers) return;
+      const canonicalValue = canonicalEmail(value);
+      const isEmailSearch = canonicalValue.includes('@');
+      let customers;
 
-      const normalisedValue = normalise(value);
-      const atIndex = normalisedValue.indexOf('@');
-      if (!customers.length && atIndex > 0 && normalisedValue.length > atIndex + 2) {
-        const broadEmailPrefix = normalisedValue.slice(0, atIndex + 2);
-        const broadCustomers = await fetchCustomers(broadEmailPrefix, controller.signal);
+      if (isEmailSearch) {
+        const atIndex = canonicalValue.indexOf('@');
+        const domainTyped = canonicalValue.slice(atIndex + 1);
+        const broadPrefix = domainTyped.length
+          ? `${canonicalValue.slice(0, atIndex + 1)}${domainTyped.charAt(0)}`
+          : canonicalValue;
+        const broadCustomers = await fetchCustomers(broadPrefix, controller.signal);
         if (!broadCustomers) return;
-        customers = broadCustomers.filter(item => normalise(item.email).startsWith(normalisedValue));
+        customers = broadCustomers.filter(item => canonicalEmail(item.email).startsWith(canonicalValue));
+      } else {
+        customers = await fetchCustomers(value, controller.signal);
+        if (!customers) return;
       }
 
-      if (requestSequence !== sequence || normalise(search.value) !== normalisedValue) return;
+      if (requestSequence !== sequence || normaliseText(search.value) !== normaliseText(value)) return;
       renderCustomers(customers);
     } catch (error) {
       if (error.name === 'AbortError') return;
