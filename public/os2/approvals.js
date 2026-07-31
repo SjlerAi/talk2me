@@ -32,7 +32,6 @@
       const r=await api('/api/approvals');const data=await r.json();
       if(!r.ok||!data.ok)throw new Error(data.error||'APPROVAL_QUEUE_FAILED');
       byId('approvalStatus').textContent=`${data.count} pending claim${data.count===1?'':'s'}`;
-      byId('alertBadge').textContent=data.count;
       byId('approvalList').innerHTML=data.items.length?data.items.map(item=>`<article class="approval-card"><div><strong>${esc(item.client_name||'Unknown customer')}</strong><div class="approval-meta"><span>Requested by ${esc(item.requester_name||'Unknown')}</span><span>Current owner: ${esc(item.current_assignee||'Unassigned')}</span><span>Account: ${esc(item.account_number||'—')}</span></div><p>${esc(item.reason||item.description||'No reason supplied.')}</p></div><div class="approval-actions"><button data-customer="${item.entity_id||item.client_id||''}">Customer</button><button class="reject" data-decision="reject" data-id="${item.id}">Reject</button><button class="approve" data-decision="approve" data-id="${item.id}">Approve</button></div></article>`).join(''):'<div class="approval-empty">No claim approvals are waiting.</div>';
       byId('approvalList').querySelectorAll('[data-customer]').forEach(btn=>btn.addEventListener('click',()=>{const id=Number(btn.dataset.customer);if(id&&typeof window.openCustomer==='function'){view.hidden=true;window.openCustomer(id);}}));
       byId('approvalList').querySelectorAll('[data-decision]').forEach(btn=>btn.addEventListener('click',()=>decide(btn)));
@@ -49,6 +48,7 @@
       const data=await r.json();if(!r.ok||!data.ok)throw new Error(data.error||'APPROVAL_DECISION_FAILED');
       notify(decision==='approve'?'Client claim approved':'Client claim rejected');
       if(typeof window.loadDashboard==='function')window.loadDashboard();
+      if(typeof window.loadNotifications==='function')window.loadNotifications();
       await load();
     }catch(error){const messages={SELF_APPROVAL_NOT_ALLOWED:'You cannot approve your own claim.',REQUEST_ALREADY_DECIDED:'This request has already been decided.'};notify(messages[error.message]||`Decision failed: ${error.message}`);}finally{button.disabled=false;}
   }
@@ -56,4 +56,10 @@
   document.querySelectorAll('[data-view="admin"]').forEach(el=>el.addEventListener('click',event=>{event.preventDefault();load();}));
   document.querySelectorAll('[data-view="home"],[data-view="work"],[data-view="customers"]').forEach(el=>el.addEventListener('click',()=>{if(view)view.hidden=true;}));
   window.showApprovals=load;
+
+  if (!document.querySelector('script[src$="notifications.js"]')) {
+    const script=document.createElement('script');
+    script.src='./notifications.js';
+    document.body.appendChild(script);
+  }
 })();
