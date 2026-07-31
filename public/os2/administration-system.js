@@ -11,6 +11,12 @@
     document.body.appendChild(workspaceScript);
   }
 
+  if (!document.querySelector('script[src$="navigation-guard.js"]')) {
+    const navigationScript = document.createElement('script');
+    navigationScript.src = './navigation-guard.js';
+    document.body.appendChild(navigationScript);
+  }
+
   const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({
     '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
   }[char]));
