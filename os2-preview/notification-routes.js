@@ -29,6 +29,11 @@ module.exports = function createNotificationRouter({ pool, requireAuth, requestI
     return `LOWER(COALESCE(\`${statusColumn}\`,'unread')) NOT IN ('seen','read','completed','done','archived')`;
   }
 
+  function activeSql(statusColumn) {
+    if (!statusColumn) return '1=1';
+    return `LOWER(COALESCE(\`${statusColumn}\`,'unread')) NOT IN ('completed','done','archived')`;
+  }
+
   async function audit(connection, req, actionType, entityId, description, afterJson) {
     await connection.execute(`INSERT INTO audit_log
       (staff_id,action_type,entity_type,entity_id,description,before_json,after_json,ip_address,user_agent,created_at)
@@ -66,12 +71,15 @@ module.exports = function createNotificationRouter({ pool, requireAuth, requestI
         client ? `\`${client}\` client_id` : 'NULL client_id',
         inquiry ? `\`${inquiry}\` inquiry_id` : 'NULL inquiry_id'
       ].join(',');
-
-      const [items] = await pool.execute(`SELECT ${select} FROM staff_tasks WHERE \`${recipient}\`=:staffId ORDER BY ${created ? `\`${created}\`` : 'id'} DESC LIMIT 100`, { staffId:req.user.id });
-      const [[unreadRow]] = await pool.execute(`SELECT COUNT(*) unread FROM staff_tasks WHERE \`${recipient}\`=:staffId AND ${unreadSql(status)}`, { staffId:req.user.id });
+      const unreadOrder = status ? `CASE WHEN ${unreadSql(status)} THEN 0 ELSE 1 END` : '0';
+      const timeOrder = created ? `\`${created}\`` : 'id';
+      const [items] = await pool.execute(`SELECT ${select} FROM staff_tasks
+        WHERE \`${recipient}\`=:staffId AND ${activeSql(status)}
+        ORDER BY ${unreadOrder} ASC, ${timeOrder} DESC LIMIT 100`, { staffId:req.user.id });
+      const [[unreadRow]] = await pool.execute(`SELECT COUNT(*) unread FROM staff_tasks WHERE \`${recipient}\`=:staffId AND ${activeSql(status)} AND ${unreadSql(status)}`, { staffId:req.user.id });
       let recipients = [];
       if (canBroadcast) {
-        const [staff] = await pool.execute('SELECT id, full_name, role FROM staff_users WHERE is_active=1 ORDER BY full_name');
+        const [staff] = await pool.execute('SELECT id, full_name, role FROM staff_users WHERE is_active=1 ORDER BY full_name LIMIT 20');
         recipients = staff;
       }
       res.json({ ok:true, unread:Number(unreadRow.unread || 0), items, canBroadcast, recipients });
@@ -89,13 +97,13 @@ module.exports = function createNotificationRouter({ pool, requireAuth, requestI
       const columns = await taskColumns();
       const recipient = firstSupported(columns, ['assigned_staff_id','assigned_to','recipient_staff_id','staff_id','user_id']);
       const status = firstSupported(columns, ['status','task_status']);
-      const readAt = firstSupported(columns, ['read_at','seen_at','completed_at']);
+      const readAt = firstSupported(columns, ['read_at','seen_at']);
       if (!recipient || !status) return res.status(409).json({ ok:false, error:'NOTIFICATION_READ_UNSUPPORTED' });
       await connection.beginTransaction();
       const updates = [`\`${status}\`='seen'`];
       if (readAt) updates.push(`\`${readAt}\`=NOW()`);
       if (columns.has('updated_at')) updates.push('`updated_at`=NOW()');
-      const [result] = await connection.execute(`UPDATE staff_tasks SET ${updates.join(',')} WHERE id=:id AND \`${recipient}\`=:staffId`, { id, staffId:req.user.id });
+      const [result] = await connection.execute(`UPDATE staff_tasks SET ${updates.join(',')} WHERE id=:id AND \`${recipient}\`=:staffId AND ${activeSql(status)}`, { id, staffId:req.user.id });
       if (!result.affectedRows) { await connection.rollback(); return res.status(404).json({ ok:false, error:'NOTIFICATION_NOT_FOUND' }); }
       await audit(connection, req, 'notification_read', id, `Notification ${id} marked as read`, { notification_id:id, status:'seen' });
       await connection.commit();
@@ -104,6 +112,32 @@ module.exports = function createNotificationRouter({ pool, requireAuth, requestI
       await connection.rollback();
       console.error('Notification read failed', error);
       res.status(500).json({ ok:false, error:error.code || error.message || 'NOTIFICATION_READ_FAILED' });
+    } finally { connection.release(); }
+  });
+
+  router.post('/api/notifications/:id/complete', requireAuth, async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id < 1) return res.status(400).json({ ok:false, error:'INVALID_NOTIFICATION_ID' });
+    const connection = await pool.getConnection();
+    try {
+      const columns = await taskColumns();
+      const recipient = firstSupported(columns, ['assigned_staff_id','assigned_to','recipient_staff_id','staff_id','user_id']);
+      const status = firstSupported(columns, ['status','task_status']);
+      const completedAt = firstSupported(columns, ['completed_at','closed_at','archived_at']);
+      if (!recipient || !status) return res.status(409).json({ ok:false, error:'NOTIFICATION_COMPLETE_UNSUPPORTED' });
+      await connection.beginTransaction();
+      const updates = [`\`${status}\`='completed'`];
+      if (completedAt) updates.push(`\`${completedAt}\`=NOW()`);
+      if (columns.has('updated_at')) updates.push('`updated_at`=NOW()');
+      const [result] = await connection.execute(`UPDATE staff_tasks SET ${updates.join(',')} WHERE id=:id AND \`${recipient}\`=:staffId AND ${activeSql(status)}`, { id, staffId:req.user.id });
+      if (!result.affectedRows) { await connection.rollback(); return res.status(404).json({ ok:false, error:'NOTIFICATION_NOT_FOUND' }); }
+      await audit(connection, req, 'notification_completed', id, `Notification ${id} completed`, { notification_id:id, status:'completed' });
+      await connection.commit();
+      res.json({ ok:true, id, status:'completed' });
+    } catch (error) {
+      await connection.rollback();
+      console.error('Notification completion failed', error);
+      res.status(500).json({ ok:false, error:error.code || error.message || 'NOTIFICATION_COMPLETE_FAILED' });
     } finally { connection.release(); }
   });
 
@@ -123,7 +157,7 @@ module.exports = function createNotificationRouter({ pool, requireAuth, requestI
       const recipient = firstSupported(columns, ['assigned_staff_id','assigned_to','recipient_staff_id','staff_id','user_id']);
       if (!recipient) return res.status(409).json({ ok:false, error:'TASK_RECIPIENT_COLUMN_NOT_FOUND' });
       const [staff] = target === 'team'
-        ? await connection.execute('SELECT id, full_name FROM staff_users WHERE is_active=1 ORDER BY full_name')
+        ? await connection.execute('SELECT id, full_name FROM staff_users WHERE is_active=1 ORDER BY full_name LIMIT 20')
         : await connection.execute('SELECT id, full_name FROM staff_users WHERE id=:staffId AND is_active=1 LIMIT 1', { staffId });
       if (!staff.length) return res.status(404).json({ ok:false, error:'STAFF_NOT_FOUND' });
 
