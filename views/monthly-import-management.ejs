@@ -72,25 +72,41 @@ const humanExceptions = bulkCounts.excluded - bulkCounts.completed;
     <% statusCards.forEach(card => { %><a class="mim-summary-card <%= card[2] %>" href="<%= ['total','excluded','completed','new_mobile'].includes(card[2])?'#results':basePath+'/backoffice/monthly-import-management?'+makeQuery({business_status:card[2],page:1}) %>"><span><%= card[0] %></span><strong><%= Number(card[1]||0) %></strong></a><% }) %>
   </section>
 
-  <section class="panel mim-bulk-workflow">
-    <header><div><span class="eyebrow">Bulk processing</span><h2>Safe records and exceptions</h2><p>Process routine rows together. Conflicts, incomplete records, approvals and failures stay in the review queue.</p></div><strong><%= bulkCounts.safe %> safe</strong></header>
-    <div class="mim-bulk-counts">
-      <span><b><%= bulkCounts.safe %></b> Safe to process</span>
-      <span><b><%= bulkCounts.existingMobile %></b> Existing customers to update</span>
-      <span><b><%= bulkCounts.newMobile %></b> New customers to create</span>
-      <span><b><%= bulkCounts.fixed %></b> Fixed records</span>
-      <span><b><%= humanExceptions %></b> Exceptions</span>
-      <span><b><%= bulkCounts.conflicts %></b> Conflicts</span>
-      <span><b><%= bulkCounts.missingInformation %></b> Missing information</span>
-      <span><b><%= bulkCounts.fixedApprovals %></b> Fixed approvals</span>
-      <span><b><%= bulkCounts.failed %></b> Failed</span>
-      <span><b><%= bulkCounts.completed %></b> Already completed</span>
-    </div>
-    <nav>
-      <a class="btn" href="<%= basePath %>/backoffice/monthly-import-management/bulk/preview?<%= bulkQuery %>#safe">Preview safe records</a>
-      <a class="btn primary" href="<%= basePath %>/backoffice/monthly-import-management/bulk/preview?<%= bulkQuery %>#confirm">Approve and finalise safe records</a>
-      <a class="btn" href="<%= basePath %>/backoffice/monthly-import-management/bulk/preview?<%= bulkQuery %>#exceptions">Review exceptions</a>
-    </nav>
+  <section class="mim-bulk-workflow" aria-label="Bulk processing summary">
+    <article class="panel mim-bulk-section mim-bulk-safe">
+      <header>
+        <span class="eyebrow">Safe to process</span>
+        <h2><strong><%= bulkCounts.safe %></strong> safe to process</h2>
+        <p>These records can be approved together</p>
+      </header>
+      <dl class="mim-bulk-breakdown">
+        <div><dt>Existing customers to update</dt><dd><%= bulkCounts.existingMobile %></dd></div>
+        <div><dt>New customers to create</dt><dd><%= bulkCounts.newMobile %></dd></div>
+        <div><dt>Fixed records</dt><dd><%= bulkCounts.fixed %></dd></div>
+      </dl>
+      <nav aria-label="Safe record actions">
+        <a class="btn" href="<%= basePath %>/backoffice/monthly-import-management/bulk/preview?<%= bulkQuery %>#safe">Preview <%= bulkCounts.safe %> safe records</a>
+        <a class="btn primary" href="<%= basePath %>/backoffice/monthly-import-management/bulk/preview?<%= bulkQuery %>#confirm">Approve and finalise <%= bulkCounts.safe %> safe records</a>
+      </nav>
+    </article>
+
+    <article class="panel mim-bulk-section mim-bulk-exceptions">
+      <header>
+        <span class="eyebrow">Exceptions</span>
+        <h2><strong><%= humanExceptions %></strong> exceptions</h2>
+        <p>These records need individual attention</p>
+      </header>
+      <dl class="mim-bulk-breakdown">
+        <div><dt>Conflicts</dt><dd><%= bulkCounts.conflicts %></dd></div>
+        <div><dt>Missing information</dt><dd><%= bulkCounts.missingInformation %></dd></div>
+        <div><dt>Fixed approvals</dt><dd><%= bulkCounts.fixedApprovals %></dd></div>
+        <div><dt>Failed</dt><dd><%= bulkCounts.failed %></dd></div>
+        <div><dt>Already completed</dt><dd><%= bulkCounts.completed %></dd></div>
+      </dl>
+      <nav aria-label="Exception actions">
+        <a class="btn" href="<%= basePath %>/backoffice/monthly-import-management/bulk/preview?<%= bulkQuery %>#exceptions">Review <%= humanExceptions %> exceptions</a>
+      </nav>
+    </article>
   </section>
 
   <section class="panel mim-filters">
@@ -156,4 +172,4 @@ const humanExceptions = bulkCounts.excluded - bulkCounts.completed;
     <% if(pagination.pages>1){ %><nav class="mim-pagination" aria-label="Results pages"><% if(pagination.page>1){ %><a class="btn" href="?<%= makeQuery({page:pagination.page-1}) %>">Previous</a><% } %><span><%= (pagination.page-1)*pagination.pageSize+1 %>–<%= Math.min(pagination.page*pagination.pageSize,pagination.total) %> of <%= pagination.total %></span><% if(pagination.page<pagination.pages){ %><a class="btn" href="?<%= makeQuery({page:pagination.page+1}) %>">Next</a><% } %></nav><% } %>
   </section>
 </main>
-<link rel="stylesheet" href="<%= basePath %>/public/css/monthly-import-management.css?v=<%= encodeURIComponent(appVersion) %>-manager-layout">
+<link rel="stylesheet" href="<%= basePath %>/public/css/monthly-import-management.css?v=<%= encodeURIComponent(appVersion) %>-bulk-summary-layout">

@@ -286,9 +286,17 @@ function action(id, phone, extra = {}) {
   const resultsView = fs.readFileSync(resultsViewPath, 'utf8');
   for (const label of ['Safe to process', 'Existing customers to update', 'New customers to create',
     'Fixed records', 'Exceptions', 'Conflicts', 'Missing information', 'Fixed approvals',
-    'Failed', 'Already completed', 'Preview safe records', 'Approve and finalise safe records', 'Review exceptions']) {
+    'Failed', 'Already completed', 'These records can be approved together',
+    'These records need individual attention']) {
     assert(managementView.includes(label), `Bulk management wording missing: ${label}`);
   }
+  assert(managementView.includes('Preview <%= bulkCounts.safe %> safe records'));
+  assert(managementView.includes('Approve and finalise <%= bulkCounts.safe %> safe records'));
+  assert(managementView.includes('Review <%= humanExceptions %> exceptions'));
+  assert.strictEqual((managementView.match(/class="panel mim-bulk-section/g) || []).length, 2,
+    'Safe records and exceptions must use separate summary sections');
+  assert(!managementView.includes('class="mim-bulk-counts"'),
+    'The dense inline bulk count summary must be removed');
   assert(previewView.includes('No live customer records will be merged or deleted.'));
   assert(previewView.includes('return_query'));
   assert(resultsView.includes('Back to filtered results'));
