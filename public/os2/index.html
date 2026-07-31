@@ -13,16 +13,13 @@
     <nav>
       <button class="nav-item active" data-view="home"><span>⌂</span>Home</button>
       <button class="nav-item" data-view="customers"><span>◎</span>Customers</button>
-      <button class="nav-item" data-view="work"><span>✓</span>My Work <b>7</b></button>
+      <button class="nav-item" data-view="work"><span>✓</span>My Work <b id="workBadge">0</b></button>
       <button class="nav-item" data-view="opportunities"><span>↗</span>Opportunities</button>
       <button class="nav-item" data-view="reports"><span>▦</span>Reports</button>
       <button class="nav-item management" data-view="admin"><span>⚙</span>Administration</button>
     </nav>
-    <div class="tools">
-      <p>WORK TOOLS</p>
-      <button data-toast="Opening Vodacom portal">V</button><button data-toast="Opening MTN portal">M</button><button data-toast="Opening Telkom portal">T</button><button data-toast="Opening Sage">S</button>
-    </div>
-    <div class="profile"><div class="avatar">SL</div><div><strong>Stephan</strong><span>Owner · Clocked in</span></div></div>
+    <div class="tools"><p>WORK TOOLS</p><button data-toast="Opening Vodacom portal">V</button><button data-toast="Opening MTN portal">M</button><button data-toast="Opening Telkom portal">T</button><button data-toast="Opening Sage">S</button></div>
+    <div class="profile"><div class="avatar">SL</div><div><strong>Stephan</strong><span>Owner · Test environment</span></div></div>
   </aside>
 
   <main>
@@ -30,51 +27,46 @@
       <button class="menu" id="menu">☰</button>
       <div class="search"><span>⌕</span><input id="search" placeholder="Search customer, account, phone, SIM or MAC..."><div class="results" id="results"></div></div>
       <button class="quick" id="newInquiry">+ New inquiry</button>
-      <button class="icon" id="alerts">🔔<b>3</b></button>
+      <button class="icon" id="alerts">🔔<b id="alertBadge">0</b></button>
     </header>
 
     <section class="content" id="content">
-      <div class="page-head"><div><span>FRIDAY, 31 JULY 2026</span><h1>Good morning, Stephan</h1><p>Here is where the business needs your attention today.</p></div><button class="secondary" data-toast="Dashboard refreshed">Refresh</button></div>
+      <div class="page-head"><div><span id="todayLabel">LOADING</span><h1>Good morning, Stephan</h1><p id="systemMessage">Connecting to the Talk2Me OS2 test database…</p></div><button class="secondary" id="refreshDashboard">Refresh</button></div>
 
       <div class="attention-grid">
-        <article class="metric urgent" data-view="admin"><span>Approvals waiting</span><strong>4</strong><small>2 require action today</small></article>
-        <article class="metric warning" data-view="work"><span>Overdue work</span><strong>7</strong><small>Across 3 staff members</small></article>
-        <article class="metric blue" data-view="customers"><span>Unassigned accounts</span><strong>12</strong><small>Ready for assignment</small></article>
-        <article class="metric green"><span>Staff clocked in</span><strong>5/5</strong><small>All staff active</small></article>
+        <article class="metric urgent" data-view="admin"><span>Approvals waiting</span><strong id="metricApprovals">–</strong><small>Pending manager or owner action</small></article>
+        <article class="metric warning" data-view="work"><span>Overdue work</span><strong id="metricOverdue">–</strong><small>Open tasks past their due time</small></article>
+        <article class="metric blue" data-view="customers"><span>Unassigned accounts</span><strong id="metricUnassigned">–</strong><small>Ready for assignment</small></article>
+        <article class="metric green"><span>Staff clocked in</span><strong id="metricClockedIn">–</strong><small id="activeStaffText">Loading active staff</small></article>
       </div>
 
       <div class="workspace-grid">
         <section class="panel">
           <div class="panel-head"><div><span>MY WORK</span><h2>Today</h2></div><button data-view="work">View all</button></div>
-          <div class="task"><div class="task-icon red">!</div><div><strong>Follow up with Coastal Office Solutions</strong><span>Upgrade quotation · Overdue by 1 day</span></div><button data-toast="Task opened">Open</button></div>
-          <div class="task"><div class="task-icon blue">☎</div><div><strong>Call Michelle Jacobs</strong><span>Scheduled callback · 09:30</span></div><button data-toast="Customer opened">Open</button></div>
-          <div class="task"><div class="task-icon amber">✓</div><div><strong>Review staff claim request</strong><span>Submitted by Johnny · 10:00</span></div><button data-view="admin">Review</button></div>
-          <div class="task"><div class="task-icon green">↗</div><div><strong>Three upgrades due today</strong><span>Potential monthly value R4,280</span></div><button data-view="opportunities">View</button></div>
+          <div class="task"><div class="task-icon red">!</div><div><strong>Live test database connected</strong><span>OS2 now reads operational totals from kloka_talk2me</span></div><button id="databaseStatus">Check</button></div>
+          <div class="task"><div class="task-icon blue">⌕</div><div><strong>Search real customer records</strong><span>Use the global search above with at least two characters</span></div><button onclick="document.getElementById('search').focus()">Search</button></div>
+          <div class="task"><div class="task-icon amber">✓</div><div><strong>Workflow integration follows</strong><span>Customer 360 and inquiry saving remain read-only in this phase</span></div><button data-toast="Controlled integration phase">Info</button></div>
         </section>
 
         <section class="panel">
           <div class="panel-head"><div><span>OPPORTUNITIES</span><h2>Client care</h2></div><button data-view="opportunities">View all</button></div>
-          <div class="opportunity"><div><strong>8</strong><span>Upgrades due</span></div><em>Next 7 days</em></div>
-          <div class="opportunity"><div><strong>3</strong><span>Birthdays today</span></div><em>Send a message</em></div>
-          <div class="opportunity"><div><strong>6</strong><span>Scheduled callbacks</span></div><em>Today</em></div>
-          <div class="opportunity"><div><strong>5</strong><span>New prospects</span></div><em>This week</em></div>
+          <div class="opportunity"><div><strong id="metricUpgrades">–</strong><span>Upgrades due</span></div><em>Next 7 days</em></div>
+          <div class="opportunity"><div><strong id="metricBirthdays">–</strong><span>Birthdays today</span></div><em>Send a message</em></div>
+          <div class="opportunity"><div><strong id="metricCallbacks">–</strong><span>Scheduled callbacks</span></div><em>Today</em></div>
+          <div class="opportunity"><div><strong id="metricProspects">–</strong><span>New prospects</span></div><em>Open pipeline</em></div>
         </section>
       </div>
 
       <section class="panel activity">
         <div class="panel-head"><div><span>TEAM PULSE</span><h2>Latest activity</h2></div><button data-view="reports">Open report</button></div>
-        <table><thead><tr><th>Staff member</th><th>Latest action</th><th>Customer</th><th>Status</th><th>Time</th></tr></thead><tbody>
-          <tr><td>Johnny</td><td>Completed follow-up</td><td>West Coast Steel</td><td><span class="status done">Completed</span></td><td>08:31</td></tr>
-          <tr><td>Annazel</td><td>Created inquiry</td><td>Michelle Jacobs</td><td><span class="status progress">In progress</span></td><td>08:24</td></tr>
-          <tr><td>Sias</td><td>Requested client claim</td><td>Coastal Office Solutions</td><td><span class="status pending">Approval</span></td><td>08:16</td></tr>
-        </tbody></table>
+        <table><thead><tr><th>Staff member</th><th>Latest action</th><th>Customer</th><th>Status</th><th>Time</th></tr></thead><tbody id="activityRows"><tr><td colspan="5">Loading live activity…</td></tr></tbody></table>
       </section>
     </section>
   </main>
 </div>
 
-<div class="drawer" id="drawer"><div class="drawer-head"><h2>Notifications</h2><button id="closeDrawer">×</button></div><div class="notice"><b>Approval required</b><span>Johnny requested ownership of account VB10452.</span></div><div class="notice"><b>Task returned</b><span>Follow-up notes need more detail.</span></div><div class="notice"><b>Import ready</b><span>Monthly import processing completed successfully.</span></div></div>
-<div class="modal" id="modal"><form><div class="modal-head"><div><span>QUICK ACTION</span><h2>New inquiry</h2></div><button type="button" id="closeModal">×</button></div><label>Customer<input value="Michelle Jacobs"></label><div class="fields"><label>Category<select><option>Upgrade</option><option>New contract</option><option>Repair</option></select></label><label>Follow-up<input type="date" value="2026-07-31"></label></div><label>Action taken<textarea placeholder="Add the discussion and next step..."></textarea></label><div class="modal-actions"><button type="button" class="secondary" id="cancelModal">Cancel</button><button type="submit" class="quick">Save inquiry</button></div></form></div>
+<div class="drawer" id="drawer"><div class="drawer-head"><h2>Notifications</h2><button id="closeDrawer">×</button></div><div class="notice"><b>OS2 test environment</b><span>This site is connected to the copied kloka_talk2me database, not the original production database.</span></div></div>
+<div class="modal" id="modal"><form><div class="modal-head"><div><span>CONTROLLED PHASE</span><h2>New inquiry</h2></div><button type="button" id="closeModal">×</button></div><label>Customer<input placeholder="Search and select a customer first"></label><label>Action taken<textarea placeholder="Inquiry saving will be connected in the next integration slice."></textarea></label><div class="modal-actions"><button type="button" class="secondary" id="cancelModal">Cancel</button><button type="submit" class="quick">Preview only</button></div></form></div>
 <div class="toast" id="toast"></div>
 <script src="./os2.js"></script>
 </body>
