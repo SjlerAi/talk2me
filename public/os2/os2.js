@@ -1,10 +1,11 @@
 const byId = id => document.getElementById(id);
 const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
 const formatDate = value => value ? new Intl.DateTimeFormat('en-ZA', { day:'2-digit', month:'short', year:'numeric' }).format(new Date(value)) : '—';
-const toast = message => { const el=byId('toast'); el.textContent=message; el.classList.add('show'); clearTimeout(window.__toastTimer); window.__toastTimer=setTimeout(()=>el.classList.remove('show'),2200); };
+const toast = message => { const el=byId('toast'); el.textContent=message; el.classList.add('show'); clearTimeout(window.__toastTimer); window.__toastTimer=setTimeout(()=>el.classList.remove('show'),2600); };
 const modal=byId('modal'), drawer=byId('drawer'), sidebar=byId('sidebar');
 let selectedCustomer=null;
 let currentUser=null;
+let inquiryOptionsLoaded=false;
 
 async function apiFetch(url, options={}){
   const response=await fetch(url,{...options,headers:{Accept:'application/json',...(options.headers||{})}});
@@ -14,6 +15,7 @@ async function apiFetch(url, options={}){
 
 function initials(name){return String(name||'').split(/\s+/).filter(Boolean).slice(0,2).map(part=>part[0]).join('').toUpperCase()||'--';}
 function greeting(){const hour=new Date().getHours();return hour<12?'Good morning':hour<18?'Good afternoon':'Good evening';}
+function statusClass(status){if(['resolved','completed','active'].includes(status))return'done';if(['open','follow_up','in_progress'].includes(status))return'progress';return'pending';}
 
 async function loadCurrentUser(){
   const response=await apiFetch('/api/auth/me');
@@ -37,46 +39,61 @@ document.querySelectorAll('[data-toast]').forEach(el=>el.addEventListener('click
 document.querySelectorAll('[data-view]').forEach(el=>el.addEventListener('click',()=>{
   if(el.hidden)return;
   document.querySelectorAll('.nav-item').forEach(item=>item.classList.remove('active'));
-  const match=document.querySelector(`.nav-item[data-view="${el.dataset.view}"]`); if(match) match.classList.add('active');
-  if(el.dataset.view==='home'){ showDashboard(); } else { toast(`${el.dataset.view.charAt(0).toUpperCase()+el.dataset.view.slice(1)} workspace selected`); }
+  const match=document.querySelector(`.nav-item[data-view="${el.dataset.view}"]`);if(match)match.classList.add('active');
+  if(el.dataset.view==='home')showDashboard();else toast(`${el.dataset.view.charAt(0).toUpperCase()+el.dataset.view.slice(1)} workspace selected`);
   sidebar.classList.remove('open');
 }));
+
 byId('alerts').addEventListener('click',()=>drawer.classList.add('open'));
 byId('closeDrawer').addEventListener('click',()=>drawer.classList.remove('open'));
-const openInquiry=()=>{ if(selectedCustomer) byId('inquiryCustomer').value=selectedCustomer.client_name||''; modal.classList.add('open'); };
-byId('newInquiry').addEventListener('click',openInquiry);
-byId('customerNewInquiry').addEventListener('click',openInquiry);
 byId('closeModal').addEventListener('click',()=>modal.classList.remove('open'));
 byId('cancelModal').addEventListener('click',()=>modal.classList.remove('open'));
 byId('menu').addEventListener('click',()=>sidebar.classList.toggle('open'));
 byId('backDashboard').addEventListener('click',showDashboard);
-modal.addEventListener('click',event=>{if(event.target===modal) modal.classList.remove('open')});
-modal.querySelector('form').addEventListener('submit',event=>{event.preventDefault();modal.classList.remove('open');toast('Inquiry saving is not enabled yet')});
+modal.addEventListener('click',event=>{if(event.target===modal)modal.classList.remove('open')});
 document.addEventListener('keydown',event=>{
   if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='k'){event.preventDefault();byId('search').focus()}
   if(event.key==='Escape'){modal.classList.remove('open');drawer.classList.remove('open');sidebar.classList.remove('open');byId('results').classList.remove('show')}
 });
-function statusClass(status){ if(['resolved','completed','active'].includes(status)) return 'done'; if(['open','follow_up','in_progress'].includes(status)) return 'progress'; return 'pending'; }
-function showDashboard(){ byId('customerView').hidden=true; byId('dashboardView').hidden=false; document.querySelectorAll('.nav-item').forEach(item=>item.classList.toggle('active',item.dataset.view==='home')); }
+
+function showDashboard(){
+  byId('customerView').hidden=true;
+  byId('dashboardView').hidden=false;
+  document.querySelectorAll('.nav-item').forEach(item=>item.classList.toggle('active',item.dataset.view==='home'));
+}
+
 async function loadDashboard(){
   byId('systemMessage').textContent='Loading live information from the OS2 test database…';
   try{
-    const response=await apiFetch('/api/dashboard'); const data=await response.json(); if(!response.ok||!data.ok) throw new Error(data.error||'Dashboard could not load');
+    const response=await apiFetch('/api/dashboard');
+    const data=await response.json();
+    if(!response.ok||!data.ok)throw new Error(data.error||'Dashboard could not load');
     const m=data.metrics;
     ['Approvals','Overdue','Unassigned','Upgrades','Birthdays','Callbacks','Prospects'].forEach(k=>byId(`metric${k}`).textContent=m[k.charAt(0).toLowerCase()+k.slice(1)]);
-    byId('metricClockedIn').textContent=`${m.clockedIn}/${m.activeStaff}`; byId('activeStaffText').textContent=`${m.activeStaff} active staff accounts`; byId('workBadge').textContent=m.overdue; byId('alertBadge').textContent=m.approvals; byId('systemMessage').textContent='Secure live test data loaded from kloka_talk2me.';
+    byId('metricClockedIn').textContent=`${m.clockedIn}/${m.activeStaff}`;
+    byId('activeStaffText').textContent=`${m.activeStaff} active staff accounts`;
+    byId('workBadge').textContent=m.overdue;
+    byId('alertBadge').textContent=m.approvals;
+    byId('systemMessage').textContent='Secure live test data loaded from kloka_talk2me.';
     byId('activityRows').innerHTML=data.activity.length?data.activity.map(row=>`<tr><td>${escapeHtml(row.staff_member)}</td><td>${escapeHtml(row.latest_action)}</td><td>${escapeHtml(row.customer)}</td><td><span class="status ${statusClass(row.status)}">${escapeHtml(row.status)}</span></td><td>${escapeHtml(row.activity_time)}</td></tr>`).join(''):'<tr><td colspan="5">No activity found.</td></tr>';
-  }catch(error){if(error.message==='AUTHENTICATION_REQUIRED')return;byId('systemMessage').textContent=`Database connection not ready: ${error.message}`;byId('activityRows').innerHTML='<tr><td colspan="5">Live data is not available yet.</td></tr>';toast('Database connection needs configuration');}
+  }catch(error){if(error.message==='AUTHENTICATION_REQUIRED')return;byId('systemMessage').textContent=`Database connection not ready: ${error.message}`;toast('Dashboard could not load');}
 }
+
 byId('refreshDashboard').addEventListener('click',()=>{loadDashboard();toast('Refreshing live dashboard')});
 byId('databaseStatus').addEventListener('click',async()=>{try{const r=await fetch('/health');const d=await r.json();toast(d.database?.connected?`Connected to ${d.database.name}`:'Database is not connected')}catch{toast('Health check failed')}});
 
 async function openCustomer(id){
-  byId('results').classList.remove('show'); byId('dashboardView').hidden=true; byId('customerView').hidden=false;
-  byId('customerName').textContent='Loading customer…'; byId('customerSummary').textContent='Reading Customer 360 from the test database.';
+  byId('results').classList.remove('show');
+  byId('dashboardView').hidden=true;
+  byId('customerView').hidden=false;
+  byId('customerName').textContent='Loading customer…';
+  byId('customerSummary').textContent='Reading Customer 360 from the test database.';
   try{
-    const response=await apiFetch(`/api/customers/${encodeURIComponent(id)}`); const data=await response.json(); if(!response.ok||!data.ok) throw new Error(data.error||'Customer could not load');
-    selectedCustomer=data.customer; const c=data.customer;
+    const response=await apiFetch(`/api/customers/${encodeURIComponent(id)}`);
+    const data=await response.json();
+    if(!response.ok||!data.ok)throw new Error(data.error||'Customer could not load');
+    selectedCustomer=data.customer;
+    const c=data.customer;
     byId('customerName').textContent=c.client_name||'Unnamed customer';
     byId('customerSummary').textContent=`${c.account_number||'No account number'} · ${data.lines.length} mobile line${data.lines.length===1?'':'s'} · Assigned to ${c.assigned_staff||'Unassigned'}`;
     byId('customerDetails').innerHTML=[['Account',c.account_number],['Cellphone',c.cell_number],['Alternative',c.alt_number],['Email',c.email],['Town',c.city_town],['ID number',c.id_number],['Main contact',c.main_contact_name],['Contact number',c.main_contact_number]].map(([label,value])=>`<div class="detail"><span>${label}</span><strong>${escapeHtml(value||'—')}</strong></div>`).join('');
@@ -88,14 +105,81 @@ async function openCustomer(id){
     document.querySelectorAll('.nav-item').forEach(item=>item.classList.toggle('active',item.dataset.view==='customers'));
   }catch(error){if(error.message==='AUTHENTICATION_REQUIRED')return;byId('customerName').textContent='Customer unavailable';byId('customerSummary').textContent=error.message;toast('Customer 360 could not load');}
 }
+
 byId('copyPhone').addEventListener('click',async()=>{const phone=selectedCustomer?.cell_number;if(!phone)return toast('No phone number available');try{await navigator.clipboard.writeText(phone);toast('Phone number copied')}catch{toast(phone)}});
 
-const search=byId('search'), results=byId('results'); let searchTimer;
+async function loadInquiryOptions(){
+  if(inquiryOptionsLoaded)return;
+  const response=await apiFetch('/api/inquiry-options');
+  const data=await response.json();
+  if(!response.ok||!data.ok)throw new Error(data.error||'INQUIRY_OPTIONS_FAILED');
+  byId('inquiryCategory').innerHTML='<option value="">Select category</option>'+data.categories.map(item=>`<option value="${item.id}" data-name="${escapeHtml(item.category_name)}">${escapeHtml(item.category_name)}</option>`).join('');
+  inquiryOptionsLoaded=true;
+}
+
+async function openInquiry(){
+  if(!selectedCustomer){toast('Search and select a customer first');byId('search').focus();return;}
+  try{await loadInquiryOptions();}catch(error){toast('Inquiry options could not load');return;}
+  byId('inquiryForm').reset();
+  byId('inquiryClientId').value=selectedCustomer.id;
+  byId('inquiryCustomer').value=selectedCustomer.client_name||'';
+  byId('inquiryStatus').value='resolved';
+  byId('inquiryPriority').value='normal';
+  byId('inquiryContactType').value='walk_in';
+  byId('followUpWrap').hidden=true;
+  byId('categoryOtherWrap').hidden=true;
+  byId('inquiryError').hidden=true;
+  byId('saveInquiry').disabled=false;
+  modal.classList.add('open');
+}
+
+byId('newInquiry').addEventListener('click',openInquiry);
+byId('customerNewInquiry').addEventListener('click',openInquiry);
+byId('taskNewInquiry').addEventListener('click',openInquiry);
+byId('inquiryStatus').addEventListener('change',()=>{byId('followUpWrap').hidden=byId('inquiryStatus').value!=='follow_up';if(byId('followUpWrap').hidden)byId('inquiryFollowUp').value='';});
+byId('inquiryCategory').addEventListener('change',()=>{const option=byId('inquiryCategory').selectedOptions[0];const isOther=String(option?.dataset.name||'').toLowerCase()==='other';byId('categoryOtherWrap').hidden=!isOther;if(!isOther)byId('inquiryCategoryOther').value='';});
+
+byId('inquiryForm').addEventListener('submit',async event=>{
+  event.preventDefault();
+  const errorBox=byId('inquiryError');
+  errorBox.hidden=true;
+  const payload={
+    clientId:Number(byId('inquiryClientId').value),
+    categoryId:Number(byId('inquiryCategory').value),
+    categoryOther:byId('inquiryCategoryOther').value,
+    contactType:byId('inquiryContactType').value,
+    queryText:byId('inquiryQuery').value,
+    resultFound:byId('inquiryResult').value,
+    actionTaken:byId('inquiryAction').value,
+    status:byId('inquiryStatus').value,
+    priority:byId('inquiryPriority').value,
+    followUpAt:byId('inquiryFollowUp').value
+  };
+  byId('saveInquiry').disabled=true;
+  byId('saveInquiry').textContent='Saving…';
+  try{
+    const response=await apiFetch('/api/inquiries',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const data=await response.json();
+    if(!response.ok||!data.ok)throw new Error(data.error||'INQUIRY_CREATE_FAILED');
+    modal.classList.remove('open');
+    toast(`Inquiry #${data.inquiryId} saved`);
+    await Promise.all([loadDashboard(),openCustomer(data.customerId)]);
+  }catch(error){
+    const messages={SELECT_A_CUSTOMER:'Select a customer first.',SELECT_A_CATEGORY:'Select an inquiry category.',ENTER_INQUIRY_DETAILS:'Enter the customer request, result found or action taken.',FOLLOW_UP_DATE_REQUIRED:'Choose a follow-up date and time.',INVALID_FOLLOW_UP_DATE:'The follow-up date is invalid.'};
+    errorBox.textContent=messages[error.message]||`Could not save inquiry: ${error.message}`;
+    errorBox.hidden=false;
+  }finally{
+    byId('saveInquiry').disabled=false;
+    byId('saveInquiry').textContent='Save inquiry';
+  }
+});
+
+const search=byId('search'),results=byId('results');let searchTimer;
 search.addEventListener('input',()=>{
-  clearTimeout(searchTimer); const value=search.value.trim(); if(value.length<2){results.classList.remove('show');results.innerHTML='';return}
-  results.innerHTML='<div class="result"><b>Searching…</b><span>Reading the OS2 test database</span></div>'; results.classList.add('show');
+  clearTimeout(searchTimer);const value=search.value.trim();if(value.length<2){results.classList.remove('show');results.innerHTML='';return}
+  results.innerHTML='<div class="result"><b>Searching…</b><span>Reading the OS2 test database</span></div>';results.classList.add('show');
   searchTimer=setTimeout(async()=>{try{
-    const response=await apiFetch(`/api/customers/search?q=${encodeURIComponent(value)}`); const data=await response.json(); if(!response.ok||!data.ok) throw new Error(data.error||'Search failed');
+    const response=await apiFetch(`/api/customers/search?q=${encodeURIComponent(value)}`);const data=await response.json();if(!response.ok||!data.ok)throw new Error(data.error||'Search failed');
     results.innerHTML=data.customers.length?data.customers.map(item=>`<div class="result" data-id="${item.id}" data-name="${escapeHtml(item.client_name)}"><b>${escapeHtml(item.client_name)}</b><span>${escapeHtml(item.account_number||'No account')} · ${escapeHtml(item.cell_number||'No phone')} · ${escapeHtml(item.city_town||item.email||'')}</span></div>`).join(''):'<div class="result"><b>No customers found</b><span>Try another name, number or account.</span></div>';
     results.querySelectorAll('[data-id]').forEach(item=>item.addEventListener('click',()=>{search.value=item.dataset.name;openCustomer(item.dataset.id)}));
   }catch(error){if(error.message!=='AUTHENTICATION_REQUIRED')results.innerHTML=`<div class="result"><b>Search unavailable</b><span>${escapeHtml(error.message)}</span></div>`}},300);
