@@ -84,14 +84,14 @@
     }
   }
 
-  function loadSearchPersistence() {
-    if (document.querySelector('script[src$="search-persistence.js"]')) return;
+  function loadSearchController() {
+    if (document.querySelector('script[src*="search-controller.js"]')) return;
     const script = document.createElement('script');
-    script.src = './search-persistence.js';
+    script.src = './search-controller.js?v=0148';
     document.body.appendChild(script);
   }
 
   window.loadLaunchers = loadLaunchers;
+  loadSearchController();
   loadLaunchers();
-  loadSearchPersistence();
 })();
