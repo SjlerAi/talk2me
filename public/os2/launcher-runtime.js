@@ -84,6 +84,14 @@
     }
   }
 
+  function loadSearchPersistence() {
+    if (document.querySelector('script[src$="search-persistence.js"]')) return;
+    const script = document.createElement('script');
+    script.src = './search-persistence.js';
+    document.body.appendChild(script);
+  }
+
   window.loadLaunchers = loadLaunchers;
   loadLaunchers();
+  loadSearchPersistence();
 })();
