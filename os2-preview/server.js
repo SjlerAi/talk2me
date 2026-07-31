@@ -11,6 +11,7 @@ const createAttendanceRouter = require('./attendance-routes');
 const createOpportunityRouter = require('./opportunity-routes');
 const createReportRouter = require('./report-routes');
 const createImportRouter = require('./import-routes');
+const createAdministrationRouter = require('./administration-routes');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -164,8 +165,9 @@ app.use(createAttendanceRouter({ pool, requireAuth, requestIp }));
 app.use(createOpportunityRouter({ pool, requireAuth, requestIp }));
 app.use(createReportRouter({ pool, requireAuth, requestIp }));
 app.use(createImportRouter({ pool, requireAuth, requestIp }));
+app.use(createAdministrationRouter({ pool, requireAuth, requestIp }));
 app.get('/api/admin/session-check', requireRole('owner','manager'), (req,res)=>res.json({ok:true,role:req.user.role}));
 app.get('/', requireAuth, (req,res)=>res.sendFile(path.join(publicDir,'index.html')));
 app.get('*', (req,res)=>req.user?res.redirect('/'):res.redirect('/login'));
 setInterval(()=>{if(pool)pool.execute('DELETE FROM app_sessions WHERE expires_at<=NOW()').catch(error=>console.error('Session cleanup failed',error.code||error.message));},60*60*1000).unref();
-app.listen(port,()=>console.log(`Talk2Me OS2 running on port ${port}; imports enabled; database ${dbConfigured?'configured':'not configured'}`));
+app.listen(port,()=>console.log(`Talk2Me OS2 running on port ${port}; administration enabled; database ${dbConfigured?'configured':'not configured'}`));
