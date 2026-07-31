@@ -35,6 +35,7 @@ module.exports = function createApprovalRouter({ pool, requireAuth, requestIp })
 
   function updateSql(table, available, values, where) {
     const entries = Object.entries(values).filter(([key, value]) => available.has(key) && value !== undefined);
+    if (!entries.length) throw new Error(`NO_SUPPORTED_COLUMNS_${table}`);
     return {
       sql: `UPDATE ${table} SET ${entries.map(([key]) => `\`${key}\`=:${key}`).join(',')} WHERE ${where}`,
       params: Object.fromEntries(entries)
@@ -70,7 +71,7 @@ module.exports = function createApprovalRouter({ pool, requireAuth, requestIp })
   router.get('/api/approvals', requireAuth, requireManager, async (req, res) => {
     try {
       const sc = await schema();
-      const entity = firstExisting(sc.requests, ['entity_id','client_id']);
+      const entity = firstExisting(sc.requests, ['record_id','client_id','entity_id']);
       const requester = firstExisting(sc.requests, ['requested_by','requested_by_staff_id','staff_id']);
       const type = firstExisting(sc.requests, ['request_type','change_type']);
       if (!entity || !requester || !sc.requests.has('status')) return res.json({ ok:true, items:[], count:0 });
@@ -82,8 +83,8 @@ module.exports = function createApprovalRouter({ pool, requireAuth, requestIp })
         LEFT JOIN staff_users requester ON requester.id=r.\`${requester}\`
         LEFT JOIN client_assignments a ON a.is_active=1 AND (a.client_id=c.id OR (c.account_number<>'' AND a.account_number=c.account_number))
         LEFT JOIN staff_users current_staff ON current_staff.id=a.assigned_staff_id
-        WHERE r.status IN ('pending','pending_manager','pending_owner')
-        ${type ? `AND r.\`${type}\` IN ('client_claim','claim_client','assignment_claim')` : ''}
+        WHERE r.status IN ('pending_manager','pending_owner')
+        ${type ? `AND r.\`${type}\`='claim_account'` : ''}
         ORDER BY r.id ASC LIMIT 100`);
       res.json({ ok:true, items, count:items.length, role:req.user.role });
     } catch (error) {
@@ -103,12 +104,14 @@ module.exports = function createApprovalRouter({ pool, requireAuth, requestIp })
     try {
       await connection.beginTransaction();
       const sc = await schema();
-      const entity = firstExisting(sc.requests, ['entity_id','client_id']);
+      const entity = firstExisting(sc.requests, ['record_id','client_id','entity_id']);
       const requester = firstExisting(sc.requests, ['requested_by','requested_by_staff_id','staff_id']);
       if (!entity || !requester) throw new Error('UNSUPPORTED_REQUEST_SCHEMA');
       const [[request]] = await connection.execute(`SELECT * FROM data_change_requests WHERE id=:requestId FOR UPDATE`, { requestId });
       if (!request) { await connection.rollback(); return res.status(404).json({ ok:false, error:'REQUEST_NOT_FOUND' }); }
-      if (!['pending','pending_manager','pending_owner'].includes(String(request.status))) { await connection.rollback(); return res.status(409).json({ ok:false, error:'REQUEST_ALREADY_DECIDED' }); }
+      if (!['pending_manager','pending_owner'].includes(String(request.status))) { await connection.rollback(); return res.status(409).json({ ok:false, error:'REQUEST_ALREADY_DECIDED' }); }
+      if (request.request_type && request.request_type !== 'claim_account') { await connection.rollback(); return res.status(400).json({ ok:false, error:'UNSUPPORTED_REQUEST_TYPE' }); }
+
       const clientId = Number(request[entity]);
       const requesterId = Number(request[requester]);
       if (requesterId === Number(req.user.id)) { await connection.rollback(); return res.status(403).json({ ok:false, error:'SELF_APPROVAL_NOT_ALLOWED' }); }
@@ -119,34 +122,57 @@ module.exports = function createApprovalRouter({ pool, requireAuth, requestIp })
 
       let assignmentId = null;
       if (decision === 'approve') {
-        await connection.execute(`UPDATE client_assignments SET is_active=0 WHERE is_active=1 AND (client_id=:clientId OR (:accountNumber<>'' AND account_number=:accountNumber))`, { clientId, accountNumber:customer.account_number || '' });
-        const assignment = insertSql('client_assignments', sc.assignments, {
+        const [[existing]] = await connection.execute(`SELECT id
+          FROM client_assignments
+          WHERE client_id=:clientId OR (:accountNumber<>'' AND account_number=:accountNumber)
+          ORDER BY is_active DESC, id DESC
+          LIMIT 1 FOR UPDATE`, { clientId, accountNumber:customer.account_number || '' });
+
+        const assignmentValues = {
           client_id: clientId,
           account_number: customer.account_number || '',
           assigned_staff_id: requesterId,
           is_active: 1,
           assigned_by: req.user.id,
-          created_by: req.user.id,
-          created_at: new Date(),
           updated_at: new Date()
+        };
+
+        if (existing) {
+          const assignmentUpdate = updateSql('client_assignments', sc.assignments, assignmentValues, 'id=:assignmentId');
+          assignmentUpdate.params.assignmentId = Number(existing.id);
+          await connection.execute(assignmentUpdate.sql, assignmentUpdate.params);
+          assignmentId = Number(existing.id);
+        } else {
+          const assignment = insertSql('client_assignments', sc.assignments, {
+            ...assignmentValues,
+            created_by: req.user.id,
+            created_at: new Date()
+          });
+          if (!assignment) throw new Error('UNSUPPORTED_ASSIGNMENT_SCHEMA');
+          const [result] = await connection.execute(assignment.sql, assignment.params);
+          assignmentId = Number(result.insertId);
+        }
+
+        await connection.execute(`UPDATE client_assignments SET is_active=0
+          WHERE id<>:assignmentId AND is_active=1
+            AND (client_id=:clientId OR (:accountNumber<>'' AND account_number=:accountNumber))`, {
+          assignmentId,
+          clientId,
+          accountNumber: customer.account_number || ''
         });
-        if (!assignment) throw new Error('UNSUPPORTED_ASSIGNMENT_SCHEMA');
-        const [result] = await connection.execute(assignment.sql, assignment.params);
-        assignmentId = Number(result.insertId);
-        await connection.execute(`UPDATE inquiries SET assigned_staff_id=:requesterId, updated_at=NOW() WHERE client_id=:clientId AND status IN ('open','follow_up','waiting_customer','waiting_network','waiting_supplier')`, { requesterId, clientId });
+
+        await connection.execute(`UPDATE inquiries SET assigned_staff_id=:requesterId, updated_at=NOW()
+          WHERE client_id=:clientId
+            AND status IN ('open','follow_up','waiting_customer','waiting_network','waiting_supplier')`, { requesterId, clientId });
       }
 
+      const finalStatus = decision === 'approve' ? 'applied' : 'rejected';
       const requestUpdate = updateSql('data_change_requests', sc.requests, {
-        status: decision === 'approve' ? 'approved' : 'rejected',
+        status: finalStatus,
         reviewed_by: req.user.id,
-        approved_by: decision === 'approve' ? req.user.id : undefined,
-        rejected_by: decision === 'reject' ? req.user.id : undefined,
         review_note: note || null,
-        reviewer_note: note || null,
-        decision_note: note || null,
         reviewed_at: new Date(),
-        approved_at: decision === 'approve' ? new Date() : undefined,
-        rejected_at: decision === 'reject' ? new Date() : undefined,
+        applied_at: decision === 'approve' ? new Date() : undefined,
         updated_at: new Date()
       }, 'id=:requestId');
       requestUpdate.params.requestId = requestId;
@@ -165,12 +191,12 @@ module.exports = function createApprovalRouter({ pool, requireAuth, requestIp })
         requestId,
         description:`${decision === 'approve' ? 'Approved' : 'Rejected'} claim for ${customer.client_name}`,
         beforeJson:JSON.stringify({ status:request.status, requester_id:requesterId }),
-        afterJson:JSON.stringify({ status:decision === 'approve' ? 'approved' : 'rejected', assignment_id:assignmentId, note }),
+        afterJson:JSON.stringify({ status:finalStatus, assignment_id:assignmentId, note }),
         ip:requestIp(req),
         userAgent:String(req.headers['user-agent'] || '').slice(0,255)
       });
       await connection.commit();
-      res.json({ ok:true, requestId, decision, customerId:clientId, requesterId, assignmentId });
+      res.json({ ok:true, requestId, decision, status:finalStatus, customerId:clientId, requesterId, assignmentId });
     } catch (error) {
       await connection.rollback();
       console.error('Approval decision failed', error);
