@@ -84,6 +84,52 @@
     }
   }
 
+  function installPartialPhoneSearch() {
+    const search = document.getElementById('search');
+    const results = document.getElementById('results');
+    if (!search || !results || search.dataset.partialPhoneSearch === '1') return;
+    search.dataset.partialPhoneSearch = '1';
+    let timer;
+
+    search.addEventListener('input', () => {
+      clearTimeout(timer);
+      const digits = String(search.value || '').replace(/\D/g, '');
+      if (digits.length < 4) return;
+
+      timer = setTimeout(async () => {
+        const fallback = digits.slice(-4);
+        if (!fallback || fallback === digits) return;
+        try {
+          const response = await fetch(`/api/customers/search?q=${encodeURIComponent(fallback)}`, { headers:{Accept:'application/json'} });
+          if (!response.ok) return;
+          const data = await response.json();
+          if (!data.ok || !Array.isArray(data.customers) || !data.customers.length) return;
+
+          const existingIds = new Set(Array.from(results.querySelectorAll('[data-id]')).map(node => String(node.dataset.id)));
+          const extras = data.customers.filter(customer => !existingIds.has(String(customer.id)));
+          if (!extras.length && results.querySelector('[data-id]')) return;
+
+          const html = extras.map(item => `<div class="result" data-id="${Number(item.id)}" data-name="${escapeHtml(item.client_name)}"><b>${escapeHtml(item.client_name)}</b><span>${escapeHtml(item.account_number || 'No account')} · ${escapeHtml(item.cell_number || 'No phone')} · ${escapeHtml(item.city_town || item.email || '')}</span></div>`).join('');
+          if (!results.querySelector('[data-id]')) results.innerHTML = html;
+          else results.insertAdjacentHTML('beforeend', html);
+          results.classList.add('show');
+
+          results.querySelectorAll('[data-id]').forEach(item => {
+            if (item.dataset.partialBound === '1') return;
+            item.dataset.partialBound = '1';
+            item.addEventListener('click', () => {
+              search.value = item.dataset.name || '';
+              window.openCustomer?.(item.dataset.id);
+            });
+          });
+        } catch (error) {
+          console.error('Partial phone search failed', error);
+        }
+      }, 450);
+    });
+  }
+
   window.loadLaunchers = loadLaunchers;
   loadLaunchers();
+  installPartialPhoneSearch();
 })();
