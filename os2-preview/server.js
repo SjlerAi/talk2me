@@ -3,6 +3,7 @@ const path = require('path');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const mysql = require('mysql2/promise');
+const createMyWorkRouter = require('./my-work-routes');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -355,6 +356,7 @@ app.get('/api/customers/:id', requireAuth, async (req, res) => {
   }
 });
 
+app.use(createMyWorkRouter({ pool, requireAuth, requestIp }));
 app.get('/api/admin/session-check', requireRole('owner', 'manager'), (req, res) => res.json({ ok: true, role: req.user.role }));
 app.get('/', requireAuth, (req, res) => res.sendFile(path.join(publicDir, 'index.html')));
 app.get('*', (req, res) => req.user ? res.redirect('/') : res.redirect('/login'));
@@ -363,4 +365,4 @@ setInterval(() => {
   if (pool) pool.execute('DELETE FROM app_sessions WHERE expires_at<=NOW()').catch(error => console.error('Session cleanup failed', error.code || error.message));
 }, 60 * 60 * 1000).unref();
 
-app.listen(port, () => console.log(`Talk2Me OS2 running on port ${port}; authenticated inquiry writes enabled; database ${dbConfigured ? 'configured' : 'not configured'}`));
+app.listen(port, () => console.log(`Talk2Me OS2 running on port ${port}; My Work enabled; database ${dbConfigured ? 'configured' : 'not configured'}`));
