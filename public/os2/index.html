@@ -44,7 +44,7 @@
           <div class="panel-head"><div><span>MY WORK</span><h2>Today</h2></div><button data-view="work">View all</button></div>
           <div class="task"><div class="task-icon red">!</div><div><strong>Secure OS2 session active</strong><span>Eight-hour login using existing Talk2Me staff credentials</span></div><button id="databaseStatus">Check</button></div>
           <div class="task"><div class="task-icon blue">⌕</div><div><strong>Search real customer records</strong><span>Select a result to open Customer 360</span></div><button onclick="document.getElementById('search').focus()">Search</button></div>
-          <div class="task"><div class="task-icon amber">✓</div><div><strong>Customer 360 is read-only</strong><span>Profile, lines and inquiry history are connected</span></div><button data-toast="Controlled integration phase">Info</button></div>
+          <div class="task"><div class="task-icon green">+</div><div><strong>New Inquiry is enabled</strong><span>Every inquiry is linked to the logged-in staff member and audited</span></div><button id="taskNewInquiry">Create</button></div>
         </section>
         <section class="panel">
           <div class="panel-head"><div><span>OPPORTUNITIES</span><h2>Client care</h2></div><button data-view="opportunities">View all</button></div>
@@ -63,7 +63,7 @@
     <section class="content customer-view" id="customerView" hidden>
       <div class="customer-hero panel">
         <button class="secondary" id="backDashboard">← Dashboard</button>
-        <div class="customer-title"><span>CUSTOMER 360 · READ ONLY</span><h1 id="customerName">Customer</h1><p id="customerSummary">Loading customer information…</p></div>
+        <div class="customer-title"><span>CUSTOMER 360</span><h1 id="customerName">Customer</h1><p id="customerSummary">Loading customer information…</p></div>
         <div class="customer-actions"><button class="secondary" id="copyPhone">Copy phone</button><button class="quick" id="customerNewInquiry">+ New inquiry</button></div>
       </div>
       <div class="customer-grid">
@@ -77,7 +77,20 @@
 </div>
 
 <div class="drawer" id="drawer"><div class="drawer-head"><h2>Notifications</h2><button id="closeDrawer">×</button></div><div class="notice"><b>OS2 test environment</b><span>This site is connected to the copied kloka_talk2me database, not the original production database.</span></div></div>
-<div class="modal" id="modal"><form><div class="modal-head"><div><span>CONTROLLED PHASE</span><h2>New inquiry</h2></div><button type="button" id="closeModal">×</button></div><label>Customer<input id="inquiryCustomer" placeholder="Search and select a customer first"></label><label>Action taken<textarea placeholder="Inquiry saving will be connected in the next integration slice."></textarea></label><div class="modal-actions"><button type="button" class="secondary" id="cancelModal">Cancel</button><button type="submit" class="quick">Preview only</button></div></form></div>
+<div class="modal" id="modal"><form id="inquiryForm">
+  <div class="modal-head"><div><span>LIVE TEST WORKFLOW</span><h2>New inquiry</h2></div><button type="button" id="closeModal">×</button></div>
+  <input type="hidden" id="inquiryClientId">
+  <label>Customer<input id="inquiryCustomer" readonly placeholder="Search and select a customer first"></label>
+  <div class="fields"><label>Category<select id="inquiryCategory" required><option value="">Loading categories…</option></select></label><label>Contact type<select id="inquiryContactType"><option value="walk_in">Walk-in</option><option value="phone_call">Phone call</option><option value="whatsapp">WhatsApp</option><option value="email">Email</option><option value="other">Other</option></select></label></div>
+  <label id="categoryOtherWrap" hidden>Other category<input id="inquiryCategoryOther" maxlength="120"></label>
+  <label>Customer question / request<textarea id="inquiryQuery" placeholder="What does the customer need?"></textarea></label>
+  <label>Result found<textarea id="inquiryResult" placeholder="What was discovered or confirmed?"></textarea></label>
+  <label>Action taken<textarea id="inquiryAction" placeholder="What was done, promised or arranged?"></textarea></label>
+  <div class="fields"><label>Status<select id="inquiryStatus"><option value="resolved">Resolved</option><option value="open">Open</option><option value="follow_up">Follow-up</option><option value="waiting_customer">Waiting for customer</option><option value="waiting_network">Waiting for network</option><option value="waiting_supplier">Waiting for supplier</option></select></label><label>Priority<select id="inquiryPriority"><option value="normal">Normal</option><option value="urgent">Urgent</option></select></label></div>
+  <label id="followUpWrap" hidden>Follow-up date and time<input type="datetime-local" id="inquiryFollowUp"></label>
+  <p id="inquiryError" class="form-error" hidden></p>
+  <div class="modal-actions"><button type="button" class="secondary" id="cancelModal">Cancel</button><button type="submit" class="quick" id="saveInquiry">Save inquiry</button></div>
+</form></div>
 <div class="toast" id="toast"></div>
 <script src="./os2.js"></script>
 </body>
