@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="./os2.css">
   <link rel="stylesheet" href="./customer360.css">
   <link rel="stylesheet" href="./modal-fix.css">
+  <link rel="stylesheet" href="./my-work.css">
 </head>
 <body>
 <div class="app">
@@ -67,6 +68,27 @@
       </section>
     </section>
 
+    <section class="content" id="workView" hidden>
+      <div class="work-head"><div><span id="workScope">Your assigned work</span><h1>My Work</h1><p id="workLoading">Loading work items...</p></div><button class="secondary" id="refreshWork">Refresh</button></div>
+      <div class="work-summary">
+        <div class="work-stat"><span>Total active</span><strong id="workCountTotal">0</strong></div>
+        <div class="work-stat"><span>Overdue</span><strong id="workCountOverdue">0</strong></div>
+        <div class="work-stat"><span>Due today</span><strong id="workCountToday">0</strong></div>
+        <div class="work-stat"><span>Waiting</span><strong id="workCountWaiting">0</strong></div>
+        <div class="work-stat"><span>Open</span><strong id="workCountOpen">0</strong></div>
+      </div>
+      <section class="panel">
+        <div class="work-filters">
+          <button class="work-filter active" data-filter="all">All active</button>
+          <button class="work-filter" data-filter="overdue">Overdue</button>
+          <button class="work-filter" data-filter="today">Due today</button>
+          <button class="work-filter" data-filter="waiting">Waiting</button>
+          <button class="work-filter" data-filter="open">Open & follow-up</button>
+        </div>
+        <div class="work-list" id="workItems"><div class="work-empty">Loading...</div></div>
+      </section>
+    </section>
+
     <section class="content customer-view" id="customerView" hidden>
       <div class="customer-hero panel">
         <button class="secondary" id="backDashboard">← Dashboard</button>
@@ -98,7 +120,20 @@
   <p id="inquiryError" class="form-error" hidden></p>
   <div class="modal-actions"><button type="button" class="secondary" id="cancelModal">Cancel</button><button type="submit" class="quick" id="saveInquiry">Save inquiry</button></div>
 </form></div>
+
+<div class="work-update-modal" id="workUpdateModal"><form id="workUpdateForm">
+  <div class="modal-head"><div><span>MY WORK</span><h2>Update inquiry</h2></div><button type="button" id="closeWorkUpdate">×</button></div>
+  <input type="hidden" id="workUpdateId">
+  <p class="work-update-customer" id="workUpdateCustomer"></p>
+  <label>Status<select id="workUpdateStatus"><option value="open">Open</option><option value="follow_up">Follow-up</option><option value="waiting_customer">Waiting for customer</option><option value="waiting_network">Waiting for network</option><option value="waiting_supplier">Waiting for supplier</option><option value="resolved">Resolved</option></select></label>
+  <label id="workUpdateFollowUpWrap">Follow-up date and time<input type="datetime-local" id="workUpdateFollowUp"></label>
+  <label>Update note<textarea id="workUpdateNote" placeholder="Add what happened and the next step..."></textarea></label>
+  <p id="workUpdateError" class="form-error" hidden></p>
+  <div class="modal-actions"><button type="button" class="secondary" id="cancelWorkUpdate">Cancel</button><button type="submit" class="quick" id="saveWorkUpdate">Save update</button></div>
+</form></div>
+
 <div class="toast" id="toast"></div>
 <script src="./os2.js"></script>
+<script src="./my-work.js"></script>
 </body>
 </html>
