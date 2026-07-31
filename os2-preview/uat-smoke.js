@@ -4,6 +4,12 @@ const baseUrl = String(process.env.OS2_BASE_URL || 'https://talk2me.kloka.co.za'
 const identity = String(process.env.OS2_UAT_IDENTITY || '').trim();
 const password = String(process.env.OS2_UAT_PASSWORD || '');
 const timeoutMs = Math.max(3000, Number(process.env.OS2_UAT_TIMEOUT_MS || 15000));
+const overallTimeoutMs = Math.max(15000, Number(process.env.OS2_UAT_OVERALL_TIMEOUT_MS || 90000));
+
+const overallTimer = setTimeout(() => {
+  console.error(`UAT smoke test failed: overall test exceeded ${overallTimeoutMs}ms`);
+  process.exit(1);
+}, overallTimeoutMs);
 
 async function request(path, options = {}) {
   console.log(`Checking ${path} ...`);
@@ -98,11 +104,15 @@ async function runAuthenticatedChecks() {
 (async () => {
   console.log(`Talk2Me OS2 UAT smoke test: ${baseUrl}`);
   console.log(`Per-request timeout: ${timeoutMs}ms`);
+  console.log(`Overall timeout: ${overallTimeoutMs}ms`);
   await runPublicChecks();
   await runAuthenticatedChecks();
+  clearTimeout(overallTimer);
   console.log('UAT smoke test passed.');
+  process.exit(0);
 })().catch(error => {
+  clearTimeout(overallTimer);
   const detail = error.name === 'TimeoutError' ? `request exceeded ${timeoutMs}ms` : error.message;
   console.error(`UAT smoke test failed: ${detail}`);
-  process.exitCode = 1;
+  process.exit(1);
 });
