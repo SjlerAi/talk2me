@@ -17,10 +17,10 @@
       <button class="nav-item" data-view="work"><span>✓</span>My Work <b id="workBadge">0</b></button>
       <button class="nav-item" data-view="opportunities"><span>↗</span>Opportunities</button>
       <button class="nav-item" data-view="reports"><span>▦</span>Reports</button>
-      <button class="nav-item management" data-view="admin"><span>⚙</span>Administration</button>
+      <button class="nav-item management" data-view="admin" id="adminNav"><span>⚙</span>Administration</button>
     </nav>
     <div class="tools"><p>WORK TOOLS</p><button data-toast="Opening Vodacom portal">V</button><button data-toast="Opening MTN portal">M</button><button data-toast="Opening Telkom portal">T</button><button data-toast="Opening Sage">S</button></div>
-    <div class="profile"><div class="avatar">SL</div><div><strong>Stephan</strong><span>Owner · Test environment</span></div></div>
+    <div class="profile"><div class="avatar" id="profileAvatar">--</div><div><strong id="profileName">Loading…</strong><span id="profileRole">Secure session</span><button id="logoutButton" class="profile-logout">Sign out</button></div></div>
   </aside>
 
   <main>
@@ -32,7 +32,7 @@
     </header>
 
     <section class="content" id="dashboardView">
-      <div class="page-head"><div><span id="todayLabel">LOADING</span><h1>Good morning, Stephan</h1><p id="systemMessage">Connecting to the Talk2Me OS2 test database…</p></div><button class="secondary" id="refreshDashboard">Refresh</button></div>
+      <div class="page-head"><div><span id="todayLabel">LOADING</span><h1 id="welcomeHeading">Good morning</h1><p id="systemMessage">Connecting to the Talk2Me OS2 test database…</p></div><button class="secondary" id="refreshDashboard">Refresh</button></div>
       <div class="attention-grid">
         <article class="metric urgent" data-view="admin"><span>Approvals waiting</span><strong id="metricApprovals">–</strong><small>Pending manager or owner action</small></article>
         <article class="metric warning" data-view="work"><span>Overdue work</span><strong id="metricOverdue">–</strong><small>Open tasks past their due time</small></article>
@@ -42,7 +42,7 @@
       <div class="workspace-grid">
         <section class="panel">
           <div class="panel-head"><div><span>MY WORK</span><h2>Today</h2></div><button data-view="work">View all</button></div>
-          <div class="task"><div class="task-icon red">!</div><div><strong>Live test database connected</strong><span>OS2 now reads operational totals from kloka_talk2me</span></div><button id="databaseStatus">Check</button></div>
+          <div class="task"><div class="task-icon red">!</div><div><strong>Secure OS2 session active</strong><span>Eight-hour login using existing Talk2Me staff credentials</span></div><button id="databaseStatus">Check</button></div>
           <div class="task"><div class="task-icon blue">⌕</div><div><strong>Search real customer records</strong><span>Select a result to open Customer 360</span></div><button onclick="document.getElementById('search').focus()">Search</button></div>
           <div class="task"><div class="task-icon amber">✓</div><div><strong>Customer 360 is read-only</strong><span>Profile, lines and inquiry history are connected</span></div><button data-toast="Controlled integration phase">Info</button></div>
         </section>
