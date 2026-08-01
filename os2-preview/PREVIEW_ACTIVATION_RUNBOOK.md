@@ -31,23 +31,25 @@ npm run verify:preview-activation-preflight
 The preflight must execute these controls in this exact order:
 
 1. `workspace-topology-verification.js`
-2. `workspace-topology-governance-check.js`
-3. `migration-ledger-bootstrap-governance-check.js`
-4. `migration-ledger-bootstrap-runner-check.js`
-5. `migration-ledger-bootstrap-evidence-check.js`
-6. `migration-runner-security-check.js`
-7. `runtime-release-identity-check.js`
-8. `readiness-check.js`
-9. `deployment-check.js`
-10. `uat-gate-check.js`
-11. `release-evidence-security-check.js`
-12. `release-manifest-check.js`
+2. `workspace-source-integrity.js`
+3. `workspace-source-integrity-check.js`
+4. `workspace-topology-governance-check.js`
+5. `migration-ledger-bootstrap-governance-check.js`
+6. `migration-ledger-bootstrap-runner-check.js`
+7. `migration-ledger-bootstrap-evidence-check.js`
+8. `migration-runner-security-check.js`
+9. `runtime-release-identity-check.js`
+10. `readiness-check.js`
+11. `deployment-check.js`
+12. `uat-gate-check.js`
+13. `release-evidence-security-check.js`
+14. `release-manifest-check.js`
 
 Stop immediately if any control cannot start, is interrupted, or returns a non-zero status. Every child process must inherit output and receive `ALLOW_PRODUCTION_MUTATION=false` and `ENABLE_CUSTOMER_MERGE_EXECUTION=false`.
 
 ## Workspace topology verification
 
-Before any other activation control, the workspace verifier must prove that the executing directory is the configured preview application root and that Node.js 20.x is active.
+Before any other activation control, the workspace verifier must prove that the executing directory is the configured preview application root.
 
 It must:
 
@@ -59,16 +61,24 @@ It must:
 - require protected source files to share the preview-root owner;
 - open protected workspace files with `O_NOFOLLOW`;
 - compare each protected file path and descriptor device/inode identity;
-- reject symbolic links and additional hard links;
+- reject symbolic links and additional hard links for `package.json`, an existing `package-lock.json`, `MIGRATION_LEDGER_BOOTSTRAP.sql`, and all migration files;
 - enforce bounded file sizes;
-- protect `package.json`, an existing `package-lock.json`, `server.js`, the migration-ledger bootstrap, bootstrap runner, bootstrap evidence verifier, controlled migration runner, activation preflight, readiness/deployment/UAT gates, release-candidate gate, release verifier and all activation/deployment/UAT/release runbooks;
-- protect every ordered migration file including migration 025;
-- require that the migration directory contains only ordered `.sql` migration files, with no hidden entries, subdirectories, links, or unrelated files;
-- re-verify directory descriptor identity after inventory validation.
+- require at least 25 ordered migration files and explicit migration 025 presence;
+- re-check directory identity after migration inventory validation.
 
 A missing `package-lock.json` is reported during source preparation but remains a release-freeze blocker. Once the lockfile exists, it must pass the same ownership, permissions, symlink, hard-link, descriptor-identity and bounded-size controls.
 
-The protected inventory is intentionally broader than the executable migration sources. Critical migration, release and operational-control files must remain bound to the same canonical preview workspace before activation begins.
+## Deterministic source integrity inventory
+
+Immediately after topology verification, `workspace-source-integrity.js` must create a deterministic SHA-256 inventory in memory and print it to inherited preflight output. It must not modify the workspace or write evidence files.
+
+The inventory covers critical activation, migration, release, UAT, package and server sources plus every ordered migration. Each source is read through secure descriptor-based reads using `O_NOFOLLOW`, canonical path binding, device/inode comparison, additional hard-link rejection, ownership consistency, safe permission checks and bounded reads.
+
+The canonical inventory record contains the relative filename, byte length and SHA-256 checksum for each protected file. Records are sorted by filename and hashed again to produce one source inventory digest named `inventorySha256`.
+
+`workspace-source-integrity-check.js` must then confirm that the integrity verifier still protects the expected inventory contract and remains in the activation sequence before wider governance checks.
+
+Retain the full source inventory output with activation evidence. A different source inventory digest means the source surface changed and the previous activation evidence is no longer applicable.
 
 ## Preflight limitations
 
@@ -119,7 +129,17 @@ mergeExecutionEnabled: false
 
 ## Bootstrap and migration controls
 
-The bootstrap runner must refuse every database except `kloka_talk2me`, require verified backup evidence, refuse an existing migration ledger, securely read the reviewed source, acquire and verify the advisory lock, verify the created schema and empty ledger, confirm lock release, close MySQL, and atomically publish private evidence.
+The bootstrap runner must:
+
+- refuse every database except `kloka_talk2me`;
+- require verified backup reference and SHA-256;
+- refuse an existing migration ledger;
+- securely read the reviewed bootstrap source;
+- acquire and verify the preview migration advisory lock;
+- verify the created schema and empty ledger;
+- confirm advisory-lock release;
+- close MySQL before publishing evidence;
+- atomically publish private JSON evidence and its SHA-256 sidecar.
 
 The migration runner must re-run the bootstrap evidence verifier before opening MySQL. It must securely freeze migration sources, validate the ledger as an exact checksum-matching strict prefix, apply only remaining ordered migrations, confirm lock release, close MySQL and only then print final success.
 
@@ -127,20 +147,39 @@ Individual `applied <migration>` lines are not completion evidence.
 
 ## Secure release-evidence verification
 
-After release freeze, `release-manifest-verification.js` must receive the exact commit SHA, controlled branch and absolute canonical manifest path. It must securely verify the release manifest and sidecar, `package.json`, `package-lock.json`, the migration-ledger bootstrap, every migration source, and the private bootstrap execution evidence pair.
+After release freeze, `release-manifest-verification.js` must receive the exact commit SHA, controlled branch and absolute canonical manifest path.
+
+It must securely verify:
+
+- the release manifest and checksum sidecar;
+- `package.json` and `package-lock.json`;
+- `MIGRATION_LEDGER_BOOTSTRAP.sql`;
+- every migration source in exact order;
+- the private bootstrap execution evidence JSON and checksum sidecar.
 
 Protected reads must reject symbolic links, additional hard links, non-canonical paths, descriptor identity changes, invalid private permissions and oversized files. They must use `O_NOFOLLOW` and descriptor-based reads. Checksums must use constant-time comparison where applicable.
+
+Example:
+
+```bash
+RELEASE_COMMIT_SHA=<exact-40-character-sha> \
+RELEASE_BRANCH=agent/talk2me-os2-integrated-rebuild \
+RELEASE_MANIFEST_PATH=/absolute/private/canonical/path/release-manifest.json \
+node release-manifest-verification.js
+```
+
+Stop when any frozen checksum, commit identity, branch identity, bootstrap evidence field, migration inventory or protected source differs.
 
 ## Hard-stop conditions
 
 Do not proceed when:
 
 - `PREVIEW_APP_ROOT` differs from `/home/kloka/repositories/talk2me/os2-preview`;
-- Node.js is not 20.x;
 - the preview root, migrations directory or evidence directory is a symbolic link, changes identity, or has unsafe permissions;
 - protected files have inconsistent ownership, symbolic links, additional hard links, path/descriptor identity changes, or exceed bounded sizes;
-- the migration directory contains hidden entries, subdirectories, links, or non-migration files;
+- the source inventory digest differs from the evidence retained for the intended activation attempt;
 - `DB_NAME` is not exactly `kloka_talk2me`;
+- Node.js is not 20.x;
 - the branch is not `agent/talk2me-os2-integrated-rebuild`;
 - `ALLOW_PRODUCTION_MUTATION=true`;
 - `ENABLE_CUSTOMER_MERGE_EXECUTION=true`;
