@@ -7,6 +7,7 @@ const root = __dirname;
 const runner = fs.readFileSync(path.join(root, 'preview-uat-runner.js'), 'utf8');
 const schema = fs.readFileSync(path.join(root, 'schema-verification.js'), 'utf8');
 const previewData = fs.readFileSync(path.join(root, 'preview-data-verification.js'), 'utf8');
+const runtimeIdentity = fs.readFileSync(path.join(root, 'runtime-release-identity-check.js'), 'utf8');
 const readiness = fs.readFileSync(path.join(root, 'customer-merge-execution-readiness-routes.js'), 'utf8');
 const restoreEvidence = fs.readFileSync(path.join(root, 'merge-restore-evidence-verification.js'), 'utf8');
 const restorePinCheck = fs.readFileSync(path.join(root, 'merge-restore-pin-check.js'), 'utf8');
@@ -28,6 +29,13 @@ expect(runner.includes('/api/os2/customers/search'), 'UAT must verify Master Cus
 expect(runner.includes('/api/os2/work-items'), 'UAT must verify work items');
 expect(runner.includes('/api/os2/notifications'), 'UAT must verify notifications');
 expect(runner.includes('/api/auth/logout'), 'UAT must verify logout');
+expect(runtimeIdentity.includes("expectedApplication = 'talk2me-os2-preview'"), 'Runtime identity must pin the preview application');
+expect(runtimeIdentity.includes("expectedVersion = '0.59.0'"), 'Runtime identity must pin the preview version');
+expect(runtimeIdentity.includes('expectedNodeMajor = 20'), 'Runtime identity must require Node.js 20');
+expect(runtimeIdentity.includes("expectedDatabase = 'kloka_talk2me'"), 'Runtime identity must require the preview database');
+expect(runtimeIdentity.includes('DB_NAME is required for runtime release identity verification'), 'Runtime identity must fail when DB_NAME is absent');
+expect(runtimeIdentity.includes('productionMutationEnabled: false'), 'Runtime identity must retain the production mutation lock');
+expect(runtimeIdentity.includes('mergeExecutionEnabled: false'), 'Runtime identity must retain the merge execution lock');
 expect(schema.includes("dbName !== 'kloka_talk2me'"), 'Schema verification must pin the preview database');
 expect(schema.includes('information_schema.TABLES'), 'Schema verification must inspect required tables');
 expect(schema.includes('information_schema.COLUMNS'), 'Schema verification must inspect required columns');
@@ -53,6 +61,7 @@ expect(runbook.includes('merge-restore-evidence-verification.js` second'), 'UAT 
 expect(runbook.includes('Running only `npm run verify:schema` is not sufficient'), 'UAT runbook must prohibit schema-only evidence');
 expect(runbook.includes('mergeExecutionEnabled: false'), 'UAT runbook must retain merge execution lock evidence');
 expect(runbook.includes('exact commit SHA and preview version'), 'UAT evidence must retain exact build identity');
+expect(pkg.scripts['verify:runtime-release-identity'] === 'node runtime-release-identity-check.js', 'Package must expose runtime identity verification');
 expect(pkg.scripts['verify:schema'] === 'node schema-verification.js', 'Package must expose verify:schema');
 expect(pkg.scripts['verify:merge-restore-evidence'] === 'node merge-restore-evidence-verification.js', 'Package must expose restore evidence verification');
 expect(pkg.scripts['verify:preview-data'] === 'node preview-data-verification.js', 'Package must expose preview data verification');
@@ -64,4 +73,11 @@ if (failures.length) {
   failures.forEach(item => console.error(`- ${item}`));
   process.exit(1);
 }
-console.log('UAT gate check passed');
+console.log(JSON.stringify({
+  ok: true,
+  check: 'uat-gate',
+  runtimeReleaseIdentityRequired: true,
+  previewDataVerificationRequired: true,
+  productionMutationEnabled: false,
+  mergeExecutionEnabled: false
+}, null, 2));
