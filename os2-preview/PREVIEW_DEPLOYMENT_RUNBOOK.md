@@ -56,7 +56,39 @@ Hard stops:
 
 The migration runner separately verifies the ledger table engine, collation, exact ordered columns, defaults, primary key, and unique migration-name key before reading ledger contents or applying migrations.
 
-## 3. Controlled migration
+## 3. Bootstrap execution evidence
+
+After successful bootstrap execution, preserve the complete JSON result as a private evidence file with mode `0600`. The evidence must record the preview database, bootstrap filename and SHA-256, verified backup reference and SHA-256, named operator, approved change reference, start and completion timestamps, the pre-existing and created ledger-table counts, schema verification, empty-ledger result, advisory lock lifecycle, and both prohibited execution flags set to false.
+
+Create a sidecar bootstrap evidence checksum in this exact format:
+
+```text
+<64-character-sha256><two spaces><evidence-filename>
+```
+
+Verify this evidence before applying migration 001 or any later migration:
+
+```bash
+MIGRATION_LEDGER_BOOTSTRAP_EVIDENCE_PATH=/absolute/private/canonical/path/bootstrap-evidence.json \
+node migration-ledger-bootstrap-evidence-verification.js
+```
+
+The verifier must:
+
+- securely open the evidence and checksum files with `O_NOFOLLOW`;
+- reject symbolic links, additional hard links, non-private permissions, oversized files, and path/descriptor identity changes;
+- validate the bootstrap evidence checksum with constant-time comparison;
+- bind the evidence to the checked-out `MIGRATION_LEDGER_BOOTSTRAP.sql` SHA-256;
+- verify the approved backup reference and checksum are present;
+- prove the ledger table was absent before execution;
+- prove exactly one ledger table was created;
+- confirm the ledger schema was verified and remains empty;
+- confirm the complete advisory lock lifecycle, including release;
+- retain production mutation and customer-merge execution as disabled.
+
+Do not proceed to controlled migrations when `MIGRATION_LEDGER_BOOTSTRAP_EVIDENCE_PATH` is missing or when `migration-ledger-bootstrap-evidence-verification.js` fails.
+
+## 4. Controlled migration
 
 ```bash
 DB_NAME=kloka_talk2me \
@@ -70,7 +102,7 @@ The runner securely freezes migration sources, acquires `talk2me_os2_preview_mig
 
 Unknown, duplicate, reordered, skipped, future, malformed, or checksum-mismatched ledger entries are hard stops. Only one controlled migration process may operate at a time.
 
-## 4. Mandatory preview data verification
+## 5. Mandatory preview data verification
 
 After migration and before restart:
 
@@ -80,16 +112,16 @@ DB_NAME=kloka_talk2me npm run verify:preview-data
 
 This must run `schema-verification.js` followed by `merge-restore-evidence-verification.js`. Running only `npm run verify:schema` is not sufficient. A passing result must retain `mergeExecutionEnabled: false`.
 
-## 5. Restart and smoke testing
+## 6. Restart and smoke testing
 
 Restart only the preview Node.js application. Do not restart or modify production. Verify `https://talk2me.kloka.co.za/health`, then test login, dashboard, customer search, Customer 360, work items, notifications, ownership claims, approvals, service updates, restrictions, and audit records.
 
 Keep `EMAIL_WORKER_ENABLED=false` until SMTP is separately verified.
 
-## 6. Rollback
+## 7. Rollback
 
 Stop preview, restore the verified preview backup, rerun preview-data verification, reset to the previously verified commit, restart preview only, and record the result in GitHub Issue #83.
 
-## 7. Completion rule
+## 8. Completion rule
 
-Code commits alone do not establish deployability. Dependency freeze, source checks, controlled ledger bootstrap, migrations, preview verification, restart, smoke testing, permission testing, and formal UAT must all be completed and recorded.
+Code commits alone do not establish deployability. Dependency freeze, source checks, controlled ledger bootstrap, verified bootstrap execution evidence, migrations, preview verification, restart, smoke testing, permission testing, and formal UAT must all be completed and recorded.
