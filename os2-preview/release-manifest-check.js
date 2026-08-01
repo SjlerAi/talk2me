@@ -17,7 +17,11 @@ const required=[
   'Unexpected release branch:',
   'agent/talk2me-os2-integrated-rebuild',
   'commitIdentityVerified',
-  "flag:'wx'",
+  "fs.openSync(file, 'wx', 0o600)",
+  'fs.fsyncSync(descriptor)',
+  'fs.linkSync(checksumTemp, checksumPath)',
+  'fs.linkSync(manifestTemp, manifestPath)',
+  'Release evidence publication failed:',
   'RELEASE_APPROVED_BY is required',
   'RELEASE_CHANGE_REFERENCE is required',
   'RELEASE_MANIFEST_PATH is required',
@@ -55,8 +59,9 @@ const required=[
 for(const marker of required) if(!gate.includes(marker)) throw new Error(`Missing release gate marker: ${marker}`);
 if(gate.includes("warn('No release")) throw new Error('Release identity metadata must be blocking, not warning-only');
 if(!gate.includes('else if (failures.length === 0)')) throw new Error('Release manifest must not be written while blockers exist');
-if(!gate.includes('fs.writeFileSync(checksumOutput')) throw new Error('Release manifest checksum sidecar is required');
-if(!gate.includes("mode:0o600, flag:'wx'")) throw new Error('Release evidence files must be private and non-overwriting');
+if(!gate.includes('publishEvidencePair(output, manifestText, checksumText)')) throw new Error('Release manifest and checksum must use paired publication');
+if(!gate.includes('if (manifestPublished) removeIfPresent(manifestPath)')) throw new Error('Partial manifest publication cleanup is required');
+if(!gate.includes('if (checksumPublished) removeIfPresent(checksumPath)')) throw new Error('Partial checksum publication cleanup is required');
 
 const previewDataMarkers=[
   "expectedDatabase = 'kloka_talk2me'",
@@ -137,6 +142,8 @@ console.log(JSON.stringify({
   failedManifestWriteProhibited:true,
   manifestChecksumSidecarRequired:true,
   releaseEvidenceOverwriteProhibited:true,
+  releaseEvidencePublicationRaceSafe:true,
+  releaseEvidencePartialCleanupRequired:true,
   postFreezeManifestVerificationRequired:true,
   releaseRunbookPreviewDataProtected:true,
   previewDataMarkers:previewDataMarkers.length,
