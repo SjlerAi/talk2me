@@ -7,6 +7,7 @@ const root = __dirname;
 const expectedDatabase = 'kloka_talk2me';
 const expectedBranch = 'agent/talk2me-os2-integrated-rebuild';
 const expectedNodeMajor = 20;
+const verifierTimeoutMs = 30000;
 
 function fail(message) {
   console.error(JSON.stringify({
@@ -45,10 +46,16 @@ const result = spawnSync(process.execPath, [path.join(root, 'workspace-source-in
   },
   encoding: 'utf8',
   maxBuffer: 16 * 1024 * 1024,
-  windowsHide: true
+  timeout: verifierTimeoutMs,
+  killSignal: 'SIGKILL',
+  windowsHide: true,
+  shell: false
 });
 
-if (result.error) fail(`Workspace source integrity verifier could not start: ${result.error.message}`);
+if (result.error) {
+  if (result.error.code === 'ETIMEDOUT') fail(`Workspace source integrity verifier exceeded ${verifierTimeoutMs}ms`);
+  fail(`Workspace source integrity verifier could not start: ${result.error.message}`);
+}
 if (result.signal) fail(`Workspace source integrity verifier was interrupted by signal ${result.signal}`);
 if (result.status !== 0) fail(`Workspace source integrity verifier failed with status ${result.status}: ${String(result.stderr || '').trim()}`);
 
@@ -58,11 +65,15 @@ catch { fail('Workspace source integrity verifier did not return valid JSON'); }
 
 if (evidence.ok !== true || evidence.check !== 'workspace-source-integrity') fail('Workspace source integrity evidence identity is invalid');
 if (evidence.database !== expectedDatabase || evidence.branch !== expectedBranch) fail('Workspace source integrity evidence preview identity is invalid');
+if (evidence.applicationRoot !== root) fail('Workspace source integrity evidence application root is invalid');
 if (evidence.productionMutationEnabled !== false || evidence.mergeExecutionEnabled !== false) fail('Workspace source integrity evidence safety flags are invalid');
 if (!/^[0-9a-f]{64}$/i.test(String(evidence.inventorySha256 || ''))) fail('Workspace source integrity evidence is missing a valid inventory digest');
 if (String(evidence.inventorySha256).toLowerCase() !== expectedInventorySha256) fail('Workspace source inventory digest does not match the approved release digest');
 if (!Array.isArray(evidence.files) || evidence.files.length < 25) fail('Workspace source integrity evidence file inventory is incomplete');
+if (evidence.protectedFileCount !== evidence.files.length) fail('Workspace source integrity protected-file count does not match the returned inventory');
+if (!Number.isInteger(evidence.migrationCount) || evidence.migrationCount < 25) fail('Workspace source integrity migration inventory is incomplete');
 if (evidence.packageLockPresent !== true) fail('Release source integrity requires the committed package-lock.json to be included');
+if (evidence.secureDescriptorReads !== true || evidence.canonicalPathBinding !== true || evidence.hardLinkRejection !== true || evidence.ownershipConsistency !== true || evidence.boundedReads !== true) fail('Workspace source integrity security evidence is incomplete');
 
 console.log(JSON.stringify({
   ok: true,
@@ -77,11 +88,13 @@ console.log(JSON.stringify({
   migrationCount: evidence.migrationCount,
   packageLockPresent: true,
   exactApprovedInventoryMatched: true,
-  secureDescriptorReadsVerified: evidence.secureDescriptorReads === true,
-  canonicalPathBindingVerified: evidence.canonicalPathBinding === true,
-  hardLinkRejectionVerified: evidence.hardLinkRejection === true,
-  ownershipConsistencyVerified: evidence.ownershipConsistency === true,
-  boundedReadsVerified: evidence.boundedReads === true,
+  verifierTimeoutMs,
+  verifierShellDisabled: true,
+  secureDescriptorReadsVerified: true,
+  canonicalPathBindingVerified: true,
+  hardLinkRejectionVerified: true,
+  ownershipConsistencyVerified: true,
+  boundedReadsVerified: true,
   productionMutationEnabled: false,
   mergeExecutionEnabled: false
 }, null, 2));
