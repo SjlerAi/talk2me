@@ -64,6 +64,8 @@ The inventory covers the package and server entrypoint, bootstrap and migration 
 
 The inventory is self-protecting: it must include `workspace-source-integrity.js` itself and `workspace-source-integrity-check.js`. It must also include workspace topology governance, activation governance, release source-integrity governance, and release-manifest governance. A governance script that defines what is protected cannot sit outside the protected inventory.
 
+The CI workflow file itself is part of the protected source inventory. A change to `.github/workflows/os2-preview-ci.yml` must therefore change `inventorySha256`, invalidate earlier CI source evidence, and require a new exact-commit CI cycle.
+
 Each source is read through secure descriptor-based reads using `O_NOFOLLOW`, canonical path binding, device/inode comparison, additional hard-link rejection, ownership consistency, safe permission checks and bounded reads.
 
 The canonical inventory record contains the relative filename, byte length and SHA-256 checksum for each protected file. Records are sorted by filename and hashed again to produce one source inventory digest named `inventorySha256`.
