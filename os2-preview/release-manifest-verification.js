@@ -99,10 +99,16 @@ const expectedPreviewDataOrder = [
 ];
 
 if (manifest.ok !== true) fail('Release manifest is not marked successful');
+if (manifest.application !== 'talk2me-os2-preview') fail('Release manifest application identity is invalid');
 if (manifest.version !== expectedPreviewVersion) fail(`Release manifest version must be ${expectedPreviewVersion}`);
 if (manifest.branch !== 'agent/talk2me-os2-integrated-rebuild') fail('Release manifest branch is not the controlled rebuild branch');
 if (!/^[0-9a-f]{40}$/i.test(String(manifest.commitSha || ''))) fail('Release manifest commit SHA is invalid');
 if (manifest.commitIdentityVerified !== true) fail('Release manifest commit identity is not verified');
+if (typeof manifest.approvedBy !== 'string' || !manifest.approvedBy.trim()) fail('Release manifest approver evidence is missing');
+if (typeof manifest.changeReference !== 'string' || !manifest.changeReference.trim()) fail('Release manifest change reference is missing');
+const generatedAt = Date.parse(String(manifest.generatedAt || ''));
+if (!Number.isFinite(generatedAt)) fail('Release manifest generation timestamp is invalid');
+if (generatedAt > Date.now() + 300000) fail('Release manifest generation timestamp is unreasonably in the future');
 if (manifest.dependencyLockPresent !== true) fail('Release manifest does not confirm a committed dependency lock');
 if (!/^[0-9a-f]{64}$/i.test(String(manifest.dependencyLockSha256 || ''))) fail('Release manifest dependency-lock checksum is invalid');
 if (manifest.restorePinMigration !== '20260801_025_merge_authorisation_restore_pin.sql') fail('Release manifest restore-pin migration is invalid');
@@ -114,7 +120,17 @@ if (!Array.isArray(manifest.previewDataVerificationOrder) ||
 }
 if (manifest.mergeExecutionEnabled !== false) fail('Release manifest must keep customer-merge execution disabled');
 if (!Array.isArray(manifest.failures) || manifest.failures.length !== 0) fail('Release manifest contains blocking failures');
-if (!Array.isArray(manifest.migrationChecksums) || manifest.migrationChecksums.length < 25) fail('Release manifest migration evidence is incomplete');
+if (!Array.isArray(manifest.warnings)) fail('Release manifest warnings inventory is invalid');
+if (!Number.isInteger(manifest.migrationCount) || manifest.migrationCount < 25) fail('Release manifest migration count is invalid');
+if (!Array.isArray(manifest.migrationChecksums) || manifest.migrationChecksums.length !== manifest.migrationCount) fail('Release manifest migration evidence count does not match migrationCount');
+const migrationNames = new Set();
+for (const item of manifest.migrationChecksums) {
+  if (!item || typeof item.file !== 'string' || !/^\d+_.+\.sql$/.test(item.file)) fail('Release manifest contains an invalid migration filename');
+  if (!/^[0-9a-f]{64}$/i.test(String(item.sha256 || ''))) fail(`Release manifest migration checksum is invalid: ${item.file}`);
+  if (migrationNames.has(item.file)) fail(`Release manifest contains a duplicate migration entry: ${item.file}`);
+  migrationNames.add(item.file);
+}
+if (!migrationNames.has('20260801_025_merge_authorisation_restore_pin.sql')) fail('Release manifest migration evidence omits migration 025');
 if (!Array.isArray(manifest.requiredChecks) || requiredChecks.some(item => !manifest.requiredChecks.includes(item))) fail('Release manifest required-check inventory is incomplete');
 if (!Array.isArray(manifest.requiredScripts) || requiredScripts.some(item => !manifest.requiredScripts.includes(item))) fail('Release manifest required-script inventory is incomplete');
 
@@ -126,10 +142,13 @@ console.log(JSON.stringify({
   evidenceDirectoryCanonical: true,
   evidenceDirectoryPrivate: true,
   manifestSha256: actualChecksum,
+  application: manifest.application,
   version: manifest.version,
   expectedPreviewVersion,
   commitSha: manifest.commitSha,
   branch: manifest.branch,
+  approvedBy: manifest.approvedBy,
+  changeReference: manifest.changeReference,
   migrationCount: manifest.migrationCount,
   previewDataVerificationRequired: manifest.previewDataVerificationRequired,
   previewDataVerificationOrder: manifest.previewDataVerificationOrder,
