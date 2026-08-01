@@ -7,6 +7,8 @@ const root = __dirname;
 const preflight = fs.readFileSync(path.join(root, 'preview-activation-preflight.js'), 'utf8');
 const topology = fs.readFileSync(path.join(root, 'workspace-topology-verification.js'), 'utf8');
 const topologyGovernance = fs.readFileSync(path.join(root, 'workspace-topology-governance-check.js'), 'utf8');
+const sourceIntegrity = fs.readFileSync(path.join(root, 'workspace-source-integrity.js'), 'utf8');
+const sourceIntegrityGovernance = fs.readFileSync(path.join(root, 'workspace-source-integrity-check.js'), 'utf8');
 const runbook = fs.readFileSync(path.join(root, 'PREVIEW_ACTIVATION_RUNBOOK.md'), 'utf8');
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 
@@ -28,6 +30,8 @@ requireMarkers(preflight, [
   'result.signal',
   'result.status !== 0',
   'orderedGovernanceChecksCompleted: completed.length',
+  'workspaceSourceIntegrityVerified: true',
+  'workspaceSourceIntegrityGovernanceVerified: true',
   'bootstrapGovernanceVerified: true',
   'bootstrapRunnerGovernanceVerified: true',
   'bootstrapEvidenceGovernanceVerified: true',
@@ -42,6 +46,8 @@ requireMarkers(preflight, [
 
 const orderedScripts = [
   "'workspace-topology-verification.js'",
+  "'workspace-source-integrity.js'",
+  "'workspace-source-integrity-check.js'",
   "'workspace-topology-governance-check.js'",
   "'migration-ledger-bootstrap-governance-check.js'",
   "'migration-ledger-bootstrap-runner-check.js'",
@@ -82,12 +88,31 @@ requireMarkers(topologyGovernance, [
   'migration025Required: true'
 ], 'Workspace topology governance');
 
+requireMarkers(sourceIntegrity, [
+  "check: 'workspace-source-integrity'",
+  'inventorySha256',
+  'secureDescriptorReads: true',
+  'canonicalPathBinding: true',
+  'hardLinkRejection: true',
+  'ownershipConsistency: true',
+  'boundedReads: true'
+], 'Workspace source integrity');
+
+requireMarkers(sourceIntegrityGovernance, [
+  "check: 'workspace-source-integrity-governance'",
+  'deterministicInventoryRequired: true',
+  'activationPreflightRegistrationRequired: true'
+], 'Workspace source integrity governance');
+
 requireMarkers(runbook, [
   'talk2me.kloka.co.za',
   'talk2me.uent.co.za',
   'kloka_talk2me',
   'agent/talk2me-os2-integrated-rebuild',
   'PREVIEW_APP_ROOT=/home/kloka/repositories/talk2me/os2-preview',
+  'workspace-source-integrity.js',
+  'workspace-source-integrity-check.js',
+  'deterministic SHA-256 inventory',
   'npm run verify:preview-activation-preflight',
   'npm ci',
   'npm run check',
@@ -109,6 +134,8 @@ console.log(JSON.stringify({
   packageCommandRegistered: true,
   normalValidationRegistered: true,
   workspaceTopologyVerificationRequired: true,
+  workspaceSourceIntegrityRequired: true,
+  workspaceSourceIntegrityGovernanceRequired: true,
   workspaceTopologyGovernanceRequired: true,
   migrationLedgerBootstrapGovernanceRequired: true,
   migrationLedgerBootstrapRunnerGovernanceRequired: true,
