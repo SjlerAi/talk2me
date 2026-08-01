@@ -1,134 +1,37 @@
 'use strict';
 
-const express = require('express');
-const { withTransaction } = require('./core/transaction');
-const { requirePermission } = require('./core/permissions');
-const { enforceCustomerAction } = require('./core/restrictions');
-const { createApproval } = require('./core/approvals');
-const { appendAudit } = require('./core/audit');
+const express=require('express');
+const { withTransaction }=require('./core/transaction');
+const { requirePermission }=require('./core/permissions');
+const { enforceCustomerAction }=require('./core/restrictions');
+const { createApproval,consumeApproval }=require('./core/approvals');
+const { appendAudit }=require('./core/audit');
 
-function positiveId(value) {
-  const id = Number(value);
-  return Number.isInteger(id) && id > 0 ? id : null;
-}
-function text(value, max = 255) {
-  const result = String(value == null ? '' : value).trim();
-  return result ? result.slice(0, max) : null;
-}
-function requestContext(req) {
-  return {
-    ip: String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim().slice(0, 64),
-    userAgent: String(req.headers['user-agent'] || '').slice(0, 255)
-  };
-}
-async function writeHistory(connection, options) {
-  await connection.execute(`INSERT INTO os2_service_change_history
-    (master_customer_id,service_type,service_id,change_type,before_json,after_json,approval_id,changed_by,created_at)
-    VALUES (:masterCustomerId,:serviceType,:serviceId,:changeType,:beforeJson,:afterJson,:approvalId,:actor,NOW())`, {
-    masterCustomerId: options.masterCustomerId,
-    serviceType: options.serviceType,
-    serviceId: options.serviceId,
-    changeType: options.changeType,
-    beforeJson: JSON.stringify(options.before || {}),
-    afterJson: JSON.stringify(options.after || {}),
-    approvalId: options.approvalId || null,
-    actor: options.actorStaffId
-  });
+function positiveId(v){const n=Number(v);return Number.isInteger(n)&&n>0?n:null;}
+function text(v,max=255){const s=String(v==null?'':v).trim();return s?s.slice(0,max):null;}
+function money(v,fallback=0){if(v==null||v==='')return Number(fallback||0);const n=Number(v);if(!Number.isFinite(n)||n<0||n>10000000)throw Object.assign(new Error('INVALID_MONTHLY_AMOUNT'),{statusCode:400});return Math.round(n*100)/100;}
+function context(req){return{ip:String(req.headers['x-forwarded-for']||req.socket.remoteAddress||'').split(',')[0].trim().slice(0,64),userAgent:String(req.headers['user-agent']||'').slice(0,255)};}
+function fail(res,error,fallback){const known=new Set(['MOBILE_LINE_NOT_FOUND','FIXED_SERVICE_NOT_FOUND','APPROVAL_REQUIRED','APPROVAL_NOT_FOUND','APPROVAL_NOT_APPROVED','APPROVAL_ALREADY_CONSUMED','APPROVAL_ACTION_MISMATCH','APPROVAL_CUSTOMER_MISMATCH','APPROVAL_TARGET_MISMATCH','APPROVAL_PAYLOAD_INTEGRITY_FAILED','APPROVAL_PAYLOAD_MISMATCH','CUSTOMER_RESTRICTION_BLOCKED','INVALID_MONTHLY_AMOUNT','SERVICE_ALREADY_CANCELLED']);res.status(error.statusCode||(known.has(error.message)?409:500)).json({ok:false,error:known.has(error.message)?error.message:fallback,details:error.details||null});}
+async function history(connection,o){await connection.execute(`INSERT INTO os2_service_change_history(master_customer_id,service_type,service_id,change_type,before_json,after_json,approval_id,changed_by,created_at) VALUES(:customer,:type,:id,:change,:before,:after,:approval,:actor,NOW())`,{customer:o.customer,type:o.type,id:o.id,change:o.change,before:JSON.stringify(o.before||{}),after:JSON.stringify(o.after||{}),approval:o.approval||null,actor:o.actor});}
+async function approvalOrRequest(connection,{decision,approvalId,actionKey,customerId,targetType,targetId,payload,actor,requestContext}){
+  if(!decision.requiresApproval)return null;
+  if(!approvalId){const id=await createApproval(connection,{actionKey,masterCustomerId:customerId,targetEntityType:targetType,targetEntityId:targetId,payload,requestedBy:actor,requestContext});return{approvalRequired:true,approvalId:id};}
+  return{approvalRequired:false,consume:async(result)=>consumeApproval(connection,{approvalId,actionKey,masterCustomerId:customerId,targetEntityType:targetType,targetEntityId:targetId,payload,actorStaffId:actor,consumedForEntityType:targetType,consumedForEntityId:targetId,result,requestContext})};
 }
 
-module.exports = function createServiceLifecycleRouter({ pool, requireAuth }) {
-  const router = express.Router();
-  router.use('/api/os2', requireAuth);
+module.exports=function createServiceLifecycleRouter({pool,requireAuth}){
+  const router=express.Router();router.use('/api/os2',requireAuth);
 
-  router.patch('/api/os2/mobile-lines/:id', requirePermission('service.update'), async (req, res) => {
-    const id = positiveId(req.params.id);
-    if (!id) return res.status(400).json({ ok:false, error:'INVALID_MOBILE_LINE_ID' });
-    try {
-      const result = await withTransaction(pool, async connection => {
-        const [[line]] = await connection.execute('SELECT * FROM os2_mobile_lines WHERE id=:id AND archived_at IS NULL FOR UPDATE', { id });
-        if (!line) throw Object.assign(new Error('MOBILE_LINE_NOT_FOUND'), { statusCode:404 });
-        const newPackage = text(req.body.packageName, 200) || line.package_name;
-        const newAmount = req.body.monthlyAmount == null ? Number(line.monthly_amount || 0) : Number(req.body.monthlyAmount);
-        const increase = newAmount - Number(line.monthly_amount || 0);
-        const action = increase > 0 ? 'package_increase' : 'upgrade';
-        const decision = await enforceCustomerAction(connection, {
-          masterCustomerId: line.master_customer_id,
-          action,
-          context: { monthlyIncrease: increase, proposedMonthlyTotal: req.body.proposedMonthlyTotal }
-        });
-        if (decision.requiresApproval && !positiveId(req.body.approvalId)) {
-          const approvalId = await createApproval(connection, {
-            requestType: action,
-            masterCustomerId: line.master_customer_id,
-            targetEntityType: 'os2_mobile_lines',
-            targetEntityId: id,
-            payload: { packageName:newPackage, monthlyAmount:newAmount, handset:text(req.body.handset,200), nextUpgradeDate:req.body.nextUpgradeDate || null },
-            requestedBy: req.user.id,
-            requestContext: requestContext(req)
-          });
-          return { approvalRequired:true, approvalId };
-        }
-        const after = {
-          package_name:newPackage,
-          monthly_amount:newAmount,
-          handset:text(req.body.handset,200) || line.handset,
-          next_upgrade_date:req.body.nextUpgradeDate || line.next_upgrade_date,
-          line_status:text(req.body.lineStatus,30) || line.line_status
-        };
-        await connection.execute(`UPDATE os2_mobile_lines SET package_name=:package_name,monthly_amount=:monthly_amount,
-          handset=:handset,next_upgrade_date=:next_upgrade_date,line_status=:line_status,updated_by=:actor,updated_at=NOW() WHERE id=:id`, {
-          ...after, actor:req.user.id, id
-        });
-        await writeHistory(connection, { masterCustomerId:line.master_customer_id, serviceType:'mobile', serviceId:id, changeType:action, before:line, after, approvalId:positiveId(req.body.approvalId), actorStaffId:req.user.id });
-        await appendAudit(connection, { actorStaffId:req.user.id, actionType:`mobile_line_${action}`, entityType:'os2_mobile_lines', entityId:id, masterCustomerId:line.master_customer_id, description:`Updated mobile line ${line.mobile_number}`, before:line, after, requestContext:requestContext(req) });
-        return { approvalRequired:false, mobileLineId:id };
-      });
-      res.json({ ok:true, ...result });
-    } catch (error) {
-      res.status(error.statusCode || 500).json({ ok:false, error:error.statusCode ? error.message : 'MOBILE_LINE_UPDATE_FAILED', details:error.details || null });
-    }
-  });
+  router.get('/api/os2/customers/:id/services',async(req,res)=>{const customer=positiveId(req.params.id);if(!customer)return res.status(400).json({ok:false,error:'INVALID_CUSTOMER_ID'});try{const [mobile,fixed]=await Promise.all([pool.execute(`SELECT ml.*,ca.account_number FROM os2_mobile_lines ml LEFT JOIN os2_customer_accounts ca ON ca.id=ml.account_id WHERE ml.master_customer_id=:id AND ml.archived_at IS NULL ORDER BY ml.mobile_number`,{id:customer}),pool.execute(`SELECT fs.*,fa.master_customer_id,fa.account_id,fa.fixed_account_number,ca.account_number FROM os2_fixed_services fs JOIN os2_fixed_accounts fa ON fa.id=fs.fixed_account_id LEFT JOIN os2_customer_accounts ca ON ca.id=fa.account_id WHERE fa.master_customer_id=:id AND fs.archived_at IS NULL AND fa.archived_at IS NULL ORDER BY fa.fixed_account_number,fs.service_name`,{id:customer})]);res.json({ok:true,mobileLines:mobile[0],fixedServices:fixed[0]});}catch(e){fail(res,e,'SERVICES_LOAD_FAILED');}});
 
-  router.post('/api/os2/mobile-lines/:id/cancel', requirePermission('service.update'), async (req, res) => {
-    const id = positiveId(req.params.id);
-    if (!id) return res.status(400).json({ ok:false, error:'INVALID_MOBILE_LINE_ID' });
-    try {
-      const result = await withTransaction(pool, async connection => {
-        const [[line]] = await connection.execute('SELECT * FROM os2_mobile_lines WHERE id=:id AND archived_at IS NULL FOR UPDATE', { id });
-        if (!line) throw Object.assign(new Error('MOBILE_LINE_NOT_FOUND'), { statusCode:404 });
-        const decision = await enforceCustomerAction(connection, { masterCustomerId:line.master_customer_id, action:'cancellation', context:{} });
-        if (decision.requiresApproval && !positiveId(req.body.approvalId)) {
-          const approvalId = await createApproval(connection, {
-            requestType:'cancellation', masterCustomerId:line.master_customer_id,
-            targetEntityType:'os2_mobile_lines', targetEntityId:id,
-            payload:{ cancellationDate:req.body.cancellationDate || null, reason:text(req.body.reason,1000) },
-            requestedBy:req.user.id, requestContext:requestContext(req)
-          });
-          return { approvalRequired:true, approvalId };
-        }
-        const after = { line_status:'cancelled', cancellation_date:req.body.cancellationDate || new Date().toISOString().slice(0,10) };
-        await connection.execute(`UPDATE os2_mobile_lines SET line_status='cancelled',cancellation_date=:date,updated_by=:actor,updated_at=NOW() WHERE id=:id`, { date:after.cancellation_date, actor:req.user.id, id });
-        await writeHistory(connection, { masterCustomerId:line.master_customer_id, serviceType:'mobile', serviceId:id, changeType:'cancellation', before:line, after, approvalId:positiveId(req.body.approvalId), actorStaffId:req.user.id });
-        await appendAudit(connection, { actorStaffId:req.user.id, actionType:'mobile_line_cancelled', entityType:'os2_mobile_lines', entityId:id, masterCustomerId:line.master_customer_id, description:`Cancelled mobile line ${line.mobile_number}`, before:line, after, requestContext:requestContext(req) });
-        return { approvalRequired:false, mobileLineId:id };
-      });
-      res.json({ ok:true, ...result });
-    } catch (error) {
-      res.status(error.statusCode || 500).json({ ok:false, error:error.statusCode ? error.message : 'MOBILE_LINE_CANCEL_FAILED', details:error.details || null });
-    }
-  });
+  router.patch('/api/os2/mobile-lines/:id',requirePermission('service.update'),async(req,res)=>{const id=positiveId(req.params.id);if(!id)return res.status(400).json({ok:false,error:'INVALID_MOBILE_LINE_ID'});try{const result=await withTransaction(pool,async c=>{const [[line]]=await c.execute('SELECT * FROM os2_mobile_lines WHERE id=:id AND archived_at IS NULL FOR UPDATE',{id});if(!line)throw Object.assign(new Error('MOBILE_LINE_NOT_FOUND'),{statusCode:404});const after={package_name:text(req.body.packageName,200)||line.package_name,monthly_amount:money(req.body.monthlyAmount,line.monthly_amount),handset:text(req.body.handset,200)||line.handset,next_upgrade_date:req.body.nextUpgradeDate||line.next_upgrade_date,line_status:text(req.body.lineStatus,30)||line.line_status};const increase=after.monthly_amount-Number(line.monthly_amount||0);const decision=await enforceCustomerAction(c,{masterCustomerId:line.master_customer_id,action:increase>0?'package_increase':'upgrade',context:{monthlyIncrease:increase,proposedMonthlyTotal:req.body.proposedMonthlyTotal}});const payload={packageName:after.package_name,monthlyAmount:after.monthly_amount,handset:after.handset,nextUpgradeDate:after.next_upgrade_date,lineStatus:after.line_status};const gate=await approvalOrRequest(c,{decision,approvalId:positiveId(req.body.approvalId),actionKey:'service_change',customerId:line.master_customer_id,targetType:'os2_mobile_lines',targetId:id,payload,actor:req.user.id,requestContext:context(req)});if(gate?.approvalRequired)return gate;await c.execute(`UPDATE os2_mobile_lines SET package_name=:package_name,monthly_amount=:monthly_amount,handset=:handset,next_upgrade_date=:next_upgrade_date,line_status=:line_status,updated_by=:actor,updated_at=NOW() WHERE id=:id`,{...after,actor:req.user.id,id});if(gate?.consume)await gate.consume({updated:true});await history(c,{customer:line.master_customer_id,type:'mobile',id,change:'service_change',before:line,after,approval:positiveId(req.body.approvalId),actor:req.user.id});await appendAudit(c,{actorStaffId:req.user.id,actionType:'mobile_line_updated',entityType:'os2_mobile_lines',entityId:id,masterCustomerId:line.master_customer_id,description:`Updated mobile line ${line.mobile_number}`,before:line,after,requestContext:context(req)});return{approvalRequired:false,mobileLineId:id};});res.json({ok:true,...result});}catch(e){fail(res,e,'MOBILE_LINE_UPDATE_FAILED');}});
 
-  router.get('/api/os2/customers/:id/service-history', async (req, res) => {
-    const masterCustomerId = positiveId(req.params.id);
-    if (!masterCustomerId) return res.status(400).json({ ok:false, error:'INVALID_CUSTOMER_ID' });
-    try {
-      const [rows] = await pool.execute(`SELECT h.*,s.full_name changed_by_name FROM os2_service_change_history h
-        LEFT JOIN staff_users s ON s.id=h.changed_by WHERE h.master_customer_id=:id ORDER BY h.created_at DESC LIMIT 250`, { id:masterCustomerId });
-      res.json({ ok:true, history:rows });
-    } catch (error) {
-      res.status(500).json({ ok:false, error:'SERVICE_HISTORY_LOAD_FAILED' });
-    }
-  });
+  router.post('/api/os2/mobile-lines/:id/cancel',requirePermission('service.update'),async(req,res)=>{const id=positiveId(req.params.id);if(!id)return res.status(400).json({ok:false,error:'INVALID_MOBILE_LINE_ID'});try{const result=await withTransaction(pool,async c=>{const [[line]]=await c.execute('SELECT * FROM os2_mobile_lines WHERE id=:id AND archived_at IS NULL FOR UPDATE',{id});if(!line)throw Object.assign(new Error('MOBILE_LINE_NOT_FOUND'),{statusCode:404});if(line.line_status==='cancelled')throw new Error('SERVICE_ALREADY_CANCELLED');const decision=await enforceCustomerAction(c,{masterCustomerId:line.master_customer_id,action:'cancellation',context:{}});const after={line_status:'cancelled',cancellation_date:req.body.cancellationDate||new Date().toISOString().slice(0,10),reason:text(req.body.reason,1000)};const payload={cancellationDate:after.cancellation_date,reason:after.reason};const gate=await approvalOrRequest(c,{decision,approvalId:positiveId(req.body.approvalId),actionKey:'service_cancel',customerId:line.master_customer_id,targetType:'os2_mobile_lines',targetId:id,payload,actor:req.user.id,requestContext:context(req)});if(gate?.approvalRequired)return gate;await c.execute(`UPDATE os2_mobile_lines SET line_status='cancelled',cancellation_date=:date,updated_by=:actor,updated_at=NOW() WHERE id=:id`,{date:after.cancellation_date,actor:req.user.id,id});if(gate?.consume)await gate.consume({cancelled:true});await history(c,{customer:line.master_customer_id,type:'mobile',id,change:'service_cancel',before:line,after,approval:positiveId(req.body.approvalId),actor:req.user.id});await appendAudit(c,{actorStaffId:req.user.id,actionType:'mobile_line_cancelled',entityType:'os2_mobile_lines',entityId:id,masterCustomerId:line.master_customer_id,description:`Cancelled mobile line ${line.mobile_number}`,before:line,after,requestContext:context(req)});return{approvalRequired:false,mobileLineId:id};});res.json({ok:true,...result});}catch(e){fail(res,e,'MOBILE_LINE_CANCEL_FAILED');}});
 
+  router.patch('/api/os2/fixed-services/:id',requirePermission('service.update'),async(req,res)=>{const id=positiveId(req.params.id);if(!id)return res.status(400).json({ok:false,error:'INVALID_FIXED_SERVICE_ID'});try{const result=await withTransaction(pool,async c=>{const [[service]]=await c.execute(`SELECT fs.*,fa.master_customer_id FROM os2_fixed_services fs JOIN os2_fixed_accounts fa ON fa.id=fs.fixed_account_id WHERE fs.id=:id AND fs.archived_at IS NULL FOR UPDATE`,{id});if(!service)throw Object.assign(new Error('FIXED_SERVICE_NOT_FOUND'),{statusCode:404});const after={service_name:text(req.body.serviceName,200)||service.service_name,service_type:text(req.body.serviceType,100)||service.service_type,package_name:text(req.body.packageName,200)||service.package_name,monthly_amount:money(req.body.monthlyAmount,service.monthly_amount),service_status:text(req.body.serviceStatus,30)||service.service_status};const increase=after.monthly_amount-Number(service.monthly_amount||0);const decision=await enforceCustomerAction(c,{masterCustomerId:service.master_customer_id,action:increase>0?'package_increase':'upgrade',context:{monthlyIncrease:increase,proposedMonthlyTotal:req.body.proposedMonthlyTotal}});const payload={serviceName:after.service_name,serviceType:after.service_type,packageName:after.package_name,monthlyAmount:after.monthly_amount,serviceStatus:after.service_status};const gate=await approvalOrRequest(c,{decision,approvalId:positiveId(req.body.approvalId),actionKey:'service_change',customerId:service.master_customer_id,targetType:'os2_fixed_services',targetId:id,payload,actor:req.user.id,requestContext:context(req)});if(gate?.approvalRequired)return gate;await c.execute(`UPDATE os2_fixed_services SET service_name=:service_name,service_type=:service_type,package_name=:package_name,monthly_amount=:monthly_amount,service_status=:service_status,updated_by=:actor,updated_at=NOW() WHERE id=:id`,{...after,actor:req.user.id,id});if(gate?.consume)await gate.consume({updated:true});await history(c,{customer:service.master_customer_id,type:'fixed',id,change:'service_change',before:service,after,approval:positiveId(req.body.approvalId),actor:req.user.id});await appendAudit(c,{actorStaffId:req.user.id,actionType:'fixed_service_updated',entityType:'os2_fixed_services',entityId:id,masterCustomerId:service.master_customer_id,description:`Updated fixed service ${service.service_name}`,before:service,after,requestContext:context(req)});return{approvalRequired:false,fixedServiceId:id};});res.json({ok:true,...result});}catch(e){fail(res,e,'FIXED_SERVICE_UPDATE_FAILED');}});
+
+  router.post('/api/os2/fixed-services/:id/cancel',requirePermission('service.update'),async(req,res)=>{const id=positiveId(req.params.id);if(!id)return res.status(400).json({ok:false,error:'INVALID_FIXED_SERVICE_ID'});try{const result=await withTransaction(pool,async c=>{const [[service]]=await c.execute(`SELECT fs.*,fa.master_customer_id FROM os2_fixed_services fs JOIN os2_fixed_accounts fa ON fa.id=fs.fixed_account_id WHERE fs.id=:id AND fs.archived_at IS NULL FOR UPDATE`,{id});if(!service)throw Object.assign(new Error('FIXED_SERVICE_NOT_FOUND'),{statusCode:404});if(service.service_status==='cancelled')throw new Error('SERVICE_ALREADY_CANCELLED');const decision=await enforceCustomerAction(c,{masterCustomerId:service.master_customer_id,action:'cancellation',context:{}});const after={service_status:'cancelled',cancellation_date:req.body.cancellationDate||new Date().toISOString().slice(0,10),reason:text(req.body.reason,1000)};const payload={cancellationDate:after.cancellation_date,reason:after.reason};const gate=await approvalOrRequest(c,{decision,approvalId:positiveId(req.body.approvalId),actionKey:'service_cancel',customerId:service.master_customer_id,targetType:'os2_fixed_services',targetId:id,payload,actor:req.user.id,requestContext:context(req)});if(gate?.approvalRequired)return gate;await c.execute(`UPDATE os2_fixed_services SET service_status='cancelled',cancellation_date=:date,updated_by=:actor,updated_at=NOW() WHERE id=:id`,{date:after.cancellation_date,actor:req.user.id,id});if(gate?.consume)await gate.consume({cancelled:true});await history(c,{customer:service.master_customer_id,type:'fixed',id,change:'service_cancel',before:service,after,approval:positiveId(req.body.approvalId),actor:req.user.id});await appendAudit(c,{actorStaffId:req.user.id,actionType:'fixed_service_cancelled',entityType:'os2_fixed_services',entityId:id,masterCustomerId:service.master_customer_id,description:`Cancelled fixed service ${service.service_name}`,before:service,after,requestContext:context(req)});return{approvalRequired:false,fixedServiceId:id};});res.json({ok:true,...result});}catch(e){fail(res,e,'FIXED_SERVICE_CANCEL_FAILED');}});
+
+  router.get('/api/os2/customers/:id/service-history',async(req,res)=>{const customer=positiveId(req.params.id);if(!customer)return res.status(400).json({ok:false,error:'INVALID_CUSTOMER_ID'});try{const [rows]=await pool.execute(`SELECT h.*,s.full_name changed_by_name FROM os2_service_change_history h LEFT JOIN staff_users s ON s.id=h.changed_by WHERE h.master_customer_id=:id ORDER BY h.created_at DESC LIMIT 500`,{id:customer});res.json({ok:true,history:rows});}catch(e){fail(res,e,'SERVICE_HISTORY_LOAD_FAILED');}});
   return router;
 };
