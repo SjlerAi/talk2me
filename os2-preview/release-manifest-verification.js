@@ -49,6 +49,7 @@ try {
 }
 
 const requiredChecks = [
+  'preview-data-verification.js',
   'merge-restore-pin-check.js',
   'merge-restore-evidence-verification.js',
   'customer-merge-execution-readiness-check.js',
@@ -56,9 +57,14 @@ const requiredChecks = [
 ];
 const requiredScripts = [
   'verify:schema',
+  'verify:preview-data',
   'verify:merge-restore-evidence',
   'check:merge-restore-pin',
   'check:customer-merge-execution-readiness'
+];
+const expectedPreviewDataOrder = [
+  'schema-verification.js',
+  'merge-restore-evidence-verification.js'
 ];
 
 if (manifest.ok !== true) fail('Release manifest is not marked successful');
@@ -68,6 +74,12 @@ if (manifest.commitIdentityVerified !== true) fail('Release manifest commit iden
 if (manifest.dependencyLockPresent !== true) fail('Release manifest does not confirm a committed dependency lock');
 if (!/^[0-9a-f]{64}$/i.test(String(manifest.dependencyLockSha256 || ''))) fail('Release manifest dependency-lock checksum is invalid');
 if (manifest.restorePinMigration !== '20260801_025_merge_authorisation_restore_pin.sql') fail('Release manifest restore-pin migration is invalid');
+if (manifest.previewDataVerificationRequired !== true) fail('Release manifest does not require preview data verification');
+if (!Array.isArray(manifest.previewDataVerificationOrder) ||
+    manifest.previewDataVerificationOrder.length !== expectedPreviewDataOrder.length ||
+    expectedPreviewDataOrder.some((item, index) => manifest.previewDataVerificationOrder[index] !== item)) {
+  fail('Release manifest preview data verification order is invalid');
+}
 if (manifest.mergeExecutionEnabled !== false) fail('Release manifest must keep customer-merge execution disabled');
 if (!Array.isArray(manifest.failures) || manifest.failures.length !== 0) fail('Release manifest contains blocking failures');
 if (!Array.isArray(manifest.migrationChecksums) || manifest.migrationChecksums.length < 25) fail('Release manifest migration evidence is incomplete');
@@ -83,5 +95,7 @@ console.log(JSON.stringify({
   commitSha: manifest.commitSha,
   branch: manifest.branch,
   migrationCount: manifest.migrationCount,
+  previewDataVerificationRequired: manifest.previewDataVerificationRequired,
+  previewDataVerificationOrder: manifest.previewDataVerificationOrder,
   mergeExecutionEnabled: manifest.mergeExecutionEnabled
 }, null, 2));
