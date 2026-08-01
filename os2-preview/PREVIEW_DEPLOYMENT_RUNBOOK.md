@@ -13,17 +13,48 @@ It must never be used against `talk2me.uent.co.za` or any production database.
 
 ## 2. One-time migration ledger bootstrap
 
-The migration runner is prohibited from creating tables at runtime. Before the first governed migration run, verify that `os2_schema_migrations` does not already exist, review `MIGRATION_LEDGER_BOOTSTRAP.sql`, and apply that file manually to `kloka_talk2me` only.
+The migration runner is prohibited from creating tables at runtime. The bootstrap must be executed only through `migration-ledger-bootstrap-runner.js`, never through application startup and never by copying SQL into an uncontrolled session.
+
+The runner requires all of the following explicit evidence and controls:
+
+```bash
+DB_NAME=kloka_talk2me \
+ALLOW_MIGRATION_LEDGER_BOOTSTRAP=true \
+ALLOW_PRODUCTION_MUTATION=false \
+ENABLE_CUSTOMER_MERGE_EXECUTION=false \
+VERIFIED_BACKUP_REFERENCE=<verified-preview-backup-reference> \
+VERIFIED_BACKUP_SHA256=<64-character-sha256> \
+BOOTSTRAP_OPERATOR=<named-operator> \
+BOOTSTRAP_CHANGE_REFERENCE=<approved-change-reference> \
+node migration-ledger-bootstrap-runner.js
+```
+
+The controlled runner:
+
+- securely opens `MIGRATION_LEDGER_BOOTSTRAP.sql` with `O_NOFOLLOW`;
+- rejects symlinks, additional hard links, writable-by-group/world files, oversized files, and path/descriptor identity changes;
+- validates that the SQL creates exactly one table and contains no prohibited mutation statements;
+- refuses every database except `kloka_talk2me`;
+- requires explicit verified-backup reference and SHA-256 evidence;
+- acquires `talk2me_os2_preview_migrations` and binds ownership to the active `CONNECTION_ID()`;
+- refuses an existing ledger table rather than altering or reusing it silently;
+- executes the reviewed bootstrap source once;
+- verifies the created ledger schema, engine, collation, columns, primary key, and unique key;
+- confirms the ledger is empty;
+- confirms advisory-lock ownership before release.
 
 Hard stops:
 
-- never apply the bootstrap to production;
+- never run the bootstrap against production;
+- never set `ALLOW_PRODUCTION_MUTATION=true`;
+- never set `ENABLE_CUSTOMER_MERGE_EXECUTION=true`;
+- never run without a verified preview backup reference and SHA-256;
 - never change the bootstrap SQL without review and a new commit;
-- stop if the table already exists unexpectedly;
+- stop if the ledger table already exists;
 - stop if the runner reports `MIGRATION_LEDGER_BOOTSTRAP_REQUIRED`;
-- do not replace the bootstrap with runtime `CREATE TABLE` logic.
+- do not replace the bootstrap runner with runtime `CREATE TABLE` logic.
 
-The runner verifies the ledger table engine, collation, exact ordered columns, defaults, primary key, and unique migration-name key before reading ledger contents or applying migrations.
+The migration runner separately verifies the ledger table engine, collation, exact ordered columns, defaults, primary key, and unique migration-name key before reading ledger contents or applying migrations.
 
 ## 3. Controlled migration
 
@@ -61,4 +92,4 @@ Stop preview, restore the verified preview backup, rerun preview-data verificati
 
 ## 7. Completion rule
 
-Code commits alone do not establish deployability. Dependency freeze, source checks, reviewed ledger bootstrap, migrations, preview verification, restart, smoke testing, permission testing, and formal UAT must all be completed and recorded.
+Code commits alone do not establish deployability. Dependency freeze, source checks, controlled ledger bootstrap, migrations, preview verification, restart, smoke testing, permission testing, and formal UAT must all be completed and recorded.
