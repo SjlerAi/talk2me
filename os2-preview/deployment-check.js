@@ -31,6 +31,28 @@ mustContain('runtime-release-identity-check.js', [
   'mergeExecutionEnabled: false'
 ]);
 
+mustContain('preview-activation-preflight.js', [
+  "expectedDatabase = 'kloka_talk2me'",
+  "expectedBranch = 'agent/talk2me-os2-integrated-rebuild'",
+  'expectedNodeMajor = 20',
+  'ALLOW_PRODUCTION_MUTATION=true',
+  'ENABLE_CUSTOMER_MERGE_EXECUTION=true',
+  "'runtime-release-identity-check.js'",
+  "'readiness-check.js'",
+  "'deployment-check.js'",
+  "'uat-gate-check.js'",
+  "'release-manifest-check.js'",
+  "stdio: 'inherit'",
+  'result.error',
+  'result.signal',
+  'result.status !== 0',
+  'databaseBackedVerificationExecuted: false',
+  'migrationsExecuted: false',
+  'previewRestartExecuted: false',
+  'productionMutationEnabled: false',
+  'mergeExecutionEnabled: false'
+]);
+
 mustContain('readiness-check.js', [
   "process.env.DB_NAME !== 'kloka_talk2me'",
   'Node.js 20.x is required',
@@ -38,10 +60,12 @@ mustContain('readiness-check.js', [
   'migrations.length < 25',
   '20260801_025_merge_authorisation_restore_pin.sql',
   'runtime-release-identity-check.js',
+  'preview-activation-preflight.js',
   'preview-data-verification.js',
   'merge-restore-evidence-verification.js',
   'merge-restore-pin-check.js',
   "scripts['verify:runtime-release-identity']",
+  "scripts['verify:preview-activation-preflight']",
   "scripts['verify:preview-data']"
 ]);
 
@@ -83,6 +107,7 @@ mustContain('PREVIEW_DEPLOYMENT_RUNBOOK.md', [
 [
   'migrations/20260801_025_merge_authorisation_restore_pin.sql',
   'runtime-release-identity-check.js',
+  'preview-activation-preflight.js',
   'schema-verification.js',
   'preview-data-verification.js',
   'merge-restore-evidence-verification.js',
@@ -94,6 +119,7 @@ const packageJson = require('./package.json');
 for (const script of [
   'migrate:preview',
   'verify:runtime-release-identity',
+  'verify:preview-activation-preflight',
   'verify:schema',
   'verify:preview-data',
   'verify:merge-restore-evidence',
@@ -113,6 +139,7 @@ console.log(JSON.stringify({
   database: 'kloka_talk2me',
   minimumMigrationCount: 25,
   runtimeReleaseIdentityRequired: true,
+  previewActivationPreflightRequired: true,
   previewDataVerificationRequired: true,
   deploymentRunbookProtected: true,
   restoreEvidenceRequired: true,
