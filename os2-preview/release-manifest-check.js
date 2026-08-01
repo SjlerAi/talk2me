@@ -84,6 +84,10 @@ const verifierMarkers=[
   'dependencyLockPresent',
   'dependencyLockSha256',
   '20260801_025_merge_authorisation_restore_pin.sql',
+  'previewDataVerificationRequired !== true',
+  'Release manifest preview data verification order is invalid',
+  "'verify:preview-data'",
+  "'preview-data-verification.js'",
   'mergeExecutionEnabled !== false',
   'migrationChecksums.length < 25',
   'release-manifest-verification'
