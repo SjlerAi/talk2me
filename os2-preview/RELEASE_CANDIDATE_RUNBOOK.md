@@ -30,7 +30,8 @@ Record evidence in this order so later evidence cannot silently replace earlier 
 5. successful restore evidence verification;
 6. schema verification and migration inventory;
 7. automated and manual UAT evidence;
-8. release-candidate manifest.
+8. release-candidate manifest;
+9. post-freeze manifest checksum verification.
 
 A newer restore test must not be substituted for the restore test pinned to an existing merge authorisation.
 
@@ -40,6 +41,7 @@ Run from the preview application directory with an absolute private output path:
 
 ```bash
 RELEASE_COMMIT_SHA=<exact-git-sha> \
+RELEASE_BRANCH=agent/talk2me-os2-integrated-rebuild \
 RELEASE_APPROVED_BY=<name> \
 RELEASE_CHANGE_REFERENCE=<issue-or-change-reference> \
 RELEASE_MANIFEST_PATH=/home/kloka/private/talk2me-release-manifest.json \
@@ -47,6 +49,28 @@ npm run check:release-candidate
 ```
 
 The command must fail when the dependency lock file is absent, required operational evidence is missing, runtime table creation is detected, merge recovery controls are missing, or release metadata is incomplete.
+
+## Post-freeze manifest verification
+
+Immediately after the freeze command succeeds, verify the manifest and its checksum sidecar from the same private path:
+
+```bash
+RELEASE_MANIFEST_PATH=/home/kloka/private/talk2me-release-manifest.json \
+node release-manifest-verification.js
+```
+
+The verification must fail when:
+
+- either evidence file is missing, is a symbolic link or is not a regular file;
+- private `0600` permissions are not retained;
+- the SHA-256 sidecar format or filename is wrong;
+- the manifest bytes no longer match the checksum;
+- commit identity, dependency-lock evidence or migration evidence is incomplete;
+- migration 025 is not recorded;
+- required merge recovery checks are absent;
+- `mergeExecutionEnabled` is anything other than `false`.
+
+Retain the successful verification output with the release evidence. Re-run this verification whenever the manifest is copied or retrieved from storage. A failed verification invalidates the candidate until the evidence chain is investigated and recreated.
 
 ## Evidence retained
 
@@ -57,6 +81,8 @@ The command must fail when the dependency lock file is absent, required operatio
 - Release approver and change reference
 - Warnings and blocking failures
 - Private release-manifest JSON
+- Release-manifest SHA-256 sidecar
+- Successful post-freeze manifest-verification output
 - GitHub Actions run URL and build-evidence artifact
 - Preview backup ID, database identity and checksum
 - Pinned restore-test ID and backup relationship
