@@ -51,11 +51,14 @@ It must:
 - compare path and descriptor device/inode identities;
 - reject group-writable or world-writable protected paths;
 - require protected source files to share the preview root owner;
+- open protected workspace files with `O_NOFOLLOW`;
+- compare each protected file path and descriptor device/inode identity;
 - reject symbolic links and additional hard links for `package.json`, an existing `package-lock.json`, and all migration files;
+- enforce bounded file sizes for package metadata, the dependency lockfile, and every migration;
 - require at least 25 ordered migration files and explicit migration 025 presence;
 - re-check directory identity after migration inventory validation.
 
-A missing `package-lock.json` is reported during this source-preparation stage but remains a release-freeze blocker. Once the lockfile exists, it must pass the same ownership, permissions, symlink, and hard-link controls.
+A missing `package-lock.json` is reported during this source-preparation stage but remains a release-freeze blocker. Once the lockfile exists, it must pass the same ownership, permissions, symlink, hard-link, descriptor identity, and bounded-size controls.
 
 ## Preflight limitations
 
@@ -108,7 +111,7 @@ Do not proceed when:
 
 - `PREVIEW_APP_ROOT` is missing or differs from `/home/kloka/repositories/talk2me/os2-preview`;
 - the preview root or migrations directory is a symbolic link, changes identity, or is group/world writable;
-- protected source files have inconsistent ownership, symbolic links, or additional hard links;
+- protected source files have inconsistent ownership, symbolic links, additional hard links, path/descriptor identity changes, or exceed bounded file sizes;
 - `DB_NAME` is not exactly `kloka_talk2me`;
 - Node.js is not 20.x;
 - the branch is not `agent/talk2me-os2-integrated-rebuild`;
