@@ -9,6 +9,7 @@ const topology = fs.readFileSync(path.join(root, 'workspace-topology-verificatio
 const topologyGovernance = fs.readFileSync(path.join(root, 'workspace-topology-governance-check.js'), 'utf8');
 const sourceIntegrity = fs.readFileSync(path.join(root, 'workspace-source-integrity.js'), 'utf8');
 const sourceIntegrityGovernance = fs.readFileSync(path.join(root, 'workspace-source-integrity-check.js'), 'utf8');
+const releaseSourceGovernance = fs.readFileSync(path.join(root, 'release-source-integrity-check.js'), 'utf8');
 const runbook = fs.readFileSync(path.join(root, 'PREVIEW_ACTIVATION_RUNBOOK.md'), 'utf8');
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 
@@ -32,6 +33,7 @@ requireMarkers(preflight, [
   'orderedGovernanceChecksCompleted: completed.length',
   'workspaceSourceIntegrityVerified: true',
   'workspaceSourceIntegrityGovernanceVerified: true',
+  'releaseSourceIntegrityGovernanceVerified: true',
   'bootstrapGovernanceVerified: true',
   'bootstrapRunnerGovernanceVerified: true',
   'bootstrapEvidenceGovernanceVerified: true',
@@ -58,6 +60,7 @@ const orderedScripts = [
   "'deployment-check.js'",
   "'uat-gate-check.js'",
   "'release-evidence-security-check.js'",
+  "'release-source-integrity-check.js'",
   "'release-manifest-check.js'"
 ];
 for (const script of orderedScripts) {
@@ -108,6 +111,17 @@ requireMarkers(sourceIntegrityGovernance, [
   'environmentBoundVerifierExcludedFromNormalExecution: true'
 ], 'Workspace source integrity governance');
 
+requireMarkers(releaseSourceGovernance, [
+  "check: 'release-source-integrity-governance'",
+  'boundedExecutionRequired: true',
+  'forcedKillSignalRequired: true',
+  'shellExecutionDisabled: true',
+  'protectedFileCountConsistencyRequired: true',
+  'migrationInventoryMinimumRequired: true',
+  'verificationBeforeReleasePublicationRequired: true',
+  'postFreezeVerificationBeforeIndividualFilesRequired: true'
+], 'Release source integrity governance');
+
 requireMarkers(runbook, [
   'talk2me.kloka.co.za',
   'talk2me.uent.co.za',
@@ -157,6 +171,8 @@ console.log(JSON.stringify({
   deploymentGovernanceRequired: true,
   uatGovernanceRequired: true,
   releaseEvidenceSecurityRequired: true,
+  releaseSourceIntegrityGovernanceRequired: true,
+  releaseSourceIntegrityExecutionBounded: true,
   releaseManifestGovernanceRequired: true,
   productionMutationEnabled: false,
   mergeExecutionEnabled: false,
