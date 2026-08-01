@@ -4,22 +4,49 @@
 
 This runbook governs automated validation for the integrated Talk2Me OS2 preview rebuild. It does not deploy the application and it must never modify production.
 
-## Controlled workflow
+## Controlled branch only
 
-The workflow `.github/workflows/os2-preview-ci.yml`:
+Release-grade build evidence is produced only from the controlled rebuild branch:
 
-1. Checks out the exact commit and installs Node.js 20.
-2. Detects whether `os2-preview/package-lock.json` is committed.
-3. Runs `npm run --silent verify:workspace-source-integrity` before dependency installation.
-4. Retains the pre-install inventory digest and package-lock state.
-5. Confirms dependency-lock detection must agree with source-integrity evidence.
-6. Uses `npm install --ignore-scripts --no-audit --no-fund --package-lock=false` while the lockfile remains absent.
-7. Runs `npm run check`.
-8. Runs the production dependency audit only when the committed lockfile exists.
-9. Generates build evidence after validation.
-10. Compares the pre-install inventory digest and post-install inventory digest; they must match exactly.
-11. Publishes evidence atomically into a private directory and reverifies every checksum pair.
-12. Uploads the complete evidence directory as a retained artifact.
+```text
+agent/talk2me-os2-integrated-rebuild
+```
+
+The workflow accepts only:
+
+- a push to the controlled branch;
+- a manual `workflow_dispatch` started against the controlled branch.
+
+`pull_request` and `pull_request_target` events are prohibited for this release-evidence workflow. Pull-request merge refs such as `refs/pull/<number>/merge` do not represent the exact controlled branch identity expected by release evidence and therefore must not generate releasable evidence.
+
+Before dependency inspection, the workflow verifies:
+
+```text
+GITHUB_REPOSITORY= SjlerAi/talk2me
+GITHUB_REF=refs/heads/agent/talk2me-os2-integrated-rebuild
+GITHUB_REF_NAME=agent/talk2me-os2-integrated-rebuild
+GITHUB_EVENT_NAME=push or workflow_dispatch
+GITHUB_SHA is present
+```
+
+A different repository, event, branch, ref, or missing commit SHA stops the workflow before dependency installation or evidence generation.
+
+## Controlled workflow sequence
+
+1. Check out the exact controlled-branch commit with credentials persistence disabled and `fetch-depth: 1`.
+2. Install Node.js 20.
+3. Verify the allowed event, repository, branch, ref, and commit identity.
+4. Detect whether `os2-preview/package-lock.json` is committed.
+5. Run `npm run --silent verify:workspace-source-integrity` before dependency installation.
+6. Retain the pre-install inventory digest and package-lock state.
+7. Confirm dependency-lock detection must agree with source-integrity evidence.
+8. Use `npm install --ignore-scripts --no-audit --no-fund --package-lock=false` while the lockfile remains absent.
+9. Run `npm run check`.
+10. Run the production dependency audit only when the committed lockfile exists.
+11. Generate build evidence after validation.
+12. Compare the pre-install inventory digest and post-install inventory digest; they must match exactly.
+13. Publish evidence atomically into a private directory and reverify every checksum pair.
+14. Upload the complete evidence directory as a retained artifact whose name includes the run number and run attempt.
 
 ## Immutable GitHub Action references
 
@@ -31,14 +58,21 @@ The controlled workflow currently permits exactly these three action identities:
 - `actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020` — reviewed release v4.4.0;
 - `actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02` — reviewed release v4.6.2.
 
-The human-readable release comments do not control execution; the full commit SHA does. Any action upgrade requires review of the new action release and commit, a workflow-source change, a new protected source digest, and a new exact-commit CI run.
+The workflow must contain exactly three `uses:` entries. `@v4`, `@main`, `@master`, `@latest`, tags, branches, shortened SHAs, and unreviewed additional actions are rejected.
 
-The workflow may not add another `uses:` line without updating CI governance. CI governance requires exactly three action uses and rejects `@v4`, `@main`, `@master`, `@latest`, shortened SHAs, tags, or other mutable references.
+Checkout uses:
+
+```text
+persist-credentials: false
+fetch-depth: 1
+```
+
+The workflow does not require Git credentials after checkout and must not retain them in the runner workspace.
 
 ## Workflow security controls
 
 - Repository permission is read-only.
-- `pull_request_target` and ignored validation failures are prohibited.
+- Validation failures cannot be ignored.
 - CI does not connect to preview or production databases.
 - CI does not run migrations, backups, workers, deployment, or restart commands.
 - `ALLOW_PRODUCTION_MUTATION=false` and `ENABLE_CUSTOMER_MERGE_EXECUTION=false` are forced.
@@ -67,7 +101,7 @@ After a reviewed Node.js 20 lockfile is committed, CI must change to:
 npm ci --ignore-scripts --no-audit --no-fund
 ```
 
-The exact-commit workflow must then rerun and its evidence artifact must be retained.
+The exact controlled-branch commit must then rerun through CI and its evidence artifact must be retained.
 
 ## Source-integrity continuity
 
@@ -79,32 +113,15 @@ A successful controlled CI artifact must record:
 workspaceSourceIntegrityStableAcrossDependencyInstall: true
 ```
 
-The pre-install inventory digest and post-install inventory digest must match exactly. A mismatch means the protected source changed during CI and invalidates the evidence.
+The pre-install inventory digest and post-install inventory digest must match exactly. A mismatch invalidates the evidence.
 
-The workflow itself is part of the protected source inventory. Any change to an action SHA, workflow environment, validation order, artifact naming, permissions, trigger, or command changes the source digest and invalidates prior evidence.
+The workflow itself is part of the protected source inventory. Changes to triggers, action pins, permissions, checkout controls, event guards, environment values, validation order, artifact naming, or commands change the approved source digest.
 
 ## Secure bounded manifest collection
 
 Broad source evidence is collected only through secure descriptor-based reads.
 
-Every traversed directory must:
-
-- be a real non-symlink canonical directory;
-- be opened with `O_DIRECTORY | O_NOFOLLOW`;
-- match its path device and inode after secure open;
-- not be writable by group or world;
-- have the expected owner;
-- retain the same device and inode when directory identity is rechecked after traversal.
-
-Every included source file must:
-
-- be a regular non-symlink file;
-- be opened with `O_NOFOLLOW`;
-- have exactly one hard link;
-- match path and descriptor device and inode identities;
-- have the expected owner;
-- not be writable by group or world;
-- retain the same byte count during the descriptor read.
+Directories must be canonical real directories opened with `O_DIRECTORY | O_NOFOLLOW`, retain device/inode identity, have the expected owner, and reject unsafe write permissions. Files must be regular single-link files opened with `O_NOFOLLOW`, retain device/inode and byte-count identity, have the expected owner, and reject unsafe write permissions.
 
 Collection is fail-closed and bounded to:
 
@@ -112,75 +129,38 @@ Collection is fail-closed and bounded to:
 - at most 16 MiB per file;
 - at most 256 MiB total source bytes.
 
-Symbolic links, unsupported filesystem entries, ownership changes, directory swaps, hard links, oversized files, excessive file counts, and excessive total bytes stop evidence generation.
-
-Before deleting prior disposable output, an existing `build-evidence` path must be a real directory owned by the executing user. A symlink, regular file, or foreign-owned directory is rejected.
+Before deleting prior disposable output, an existing `build-evidence` path must be a real directory owned by the executing user.
 
 ## Atomic evidence publication
 
-The command creates a fresh private `0700` evidence directory. Every evidence file is written to an exclusively created temporary file with `0600`, flushed with `fsync`, and atomically renamed.
+The command creates a private `0700` evidence directory. Every evidence file is written to an exclusively created temporary file with private `0600` permissions, flushed with `fsync`, and atomically renamed.
 
-It rejects:
-
-- non-regular outputs;
-- symbolic links;
-- additional hard links;
-- ownership mismatches;
-- permissions other than `0600`.
-
-The command reverifies:
+It reverifies:
 
 - `build-evidence.json` with `build-evidence.sha256`;
 - `workspace-source-integrity.json` with `workspace-source-integrity.sha256`;
 - `artifact-manifest.json` with `artifact-manifest.sha256`.
 
-The artifact manifest confirms:
-
-```text
-privateDirectoryVerified: true
-atomicPublicationVerified: true
-checksumPairsVerified: true
-secureManifestDescriptorReads: true
-boundedManifestCollection: true
-```
-
 All checksum pairs are reverified before upload.
-
-## Evidence contents
-
-The evidence set contains:
-
-- `build-evidence/build-evidence.json`;
-- `build-evidence/build-evidence.sha256`;
-- `build-evidence/workspace-source-integrity.json`;
-- `build-evidence/workspace-source-integrity.sha256`;
-- `build-evidence/artifact-manifest.json`;
-- `build-evidence/artifact-manifest.sha256`.
-
-Evidence records the exact repository, commit, branch, ref, workflow reference, workflow run ID, workflow run number, workflow run attempt, actor, Node.js version, dependency-lock state, pre-install and post-install source digests, protected source inventory, file and byte counts, migration count, route count, validation-check count, bounded collection limits, secure descriptor-read evidence, atomic publication evidence, and checksum verification.
 
 ## Acceptance rule
 
 Controlled preview installation requires all of the following:
 
-1. CI succeeds for the exact commit.
-2. Every action reference is one of the reviewed immutable 40-character SHA pins.
-3. The pre-install source verifier succeeds.
-4. Dependency-lock detection matches the filesystem and source evidence.
-5. Pre-install and post-install source digests match.
-6. `workspaceSourceIntegrityStableAcrossDependencyInstall: true` is present.
-7. A committed lockfile exists.
-8. The high-severity production dependency audit passes without unresolved high or critical findings.
-9. All three JSON evidence files and sidecars verify.
-10. Exact repository, commit, branch, ref, workflow and workflow-run-attempt provenance is confirmed.
-11. Secure descriptor-based collection, bounded inventory, private directory, atomic publication, and checksum verification are confirmed.
+1. CI succeeds for the exact controlled-branch commit.
+2. The workflow event is `push` or manual `workflow_dispatch` on the controlled branch.
+3. Repository, branch, ref, workflow, commit, run, attempt, and actor provenance are valid.
+4. Every action reference is one of the reviewed immutable 40-character SHA pins.
+5. Checkout credentials are not persisted.
+6. The pre-install source verifier succeeds.
+7. Dependency-lock detection matches the filesystem and source evidence.
+8. Pre-install and post-install source digests match exactly.
+9. `workspaceSourceIntegrityStableAcrossDependencyInstall: true` is present.
+10. A committed lockfile exists and the production dependency audit passes without unresolved high or critical findings.
+11. All evidence JSON files and sidecars verify.
 12. Preview readiness, migration, schema verification, pinned restore-evidence verification, and UAT controls pass separately.
 
 A successful source-validation step without a dependency lock is not dependency-audit approval or release approval.
-
-## Failure handling
-
-Do not bypass a failed control. Correct the source, action pin, dependency state, permissions, ownership, path topology, or validation contract and rerun CI for the corrected exact commit. Retain failed runs as historical evidence.
 
 ## Production protection
 
