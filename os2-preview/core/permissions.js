@@ -9,14 +9,15 @@ const ROLE_PERMISSIONS = Object.freeze({
     'work.read','work.create','work.update','work.assign','work.accept','work.return',
     'approval.read','approval.decide','claim.request','claim.approve','report.read','report.export',
     'import.read','import.upload','import.review','import.finalise','staff.read','attendance.read','attendance.correct',
-    'audit.read','launcher.read','launcher.update','notification.broadcast','notification.queue.read','digest.generate'
+    'audit.read','launcher.read','launcher.update','notification.broadcast','notification.queue.read','digest.generate',
+    'security.event.read','security.session.revoke'
   ],
   admin: [
     'customer.read','customer.create','customer.update','account.read','account.create','account.update',
     'service.read','service.create','service.update','document.read','document.upload',
     'restriction.read','work.read','work.create','work.update','work.assign',
     'approval.read','claim.request','report.read','import.read','import.upload','staff.read',
-    'attendance.read','launcher.read','notification.queue.read'
+    'attendance.read','launcher.read','notification.queue.read','security.event.read'
   ],
   staff: [
     'customer.read','customer.create','customer.update.assigned','account.read','service.read',
