@@ -27,9 +27,7 @@ function secureMigrationDirectory() {
   if (process.platform !== 'win32' && (pathStat.mode & 0o022) !== 0) throw new Error('MIGRATIONS_DIRECTORY_WRITABLE_BY_GROUP_OR_WORLD');
   const canonical = fs.realpathSync.native(MIGRATIONS_DIR);
   if (canonical !== MIGRATIONS_DIR) throw new Error('MIGRATIONS_DIRECTORY_NOT_CANONICAL');
-  if (typeof fs.constants.O_NOFOLLOW !== 'number' || typeof fs.constants.O_DIRECTORY !== 'number') {
-    throw new Error('SECURE_DIRECTORY_FLAGS_UNAVAILABLE');
-  }
+  if (typeof fs.constants.O_NOFOLLOW !== 'number' || typeof fs.constants.O_DIRECTORY !== 'number') throw new Error('SECURE_DIRECTORY_FLAGS_UNAVAILABLE');
   const descriptor = fs.openSync(MIGRATIONS_DIR, fs.constants.O_RDONLY | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW);
   try {
     const descriptorStat = fs.fstatSync(descriptor);
@@ -93,16 +91,42 @@ async function ensureLedger(connection) {
 }
 
 async function acquireMigrationLock(connection) {
+  const [identityRows] = await connection.execute('SELECT CONNECTION_ID() AS connection_id');
+  const connectionId = Number(identityRows[0] && identityRows[0].connection_id);
+  if (!Number.isInteger(connectionId) || connectionId <= 0) throw new Error('MIGRATION_CONNECTION_ID_UNAVAILABLE');
   const [rows] = await connection.execute('SELECT GET_LOCK(?, ?) AS acquired', [MIGRATION_LOCK_NAME, MIGRATION_LOCK_TIMEOUT_SECONDS]);
   if (!rows[0] || Number(rows[0].acquired) !== 1) throw new Error('MIGRATION_ADVISORY_LOCK_NOT_ACQUIRED');
+  const [ownerRows] = await connection.execute('SELECT IS_USED_LOCK(?) AS owner_connection_id', [MIGRATION_LOCK_NAME]);
+  if (!ownerRows[0] || Number(ownerRows[0].owner_connection_id) !== connectionId) throw new Error('MIGRATION_ADVISORY_LOCK_OWNER_MISMATCH');
+  return connectionId;
 }
 
-async function releaseMigrationLock(connection) {
+async function releaseMigrationLock(connection, expectedConnectionId) {
   try {
-    await connection.execute('SELECT RELEASE_LOCK(?) AS released', [MIGRATION_LOCK_NAME]);
+    const [ownerRows] = await connection.execute('SELECT IS_USED_LOCK(?) AS owner_connection_id', [MIGRATION_LOCK_NAME]);
+    const ownerConnectionId = ownerRows[0] ? Number(ownerRows[0].owner_connection_id) : null;
+    if (ownerConnectionId !== expectedConnectionId) throw new Error('MIGRATION_ADVISORY_LOCK_OWNERSHIP_LOST');
+    const [releaseRows] = await connection.execute('SELECT RELEASE_LOCK(?) AS released', [MIGRATION_LOCK_NAME]);
+    if (!releaseRows[0] || Number(releaseRows[0].released) !== 1) throw new Error('MIGRATION_ADVISORY_LOCK_RELEASE_NOT_CONFIRMED');
   } catch (error) {
     console.error(`MIGRATION_ADVISORY_LOCK_RELEASE_FAILED:${error.message}`);
   }
+}
+
+function validateAppliedLedger(appliedRows, migrationSources) {
+  if (appliedRows.length > migrationSources.length) throw new Error('MIGRATION_LEDGER_LONGER_THAN_SOURCE_INVENTORY');
+  const seen = new Set();
+  for (let index = 0; index < appliedRows.length; index += 1) {
+    const row = appliedRows[index];
+    const source = migrationSources[index];
+    if (!row || typeof row.migration_name !== 'string') throw new Error(`MIGRATION_LEDGER_ROW_INVALID:${index}`);
+    if (seen.has(row.migration_name)) throw new Error(`MIGRATION_LEDGER_DUPLICATE:${row.migration_name}`);
+    seen.add(row.migration_name);
+    if (!source || row.migration_name !== source.name) throw new Error(`MIGRATION_LEDGER_NOT_STRICT_PREFIX:${row.migration_name}`);
+    if (!/^[0-9a-f]{64}$/i.test(String(row.checksum_sha256 || ''))) throw new Error(`MIGRATION_LEDGER_CHECKSUM_INVALID:${row.migration_name}`);
+    if (row.checksum_sha256.toLowerCase() !== source.digest) throw new Error(`MIGRATION_CHECKSUM_MISMATCH:${row.migration_name}`);
+  }
+  return new Set(appliedRows.map(row => row.migration_name));
 }
 
 async function run() {
@@ -114,7 +138,10 @@ async function run() {
 
   const directoryIdentity = secureMigrationDirectory();
   const files = migrationFiles();
-  const migrationSources = files.map(name => ({ name, sql: readMigrationSecurely(name, directoryIdentity.uid) }));
+  const migrationSources = files.map(name => {
+    const sql = readMigrationSecurely(name, directoryIdentity.uid);
+    return { name, sql, digest: checksum(sql) };
+  });
   const after = fs.lstatSync(MIGRATIONS_DIR);
   if (after.dev !== directoryIdentity.dev || after.ino !== directoryIdentity.ino) throw new Error('MIGRATIONS_DIRECTORY_CHANGED_DURING_INVENTORY');
 
@@ -129,18 +156,17 @@ async function run() {
   });
 
   let lockAcquired = false;
+  let lockConnectionId = null;
   try {
-    await acquireMigrationLock(connection);
+    lockConnectionId = await acquireMigrationLock(connection);
     lockAcquired = true;
     await ensureLedger(connection);
-    const [appliedRows] = await connection.execute('SELECT migration_name, checksum_sha256 FROM os2_schema_migrations');
-    const applied = new Map(appliedRows.map(row => [row.migration_name, row.checksum_sha256]));
+    const [appliedRows] = await connection.execute('SELECT migration_name, checksum_sha256 FROM os2_schema_migrations ORDER BY id ASC');
+    const applied = validateAppliedLedger(appliedRows, migrationSources);
     let executed = 0;
 
     for (const migration of migrationSources) {
-      const digest = checksum(migration.sql);
       if (applied.has(migration.name)) {
-        if (applied.get(migration.name) !== digest) throw new Error(`MIGRATION_CHECKSUM_MISMATCH:${migration.name}`);
         console.log(`skip ${migration.name}`);
         continue;
       }
@@ -150,7 +176,7 @@ async function run() {
         (migration_name,checksum_sha256,executed_by,execution_ms)
         VALUES (:name,:checksum,:executedBy,:executionMs)`, {
         name: migration.name,
-        checksum: digest,
+        checksum: migration.digest,
         executedBy: process.env.USER || process.env.USERNAME || 'preview-runner',
         executionMs: Date.now() - started
       });
@@ -163,14 +189,17 @@ async function run() {
       check: 'preview-migration-runner',
       database,
       migrationCount: migrationSources.length,
+      previouslyApplied: applied.size,
       applied: executed,
+      ledgerStrictPrefixVerified: true,
       advisoryLockUsed: true,
+      advisoryLockOwnerVerified: true,
       secureMigrationReads: true,
       productionMutationEnabled: false,
       mergeExecutionEnabled: false
     }, null, 2));
   } finally {
-    if (lockAcquired) await releaseMigrationLock(connection);
+    if (lockAcquired) await releaseMigrationLock(connection, lockConnectionId);
     await connection.end();
   }
 }
