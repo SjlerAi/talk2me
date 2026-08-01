@@ -52,22 +52,9 @@ Stop immediately if any control cannot start, is interrupted, or returns a non-z
 
 Before any other activation control, the workspace verifier must prove that the executing directory is the configured preview application root.
 
-It must:
+It must reject a missing, relative, non-normalized, or mismatched `PREVIEW_APP_ROOT`; validate the application root and migrations directory as real non-symlink directories; open directory descriptors with `O_DIRECTORY | O_NOFOLLOW`; compare path and descriptor device/inode identities; reject group-writable or world-writable protected paths; require protected source files to share the preview-root owner; reject symbolic links and additional hard links; enforce bounded file sizes; require at least 25 ordered migration files and migration 025; and re-check directory identity after inventory validation.
 
-- reject a missing, relative, non-normalized, or mismatched `PREVIEW_APP_ROOT`;
-- validate the application root and migrations directory as real non-symlink directories;
-- open directory descriptors with `O_DIRECTORY | O_NOFOLLOW`;
-- compare path and descriptor device/inode identities;
-- reject group-writable or world-writable protected paths;
-- require protected source files to share the preview-root owner;
-- open protected workspace files with `O_NOFOLLOW`;
-- compare each protected file path and descriptor device/inode identity;
-- reject symbolic links and additional hard links for `package.json`, an existing `package-lock.json`, `MIGRATION_LEDGER_BOOTSTRAP.sql`, and all migration files;
-- enforce bounded file sizes;
-- require at least 25 ordered migration files and explicit migration 025 presence;
-- re-check directory identity after migration inventory validation.
-
-A missing `package-lock.json` is reported during source preparation but remains a release-freeze blocker. Once the lockfile exists, it must pass the same ownership, permissions, symlink, hard-link, descriptor-identity and bounded-size controls.
+A missing `package-lock.json` remains a release-freeze blocker. Once present, it must pass the same ownership, permissions, symlink, hard-link, descriptor-identity and bounded-size controls.
 
 ## Deterministic source integrity inventory
 
@@ -77,15 +64,13 @@ The inventory covers critical activation, migration, release, UAT, package and s
 
 The canonical inventory record contains the relative filename, byte length and SHA-256 checksum for each protected file. Records are sorted by filename and hashed again to produce one source inventory digest named `inventorySha256`.
 
-`workspace-source-integrity-check.js` must then confirm that the integrity verifier still protects the expected inventory contract and remains in the activation sequence before wider governance checks.
-
 Retain the full source inventory output with activation evidence. A different source inventory digest means the source surface changed and the previous activation evidence is no longer applicable.
 
 ## Approved release source integrity
 
 The source-only preflight validates the release source-integrity governance code but does not execute the environment-bound verifier. After successful CI for the exact candidate commit, retain the approved workspace inventory digest as `RELEASE_SOURCE_INVENTORY_SHA256`.
 
-Before deployment, migration, UAT or release freeze, run:
+Run:
 
 ```bash
 PREVIEW_APP_ROOT=/home/kloka/repositories/talk2me/os2-preview \
@@ -97,24 +82,15 @@ ENABLE_CUSTOMER_MERGE_EXECUTION=false \
 npm run verify:release-source-integrity
 ```
 
-The verifier must complete within 30 seconds, run with shell execution disabled, require the committed `package-lock.json` in the protected inventory, and prove the current checkout matches the exact approved CI digest. A mismatch invalidates the candidate and requires a new CI and evidence cycle.
+The verifier must complete within 30 seconds, run with shell execution disabled, require the committed `package-lock.json` in the protected inventory, and report both `exactApprovedInventoryMatched: true` and `packageLockPresent: true`.
+
+Any source change after CI approval invalidates the candidate. That includes edits to code, governance checks, runbooks, package metadata, the dependency lock, bootstrap source, migration source, or any other protected file. A changed candidate requires a new CI run, new retained source inventory, and a new approved digest.
+
+Re-run approved source-integrity verification immediately before formal UAT. Re-run approved source-integrity verification immediately before release freeze. These are separate evidence points; an earlier successful result must not be reused after migrations, verification activity, manual edits, dependency work, or any other source-affecting operation.
 
 ## Preflight limitations
 
-A successful preflight proves only source-governance readiness. It does not mean that:
-
-- dependencies have been installed;
-- `package-lock.json` exists;
-- the preview database has been backed up;
-- the migration-ledger bootstrap has been executed;
-- bootstrap execution evidence exists;
-- migrations have been applied;
-- preview data verification has passed;
-- approved release source integrity has passed;
-- a release manifest has been frozen;
-- the preview application has been restarted;
-- smoke testing has passed;
-- formal UAT has started.
+A successful preflight proves only source-governance readiness. It does not mean dependencies are installed, `package-lock.json` exists, the preview database has been backed up, the migration-ledger bootstrap or migrations have run, preview data verification has passed, approved source integrity has passed, a release manifest has been frozen, preview has restarted, smoke testing has passed, or formal UAT has started.
 
 The successful preflight output must retain:
 
@@ -128,26 +104,28 @@ mergeExecutionEnabled: false
 
 ## Activation sequence after source preflight
 
-1. Confirm the checkout is on the controlled branch and intended commit.
+1. Confirm the controlled branch and exact intended commit.
 2. Generate and commit `package-lock.json` in a trusted Node.js 20 environment.
-3. Repeat the source-only preflight so the committed lockfile is included.
+3. Repeat source-only preflight so the lockfile is included.
 4. Run `npm ci` from the committed lockfile.
-5. Run `npm run check`, `npm run check:readiness`, `npm run check:deployment`, and `npm run check:uat-gate`; retain complete output.
+5. Run `npm run check`, `npm run check:readiness`, `npm run check:deployment`, and `npm run check:uat-gate`.
 6. Retain the approved CI workspace source inventory and set `RELEASE_SOURCE_INVENTORY_SHA256` to its exact digest.
-7. Run `npm run verify:release-source-integrity` against the exact candidate checkout and retain the successful output.
-8. Back up and verify `kloka_talk2me`; record the backup reference and SHA-256.
+7. Run `npm run verify:release-source-integrity` and retain the successful output.
+8. Back up and verify `kloka_talk2me`; retain the backup reference and SHA-256.
 9. Create a private canonical evidence directory inaccessible to group and world users.
-10. Execute the one-time ledger bootstrap only with `npm run bootstrap:migration-ledger`, explicit preview-only flags, verified backup evidence, named operator, approved change reference, and an absolute `MIGRATION_LEDGER_BOOTSTRAP_EVIDENCE_PATH`.
-11. Verify the generated bootstrap evidence JSON and SHA-256 sidecar with `npm run verify:migration-ledger-bootstrap-evidence`.
-12. Apply migrations only with the same bootstrap evidence path, `ALLOW_PREVIEW_MIGRATIONS=true`, `DB_NAME=kloka_talk2me`, `ALLOW_PRODUCTION_MUTATION=false`, and `ENABLE_CUSTOMER_MERGE_EXECUTION=false`.
-13. Accept migration completion only when the final JSON result reports evidence verification before MySQL, advisory-lock release, and database-connection closure.
+10. Execute the one-time ledger bootstrap only with `npm run bootstrap:migration-ledger`, preview-only flags, verified backup evidence, named operator, approved change reference, and an absolute `MIGRATION_LEDGER_BOOTSTRAP_EVIDENCE_PATH`.
+11. Verify the bootstrap evidence pair with `npm run verify:migration-ledger-bootstrap-evidence`.
+12. Apply migrations only with the same evidence path, `ALLOW_PREVIEW_MIGRATIONS=true`, `DB_NAME=kloka_talk2me`, production mutation disabled, and merge execution disabled.
+13. Accept migration completion only when the final JSON proves evidence verification before MySQL, advisory-lock release, and database-connection closure.
 14. Run `DB_NAME=kloka_talk2me npm run verify:preview-data`.
-15. Complete automated and manual preview UAT and retain evidence.
-16. Freeze the release manifest against the exact commit, controlled branch, approved source digest and bootstrap evidence pair.
-17. Verify the frozen release manifest against the same checkout, approved source digest and retained bootstrap evidence pair.
-18. Restart only the preview Node.js application.
-19. Run technical smoke testing.
-20. Record all results in GitHub Issue #83.
+15. Re-run approved source-integrity verification immediately before formal UAT and retain new output.
+16. Complete automated and manual preview UAT and retain evidence.
+17. Re-run approved source-integrity verification immediately before release freeze and retain new output.
+18. Freeze the release manifest against the exact commit, controlled branch, approved source digest and bootstrap evidence pair.
+19. Verify the frozen release manifest against the same checkout, approved source digest and retained bootstrap evidence pair.
+20. Restart only the preview Node.js application.
+21. Run technical smoke testing.
+22. Record all results in GitHub Issue #83.
 
 ## Bootstrap and migration controls
 
@@ -165,6 +143,6 @@ Protected reads must reject symbolic links, additional hard links, non-canonical
 
 ## Hard-stop conditions
 
-Do not proceed when the preview root identity differs, protected paths are unsafe, the source inventory differs from the approved CI digest, the database or branch identity is wrong, Node.js is not 20.x, production mutation or merge execution is enabled, `package-lock.json` is absent, approved source-integrity verification has not passed, verified backup or bootstrap evidence is missing, migration completion cannot prove lock release and connection closure, preview data verification fails, UAT evidence is incomplete, secure release-manifest verification fails, or the exact deployed commit cannot be proven.
+Do not proceed when the preview root identity differs, protected paths are unsafe, the source inventory differs from the approved CI digest, any protected source changed after CI approval, the database or branch identity is wrong, Node.js is not 20.x, production mutation or merge execution is enabled, `package-lock.json` is absent, approved source-integrity verification has not passed at the required point, verified backup or bootstrap evidence is missing, migration completion cannot prove lock release and connection closure, preview data verification fails, UAT evidence is incomplete, secure release-manifest verification fails, or the exact deployed commit cannot be proven.
 
 The migration-ledger bootstrap, migration 025, preview data verification, deployment, restart and formal UAT have not yet been executed.
