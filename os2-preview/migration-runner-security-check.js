@@ -5,6 +5,7 @@ const path = require('path');
 
 const root = __dirname;
 const runner = fs.readFileSync(path.join(root, 'migration-runner.js'), 'utf8');
+const runbook = fs.readFileSync(path.join(root, 'PREVIEW_DEPLOYMENT_RUNBOOK.md'), 'utf8');
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 
 const markers = [
@@ -47,6 +48,20 @@ for (const marker of markers) {
   if (!runner.includes(marker)) throw new Error(`Migration runner missing security marker: ${marker}`);
 }
 
+const runbookMarkers = [
+  'Do not substitute `npm install` for the controlled release path.',
+  'bind the advisory lock to the current MySQL `CONNECTION_ID()`',
+  'verify advisory-lock ownership through `IS_USED_LOCK()` before migration work',
+  'require the applied ledger to be an exact strict prefix of the ordered source inventory',
+  'reject unknown, duplicate, reordered, skipped, or future ledger entries',
+  'validate every stored ledger checksum before applying any new migration',
+  'require `RELEASE_LOCK()` to report successful release',
+  'Any ledger gap, order mismatch, checksum mismatch, or advisory-lock ownership mismatch is a hard stop'
+];
+for (const marker of runbookMarkers) {
+  if (!runbook.includes(marker)) throw new Error(`Preview deployment runbook missing migration security marker: ${marker}`);
+}
+
 if (runner.indexOf('secureMigrationDirectory()') > runner.indexOf('mysql.createConnection')) {
   throw new Error('Migration source validation must complete before database connection');
 }
@@ -83,6 +98,8 @@ console.log(JSON.stringify({
   advisoryLockRequired: true,
   advisoryLockOwnerVerificationRequired: true,
   advisoryLockReleaseConfirmationRequired: true,
+  deploymentRunbookProtected: true,
+  runbookMarkers: runbookMarkers.length,
   previewDatabaseOnly: true,
   productionMutationEnabled: false,
   mergeExecutionEnabled: false
