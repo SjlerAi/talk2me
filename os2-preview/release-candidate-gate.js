@@ -77,12 +77,12 @@ const requiredRunbooks = [
 const requiredChecks = [
   'architecture-check.js','deployment-check.js','uat-gate-check.js','security-check.js','privacy-check.js',
   'operations-check.js','ci-governance-check.js','schema-verification.js','preview-data-verification.js',
-  'merge-restore-pin-check.js','merge-restore-evidence-verification.js',
+  'runtime-release-identity-check.js','merge-restore-pin-check.js','merge-restore-evidence-verification.js',
   'customer-merge-execution-readiness-check.js','schema-source-consistency-check.js'
 ];
 const requiredScripts = [
-  'verify:schema','verify:merge-restore-evidence','verify:preview-data','check:merge-restore-pin',
-  'check:customer-merge-execution-readiness','check:schema-source-consistency',
+  'verify:schema','verify:merge-restore-evidence','verify:preview-data','verify:runtime-release-identity',
+  'check:merge-restore-pin','check:customer-merge-execution-readiness','check:schema-source-consistency',
   'check:readiness','check:deployment','check:uat-gate'
 ];
 const restorePinMigration = '20260801_025_merge_authorisation_restore_pin.sql';
@@ -115,6 +115,16 @@ if (!releaseApprovedBy) fail('RELEASE_APPROVED_BY is required');
 if (!releaseChangeReference) fail('RELEASE_CHANGE_REFERENCE is required');
 if (!output) fail('RELEASE_MANIFEST_PATH is required');
 else if (!path.isAbsolute(output)) fail('RELEASE_MANIFEST_PATH must be absolute');
+
+const runtimeIdentitySource = exists('runtime-release-identity-check.js')
+  ? fs.readFileSync(path.join(root,'runtime-release-identity-check.js'),'utf8')
+  : '';
+if (!runtimeIdentitySource.includes("expectedApplication = 'talk2me-os2-preview'")) fail('Runtime release application identity guard is missing');
+if (!runtimeIdentitySource.includes("expectedVersion = '0.59.0'")) fail('Runtime release version guard is missing');
+if (!runtimeIdentitySource.includes('expectedNodeMajor = 20')) fail('Runtime release Node.js major guard is missing');
+if (!runtimeIdentitySource.includes("process.env.DB_NAME !== 'kloka_talk2me'")) fail('Runtime release preview database guard is missing');
+if (!runtimeIdentitySource.includes('productionMutationEnabled: false')) fail('Runtime production mutation lock is missing');
+if (!runtimeIdentitySource.includes('mergeExecutionEnabled: false')) fail('Runtime merge execution lock is missing');
 
 const previewDataSource = exists('preview-data-verification.js')
   ? fs.readFileSync(path.join(root,'preview-data-verification.js'),'utf8')
@@ -161,6 +171,7 @@ const manifest = {
   restorePinMigration,
   previewDataVerificationRequired: true,
   previewDataVerificationOrder: ['schema-verification.js','merge-restore-evidence-verification.js'],
+  runtimeReleaseIdentityVerificationRequired: true,
   mergeExecutionEnabled: false,
   migrationChecksums: migrations.map(file => ({ file, sha256: sha256(path.join('migrations',file)) })),
   requiredRunbooks,
