@@ -34,6 +34,12 @@ const markers = [
   'SELECT CONNECTION_ID() AS connection_id',
   'SELECT GET_LOCK(?, ?) AS acquired',
   'SELECT IS_USED_LOCK(?) AS owner_connection_id',
+  'MIGRATION_ADVISORY_LOCK_OWNERSHIP_LOST',
+  'MIGRATION_ADVISORY_LOCK_RELEASE_NOT_CONFIRMED',
+  'advisoryLockReleased = await releaseMigrationLock(connection, lockConnectionId)',
+  'MIGRATION_COMPLETION_EVIDENCE_INCOMPLETE',
+  'result.advisoryLockReleased = true',
+  'result.databaseConnectionClosedBeforeSuccess = true',
   'MIGRATION_LEDGER_NOT_STRICT_PREFIX',
   'MIGRATION_CHECKSUM_MISMATCH',
   'productionMutationEnabled: false',
@@ -41,6 +47,7 @@ const markers = [
 ];
 for (const marker of markers) if (!runner.includes(marker)) throw new Error(`Migration runner missing security marker: ${marker}`);
 if (runner.includes('CREATE TABLE IF NOT EXISTS os2_schema_migrations')) throw new Error('Runtime migration ledger creation is prohibited');
+if (runner.includes('MIGRATION_ADVISORY_LOCK_RELEASE_FAILED:')) throw new Error('Advisory-lock release failure must not be swallowed');
 for (const marker of ['CREATE TABLE os2_schema_migrations','UNIQUE KEY uq_os2_schema_migration_name','Target database: kloka_talk2me only.']) {
   if (!bootstrap.includes(marker)) throw new Error(`Ledger bootstrap missing marker: ${marker}`);
 }
@@ -50,7 +57,9 @@ for (const marker of ['bootstrapMatchesWorkspace: true','verifiedBackupEvidenceP
 if (runner.indexOf('verifyBootstrapEvidence()') > runner.indexOf('mysql.createConnection')) throw new Error('Bootstrap evidence must be verified before database connection');
 if (runner.indexOf('acquireMigrationLock(connection)') > runner.indexOf('verifyLedgerSchema(connection)')) throw new Error('Migration lock must be acquired before ledger verification');
 if (runner.indexOf('verifyLedgerSchema(connection)') > runner.indexOf('validateAppliedLedger(appliedRows, migrationSources)')) throw new Error('Ledger schema must be verified before ledger contents');
-for (const marker of ['MIGRATION_LEDGER_BOOTSTRAP_EVIDENCE_PATH','npm run verify:migration-ledger-bootstrap-evidence','Do not proceed to controlled migrations when the evidence pair is absent']) {
+if (runner.indexOf('console.log(JSON.stringify(result, null, 2))') < runner.indexOf('await connection.end()')) throw new Error('Migration success must be reported only after connection close');
+if (runner.indexOf('result.advisoryLockReleased = true') < runner.indexOf('await releaseMigrationLock(connection, lockConnectionId)')) throw new Error('Lock release evidence must be recorded only after confirmed release');
+for (const marker of ['MIGRATION_LEDGER_BOOTSTRAP_EVIDENCE_PATH','npm run verify:migration-ledger-bootstrap-evidence','Do not proceed to controlled migrations when the evidence pair is absent','lock release failure is a hard stop','success is reported only after the database connection closes']) {
   if (!runbook.includes(marker)) throw new Error(`Deployment runbook missing migration evidence marker: ${marker}`);
 }
 if (!pkg.scripts.check.includes('node migration-runner-security-check.js')) throw new Error('Migration security regression check missing');
@@ -66,6 +75,9 @@ console.log(JSON.stringify({
   exactLedgerSchemaRequired: true,
   strictLedgerPrefixRequired: true,
   advisoryLockOwnerVerificationRequired: true,
+  advisoryLockReleaseFailureIsBlocking: true,
+  successAfterConnectionCloseRequired: true,
+  completionEvidenceRequired: true,
   previewDatabaseOnly: true,
   productionMutationEnabled: false,
   mergeExecutionEnabled: false
