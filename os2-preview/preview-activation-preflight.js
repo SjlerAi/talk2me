@@ -35,10 +35,16 @@ if (String(process.env.ENABLE_CUSTOMER_MERGE_EXECUTION || '').toLowerCase() === 
 
 const checks = [
   'workspace-topology-verification.js',
+  'workspace-topology-governance-check.js',
+  'migration-ledger-bootstrap-governance-check.js',
+  'migration-ledger-bootstrap-runner-check.js',
+  'migration-ledger-bootstrap-evidence-check.js',
+  'migration-runner-security-check.js',
   'runtime-release-identity-check.js',
   'readiness-check.js',
   'deployment-check.js',
   'uat-gate-check.js',
+  'release-evidence-security-check.js',
   'release-manifest-check.js'
 ];
 
@@ -72,7 +78,13 @@ console.log(JSON.stringify({
   branch: expectedBranch,
   nodeVersion: process.versions.node,
   completed,
+  orderedGovernanceChecksCompleted: completed.length,
   workspaceTopologyVerified: true,
+  bootstrapGovernanceVerified: true,
+  bootstrapRunnerGovernanceVerified: true,
+  bootstrapEvidenceGovernanceVerified: true,
+  migrationRunnerSecurityVerified: true,
+  releaseEvidenceSecurityVerified: true,
   databaseBackedVerificationExecuted: false,
   migrationsExecuted: false,
   previewRestartExecuted: false,
