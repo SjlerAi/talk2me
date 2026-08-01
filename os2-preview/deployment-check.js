@@ -53,6 +53,24 @@ mustContain('preview-activation-preflight.js', [
   'mergeExecutionEnabled: false'
 ]);
 
+mustContain('preview-activation-governance-check.js', [
+  'Preview activation preflight order is invalid',
+  'verify:preview-activation-preflight',
+  'PREVIEW_ACTIVATION_RUNBOOK.md',
+  'productionMutationEnabled: false',
+  'mergeExecutionEnabled: false'
+]);
+
+mustContain('PREVIEW_ACTIVATION_RUNBOOK.md', [
+  'npm run verify:preview-activation-preflight',
+  'npm ci',
+  'npm run check',
+  'ALLOW_PREVIEW_MIGRATIONS=true',
+  'DB_NAME=kloka_talk2me npm run verify:preview-data',
+  'Restart only the preview Node.js application',
+  'Migration 025, preview data verification, deployment, restart and formal UAT have not yet been executed.'
+]);
+
 mustContain('readiness-check.js', [
   "process.env.DB_NAME !== 'kloka_talk2me'",
   'Node.js 20.x is required',
@@ -108,6 +126,8 @@ mustContain('PREVIEW_DEPLOYMENT_RUNBOOK.md', [
   'migrations/20260801_025_merge_authorisation_restore_pin.sql',
   'runtime-release-identity-check.js',
   'preview-activation-preflight.js',
+  'preview-activation-governance-check.js',
+  'PREVIEW_ACTIVATION_RUNBOOK.md',
   'schema-verification.js',
   'preview-data-verification.js',
   'merge-restore-evidence-verification.js',
@@ -140,8 +160,10 @@ console.log(JSON.stringify({
   minimumMigrationCount: 25,
   runtimeReleaseIdentityRequired: true,
   previewActivationPreflightRequired: true,
+  previewActivationGovernanceRequired: true,
   previewDataVerificationRequired: true,
   deploymentRunbookProtected: true,
+  activationRunbookProtected: true,
   restoreEvidenceRequired: true,
   productionMutationEnabled: false,
   executionEnabled: false
