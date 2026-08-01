@@ -3,6 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { spawnSync } = require('child_process');
 
 function fail(message) {
   console.error(JSON.stringify({ ok: false, check: 'release-manifest-verification', error: message }, null, 2));
@@ -41,6 +42,31 @@ function verifyChecksumPair(file, label, maxBytes) {
   if (!crypto.timingSafeEqual(Buffer.from(match[1].toLowerCase(), 'hex'), Buffer.from(actual, 'hex'))) fail(`${label} checksum verification failed`);
   return { data, dataSha256: actual, sidecarSha256: sha256(sidecar) };
 }
+function verifyFrozenSource(root, inventorySha256) {
+  const result = spawnSync(process.execPath, [path.join(root, 'release-source-integrity-verification.js')], {
+    cwd: root,
+    env: {
+      ...process.env,
+      PREVIEW_APP_ROOT: root,
+      DB_NAME: 'kloka_talk2me',
+      RELEASE_BRANCH: 'agent/talk2me-os2-integrated-rebuild',
+      RELEASE_SOURCE_INVENTORY_SHA256: inventorySha256,
+      ALLOW_PRODUCTION_MUTATION: 'false',
+      ENABLE_CUSTOMER_MERGE_EXECUTION: 'false'
+    },
+    encoding: 'utf8',
+    maxBuffer: 16 * 1024 * 1024,
+    windowsHide: true
+  });
+  if (result.error) fail(`Post-freeze source verifier could not start: ${result.error.message}`);
+  if (result.signal) fail(`Post-freeze source verifier was interrupted by signal ${result.signal}`);
+  if (result.status !== 0) fail(`Post-freeze source verifier failed with status ${result.status}: ${String(result.stderr || '').trim()}`);
+  let evidence;
+  try { evidence = JSON.parse(String(result.stdout || '').trim()); } catch { fail('Post-freeze source verifier did not return valid JSON'); }
+  if (evidence.ok !== true || evidence.exactApprovedInventoryMatched !== true) fail('Post-freeze source verifier did not confirm the approved inventory');
+  if (String(evidence.inventorySha256 || '').toLowerCase() !== inventorySha256.toLowerCase()) fail('Post-freeze source verifier returned a different inventory digest');
+  return evidence;
+}
 
 const root = __dirname;
 const expectedPreviewVersion = '0.59.0';
@@ -75,6 +101,11 @@ if (manifest.commitIdentityVerified !== true) fail('Release manifest commit iden
 if (typeof manifest.approvedBy !== 'string' || !manifest.approvedBy.trim()) fail('Release manifest approver evidence is missing');
 if (typeof manifest.changeReference !== 'string' || !manifest.changeReference.trim()) fail('Release manifest change reference is missing');
 if (manifest.dependencyLockPresent !== true) fail('Release manifest does not confirm a committed dependency lock');
+if (!/^[0-9a-f]{64}$/i.test(String(manifest.approvedSourceInventorySha256 || ''))) fail('Release manifest approved source inventory checksum is invalid');
+if (manifest.releaseSourceIntegrityVerified !== true) fail('Release manifest does not confirm approved source-integrity verification');
+if (manifest.releaseSourcePackageLockPresent !== true) fail('Release source inventory did not include the committed dependency lock');
+if (!Number.isInteger(manifest.releaseSourceProtectedFileCount) || manifest.releaseSourceProtectedFileCount < 25) fail('Release source protected-file count is invalid');
+if (!Number.isInteger(manifest.releaseSourceMigrationCount) || manifest.releaseSourceMigrationCount < 25) fail('Release source migration count is invalid');
 if (manifest.migrationLedgerBootstrapFile !== expectedBootstrapFile) fail('Release manifest migration-ledger bootstrap filename is invalid');
 if (manifest.migrationLedgerBootstrapEvidenceVerified !== true) fail('Release manifest does not confirm verified bootstrap execution evidence');
 if (manifest.bootstrapEvidenceVerifiedBeforeReleaseFreeze !== true) fail('Bootstrap evidence was not verified before release freeze');
@@ -87,6 +118,7 @@ if (manifest.migrationConnectionClosedBeforeSuccess !== true) fail('Release mani
 if (manifest.productionMutationEnabled !== false || manifest.mergeExecutionEnabled !== false) fail('Release manifest execution safety flags are invalid');
 if (!Array.isArray(manifest.failures) || manifest.failures.length !== 0) fail('Release manifest contains blocking failures');
 
+const sourceEvidence = verifyFrozenSource(root, manifest.approvedSourceInventorySha256);
 const packageBytes = readSecureRegularFile(path.join(root, 'package.json'), { label: 'Checked-out package.json', maxBytes: 1024 * 1024 });
 if (sha256(packageBytes) !== String(manifest.packageJsonSha256).toLowerCase()) fail('Release manifest package.json checksum does not match the checked-out package.json');
 const lockBytes = readSecureRegularFile(path.join(root, 'package-lock.json'), { label: 'Checked-out package-lock.json', maxBytes: 16 * 1024 * 1024 });
@@ -130,6 +162,10 @@ console.log(JSON.stringify({
   branch: manifest.branch,
   commitShaMatchesVerifiedCheckout: true,
   branchMatchesVerifiedCheckout: true,
+  approvedSourceInventorySha256: manifest.approvedSourceInventorySha256,
+  releaseSourceIntegrityReverifiedAfterFreeze: true,
+  releaseSourceProtectedFileCount: sourceEvidence.protectedFileCount,
+  releaseSourceMigrationCount: sourceEvidence.migrationCount,
   evidenceDirectoryCanonical: true,
   evidenceDirectoryPrivate: true,
   evidenceReadsUseNoFollow: true,
