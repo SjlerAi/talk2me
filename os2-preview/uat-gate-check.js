@@ -10,6 +10,7 @@ const previewData = fs.readFileSync(path.join(root, 'preview-data-verification.j
 const readiness = fs.readFileSync(path.join(root, 'customer-merge-execution-readiness-routes.js'), 'utf8');
 const restoreEvidence = fs.readFileSync(path.join(root, 'merge-restore-evidence-verification.js'), 'utf8');
 const restorePinCheck = fs.readFileSync(path.join(root, 'merge-restore-pin-check.js'), 'utf8');
+const runbook = fs.readFileSync(path.join(root, 'PREVIEW_UAT_RUNBOOK.md'), 'utf8');
 const migration025 = fs.readFileSync(path.join(root, 'migrations/20260801_025_merge_authorisation_restore_pin.sql'), 'utf8');
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 const failures = [];
@@ -46,6 +47,12 @@ expect(restoreEvidence.includes('rt.backup_run_id <> a.backup_run_id'), 'Restore
 expect(restoreEvidence.includes('rt.completed_at > a.authorised_at'), 'Restore evidence verification must enforce evidence chronology');
 expect(restorePinCheck.includes('routePinned'), 'Restore-pin regression guard must require runtime pinning');
 expect(readiness.includes('executionAvailable:false'), 'Merge execution must remain disabled during UAT');
+expect(runbook.includes('DB_NAME=kloka_talk2me npm run verify:preview-data'), 'UAT runbook must require preview data verification');
+expect(runbook.includes('schema-verification.js` first'), 'UAT runbook must preserve schema-first order');
+expect(runbook.includes('merge-restore-evidence-verification.js` second'), 'UAT runbook must preserve restore-evidence second order');
+expect(runbook.includes('Running only `npm run verify:schema` is not sufficient'), 'UAT runbook must prohibit schema-only evidence');
+expect(runbook.includes('mergeExecutionEnabled: false'), 'UAT runbook must retain merge execution lock evidence');
+expect(runbook.includes('exact commit SHA and preview version'), 'UAT evidence must retain exact build identity');
 expect(pkg.scripts['verify:schema'] === 'node schema-verification.js', 'Package must expose verify:schema');
 expect(pkg.scripts['verify:merge-restore-evidence'] === 'node merge-restore-evidence-verification.js', 'Package must expose restore evidence verification');
 expect(pkg.scripts['verify:preview-data'] === 'node preview-data-verification.js', 'Package must expose preview data verification');
