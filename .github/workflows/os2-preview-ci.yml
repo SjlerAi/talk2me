@@ -8,11 +8,6 @@ on:
       - 'os2-preview/**'
       - 'public/os2/**'
       - '.github/workflows/os2-preview-ci.yml'
-  pull_request:
-    paths:
-      - 'os2-preview/**'
-      - 'public/os2/**'
-      - '.github/workflows/os2-preview-ci.yml'
   workflow_dispatch:
 
 permissions:
@@ -33,11 +28,26 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+          fetch-depth: 1
 
       - name: Set up Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '20'
+
+      - name: Confirm controlled workflow event and ref
+        shell: bash
+        run: |
+          case "$GITHUB_EVENT_NAME" in
+            push|workflow_dispatch) ;;
+            *) echo "Unsupported workflow event: $GITHUB_EVENT_NAME" >&2; exit 1 ;;
+          esac
+          test "$GITHUB_REPOSITORY" = "SjlerAi/talk2me"
+          test "$GITHUB_REF" = "refs/heads/agent/talk2me-os2-integrated-rebuild"
+          test "$GITHUB_REF_NAME" = "agent/talk2me-os2-integrated-rebuild"
+          test -n "$GITHUB_SHA"
 
       - name: Detect dependency lock
         id: dependency-lock
@@ -104,6 +114,7 @@ jobs:
           GITHUB_REF: ${{ github.ref }}
           GITHUB_REF_NAME: ${{ github.ref_name }}
           GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_WORKFLOW: ${{ github.workflow }}
           GITHUB_WORKFLOW_REF: ${{ github.workflow_ref }}
           GITHUB_RUN_ID: ${{ github.run_id }}
           GITHUB_RUN_NUMBER: ${{ github.run_number }}
