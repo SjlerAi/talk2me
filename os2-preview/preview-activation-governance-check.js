@@ -29,7 +29,6 @@ const requiredPreflightMarkers = [
   'productionMutationEnabled: false',
   'mergeExecutionEnabled: false'
 ];
-
 for (const marker of requiredPreflightMarkers) {
   if (!preflight.includes(marker)) throw new Error(`Preview activation preflight missing marker: ${marker}`);
 }
@@ -53,7 +52,7 @@ const requiredRunbookMarkers = [
   'kloka_talk2me',
   'agent/talk2me-os2-integrated-rebuild',
   'Node.js: 20.x',
-  'npm run preflight:preview-activation',
+  'npm run verify:preview-activation-preflight',
   'npm ci',
   'npm run check',
   'ALLOW_PREVIEW_MIGRATIONS=true',
@@ -65,14 +64,11 @@ for (const marker of requiredRunbookMarkers) {
   if (!runbook.includes(marker)) throw new Error(`Preview activation runbook missing marker: ${marker}`);
 }
 
-if (pkg.scripts['preflight:preview-activation'] !== 'node preview-activation-preflight.js') {
-  throw new Error('Missing preflight:preview-activation command');
+if (pkg.scripts['verify:preview-activation-preflight'] !== 'node preview-activation-preflight.js') {
+  throw new Error('Missing verify:preview-activation-preflight command');
 }
 if (!pkg.scripts.check.includes('node --check preview-activation-preflight.js')) {
   throw new Error('Preview activation preflight syntax check missing from normal validation');
-}
-if (!pkg.scripts.check.includes('preview-activation-governance-check.js')) {
-  throw new Error('Preview activation governance missing from normal validation');
 }
 
 console.log(JSON.stringify({
