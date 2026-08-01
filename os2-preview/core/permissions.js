@@ -3,7 +3,7 @@
 const ROLE_PERMISSIONS = Object.freeze({
   owner: ['*'],
   manager: [
-    'customer.read','customer.create','customer.update','customer.assign','customer.transfer','customer.archive',
+    'customer.read','customer.create','customer.update','customer.assign','customer.transfer','customer.archive','customer.merge.review',
     'account.read','account.create','account.update','service.read','service.create','service.update',
     'document.read','document.upload','document.archive','restriction.read','restriction.update',
     'work.read','work.create','work.update','work.assign','work.accept','work.return',
@@ -13,7 +13,7 @@ const ROLE_PERMISSIONS = Object.freeze({
     'security.event.read','security.session.revoke','privacy.read','privacy.manage','privacy.decide','privacy.export','privacy.retention'
   ],
   admin: [
-    'customer.read','customer.create','customer.update','account.read','account.create','account.update',
+    'customer.read','customer.create','customer.update','customer.merge.review','account.read','account.create','account.update',
     'service.read','service.create','service.update','document.read','document.upload',
     'restriction.read','work.read','work.create','work.update','work.assign',
     'approval.read','claim.request','report.read','import.read','import.upload','staff.read',
