@@ -5,6 +5,7 @@ const path=require('path');
 const root=__dirname;
 const gate=fs.readFileSync(path.join(root,'release-candidate-gate.js'),'utf8');
 const verifier=fs.readFileSync(path.join(root,'release-manifest-verification.js'),'utf8');
+const previewData=fs.readFileSync(path.join(root,'preview-data-verification.js'),'utf8');
 const runbook=fs.readFileSync(path.join(root,'RELEASE_CANDIDATE_RUNBOOK.md'),'utf8');
 const pkg=JSON.parse(fs.readFileSync(path.join(root,'package.json'),'utf8'));
 const required=[
@@ -31,6 +32,14 @@ const required=[
   'migrationChecksums',
   'Runtime CREATE TABLE',
   '20260801_025_merge_authorisation_restore_pin.sql',
+  'preview-data-verification.js',
+  'verify:preview-data',
+  'previewDataVerificationRequired: true',
+  "previewDataVerificationOrder: ['schema-verification.js','merge-restore-evidence-verification.js']",
+  'Preview data verification database guard is missing',
+  'Preview data verification order is invalid',
+  'Preview data verification must inherit verifier output',
+  'Preview data verification merge execution lock is missing',
   'merge-restore-pin-check.js',
   'merge-restore-evidence-verification.js',
   'customer-merge-execution-readiness-check.js',
@@ -48,6 +57,20 @@ if(gate.includes("warn('No release")) throw new Error('Release identity metadata
 if(!gate.includes('else if (failures.length === 0)')) throw new Error('Release manifest must not be written while blockers exist');
 if(!gate.includes('fs.writeFileSync(checksumOutput')) throw new Error('Release manifest checksum sidecar is required');
 if(!gate.includes("mode:0o600, flag:'wx'")) throw new Error('Release evidence files must be private and non-overwriting');
+
+const previewDataMarkers=[
+  "expectedDatabase = 'kloka_talk2me'",
+  "'schema-verification.js'",
+  "'merge-restore-evidence-verification.js'",
+  "stdio: 'inherit'",
+  'result.error',
+  'result.signal || result.status !== 0',
+  'mergeExecutionEnabled: false'
+];
+for(const marker of previewDataMarkers) if(!previewData.includes(marker)) throw new Error(`Missing preview data verifier marker: ${marker}`);
+if(previewData.indexOf("'schema-verification.js'") > previewData.indexOf("'merge-restore-evidence-verification.js'")) {
+  throw new Error('Preview data verification order must remain schema then restore evidence');
+}
 
 const verifierMarkers=[
   'RELEASE_MANIFEST_PATH is required',
@@ -85,6 +108,8 @@ const runbookMarkers=[
 ];
 for(const marker of runbookMarkers) if(!runbook.includes(marker)) throw new Error(`Missing release runbook marker: ${marker}`);
 
+if(!pkg.scripts['verify:preview-data']) throw new Error('Missing verify:preview-data script');
+if(!pkg.scripts.check.includes('node --check preview-data-verification.js')) throw new Error('Preview data verifier syntax check missing from normal validation');
 if(!pkg.scripts['check:release-candidate']) throw new Error('Missing check:release-candidate script');
 if(!pkg.scripts['check:release-manifest']) throw new Error('Missing check:release-manifest script');
 if(pkg.scripts.check.includes('release-candidate-gate.js')) throw new Error('Release candidate gate must not run in normal CI before lockfile freeze');
@@ -95,6 +120,8 @@ console.log(JSON.stringify({
   version:pkg.version,
   restorePinMigration:'20260801_025_merge_authorisation_restore_pin.sql',
   mergeExecutionEnabled:false,
+  previewDataVerificationRequired:true,
+  previewDataVerificationOrder:['schema-verification.js','merge-restore-evidence-verification.js'],
   releaseMetadataBlocking:true,
   dependencyLockChecksumRequired:true,
   exactCommitIdentityRequired:true,
@@ -103,6 +130,7 @@ console.log(JSON.stringify({
   manifestChecksumSidecarRequired:true,
   releaseEvidenceOverwriteProhibited:true,
   postFreezeManifestVerificationRequired:true,
+  previewDataMarkers:previewDataMarkers.length,
   verifierMarkers:verifierMarkers.length,
   runbookMarkers:runbookMarkers.length
 },null,2));
