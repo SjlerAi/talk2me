@@ -5,6 +5,7 @@ const { requirePermission }=require('./core/permissions');
 const { recordSecurityEvent }=require('./security-controls');
 const createPrivacyRouter=require('./privacy-routes');
 const createRestrictionGovernanceRouter=require('./restriction-governance-routes');
+const createAccountGovernanceRouter=require('./account-governance-routes');
 
 function positiveId(v){const n=Number(v);return Number.isInteger(n)&&n>0?n:null;}
 function management(user){return ['owner','manager'].includes(String(user?.role||'').toLowerCase());}
@@ -14,6 +15,7 @@ module.exports=function createSecurityRouter({pool,requireAuth}){
   router.use('/api/os2/security',requireAuth);
   router.use(createPrivacyRouter({pool,requireAuth}));
   router.use(createRestrictionGovernanceRouter({pool,requireAuth}));
+  router.use(createAccountGovernanceRouter({pool,requireAuth}));
 
   router.get('/api/os2/security/sessions',async(req,res)=>{
     try{
