@@ -10,6 +10,12 @@ const required=[
   'package-lock.json is required before release-candidate freeze',
   'RELEASE_COMMIT_SHA or GITHUB_SHA is required',
   'Release commit SHA must be a full 40-character hexadecimal SHA',
+  'RELEASE_COMMIT_SHA must match the exact GITHUB_SHA being validated',
+  'RELEASE_BRANCH or GITHUB_REF_NAME is required',
+  'Unexpected release branch:',
+  'agent/talk2me-os2-integrated-rebuild',
+  'commitIdentityVerified',
+  "flag:'wx'",
   'RELEASE_APPROVED_BY is required',
   'RELEASE_CHANGE_REFERENCE is required',
   'RELEASE_MANIFEST_PATH is required',
@@ -34,6 +40,7 @@ const required=[
 ];
 for(const marker of required) if(!gate.includes(marker)) throw new Error(`Missing release gate marker: ${marker}`);
 if(gate.includes("warn('No release")) throw new Error('Release identity metadata must be blocking, not warning-only');
+if(!gate.includes('else if (failures.length === 0)')) throw new Error('Release manifest must not be written while blockers exist');
 
 const runbookMarkers=[
   '20260801_025_merge_authorisation_restore_pin.sql',
@@ -64,5 +71,8 @@ console.log(JSON.stringify({
   mergeExecutionEnabled:false,
   releaseMetadataBlocking:true,
   dependencyLockChecksumRequired:true,
+  exactCommitIdentityRequired:true,
+  releaseBranchLocked:true,
+  failedManifestWriteProhibited:true,
   runbookMarkers:runbookMarkers.length
 },null,2));
