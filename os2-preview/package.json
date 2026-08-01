@@ -1,6 +1,6 @@
 {
   "name": "talk2me-os2-preview",
-  "version": "0.58.0",
+  "version": "0.59.0",
   "private": true,
   "description": "Talk2me OS2 integrated rebuild test application for talk2me.kloka.co.za",
   "main": "server.js",
