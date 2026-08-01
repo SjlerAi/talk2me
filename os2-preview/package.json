@@ -1,12 +1,12 @@
 {
   "name": "talk2me-os2-preview",
-  "version": "0.24.0",
+  "version": "0.25.0",
   "private": true,
   "description": "Talk2me OS2 integrated rebuild test application for talk2me.kloka.co.za",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "check": "node --check server.js && node --check integrated-routes.js && node --check document-routes.js && node --check operational-routes.js && node --check service-lifecycle-routes.js && node --check communications-routes.js && node --check controlled-import-routes.js && node --check intelligence-routes.js && node --check collaboration-routes.js && node --check core/permissions.js && node --check core/transaction.js && node --check core/transactions.js && node --check core/audit.js && node --check core/ownership.js && node --check core/work-items.js && node --check core/restrictions.js && node --check core/approvals.js && node --check core/representatives.js && node --check core/services.js && node integrated-core-check.js && node architecture-check.js && node controlled-import-check.js && node intelligence-check.js && node collaboration-check.js && node ui-integration-check.js && node service-lifecycle-check.js && node communications-check.js && node --check my-work-routes.js && node --check assignment-routes.js && node --check approval-routes.js && node --check notification-routes.js && node --check attendance-routes.js && node --check opportunity-routes.js && node --check report-routes.js && node --check import-routes.js && node --check administration-routes.js && node --check uat-smoke.js && node --check diagnose-claim-table.js",
+    "check": "node --check server.js && node --check integrated-routes.js && node --check document-routes.js && node --check operational-routes.js && node --check service-lifecycle-routes.js && node --check controlled-import-routes.js && node --check intelligence-routes.js && node --check collaboration-routes.js && node --check communications-routes.js && node --check email-worker.js && node --check core/permissions.js && node --check core/transaction.js && node --check core/transactions.js && node --check core/audit.js && node --check core/ownership.js && node --check core/work-items.js && node --check core/restrictions.js && node --check core/approvals.js && node --check core/representatives.js && node --check core/services.js && node integrated-core-check.js && node architecture-check.js && node controlled-import-check.js && node intelligence-check.js && node collaboration-check.js && node ui-integration-check.js && node service-lifecycle-check.js && node communications-check.js && node email-worker-check.js && node --check my-work-routes.js && node --check assignment-routes.js && node --check approval-routes.js && node --check notification-routes.js && node --check attendance-routes.js && node --check opportunity-routes.js && node --check report-routes.js && node --check import-routes.js && node --check administration-routes.js && node --check uat-smoke.js && node --check diagnose-claim-table.js",
     "uat:smoke": "node uat-smoke.js",
     "check:integrated-core": "node integrated-core-check.js",
     "check:architecture": "node architecture-check.js",
@@ -16,6 +16,7 @@
     "check:ui": "node ui-integration-check.js",
     "check:service-lifecycle": "node service-lifecycle-check.js",
     "check:communications": "node communications-check.js",
+    "check:email-worker": "node email-worker-check.js",
     "diagnose:claim-table": "node diagnose-claim-table.js"
   },
   "dependencies": {
@@ -23,6 +24,7 @@
     "express": "^4.19.2",
     "multer": "^1.4.5-lts.1",
     "mysql2": "^3.11.0",
+    "nodemailer": "^6.9.16",
     "xlsx": "^0.18.5"
   }
 }
