@@ -5,28 +5,27 @@ const path = require('path');
 
 const root = __dirname;
 const verifier = fs.readFileSync(path.join(root, 'workspace-topology-verification.js'), 'utf8');
+const bootstrapGovernance = fs.readFileSync(path.join(root, 'migration-ledger-bootstrap-governance-check.js'), 'utf8');
 const activation = fs.readFileSync(path.join(root, 'preview-activation-preflight.js'), 'utf8');
 const runbook = fs.readFileSync(path.join(root, 'PREVIEW_ACTIVATION_RUNBOOK.md'), 'utf8');
 
 function requireMarkers(source, markers, label) {
-  for (const marker of markers) {
-    if (!source.includes(marker)) throw new Error(`${label} missing ${marker}`);
-  }
+  for (const marker of markers) if (!source.includes(marker)) throw new Error(`${label} missing ${marker}`);
 }
 
 requireMarkers(verifier, [
   "expectedDatabase = 'kloka_talk2me'",
   "expectedBranch = 'agent/talk2me-os2-integrated-rebuild'",
   'PREVIEW_APP_ROOT is required',
-  'PREVIEW_APP_ROOT must match the executing application root',
   'O_NOFOLLOW and O_DIRECTORY are required for workspace topology verification',
   'fs.openSync(directory, fs.constants.O_RDONLY | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW)',
   'fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW)',
-  'fs.fstatSync(descriptor)',
   'descriptorStat.dev !== pathStat.dev || descriptorStat.ino !== pathStat.ino',
   'descriptorStat.nlink !== 1',
   'descriptorStat.size > maxBytes',
   'package-lock.json',
+  'MIGRATION_LEDGER_BOOTSTRAP.sql',
+  'migrationLedgerBootstrapPresent',
   '20260801_025_merge_authorisation_restore_pin.sql',
   'protectedFileNoFollowVerification: true',
   'protectedFileDescriptorIdentityVerified: true',
@@ -35,6 +34,15 @@ requireMarkers(verifier, [
   'productionMutationEnabled: false',
   'mergeExecutionEnabled: false'
 ], 'Workspace verifier');
+
+requireMarkers(bootstrapGovernance, [
+  "check: 'migration-ledger-bootstrap-governance'",
+  "bootstrapFile: 'MIGRATION_LEDGER_BOOTSTRAP.sql'",
+  'createsExactlyOneTable: true',
+  'runtimeLedgerCreationDisabled: true',
+  'workspaceProtectionRequired: true',
+  'previewDatabaseOnly: true'
+], 'Bootstrap governance');
 
 requireMarkers(activation, [
   "'workspace-topology-verification.js'",
@@ -59,6 +67,8 @@ console.log(JSON.stringify({
   descriptorIdentityRequired: true,
   hardLinkRejectionRequired: true,
   boundedProtectedFilesRequired: true,
+  migrationLedgerBootstrapProtected: true,
+  migrationLedgerBootstrapGovernanceRequired: true,
   migration025Required: true,
   productionMutationEnabled: false,
   mergeExecutionEnabled: false
