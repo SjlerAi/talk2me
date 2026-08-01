@@ -15,6 +15,14 @@ function sha256(buffer) {
 
 const root = __dirname;
 const expectedPreviewVersion = '0.59.0';
+const expectedReleaseBranch = 'agent/talk2me-os2-integrated-rebuild';
+const verifiedCommitSha = String(process.env.RELEASE_COMMIT_SHA || process.env.GITHUB_SHA || '').trim();
+const verifiedReleaseBranch = String(process.env.RELEASE_BRANCH || process.env.GITHUB_REF_NAME || '').trim();
+if (!verifiedCommitSha) fail('RELEASE_COMMIT_SHA or GITHUB_SHA is required for post-freeze verification');
+if (!/^[0-9a-f]{40}$/i.test(verifiedCommitSha)) fail('Post-freeze verified commit SHA must be a full 40-character hexadecimal SHA');
+if (!verifiedReleaseBranch) fail('RELEASE_BRANCH or GITHUB_REF_NAME is required for post-freeze verification');
+if (verifiedReleaseBranch !== expectedReleaseBranch) fail(`Unexpected post-freeze release branch: ${verifiedReleaseBranch}`);
+
 const manifestPath = String(process.env.RELEASE_MANIFEST_PATH || '').trim();
 if (!manifestPath) fail('RELEASE_MANIFEST_PATH is required');
 if (!path.isAbsolute(manifestPath)) fail('RELEASE_MANIFEST_PATH must be absolute');
@@ -102,8 +110,10 @@ const expectedPreviewDataOrder = [
 if (manifest.ok !== true) fail('Release manifest is not marked successful');
 if (manifest.application !== 'talk2me-os2-preview') fail('Release manifest application identity is invalid');
 if (manifest.version !== expectedPreviewVersion) fail(`Release manifest version must be ${expectedPreviewVersion}`);
-if (manifest.branch !== 'agent/talk2me-os2-integrated-rebuild') fail('Release manifest branch is not the controlled rebuild branch');
+if (manifest.branch !== expectedReleaseBranch) fail('Release manifest branch is not the controlled rebuild branch');
 if (!/^[0-9a-f]{40}$/i.test(String(manifest.commitSha || ''))) fail('Release manifest commit SHA is invalid');
+if (manifest.commitSha.toLowerCase() !== verifiedCommitSha.toLowerCase()) fail('Release manifest commit SHA does not match the post-freeze verified commit SHA');
+if (manifest.branch !== verifiedReleaseBranch) fail('Release manifest branch does not match the post-freeze verified branch');
 if (manifest.commitIdentityVerified !== true) fail('Release manifest commit identity is not verified');
 if (typeof manifest.approvedBy !== 'string' || !manifest.approvedBy.trim()) fail('Release manifest approver evidence is missing');
 if (typeof manifest.changeReference !== 'string' || !manifest.changeReference.trim()) fail('Release manifest change reference is missing');
@@ -169,7 +179,9 @@ console.log(JSON.stringify({
   version: manifest.version,
   expectedPreviewVersion,
   commitSha: manifest.commitSha,
+  commitShaMatchesVerifiedCheckout: true,
   branch: manifest.branch,
+  branchMatchesVerifiedCheckout: true,
   approvedBy: manifest.approvedBy,
   changeReference: manifest.changeReference,
   dependencyLockMatchesWorkspace: true,
