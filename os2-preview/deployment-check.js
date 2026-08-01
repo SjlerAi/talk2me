@@ -26,8 +26,20 @@ mustContain('readiness-check.js', [
   'EMAIL_WORKER_ENABLED',
   'migrations.length < 25',
   '20260801_025_merge_authorisation_restore_pin.sql',
+  'preview-data-verification.js',
   'merge-restore-evidence-verification.js',
-  'merge-restore-pin-check.js'
+  'merge-restore-pin-check.js',
+  "scripts['verify:preview-data']"
+]);
+
+mustContain('preview-data-verification.js', [
+  "const expectedDatabase = 'kloka_talk2me'",
+  "'schema-verification.js'",
+  "'merge-restore-evidence-verification.js'",
+  "stdio: 'inherit'",
+  'result.error',
+  'result.signal || result.status !== 0',
+  'mergeExecutionEnabled: false'
 ]);
 
 mustContain('merge-restore-evidence-verification.js', [
@@ -45,6 +57,7 @@ mustContain('merge-restore-pin-check.js', [
 [
   'migrations/20260801_025_merge_authorisation_restore_pin.sql',
   'schema-verification.js',
+  'preview-data-verification.js',
   'merge-restore-evidence-verification.js',
   'merge-restore-pin-check.js'
 ].forEach(mustExist);
@@ -53,6 +66,7 @@ const packageJson = require('./package.json');
 for (const script of [
   'migrate:preview',
   'verify:schema',
+  'verify:preview-data',
   'verify:merge-restore-evidence',
   'check:merge-restore-pin',
   'check:readiness',
@@ -66,6 +80,7 @@ console.log(JSON.stringify({
   check: 'deployment-controls',
   database: 'kloka_talk2me',
   minimumMigrationCount: 25,
+  previewDataVerificationRequired: true,
   restoreEvidenceRequired: true,
   executionEnabled: false
 }, null, 2));
