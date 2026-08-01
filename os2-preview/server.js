@@ -205,17 +205,50 @@ app.get('/api/auth/me', requireAuth, (req, res) => res.json({
 
 app.get('/api/dashboard', requireAuth, async (req, res) => {
   try {
-    const [approvals, overdue, clockedIn, activeStaff, customers, openWork] = await Promise.all([
-      count("SELECT COUNT(*) total FROM os2_approval_requests WHERE status IN ('pending','deferred')"),
-      count("SELECT COUNT(*) total FROM os2_work_items WHERE lifecycle_state NOT IN ('accepted','archived') AND due_at<NOW()"),
-      count("SELECT COUNT(DISTINCT staff_id) total FROM attendance_sessions WHERE work_date=CURRENT_DATE() AND status='active' AND clock_out_at IS NULL"),
-      count('SELECT COUNT(*) total FROM staff_users WHERE is_active=1'),
-      count('SELECT COUNT(*) total FROM os2_master_customers WHERE archived_at IS NULL'),
-      count("SELECT COUNT(*) total FROM os2_work_items WHERE lifecycle_state NOT IN ('accepted','archived')")
+    const managementDashboard = ['owner','manager','admin'].includes(String(req.user.role || '').toLowerCase());
+    const staffId = Number(req.user.id);
+    if (managementDashboard) {
+      const [approvals, overdue, clockedIn, activeStaff, customers, openWork] = await Promise.all([
+        count("SELECT COUNT(*) total FROM os2_approval_requests WHERE status IN ('pending','deferred')"),
+        count("SELECT COUNT(*) total FROM os2_work_items WHERE lifecycle_state NOT IN ('accepted','archived') AND due_at<NOW()"),
+        count("SELECT COUNT(DISTINCT staff_id) total FROM attendance_sessions WHERE work_date=CURRENT_DATE() AND status='active' AND clock_out_at IS NULL"),
+        count('SELECT COUNT(*) total FROM staff_users WHERE is_active=1'),
+        count('SELECT COUNT(*) total FROM os2_master_customers WHERE archived_at IS NULL AND id IS NOT NULL'),
+        count("SELECT COUNT(*) total FROM os2_work_items WHERE lifecycle_state NOT IN ('accepted','archived')")
+      ]);
+      const [activity] = await pool.execute(`SELECT action_type,entity_type,entity_id,description,created_at
+        FROM os2_audit_log WHERE actor_staff_id IS NOT NULL ORDER BY created_at DESC LIMIT 10`);
+      return res.json({ ok:true, scope:'management', user:req.user, metrics:{ approvals,overdue,clockedIn,activeStaff,customers,openWork }, activity });
+    }
+
+    const [accessibleRows] = await pool.execute(`SELECT DISTINCT master_customer_id FROM (
+      SELECT master_customer_id FROM os2_customer_ownership
+        WHERE assigned_staff_id=:staffId AND is_current=1
+          AND (access_expires_at IS NULL OR access_expires_at>NOW())
+      UNION
+      SELECT master_customer_id FROM os2_customer_access_grants
+        WHERE staff_id=:staffId AND revoked_at IS NULL
+          AND (expires_at IS NULL OR expires_at>NOW())
+    ) accessible_customers`, { staffId:req.user.id });
+    const customerIds = accessibleRows.map(row => Number(row.master_customer_id)).filter(id => Number.isInteger(id) && id > 0);
+    const customerParams = { staffId:req.user.id, customerIds:customerIds.length ? customerIds : [0] };
+    const [approvals, overdue, customers, openWork] = await Promise.all([
+      count("SELECT COUNT(*) total FROM os2_approval_requests WHERE requested_by=:staffId AND status IN ('pending','deferred')", customerParams),
+      count("SELECT COUNT(*) total FROM os2_work_items WHERE assignee_staff_id=:staffId AND lifecycle_state NOT IN ('accepted','archived') AND due_at<NOW()", customerParams),
+      count('SELECT COUNT(*) total FROM os2_master_customers WHERE archived_at IS NULL AND id IN (:customerIds)', customerParams),
+      count("SELECT COUNT(*) total FROM os2_work_items WHERE assignee_staff_id=:staffId AND lifecycle_state NOT IN ('accepted','archived') AND (master_customer_id IS NULL OR master_customer_id IN (:customerIds))", customerParams)
     ]);
     const [activity] = await pool.execute(`SELECT action_type,entity_type,entity_id,description,created_at
-      FROM os2_audit_log ORDER BY created_at DESC LIMIT 10`);
-    res.json({ ok:true, user:req.user, metrics:{ approvals,overdue,clockedIn,activeStaff,customers,openWork }, activity });
+      FROM os2_audit_log WHERE actor_staff_id=:staffId
+        AND (master_customer_id IS NULL OR master_customer_id IN (:customerIds))
+      ORDER BY created_at DESC LIMIT 10`, customerParams);
+    return res.json({
+      ok:true,
+      scope:'staff',
+      user:req.user,
+      metrics:{ approvals,overdue,clockedIn:null,activeStaff:null,customers,openWork },
+      activity
+    });
   } catch (error) {
     console.error('Dashboard failed', error.code || error.message);
     res.status(500).json({ ok:false, error:'DASHBOARD_QUERY_FAILED' });
