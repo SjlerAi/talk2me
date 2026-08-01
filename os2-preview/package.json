@@ -1,12 +1,12 @@
 {
   "name": "talk2me-os2-preview",
-  "version": "0.15.36",
+  "version": "0.16.0",
   "private": true,
-  "description": "Talk2me OS2 test application for talk2me.kloka.co.za",
+  "description": "Talk2me OS2 integrated rebuild test application for talk2me.kloka.co.za",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "check": "node --check server.js && node --check my-work-routes.js && node --check assignment-routes.js && node --check approval-routes.js && node --check notification-routes.js && node --check attendance-routes.js && node --check opportunity-routes.js && node --check report-routes.js && node --check import-routes.js && node --check administration-routes.js && node --check uat-smoke.js && node --check diagnose-claim-table.js",
+    "check": "node --check server.js && node --check integrated-routes.js && node --check document-routes.js && node --check core/permissions.js && node --check core/transactions.js && node --check core/audit.js && node --check core/ownership.js && node --check core/work-items.js && node --check my-work-routes.js && node --check assignment-routes.js && node --check approval-routes.js && node --check notification-routes.js && node --check attendance-routes.js && node --check opportunity-routes.js && node --check report-routes.js && node --check import-routes.js && node --check administration-routes.js && node --check uat-smoke.js && node --check diagnose-claim-table.js",
     "uat:smoke": "node uat-smoke.js",
     "diagnose:claim-table": "node diagnose-claim-table.js"
   },
