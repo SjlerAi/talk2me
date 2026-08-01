@@ -4,6 +4,7 @@ const fs=require('fs');
 const path=require('path');
 const root=__dirname;
 const gate=fs.readFileSync(path.join(root,'release-candidate-gate.js'),'utf8');
+const runbook=fs.readFileSync(path.join(root,'RELEASE_CANDIDATE_RUNBOOK.md'),'utf8');
 const pkg=JSON.parse(fs.readFileSync(path.join(root,'package.json'),'utf8'));
 const required=[
   'package-lock.json is required before release-candidate freeze',
@@ -25,6 +26,24 @@ const required=[
   'mergeExecutionEnabled: false'
 ];
 for(const marker of required) if(!gate.includes(marker)) throw new Error(`Missing release gate marker: ${marker}`);
+
+const runbookMarkers=[
+  '20260801_025_merge_authorisation_restore_pin.sql',
+  'npm run verify:merge-restore-evidence',
+  'npm run check:merge-restore-pin',
+  'npm run check:customer-merge-execution-readiness',
+  'exact passed restore test for the same verified backup',
+  'restore completed before Owner authorisation',
+  'A newer restore test must not be substituted',
+  'mergeExecutionEnabled: false',
+  'does not enable customer-merge execution',
+  'talk2me.kloka.co.za',
+  'kloka_talk2me',
+  'talk2me.uent.co.za',
+  'Migration 025, preview schema verification, pinned restore-evidence verification, deployment, restart and formal UAT have not yet been executed.'
+];
+for(const marker of runbookMarkers) if(!runbook.includes(marker)) throw new Error(`Missing release runbook marker: ${marker}`);
+
 if(!pkg.scripts['check:release-candidate']) throw new Error('Missing check:release-candidate script');
 if(!pkg.scripts['check:release-manifest']) throw new Error('Missing check:release-manifest script');
 if(pkg.scripts.check.includes('release-candidate-gate.js')) throw new Error('Release candidate gate must not run in normal CI before lockfile freeze');
@@ -34,5 +53,6 @@ console.log(JSON.stringify({
   module:'release-candidate-governance',
   version:pkg.version,
   restorePinMigration:'20260801_025_merge_authorisation_restore_pin.sql',
-  mergeExecutionEnabled:false
+  mergeExecutionEnabled:false,
+  runbookMarkers:runbookMarkers.length
 },null,2));
