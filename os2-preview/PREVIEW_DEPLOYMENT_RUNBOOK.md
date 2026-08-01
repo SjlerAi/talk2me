@@ -61,50 +61,43 @@ Hard stops:
 - stop if the runner reports `MIGRATION_LEDGER_BOOTSTRAP_REQUIRED`;
 - do not replace the bootstrap runner with runtime `CREATE TABLE` logic.
 
-The migration runner separately verifies the ledger table engine, collation, exact ordered columns, defaults, primary key, and unique migration-name key before reading ledger contents or applying migrations.
-
 ## 3. Bootstrap execution evidence
 
 The bootstrap runner itself creates the private JSON evidence file and SHA-256 sidecar. Do not redirect console output as a substitute and do not hand-author either file.
 
-The evidence records the preview database, bootstrap filename and SHA-256, verified backup reference and SHA-256, named operator, approved change reference, start and completion timestamps, pre-existing and created ledger-table counts, schema verification, empty-ledger result, advisory-lock lifecycle, and both prohibited execution flags set to false.
-
-Verify the generated pair before applying migration 001 or any later migration:
+Verify the generated pair after bootstrap:
 
 ```bash
 MIGRATION_LEDGER_BOOTSTRAP_EVIDENCE_PATH=/absolute/private/canonical/path/bootstrap-evidence.json \
 npm run verify:migration-ledger-bootstrap-evidence
 ```
 
-The verifier must:
-
-- validate a private canonical evidence directory;
-- securely open the evidence and checksum files with `O_NOFOLLOW`;
-- reject symbolic links, additional hard links, non-private permissions, oversized files, and path/descriptor identity changes;
-- validate the bootstrap evidence checksum with constant-time comparison;
-- bind the evidence to the checked-out `MIGRATION_LEDGER_BOOTSTRAP.sql` SHA-256;
-- verify the approved backup reference and checksum are present;
-- prove the ledger table was absent before execution;
-- prove exactly one ledger table was created;
-- confirm the ledger schema was verified and remains empty;
-- confirm the complete advisory lock lifecycle, including release;
-- retain production mutation and customer-merge execution as disabled.
-
-Do not proceed to controlled migrations when the evidence pair is absent, has been modified, or fails verification.
+The evidence must prove the checked-out bootstrap checksum, verified backup reference and checksum, named operator, approved change reference, absent ledger before execution, exactly one created table, verified schema, empty ledger, complete advisory-lock lifecycle, and disabled production and merge execution flags.
 
 ## 4. Controlled migration
+
+The migration command itself now re-runs bootstrap evidence verification before opening a MySQL connection. A separate manual verifier pass remains useful for operator review, but it cannot replace the runner-enforced gate.
 
 ```bash
 DB_NAME=kloka_talk2me \
 ALLOW_PREVIEW_MIGRATIONS=true \
 ALLOW_PRODUCTION_MUTATION=false \
 ENABLE_CUSTOMER_MERGE_EXECUTION=false \
+MIGRATION_LEDGER_BOOTSTRAP_EVIDENCE_PATH=/absolute/private/canonical/path/bootstrap-evidence.json \
 npm run migrate:preview
 ```
 
-The runner securely freezes migration sources, acquires `talk2me_os2_preview_migrations`, binds ownership to `CONNECTION_ID()`, verifies ownership with `IS_USED_LOCK()`, validates the ledger as an exact checksum-matching strict prefix of source, applies only the remaining ordered migrations, and confirms `RELEASE_LOCK()`.
+Before any database connection, the migration runner must:
 
-Unknown, duplicate, reordered, skipped, future, malformed, or checksum-mismatched ledger entries are hard stops. Only one controlled migration process may operate at a time.
+- require `MIGRATION_LEDGER_BOOTSTRAP_EVIDENCE_PATH`;
+- launch `migration-ledger-bootstrap-evidence-verification.js` with the active Node.js runtime;
+- inherit verifier output for the operator record;
+- stop when the verifier cannot start, is terminated by a signal, or returns a non-zero status;
+- force production mutation and customer-merge execution flags to false in the verifier process.
+
+Only after the evidence gate passes may the runner freeze migration sources, connect to `kloka_talk2me`, acquire `talk2me_os2_preview_migrations`, verify the ledger schema and strict checksum-matching prefix, apply remaining migrations, and confirm lock release.
+
+Do not proceed to controlled migrations when the evidence pair is absent, modified, points to a different bootstrap source, or fails verification. Unknown, duplicate, reordered, skipped, future, malformed, or checksum-mismatched ledger entries remain hard stops. Only one controlled migration process may operate at a time.
 
 ## 5. Mandatory preview data verification
 
