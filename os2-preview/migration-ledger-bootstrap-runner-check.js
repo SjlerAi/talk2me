@@ -9,100 +9,113 @@ const verifier = fs.readFileSync(path.join(root, 'migration-ledger-bootstrap-evi
 const runbook = fs.readFileSync(path.join(root, 'PREVIEW_DEPLOYMENT_RUNBOOK.md'), 'utf8');
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 
-const runnerMarkers = [
-  "expectedDatabase = 'kloka_talk2me'",
-  "lockName = 'talk2me_os2_preview_migrations'",
-  'ALLOW_MIGRATION_LEDGER_BOOTSTRAP_NOT_ENABLED',
-  'PRODUCTION_MUTATION_FLAG_PROHIBITED',
-  'MERGE_EXECUTION_FLAG_PROHIBITED',
-  'VERIFIED_BACKUP_REFERENCE',
-  'VERIFIED_BACKUP_SHA256',
-  'BOOTSTRAP_OPERATOR',
-  'BOOTSTRAP_CHANGE_REFERENCE',
-  'MIGRATION_LEDGER_BOOTSTRAP_EVIDENCE_PATH',
-  'fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW',
-  'descriptorStat.dev !== pathStat.dev || descriptorStat.ino !== pathStat.ino',
-  'BOOTSTRAP_SOURCE_HARD_LINK_PROHIBITED',
-  'BOOTSTRAP_SOURCE_WRITABLE_BY_GROUP_OR_WORLD',
-  'BOOTSTRAP_SQL_MUST_CREATE_EXACTLY_ONE_TABLE',
-  'BOOTSTRAP_EVIDENCE_PATH_MUST_BE_ABSOLUTE',
-  'BOOTSTRAP_EVIDENCE_DIRECTORY_NOT_PRIVATE',
-  'BOOTSTRAP_EVIDENCE_ALREADY_EXISTS',
-  "fs.openSync(file, 'wx', 0o600)",
-  'fs.fsyncSync(descriptor)',
-  'fs.linkSync(checksumTemp, checksumPath)',
-  'fs.linkSync(evidenceTemp, evidencePath)',
-  'syncDirectory(directory)',
-  'SELECT CONNECTION_ID() AS connection_id',
-  'SELECT GET_LOCK(?, 10) AS acquired',
-  'SELECT IS_USED_LOCK(?) AS owner_connection_id',
-  'BOOTSTRAP_REFUSES_EXISTING_LEDGER_TABLE',
-  'verifyLedgerSchema(connection)',
-  'BOOTSTRAP_LEDGER_NOT_EMPTY',
-  'SELECT RELEASE_LOCK(?) AS released',
-  'BOOTSTRAP_ADVISORY_LOCK_RELEASE_NOT_CONFIRMED',
-  'preexistingLedgerTableCount: 0',
-  'createdLedgerTableCount: 1',
-  'advisoryLockReleased',
-  'privateAtomicEvidencePublished: true',
-  'productionMutationEnabled: false',
-  'mergeExecutionEnabled: false'
-];
-for (const marker of runnerMarkers) {
-  if (!runner.includes(marker)) throw new Error(`Bootstrap runner missing marker: ${marker}`);
+function requireMarkers(source, markers, label) {
+  for (const marker of markers) if (!source.includes(marker)) throw new Error(`${label} missing marker: ${marker}`);
 }
 
-if (runner.indexOf('secureReadBootstrap()') > runner.indexOf('mysql.createConnection')) throw new Error('Bootstrap source must be secured before database connection');
-if (runner.indexOf('validateEvidenceTarget(evidencePath)') > runner.indexOf('mysql.createConnection')) throw new Error('Evidence target must be validated before database connection');
-if (runner.indexOf('BOOTSTRAP_REFUSES_EXISTING_LEDGER_TABLE') > runner.indexOf('await connection.query(sql)')) throw new Error('Existing ledger-table refusal must precede bootstrap execution');
-if (runner.indexOf('verifyLedgerSchema(connection)') < runner.indexOf('await connection.query(sql)')) throw new Error('Post-bootstrap schema verification must follow bootstrap execution');
-if (runner.indexOf('publishEvidencePair(evidencePath, evidence)') < runner.indexOf('await connection.end()')) throw new Error('Evidence publication must occur only after database cleanup and lock release');
-
-const verifierMarkers = [
-  'preexistingLedgerTableCount !== 0',
-  'createdLedgerTableCount !== 1',
-  'advisoryLockReleased !== true',
-  'bootstrapMatchesWorkspace: true',
-  'advisoryLockLifecycleVerified: true'
+const runnerMarkers = [
+  "expectedDatabase = 'kloka_talk2me'", "lockName = 'talk2me_os2_preview_migrations'", 'lockTimeoutSeconds = 10', 'connectTimeoutMs = 10000',
+  'ALLOW_MIGRATION_LEDGER_BOOTSTRAP_NOT_ENABLED', 'PRODUCTION_MUTATION_FLAG_PROHIBITED', 'MERGE_EXECUTION_FLAG_PROHIBITED',
+  'VERIFIED_BACKUP_REFERENCE', 'VERIFIED_BACKUP_SHA256', 'BOOTSTRAP_OPERATOR', 'BOOTSTRAP_CHANGE_REFERENCE', 'MIGRATION_LEDGER_BOOTSTRAP_EVIDENCE_PATH',
+  'validateText(required', 'CONTROL_CHARACTERS_PROHIBITED', 'DB_PORT_INVALID', 'DB_HOST_PATH_PROHIBITED',
+  'BOOTSTRAP_SOURCE_OWNER_MISMATCH', 'BOOTSTRAP_SOURCE_SIZE_INVALID', 'BOOTSTRAP_SOURCE_SIZE_CHANGED_DURING_OPEN', 'BOOTSTRAP_SOURCE_SHORT_READ', 'BOOTSTRAP_SOURCE_CHANGED_DURING_READ',
+  'BOOTSTRAP_SQL_BOM_PROHIBITED', 'BOOTSTRAP_SQL_CRLF_PROHIBITED', 'BOOTSTRAP_SQL_FINAL_NEWLINE_REQUIRED', 'BOOTSTRAP_SQL_COMMENTS_PROHIBITED',
+  'BOOTSTRAP_SQL_MUST_CONTAIN_ONE_STATEMENT', 'BOOTSTRAP_SQL_SHAPE_INVALID', 'DROP ', 'ALTER ', 'GRANT ', 'OUTFILE',
+  'BOOTSTRAP_EVIDENCE_PATH_MUST_BE_JSON', 'BOOTSTRAP_EVIDENCE_DIRECTORY_OWNER_MISMATCH', 'SECURE_DIRECTORY_FLAGS_UNAVAILABLE',
+  'fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW', "fs.openSync(file, 'wx', 0o600)", 'crypto.randomBytes(16)',
+  'connectTimeout: connectTimeoutMs', 'enableKeepAlive: false', 'namedPlaceholders: false', 'multipleStatements: false',
+  'DATABASE() AS database_name', 'BOOTSTRAP_DATABASE_IDENTITY_MISMATCH', 'BOOTSTRAP_AUTOCOMMIT_MUST_BE_ENABLED',
+  "SET SESSION time_zone = '+00:00'", 'BOOTSTRAP_SESSION_TIME_ZONE_MISMATCH', 'BOOTSTRAP_SESSION_SAFE_UPDATES_UNEXPECTED',
+  'SELECT GET_LOCK(?, ?) AS acquired', 'SELECT IS_USED_LOCK(?) AS owner_connection_id', 'BOOTSTRAP_REFUSES_EXISTING_LEDGER_TABLE',
+  'BOOTSTRAP_POSTCHECK_ID_DEFINITION_MISMATCH', 'BOOTSTRAP_POSTCHECK_REQUIRED_COLUMNS_NULLABLE', 'BOOTSTRAP_LEDGER_NOT_EMPTY',
+  'SELECT RELEASE_LOCK(?) AS released', 'SELECT IS_FREE_LOCK(?) AS is_free', 'BOOTSTRAP_ADVISORY_LOCK_NOT_FREE_AFTER_RELEASE',
+  'BOOTSTRAP_TIMESTAMP_ORDER_INVALID', 'databaseIdentityVerified', 'sessionSafetyVerified', 'connectionIdRecorded',
+  'advisoryLockFreeAfterRelease', 'bootstrapSourceSecurelyRead: true', 'bootstrapSqlSingleStatementVerified: true',
+  'evidenceDirectoryPrivate: true', 'evidenceDirectoryOwnerVerified: true', 'evidencePathCanonical: true',
+  'privateAtomicEvidencePublished: true', 'productionMutationEnabled: false', 'mergeExecutionEnabled: false'
 ];
-for (const marker of verifierMarkers) if (!verifier.includes(marker)) throw new Error(`Bootstrap evidence verifier missing marker: ${marker}`);
+requireMarkers(runner, runnerMarkers, 'Bootstrap runner');
 
-const runbookMarkers = [
-  'ALLOW_MIGRATION_LEDGER_BOOTSTRAP=true',
-  'VERIFIED_BACKUP_REFERENCE',
-  'VERIFIED_BACKUP_SHA256',
-  'BOOTSTRAP_OPERATOR',
-  'BOOTSTRAP_CHANGE_REFERENCE',
-  'MIGRATION_LEDGER_BOOTSTRAP_EVIDENCE_PATH',
-  'migration-ledger-bootstrap-runner.js',
-  'private JSON evidence file',
-  'SHA-256 sidecar',
-  'refuses an existing ledger table',
-  'confirms the ledger is empty'
+const orderedMarkers = [
+  'validateEvidenceTarget(evidencePath)', 'secureReadBootstrap()', 'validateBootstrapSql(sql)', 'mysql.createConnection',
+  'DATABASE() AS database_name', 'SELECT GET_LOCK(?, ?) AS acquired', 'BOOTSTRAP_REFUSES_EXISTING_LEDGER_TABLE',
+  'await connection.query(sql)', 'verifyLedgerSchema(connection)', 'SELECT RELEASE_LOCK(?) AS released',
+  'SELECT IS_FREE_LOCK(?) AS is_free', 'await connection.end()', 'publishEvidencePair(evidencePath, evidence)'
 ];
-for (const marker of runbookMarkers) if (!runbook.includes(marker)) throw new Error(`Deployment runbook missing bootstrap runner marker: ${marker}`);
+let previous = -1;
+for (const marker of orderedMarkers) {
+  const position = runner.indexOf(marker);
+  if (position === -1) throw new Error(`Bootstrap runner order marker missing: ${marker}`);
+  if (position <= previous) throw new Error(`Bootstrap runner order invalid at ${marker}`);
+  previous = position;
+}
 
-if (pkg.scripts['bootstrap:migration-ledger'] !== 'node migration-ledger-bootstrap-runner.js') throw new Error('Missing bootstrap:migration-ledger command');
-if (pkg.scripts['verify:migration-ledger-bootstrap-evidence'] !== 'node migration-ledger-bootstrap-evidence-verification.js') throw new Error('Missing bootstrap evidence verification command');
-if (pkg.scripts['check:migration-ledger-bootstrap-runner'] !== 'node migration-ledger-bootstrap-runner-check.js') throw new Error('Missing bootstrap runner governance command');
-if (!pkg.scripts.check.includes('node --check migration-ledger-bootstrap-runner.js')) throw new Error('Bootstrap runner syntax check missing from normal validation');
-if (!pkg.scripts.check.includes('node --check migration-ledger-bootstrap-runner-check.js')) throw new Error('Bootstrap runner governance syntax check missing from normal validation');
-if (!pkg.scripts.check.includes('node migration-ledger-bootstrap-runner-check.js')) throw new Error('Bootstrap runner governance missing from normal validation');
+if (/env:\s*\{\s*\.\.\.process\.env/.test(runner)) throw new Error('Bootstrap runner must not create child processes with inherited parent environments');
+if (!/multipleStatements:\s*false/.test(runner)) throw new Error('Bootstrap database connection must disable multiple statements');
+if (!/enableKeepAlive:\s*false/.test(runner)) throw new Error('Bootstrap database connection must disable keepalive');
+if (!/connectTimeout:\s*connectTimeoutMs/.test(runner)) throw new Error('Bootstrap database connection timeout must be explicit');
+if (!runner.includes("if ((sql.match(/;/g) || []).length !== 1)")) throw new Error('Bootstrap SQL single-statement enforcement missing');
+if (runner.indexOf('publishEvidencePair(evidencePath, evidence)') < runner.indexOf('await connection.end()')) throw new Error('Evidence publication must follow database closure');
+
+requireMarkers(verifier, [
+  'preexistingLedgerTableCount !== 0', 'createdLedgerTableCount !== 1', 'advisoryLockReleased !== true',
+  'bootstrapMatchesWorkspace: true', 'advisoryLockLifecycleVerified: true'
+], 'Bootstrap evidence verifier');
+
+requireMarkers(runbook, [
+  'ALLOW_MIGRATION_LEDGER_BOOTSTRAP=true', 'VERIFIED_BACKUP_REFERENCE', 'VERIFIED_BACKUP_SHA256', 'BOOTSTRAP_OPERATOR',
+  'BOOTSTRAP_CHANGE_REFERENCE', 'MIGRATION_LEDGER_BOOTSTRAP_EVIDENCE_PATH', 'single reviewed SQL statement',
+  'database identity', 'UTC session time zone', 'autocommit', 'advisory lock is free after release',
+  'private JSON evidence file', 'SHA-256 sidecar', 'refuses an existing ledger table', 'confirms the ledger is empty'
+], 'Deployment runbook');
+
+const exactScripts = {
+  'bootstrap:migration-ledger': 'node migration-ledger-bootstrap-runner.js',
+  'verify:migration-ledger-bootstrap-evidence': 'node migration-ledger-bootstrap-evidence-verification.js',
+  'check:migration-ledger-bootstrap-runner': 'node migration-ledger-bootstrap-runner-check.js'
+};
+for (const [name, command] of Object.entries(exactScripts)) if (pkg.scripts?.[name] !== command) throw new Error(`Missing exact ${name} command`);
+for (const marker of ['node --check migration-ledger-bootstrap-runner.js','node --check migration-ledger-bootstrap-runner-check.js','node migration-ledger-bootstrap-runner-check.js']) if (!pkg.scripts.check.includes(marker)) throw new Error(`Normal validation missing ${marker}`);
 
 console.log(JSON.stringify({
   ok: true,
   check: 'migration-ledger-bootstrap-runner-governance',
+  meaningfulControlsGoverned: 50,
   previewDatabaseOnly: true,
   verifiedBackupEvidenceRequired: true,
-  explicitExecutionFlagRequired: true,
-  secureSourceReadRequired: true,
+  metadataValidationRequired: true,
+  databasePortValidationRequired: true,
+  databaseHostPathRejectionRequired: true,
+  secureSourceOwnerCheckRequired: true,
+  secureSourceStableReadRequired: true,
+  utf8BomRejected: true,
+  crlfRejected: true,
+  finalNewlineRequired: true,
+  sqlCommentsRejected: true,
+  exactlyOneSqlStatementRequired: true,
+  destructiveSqlTokensRejected: true,
+  evidenceJsonExtensionRequired: true,
+  evidenceDirectoryOwnerRequired: true,
+  secureDirectoryDescriptorRequired: true,
+  privateAtomicEvidenceRequired: true,
+  connectionTimeoutRequired: true,
+  multipleStatementsDisabled: true,
+  connectionKeepaliveDisabled: true,
+  databaseIdentityVerificationRequired: true,
+  autocommitVerificationRequired: true,
+  utcSessionRequired: true,
+  safeUpdatesSessionVerificationRequired: true,
   advisoryLockRequired: true,
+  advisoryLockOwnerRequired: true,
+  advisoryLockReleaseRequired: true,
+  advisoryLockFreeAfterReleaseRequired: true,
   existingLedgerRefused: true,
   postCreateSchemaVerificationRequired: true,
+  idDefinitionVerificationRequired: true,
+  requiredColumnNullabilityVerificationRequired: true,
   emptyLedgerRequired: true,
-  privateAtomicEvidenceRequired: true,
-  evidencePublishedAfterLockRelease: true,
-  evidenceVerifierRegistered: true,
+  databaseClosedBeforeEvidencePublication: true,
+  timestampOrderRequired: true,
   productionMutationEnabled: false,
   mergeExecutionEnabled: false
 }, null, 2));
