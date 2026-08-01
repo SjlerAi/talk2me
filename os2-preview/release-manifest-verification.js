@@ -17,6 +17,29 @@ const manifestPath = String(process.env.RELEASE_MANIFEST_PATH || '').trim();
 if (!manifestPath) fail('RELEASE_MANIFEST_PATH is required');
 if (!path.isAbsolute(manifestPath)) fail('RELEASE_MANIFEST_PATH must be absolute');
 
+const evidenceDirectory = path.dirname(manifestPath);
+let directoryStat;
+try {
+  directoryStat = fs.lstatSync(evidenceDirectory);
+} catch {
+  fail(`Release evidence directory is missing: ${evidenceDirectory}`);
+}
+if (!directoryStat.isDirectory() || directoryStat.isSymbolicLink()) {
+  fail(`Release evidence directory must be a real non-symlink directory: ${evidenceDirectory}`);
+}
+if (process.platform !== 'win32' && (directoryStat.mode & 0o077) !== 0) {
+  fail(`Release evidence directory must not permit group or world access: ${evidenceDirectory}`);
+}
+let canonicalDirectory;
+try {
+  canonicalDirectory = fs.realpathSync.native(evidenceDirectory);
+} catch {
+  fail(`Release evidence directory cannot be resolved canonically: ${evidenceDirectory}`);
+}
+if (canonicalDirectory !== evidenceDirectory) {
+  fail(`Release evidence directory path is not canonical: ${evidenceDirectory}`);
+}
+
 const checksumPath = `${manifestPath}.sha256`;
 for (const file of [manifestPath, checksumPath]) {
   let stat;
@@ -27,6 +50,13 @@ for (const file of [manifestPath, checksumPath]) {
   }
   if (!stat.isFile() || stat.isSymbolicLink()) fail(`Release evidence must be a regular non-symlink file: ${file}`);
   if (process.platform !== 'win32' && (stat.mode & 0o777) !== 0o600) fail(`Release evidence permissions must be 0600: ${file}`);
+  let canonicalFile;
+  try {
+    canonicalFile = fs.realpathSync.native(file);
+  } catch {
+    fail(`Release evidence file cannot be resolved canonically: ${file}`);
+  }
+  if (canonicalFile !== file) fail(`Release evidence file path is not canonical: ${file}`);
 }
 
 const manifestBytes = fs.readFileSync(manifestPath);
@@ -90,6 +120,9 @@ console.log(JSON.stringify({
   ok: true,
   check: 'release-manifest-verification',
   manifestPath,
+  evidenceDirectory,
+  evidenceDirectoryCanonical: true,
+  evidenceDirectoryPrivate: true,
   manifestSha256: actualChecksum,
   version: manifest.version,
   commitSha: manifest.commitSha,
