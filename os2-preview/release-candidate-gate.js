@@ -11,6 +11,7 @@ const warnings = [];
 function exists(file) { return fs.existsSync(path.join(root, file)); }
 function fail(message) { failures.push(message); }
 function sha256(file) { return crypto.createHash('sha256').update(fs.readFileSync(path.join(root,file))).digest('hex'); }
+function sha256Text(value) { return crypto.createHash('sha256').update(value).digest('hex'); }
 
 const pkg = JSON.parse(fs.readFileSync(path.join(root,'package.json'),'utf8'));
 const migrations = fs.readdirSync(path.join(root,'migrations')).filter(name => /^\d+_.+\.sql$/.test(name)).sort();
@@ -36,6 +37,7 @@ const releaseApprovedBy = String(process.env.RELEASE_APPROVED_BY || '').trim();
 const releaseChangeReference = String(process.env.RELEASE_CHANGE_REFERENCE || '').trim();
 const releaseBranch = String(process.env.RELEASE_BRANCH || process.env.GITHUB_REF_NAME || '').trim();
 const output = String(process.env.RELEASE_MANIFEST_PATH || '').trim();
+const checksumOutput = output ? `${output}.sha256` : '';
 
 if (!/^0\.\d+\.0$/.test(pkg.version)) fail(`Unexpected preview version format: ${pkg.version}`);
 if (migrations.length < 25) fail(`Expected at least 25 migrations, found ${migrations.length}`);
@@ -102,8 +104,17 @@ if (output && path.isAbsolute(output)) {
   if (!fs.existsSync(outputDirectory)) {
     fail(`Release manifest directory does not exist: ${outputDirectory}`);
     manifest.ok = false;
+  } else if (fs.existsSync(output)) {
+    fail(`Release manifest already exists: ${output}`);
+    manifest.ok = false;
+  } else if (fs.existsSync(checksumOutput)) {
+    fail(`Release manifest checksum already exists: ${checksumOutput}`);
+    manifest.ok = false;
   } else if (failures.length === 0) {
-    fs.writeFileSync(output, JSON.stringify(manifest,null,2) + '\n', { mode:0o600, flag:'wx' });
+    const manifestText = JSON.stringify(manifest,null,2) + '\n';
+    const manifestChecksum = sha256Text(manifestText);
+    fs.writeFileSync(output, manifestText, { mode:0o600, flag:'wx' });
+    fs.writeFileSync(checksumOutput, `${manifestChecksum}  ${path.basename(output)}\n`, { mode:0o600, flag:'wx' });
   }
 }
 
