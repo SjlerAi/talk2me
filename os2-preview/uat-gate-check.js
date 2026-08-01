@@ -8,6 +8,7 @@ const runner = fs.readFileSync(path.join(root, 'preview-uat-runner.js'), 'utf8')
 const schema = fs.readFileSync(path.join(root, 'schema-verification.js'), 'utf8');
 const previewData = fs.readFileSync(path.join(root, 'preview-data-verification.js'), 'utf8');
 const runtimeIdentity = fs.readFileSync(path.join(root, 'runtime-release-identity-check.js'), 'utf8');
+const activationPreflight = fs.readFileSync(path.join(root, 'preview-activation-preflight.js'), 'utf8');
 const readiness = fs.readFileSync(path.join(root, 'customer-merge-execution-readiness-routes.js'), 'utf8');
 const restoreEvidence = fs.readFileSync(path.join(root, 'merge-restore-evidence-verification.js'), 'utf8');
 const restorePinCheck = fs.readFileSync(path.join(root, 'merge-restore-pin-check.js'), 'utf8');
@@ -36,6 +37,19 @@ expect(runtimeIdentity.includes("expectedDatabase = 'kloka_talk2me'"), 'Runtime 
 expect(runtimeIdentity.includes('DB_NAME is required for runtime release identity verification'), 'Runtime identity must fail when DB_NAME is absent');
 expect(runtimeIdentity.includes('productionMutationEnabled: false'), 'Runtime identity must retain the production mutation lock');
 expect(runtimeIdentity.includes('mergeExecutionEnabled: false'), 'Runtime identity must retain the merge execution lock');
+expect(activationPreflight.includes("expectedBranch = 'agent/talk2me-os2-integrated-rebuild'"), 'Activation preflight must pin the controlled branch');
+expect(activationPreflight.includes("'runtime-release-identity-check.js'"), 'Activation preflight must execute runtime identity first');
+expect(activationPreflight.includes("'readiness-check.js'"), 'Activation preflight must execute readiness');
+expect(activationPreflight.includes("'deployment-check.js'"), 'Activation preflight must execute deployment governance');
+expect(activationPreflight.includes("'uat-gate-check.js'"), 'Activation preflight must execute UAT governance');
+expect(activationPreflight.includes("'release-manifest-check.js'"), 'Activation preflight must execute release governance');
+expect(activationPreflight.includes("stdio: 'inherit'"), 'Activation preflight must preserve child evidence');
+expect(activationPreflight.includes('result.error'), 'Activation preflight must fail on start errors');
+expect(activationPreflight.includes('result.signal'), 'Activation preflight must fail on interruption');
+expect(activationPreflight.includes('result.status !== 0'), 'Activation preflight must fail on non-zero status');
+expect(activationPreflight.includes('databaseBackedVerificationExecuted: false'), 'Activation preflight must not claim database verification');
+expect(activationPreflight.includes('migrationsExecuted: false'), 'Activation preflight must not claim migration execution');
+expect(activationPreflight.includes('previewRestartExecuted: false'), 'Activation preflight must not claim restart execution');
 expect(schema.includes("dbName !== 'kloka_talk2me'"), 'Schema verification must pin the preview database');
 expect(schema.includes('information_schema.TABLES'), 'Schema verification must inspect required tables');
 expect(schema.includes('information_schema.COLUMNS'), 'Schema verification must inspect required columns');
@@ -62,6 +76,7 @@ expect(runbook.includes('Running only `npm run verify:schema` is not sufficient'
 expect(runbook.includes('mergeExecutionEnabled: false'), 'UAT runbook must retain merge execution lock evidence');
 expect(runbook.includes('exact commit SHA and preview version'), 'UAT evidence must retain exact build identity');
 expect(pkg.scripts['verify:runtime-release-identity'] === 'node runtime-release-identity-check.js', 'Package must expose runtime identity verification');
+expect(pkg.scripts['verify:preview-activation-preflight'] === 'node preview-activation-preflight.js', 'Package must expose activation preflight');
 expect(pkg.scripts['verify:schema'] === 'node schema-verification.js', 'Package must expose verify:schema');
 expect(pkg.scripts['verify:merge-restore-evidence'] === 'node merge-restore-evidence-verification.js', 'Package must expose restore evidence verification');
 expect(pkg.scripts['verify:preview-data'] === 'node preview-data-verification.js', 'Package must expose preview data verification');
@@ -77,6 +92,7 @@ console.log(JSON.stringify({
   ok: true,
   check: 'uat-gate',
   runtimeReleaseIdentityRequired: true,
+  previewActivationPreflightRequired: true,
   previewDataVerificationRequired: true,
   productionMutationEnabled: false,
   mergeExecutionEnabled: false
