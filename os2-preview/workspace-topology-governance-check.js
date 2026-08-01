@@ -25,17 +25,24 @@ requireMarkers(verifier, [
   'descriptorStat.dev !== pathStat.dev || descriptorStat.ino !== pathStat.ino',
   'descriptorStat.nlink !== 1',
   'descriptorStat.size > maxBytes',
-  "['server.js', 'Preview server entrypoint'",
-  "['migration-ledger-bootstrap-runner.js', 'Migration ledger bootstrap runner'",
-  "['migration-ledger-bootstrap-evidence-verification.js', 'Migration ledger bootstrap evidence verifier'",
-  "['migration-runner.js', 'Controlled migration runner'",
+  "['workspace-topology-verification.js', 'Workspace topology verifier'",
+  "['workspace-topology-governance-check.js', 'Workspace topology governance'",
+  "['workspace-source-integrity.js', 'Workspace source-integrity verifier'",
+  "['workspace-source-integrity-check.js', 'Workspace source-integrity governance'",
   "['preview-activation-preflight.js', 'Preview activation preflight'",
+  "['preview-activation-governance-check.js', 'Preview activation governance'",
+  "['release-evidence-security-check.js', 'Release evidence security governance'",
+  "['release-source-integrity-verification.js', 'Release source-integrity verifier'",
+  "['release-source-integrity-check.js', 'Release source-integrity governance'",
   "['release-candidate-gate.js', 'Release candidate gate'",
   "['release-manifest-verification.js', 'Release manifest verifier'",
-  "['PREVIEW_ACTIVATION_RUNBOOK.md', 'Preview activation runbook'",
-  "['PREVIEW_DEPLOYMENT_RUNBOOK.md', 'Preview deployment runbook'",
-  "['PREVIEW_UAT_RUNBOOK.md', 'Preview UAT runbook'",
-  "['RELEASE_CANDIDATE_RUNBOOK.md', 'Release candidate runbook'",
+  "['release-manifest-check.js', 'Release manifest governance'",
+  "['CI_AND_BUILD_EVIDENCE_RUNBOOK.md', 'CI and build evidence runbook'",
+  'topologyVerifierSelfProtected:',
+  'topologyGovernanceProtected:',
+  'sourceIntegrityControlsProtected:',
+  'activationGovernanceProtected:',
+  'releaseGovernanceProtected:',
   'Hidden entry is prohibited in migrations directory',
   'Only regular migration files are permitted in migrations directory',
   'Unexpected file in migrations directory',
@@ -62,10 +69,23 @@ requireMarkers(bootstrapGovernance, [
 
 requireMarkers(activation, [
   "'workspace-topology-verification.js'",
+  "'workspace-source-integrity.js'",
+  "'workspace-source-integrity-check.js'",
+  "'workspace-topology-governance-check.js'",
   'PREVIEW_APP_ROOT: root',
   "ALLOW_PRODUCTION_MUTATION: 'false'",
   "ENABLE_CUSTOMER_MERGE_EXECUTION: 'false'"
 ], 'Activation preflight');
+
+const ordered = [
+  "'workspace-topology-verification.js'",
+  "'workspace-source-integrity.js'",
+  "'workspace-source-integrity-check.js'",
+  "'workspace-topology-governance-check.js'"
+];
+for (let index = 1; index < ordered.length; index += 1) {
+  if (activation.indexOf(ordered[index - 1]) >= activation.indexOf(ordered[index])) throw new Error(`Workspace topology order invalid at ${ordered[index]}`);
+}
 
 requireMarkers(runbook, [
   'workspace-topology-verification.js',
@@ -74,7 +94,9 @@ requireMarkers(runbook, [
   'migration directory contains only ordered `.sql` migration files',
   're-verify directory descriptor identity after inventory validation',
   'additional hard links',
-  'bounded file sizes'
+  'bounded file sizes',
+  'topology verifier and its governance check are both part of the protected topology',
+  'source-integrity, activation and release-governance controls are protected by topology verification'
 ], 'Activation runbook');
 
 if (pkg.scripts['check:workspace-topology-governance'] !== 'node workspace-topology-governance-check.js') throw new Error('Missing check:workspace-topology-governance command');
@@ -93,12 +115,18 @@ console.log(JSON.stringify({
   hardLinkRejectionRequired: true,
   boundedProtectedFilesRequired: true,
   migrationDirectoryPurityRequired: true,
+  topologyVerifierSelfProtected: true,
+  topologyGovernanceSelfProtected: true,
+  sourceIntegrityControlsProtected: true,
+  activationGovernanceProtected: true,
+  releaseGovernanceProtected: true,
   migrationLedgerBootstrapProtected: true,
   migrationLedgerBootstrapGovernanceRequired: true,
   migrationRunnerProtected: true,
   releaseCandidateControlsProtected: true,
   operationalRunbooksProtected: true,
   migration025Required: true,
+  activationOrderingProtected: true,
   packageCommandRegistered: true,
   normalValidationRegistered: true,
   productionMutationEnabled: false,
