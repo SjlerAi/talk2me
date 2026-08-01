@@ -38,17 +38,34 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: npm
-          cache-dependency-path: os2-preview/package.json
 
-      - name: Install dependencies
-        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Detect dependency lock
+        id: dependency-lock
+        shell: bash
+        run: |
+          if [ -f package-lock.json ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::package-lock.json is absent. Source validation will continue, dependency audit and release-candidate freeze remain blocked."
+          fi
+
+      - name: Install dependencies without changing repository lock state
+        run: npm install --ignore-scripts --no-audit --no-fund --package-lock=false
 
       - name: Run integrated validation suite
         run: npm run check
 
       - name: Run dependency audit
+        if: steps.dependency-lock.outputs.present == 'true'
         run: npm audit --omit=dev --audit-level=high
+
+      - name: Record dependency audit blocker
+        if: steps.dependency-lock.outputs.present != 'true'
+        shell: bash
+        run: |
+          echo "### Dependency audit blocked" >> "$GITHUB_STEP_SUMMARY"
+          echo "A committed os2-preview/package-lock.json is required before dependency audit and release-candidate freeze." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Generate build evidence
         env:
@@ -56,6 +73,7 @@ jobs:
           GITHUB_REF_NAME: ${{ github.ref_name }}
           GITHUB_RUN_ID: ${{ github.run_id }}
           GITHUB_RUN_NUMBER: ${{ github.run_number }}
+          DEPENDENCY_LOCK_PRESENT: ${{ steps.dependency-lock.outputs.present }}
         run: npm run evidence:build
 
       - name: Upload build evidence
