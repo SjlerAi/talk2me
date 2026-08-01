@@ -2,6 +2,7 @@
 
 const legacyRouteCompatibility = require('./legacy-route-compatibility');
 const createScopedCustomerSearch = require('./scoped-customer-search');
+const { hasPermission } = require('./core/permissions');
 const MANAGEMENT_ROLES = new Set(['owner','manager','admin']);
 const READ_METHODS = new Set(['GET','HEAD','OPTIONS']);
 
@@ -67,6 +68,9 @@ function createCustomerAccessGuard({ pool }) {
     legacyRouteCompatibility(req,res,()=>{compatibilityHandled=true;});
     if (!compatibilityHandled || res.headersSent) return;
     if (!req.path.startsWith('/api/os2/') || !req.user) return next();
+    if (req.method === 'POST' && req.path === '/api/os2/approvals' && !hasPermission(req.user,'approval.create')) {
+      return res.status(403).json({ok:false,error:'INSUFFICIENT_PERMISSION'});
+    }
     if (req.path === '/api/os2/customers/search') return scopedSearch(req,res,next);
     if (req.path === '/api/os2/customers/quick-onboard') return next();
     try {
