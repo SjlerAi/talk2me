@@ -5,8 +5,13 @@ const path = require('path');
 const { ROLE_PERMISSIONS, PROTECTED_PERMISSION_ROLES } = require('./core/permissions');
 
 const root = __dirname;
+const explicitRuntimeFiles = new Set([
+  'server.js',
+  'customer-access-control.js',
+  'security-controls.js'
+]);
 const files = fs.readdirSync(root)
-  .filter((name) => name === 'server.js' || name.endsWith('-routes.js'))
+  .filter((name) => explicitRuntimeFiles.has(name) || name.endsWith('-routes.js'))
   .sort();
 
 const declared = new Set(Object.values(ROLE_PERMISSIONS).flat().filter((permission) => permission !== '*'));
@@ -35,6 +40,8 @@ for (const file of files) {
   }
 }
 
+if (!used.size) throw new Error('No runtime permissions discovered; inventory scan is not effective');
+
 const unknown = [...used.keys()].filter((permission) => !declared.has(permission)).sort();
 if (unknown.length) {
   throw new Error(`Route permissions missing from central registry: ${unknown.map((permission) => `${permission} [${[...used.get(permission)].join(', ')}]`).join('; ')}`);
@@ -51,6 +58,9 @@ const protectedRequired = [
 for (const permission of protectedRequired) {
   if (!PROTECTED_PERMISSION_ROLES[permission]) throw new Error(`Missing protected permission ceiling: ${permission}`);
 }
+
+if (!used.has('approval.create')) throw new Error('Customer access approval.create enforcement is missing from runtime inventory');
+if (!files.includes('customer-access-control.js')) throw new Error('Customer access middleware is missing from runtime inventory');
 
 console.log(JSON.stringify({
   ok: true,
