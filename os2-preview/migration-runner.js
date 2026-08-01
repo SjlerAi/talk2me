@@ -61,7 +61,6 @@ function readMigrationSecurely(name, expectedOwner) {
   if (pathStat.size > MAX_MIGRATION_BYTES) throw new Error(`MIGRATION_TOO_LARGE:${name}`);
   if (fs.realpathSync.native(file) !== file) throw new Error(`MIGRATION_PATH_NOT_CANONICAL:${name}`);
   if (typeof fs.constants.O_NOFOLLOW !== 'number') throw new Error('SECURE_FILE_FLAGS_UNAVAILABLE');
-
   const descriptor = fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
   try {
     const descriptorStat = fs.fstatSync(descriptor);
@@ -77,17 +76,44 @@ function readMigrationSecurely(name, expectedOwner) {
   }
 }
 
-async function ensureLedger(connection) {
-  await connection.execute(`CREATE TABLE IF NOT EXISTS os2_schema_migrations (
-    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-    migration_name VARCHAR(255) NOT NULL,
-    checksum_sha256 CHAR(64) NOT NULL,
-    executed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    executed_by VARCHAR(190) NULL,
-    execution_ms INT UNSIGNED NOT NULL DEFAULT 0,
-    PRIMARY KEY (id),
-    UNIQUE KEY uq_os2_schema_migration_name (migration_name)
-  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+async function verifyLedgerSchema(connection) {
+  const [tables] = await connection.execute(`SELECT TABLE_NAME, ENGINE, TABLE_COLLATION
+    FROM information_schema.TABLES
+    WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'os2_schema_migrations'`, [PREVIEW_DATABASE]);
+  if (tables.length !== 1) throw new Error('MIGRATION_LEDGER_BOOTSTRAP_REQUIRED');
+  if (String(tables[0].ENGINE || '').toUpperCase() !== 'INNODB') throw new Error('MIGRATION_LEDGER_ENGINE_INVALID');
+  if (tables[0].TABLE_COLLATION !== 'utf8mb4_unicode_ci') throw new Error('MIGRATION_LEDGER_COLLATION_INVALID');
+
+  const [columns] = await connection.execute(`SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT, EXTRA, ORDINAL_POSITION
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'os2_schema_migrations'
+    ORDER BY ORDINAL_POSITION`, [PREVIEW_DATABASE]);
+  const expected = [
+    ['id','bigint unsigned','NO',null,'auto_increment'],
+    ['migration_name','varchar(255)','NO',null,''],
+    ['checksum_sha256','char(64)','NO',null,''],
+    ['executed_at','datetime','NO','CURRENT_TIMESTAMP','DEFAULT_GENERATED'],
+    ['executed_by','varchar(190)','YES',null,''],
+    ['execution_ms','int unsigned','NO','0','']
+  ];
+  if (columns.length !== expected.length) throw new Error('MIGRATION_LEDGER_COLUMN_COUNT_INVALID');
+  for (let index = 0; index < expected.length; index += 1) {
+    const row = columns[index];
+    const rule = expected[index];
+    if (row.COLUMN_NAME !== rule[0] || String(row.COLUMN_TYPE).toLowerCase() !== rule[1] || row.IS_NULLABLE !== rule[2]) throw new Error(`MIGRATION_LEDGER_COLUMN_INVALID:${rule[0]}`);
+    const actualDefault = row.COLUMN_DEFAULT === null ? null : String(row.COLUMN_DEFAULT).toUpperCase();
+    if (actualDefault !== rule[3]) throw new Error(`MIGRATION_LEDGER_DEFAULT_INVALID:${rule[0]}`);
+    if (rule[4] && !String(row.EXTRA || '').includes(rule[4])) throw new Error(`MIGRATION_LEDGER_EXTRA_INVALID:${rule[0]}`);
+  }
+
+  const [indexes] = await connection.execute(`SELECT INDEX_NAME, NON_UNIQUE, SEQ_IN_INDEX, COLUMN_NAME
+    FROM information_schema.STATISTICS
+    WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'os2_schema_migrations'
+    ORDER BY INDEX_NAME, SEQ_IN_INDEX`, [PREVIEW_DATABASE]);
+  const primary = indexes.filter(row => row.INDEX_NAME === 'PRIMARY');
+  const uniqueName = indexes.filter(row => row.INDEX_NAME === 'uq_os2_schema_migration_name');
+  if (primary.length !== 1 || primary[0].COLUMN_NAME !== 'id' || Number(primary[0].NON_UNIQUE) !== 0) throw new Error('MIGRATION_LEDGER_PRIMARY_KEY_INVALID');
+  if (uniqueName.length !== 1 || uniqueName[0].COLUMN_NAME !== 'migration_name' || Number(uniqueName[0].NON_UNIQUE) !== 0) throw new Error('MIGRATION_LEDGER_UNIQUE_KEY_INVALID');
 }
 
 async function acquireMigrationLock(connection) {
@@ -145,66 +171,30 @@ async function run() {
   const after = fs.lstatSync(MIGRATIONS_DIR);
   if (after.dev !== directoryIdentity.dev || after.ino !== directoryIdentity.ino) throw new Error('MIGRATIONS_DIRECTORY_CHANGED_DURING_INVENTORY');
 
-  const connection = await mysql.createConnection({
-    host: required('DB_HOST'),
-    port: Number(process.env.DB_PORT || 3306),
-    user: required('DB_USER'),
-    password: process.env.DB_PASSWORD || '',
-    database,
-    multipleStatements: true,
-    charset: 'utf8mb4'
-  });
+  const connection = await mysql.createConnection({ host: required('DB_HOST'), port: Number(process.env.DB_PORT || 3306), user: required('DB_USER'), password: process.env.DB_PASSWORD || '', database, multipleStatements: true, charset: 'utf8mb4' });
 
   let lockAcquired = false;
   let lockConnectionId = null;
   try {
     lockConnectionId = await acquireMigrationLock(connection);
     lockAcquired = true;
-    await ensureLedger(connection);
+    await verifyLedgerSchema(connection);
     const [appliedRows] = await connection.execute('SELECT migration_name, checksum_sha256 FROM os2_schema_migrations ORDER BY id ASC');
     const applied = validateAppliedLedger(appliedRows, migrationSources);
     let executed = 0;
-
     for (const migration of migrationSources) {
-      if (applied.has(migration.name)) {
-        console.log(`skip ${migration.name}`);
-        continue;
-      }
+      if (applied.has(migration.name)) { console.log(`skip ${migration.name}`); continue; }
       const started = Date.now();
       await connection.query(migration.sql);
-      await connection.execute(`INSERT INTO os2_schema_migrations
-        (migration_name,checksum_sha256,executed_by,execution_ms)
-        VALUES (:name,:checksum,:executedBy,:executionMs)`, {
-        name: migration.name,
-        checksum: migration.digest,
-        executedBy: process.env.USER || process.env.USERNAME || 'preview-runner',
-        executionMs: Date.now() - started
-      });
+      await connection.execute(`INSERT INTO os2_schema_migrations (migration_name,checksum_sha256,executed_by,execution_ms) VALUES (:name,:checksum,:executedBy,:executionMs)`, { name: migration.name, checksum: migration.digest, executedBy: process.env.USER || process.env.USERNAME || 'preview-runner', executionMs: Date.now() - started });
       executed += 1;
       console.log(`applied ${migration.name}`);
     }
-
-    console.log(JSON.stringify({
-      ok: true,
-      check: 'preview-migration-runner',
-      database,
-      migrationCount: migrationSources.length,
-      previouslyApplied: applied.size,
-      applied: executed,
-      ledgerStrictPrefixVerified: true,
-      advisoryLockUsed: true,
-      advisoryLockOwnerVerified: true,
-      secureMigrationReads: true,
-      productionMutationEnabled: false,
-      mergeExecutionEnabled: false
-    }, null, 2));
+    console.log(JSON.stringify({ ok: true, check: 'preview-migration-runner', database, migrationCount: migrationSources.length, previouslyApplied: applied.size, applied: executed, ledgerBootstrapVerified: true, runtimeCreateTableUsed: false, ledgerStrictPrefixVerified: true, advisoryLockUsed: true, advisoryLockOwnerVerified: true, secureMigrationReads: true, productionMutationEnabled: false, mergeExecutionEnabled: false }, null, 2));
   } finally {
     if (lockAcquired) await releaseMigrationLock(connection, lockConnectionId);
     await connection.end();
   }
 }
 
-run().catch(error => {
-  console.error(error.message);
-  process.exitCode = 1;
-});
+run().catch(error => { console.error(error.message); process.exitCode = 1; });
