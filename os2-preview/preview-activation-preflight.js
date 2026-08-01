@@ -9,6 +9,7 @@ const expectedBranch = 'agent/talk2me-os2-integrated-rebuild';
 const expectedNodeMajor = 20;
 const database = String(process.env.DB_NAME || '').trim();
 const branch = String(process.env.RELEASE_BRANCH || process.env.GITHUB_REF_NAME || '').trim();
+const configuredRoot = String(process.env.PREVIEW_APP_ROOT || '').trim();
 const nodeMajor = Number.parseInt(process.versions.node.split('.')[0], 10);
 
 function fail(message) {
@@ -22,23 +23,18 @@ function fail(message) {
   process.exit(1);
 }
 
-if (database !== expectedDatabase) {
-  fail(`Preview activation requires DB_NAME=${expectedDatabase}; found ${database || 'missing'}`);
-}
-if (branch !== expectedBranch) {
-  fail(`Preview activation requires RELEASE_BRANCH or GITHUB_REF_NAME=${expectedBranch}; found ${branch || 'missing'}`);
-}
-if (!Number.isInteger(nodeMajor) || nodeMajor !== expectedNodeMajor) {
-  fail(`Preview activation requires Node.js ${expectedNodeMajor}.x; found ${process.versions.node}`);
-}
-if (String(process.env.ALLOW_PRODUCTION_MUTATION || '').toLowerCase() === 'true') {
-  fail('Preview activation refuses ALLOW_PRODUCTION_MUTATION=true');
-}
-if (String(process.env.ENABLE_CUSTOMER_MERGE_EXECUTION || '').toLowerCase() === 'true') {
-  fail('Preview activation refuses ENABLE_CUSTOMER_MERGE_EXECUTION=true');
-}
+if (database !== expectedDatabase) fail(`Preview activation requires DB_NAME=${expectedDatabase}; found ${database || 'missing'}`);
+if (branch !== expectedBranch) fail(`Preview activation requires RELEASE_BRANCH or GITHUB_REF_NAME=${expectedBranch}; found ${branch || 'missing'}`);
+if (!configuredRoot) fail('Preview activation requires PREVIEW_APP_ROOT');
+if (!path.isAbsolute(configuredRoot)) fail('PREVIEW_APP_ROOT must be absolute');
+if (path.normalize(configuredRoot) !== configuredRoot) fail('PREVIEW_APP_ROOT must be normalized');
+if (configuredRoot !== root) fail(`PREVIEW_APP_ROOT must match the executing application root: ${root}`);
+if (!Number.isInteger(nodeMajor) || nodeMajor !== expectedNodeMajor) fail(`Preview activation requires Node.js ${expectedNodeMajor}.x; found ${process.versions.node}`);
+if (String(process.env.ALLOW_PRODUCTION_MUTATION || '').toLowerCase() === 'true') fail('Preview activation refuses ALLOW_PRODUCTION_MUTATION=true');
+if (String(process.env.ENABLE_CUSTOMER_MERGE_EXECUTION || '').toLowerCase() === 'true') fail('Preview activation refuses ENABLE_CUSTOMER_MERGE_EXECUTION=true');
 
 const checks = [
+  'workspace-topology-verification.js',
   'runtime-release-identity-check.js',
   'readiness-check.js',
   'deployment-check.js',
@@ -52,6 +48,7 @@ for (const script of checks) {
     cwd: root,
     env: {
       ...process.env,
+      PREVIEW_APP_ROOT: root,
       DB_NAME: expectedDatabase,
       RELEASE_BRANCH: expectedBranch,
       ALLOW_PRODUCTION_MUTATION: 'false',
@@ -70,10 +67,12 @@ console.log(JSON.stringify({
   check: 'preview-activation-preflight',
   application: 'talk2me-os2-preview',
   version: require('./package.json').version,
+  applicationRoot: root,
   database: expectedDatabase,
   branch: expectedBranch,
   nodeVersion: process.versions.node,
   completed,
+  workspaceTopologyVerified: true,
   databaseBackedVerificationExecuted: false,
   migrationsExecuted: false,
   previewRestartExecuted: false,
