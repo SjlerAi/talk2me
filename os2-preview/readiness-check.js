@@ -14,6 +14,18 @@ function checkFile(relativePath) {
   if (!fs.existsSync(path.join(__dirname, relativePath))) failures.push(`Missing file ${relativePath}`);
 }
 
+function requireMarkers(relativePath, markers) {
+  const file = path.join(__dirname, relativePath);
+  if (!fs.existsSync(file)) {
+    failures.push(`Missing file ${relativePath}`);
+    return;
+  }
+  const content = fs.readFileSync(file, 'utf8');
+  for (const marker of markers) {
+    if (!content.includes(marker)) failures.push(`${relativePath} missing ${marker}`);
+  }
+}
+
 ['DB_HOST','DB_USER','DB_NAME','PREVIEW_APP_ROOT'].forEach(requireEnv);
 if (process.env.DB_NAME && process.env.DB_NAME !== 'kloka_talk2me') failures.push('DB_NAME is not the preview database');
 if (process.env.PREVIEW_APP_ROOT && path.resolve(process.env.PREVIEW_APP_ROOT) !== __dirname) failures.push('PREVIEW_APP_ROOT does not match the executing preview application root');
@@ -30,9 +42,11 @@ if (String(process.env.EMAIL_WORKER_ENABLED || '').toLowerCase() === 'true') {
 if (!fs.existsSync(path.join(__dirname, 'package-lock.json'))) warnings.push('package-lock.json is absent and remains a release-freeze blocker');
 
 [
-  'server.js','package.json','migration-runner.js','schema-verification.js','preview-data-verification.js',
-  'runtime-release-identity-check.js','workspace-topology-verification.js','preview-activation-preflight.js',
-  'preview-activation-governance-check.js','PREVIEW_ACTIVATION_RUNBOOK.md',
+  'server.js','package.json','migration-runner.js','migration-runner-security-check.js',
+  'schema-verification.js','preview-data-verification.js','runtime-release-identity-check.js',
+  'workspace-topology-verification.js','workspace-topology-governance-check.js',
+  'preview-activation-preflight.js','preview-activation-governance-check.js',
+  'PREVIEW_ACTIVATION_RUNBOOK.md','PREVIEW_DEPLOYMENT_RUNBOOK.md',
   'merge-restore-evidence-verification.js','merge-restore-pin-check.js',
   'customer-merge-plan-routes.js','customer-merge-freshness-routes.js',
   'customer-merge-execution-authorisation-routes.js','customer-merge-execution-readiness-routes.js',
@@ -40,6 +54,34 @@ if (!fs.existsSync(path.join(__dirname, 'package-lock.json'))) warnings.push('pa
   'service-lifecycle-routes.js','controlled-import-routes.js','communications-routes.js',
   'collaboration-routes.js','intelligence-routes.js','document-routes.js'
 ].forEach(checkFile);
+
+requireMarkers('migration-runner.js', [
+  "PREVIEW_DATABASE = 'kloka_talk2me'",
+  "MIGRATION_LOCK_NAME = 'talk2me_os2_preview_migrations'",
+  'ALLOW_PREVIEW_MIGRATIONS_NOT_ENABLED',
+  'PRODUCTION_MUTATION_FLAG_PROHIBITED',
+  'MERGE_EXECUTION_FLAG_PROHIBITED',
+  'fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW',
+  'fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW',
+  'MIGRATION_ADVISORY_LOCK_NOT_ACQUIRED',
+  'MIGRATION_CHECKSUM_MISMATCH',
+  'advisoryLockUsed: true',
+  'secureMigrationReads: true'
+]);
+requireMarkers('migration-runner-security-check.js', [
+  'migration-runner-security',
+  'secureDirectoryOpenRequired: true',
+  'secureFileOpenRequired: true',
+  'descriptorIdentityRequired: true',
+  'hardLinkRejectionRequired: true',
+  'boundedMigrationFilesRequired: true',
+  'advisoryLockRequired: true'
+]);
+requireMarkers('PREVIEW_DEPLOYMENT_RUNBOOK.md', [
+  'Do not substitute `npm install` for the controlled release path',
+  'talk2me_os2_preview_migrations',
+  'Only one controlled migration process may operate against the preview database at a time.'
+]);
 
 const migrationDir = path.join(__dirname, 'migrations');
 if (!fs.existsSync(migrationDir)) {
@@ -74,6 +116,9 @@ const summary = {
   database: process.env.DB_NAME || null,
   migrationCount,
   workspaceTopologyVerificationRequired: true,
+  secureMigrationRunnerRequired: true,
+  migrationAdvisoryLockRequired: true,
+  migrationSourceDescriptorBindingRequired: true,
   runtimeReleaseIdentityCommandRegistered: scripts['verify:runtime-release-identity'] === 'node runtime-release-identity-check.js',
   previewActivationPreflightCommandRegistered: scripts['verify:preview-activation-preflight'] === 'node preview-activation-preflight.js',
   previewDataVerificationCommandRegistered: scripts['verify:preview-data'] === 'node preview-data-verification.js',
