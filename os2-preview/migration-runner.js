@@ -146,15 +146,12 @@ async function acquireMigrationLock(connection) {
 }
 
 async function releaseMigrationLock(connection, expectedConnectionId) {
-  try {
-    const [ownerRows] = await connection.execute('SELECT IS_USED_LOCK(?) AS owner_connection_id', [MIGRATION_LOCK_NAME]);
-    const ownerConnectionId = ownerRows[0] ? Number(ownerRows[0].owner_connection_id) : null;
-    if (ownerConnectionId !== expectedConnectionId) throw new Error('MIGRATION_ADVISORY_LOCK_OWNERSHIP_LOST');
-    const [releaseRows] = await connection.execute('SELECT RELEASE_LOCK(?) AS released', [MIGRATION_LOCK_NAME]);
-    if (!releaseRows[0] || Number(releaseRows[0].released) !== 1) throw new Error('MIGRATION_ADVISORY_LOCK_RELEASE_NOT_CONFIRMED');
-  } catch (error) {
-    console.error(`MIGRATION_ADVISORY_LOCK_RELEASE_FAILED:${error.message}`);
-  }
+  const [ownerRows] = await connection.execute('SELECT IS_USED_LOCK(?) AS owner_connection_id', [MIGRATION_LOCK_NAME]);
+  const ownerConnectionId = ownerRows[0] ? Number(ownerRows[0].owner_connection_id) : null;
+  if (ownerConnectionId !== expectedConnectionId) throw new Error('MIGRATION_ADVISORY_LOCK_OWNERSHIP_LOST');
+  const [releaseRows] = await connection.execute('SELECT RELEASE_LOCK(?) AS released', [MIGRATION_LOCK_NAME]);
+  if (!releaseRows[0] || Number(releaseRows[0].released) !== 1) throw new Error('MIGRATION_ADVISORY_LOCK_RELEASE_NOT_CONFIRMED');
+  return true;
 }
 
 function validateAppliedLedger(appliedRows, migrationSources) {
@@ -193,6 +190,8 @@ async function run() {
   const connection = await mysql.createConnection({ host: required('DB_HOST'), port: Number(process.env.DB_PORT || 3306), user: required('DB_USER'), password: process.env.DB_PASSWORD || '', database, multipleStatements: true, charset: 'utf8mb4' });
   let lockAcquired = false;
   let lockConnectionId = null;
+  let advisoryLockReleased = false;
+  let result = null;
   try {
     lockConnectionId = await acquireMigrationLock(connection);
     lockAcquired = true;
@@ -208,7 +207,7 @@ async function run() {
       executed += 1;
       console.log(`applied ${migration.name}`);
     }
-    console.log(JSON.stringify({
+    result = {
       ok: true,
       check: 'preview-migration-runner',
       database,
@@ -225,11 +224,19 @@ async function run() {
       secureMigrationReads: true,
       productionMutationEnabled: false,
       mergeExecutionEnabled: false
-    }, null, 2));
+    };
   } finally {
-    if (lockAcquired) await releaseMigrationLock(connection, lockConnectionId);
-    await connection.end();
+    try {
+      if (lockAcquired) advisoryLockReleased = await releaseMigrationLock(connection, lockConnectionId);
+    } finally {
+      await connection.end();
+    }
   }
+
+  if (!result || advisoryLockReleased !== true) throw new Error('MIGRATION_COMPLETION_EVIDENCE_INCOMPLETE');
+  result.advisoryLockReleased = true;
+  result.databaseConnectionClosedBeforeSuccess = true;
+  console.log(JSON.stringify(result, null, 2));
 }
 
 run().catch(error => { console.error(error.message); process.exitCode = 1; });
