@@ -50,6 +50,15 @@ jobs:
             echo "::warning::package-lock.json is absent. Source validation will continue, dependency audit and release-candidate freeze remain blocked."
           fi
 
+      - name: Verify deterministic workspace source integrity
+        env:
+          PREVIEW_APP_ROOT: ${{ github.workspace }}/os2-preview
+          DB_NAME: kloka_talk2me
+          RELEASE_BRANCH: agent/talk2me-os2-integrated-rebuild
+          ALLOW_PRODUCTION_MUTATION: 'false'
+          ENABLE_CUSTOMER_MERGE_EXECUTION: 'false'
+        run: npm run verify:workspace-source-integrity
+
       - name: Install dependencies without changing repository lock state
         run: npm install --ignore-scripts --no-audit --no-fund --package-lock=false
 
@@ -67,13 +76,18 @@ jobs:
           echo "### Dependency audit blocked" >> "$GITHUB_STEP_SUMMARY"
           echo "A committed os2-preview/package-lock.json is required before dependency audit and release-candidate freeze." >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Generate build evidence
+      - name: Generate build evidence with source-integrity binding
         env:
           GITHUB_SHA: ${{ github.sha }}
           GITHUB_REF_NAME: ${{ github.ref_name }}
           GITHUB_RUN_ID: ${{ github.run_id }}
           GITHUB_RUN_NUMBER: ${{ github.run_number }}
           DEPENDENCY_LOCK_PRESENT: ${{ steps.dependency-lock.outputs.present }}
+          PREVIEW_APP_ROOT: ${{ github.workspace }}/os2-preview
+          DB_NAME: kloka_talk2me
+          RELEASE_BRANCH: agent/talk2me-os2-integrated-rebuild
+          ALLOW_PRODUCTION_MUTATION: 'false'
+          ENABLE_CUSTOMER_MERGE_EXECUTION: 'false'
         run: npm run evidence:build
 
       - name: Upload build evidence
