@@ -10,7 +10,6 @@ const warnings = [];
 
 function exists(file) { return fs.existsSync(path.join(root, file)); }
 function fail(message) { failures.push(message); }
-function warn(message) { warnings.push(message); }
 function sha256(file) { return crypto.createHash('sha256').update(fs.readFileSync(path.join(root,file))).digest('hex'); }
 
 const pkg = JSON.parse(fs.readFileSync(path.join(root,'package.json'),'utf8'));
@@ -30,6 +29,10 @@ const requiredScripts = [
   'check:schema-source-consistency','check:readiness','check:deployment','check:uat-gate'
 ];
 const restorePinMigration = '20260801_025_merge_authorisation_restore_pin.sql';
+const releaseCommitSha = String(process.env.RELEASE_COMMIT_SHA || process.env.GITHUB_SHA || '').trim();
+const releaseApprovedBy = String(process.env.RELEASE_APPROVED_BY || '').trim();
+const releaseChangeReference = String(process.env.RELEASE_CHANGE_REFERENCE || '').trim();
+const output = String(process.env.RELEASE_MANIFEST_PATH || '').trim();
 
 if (!/^0\.\d+\.0$/.test(pkg.version)) fail(`Unexpected preview version format: ${pkg.version}`);
 if (migrations.length < 25) fail(`Expected at least 25 migrations, found ${migrations.length}`);
@@ -39,9 +42,12 @@ for (const file of requiredChecks) if (!exists(file)) fail(`Missing validation: 
 for (const script of requiredScripts) if (!pkg.scripts || !pkg.scripts[script]) fail(`Missing package command: ${script}`);
 
 if (!exists('package-lock.json')) fail('package-lock.json is required before release-candidate freeze');
-if (!process.env.GITHUB_SHA && !process.env.RELEASE_COMMIT_SHA) warn('No release commit SHA supplied');
-if (!process.env.RELEASE_APPROVED_BY) warn('No release approver recorded');
-if (!process.env.RELEASE_CHANGE_REFERENCE) warn('No release change reference recorded');
+if (!releaseCommitSha) fail('RELEASE_COMMIT_SHA or GITHUB_SHA is required');
+else if (!/^[0-9a-f]{40}$/i.test(releaseCommitSha)) fail('Release commit SHA must be a full 40-character hexadecimal SHA');
+if (!releaseApprovedBy) fail('RELEASE_APPROVED_BY is required');
+if (!releaseChangeReference) fail('RELEASE_CHANGE_REFERENCE is required');
+if (!output) fail('RELEASE_MANIFEST_PATH is required');
+else if (!path.isAbsolute(output)) fail('RELEASE_MANIFEST_PATH must be absolute');
 
 const readinessSource = exists('customer-merge-execution-readiness-routes.js')
   ? fs.readFileSync(path.join(root,'customer-merge-execution-readiness-routes.js'),'utf8')
@@ -55,14 +61,17 @@ const forbiddenRuntimeCreate = fs.readdirSync(root)
   .filter(name => /CREATE\s+TABLE/i.test(fs.readFileSync(path.join(root,name),'utf8')));
 if (forbiddenRuntimeCreate.length) fail(`Runtime CREATE TABLE found in: ${forbiddenRuntimeCreate.join(', ')}`);
 
+const dependencyLockChecksum = exists('package-lock.json') ? sha256('package-lock.json') : null;
 const manifest = {
   ok: failures.length === 0,
   application: pkg.name,
   version: pkg.version,
-  commitSha: process.env.RELEASE_COMMIT_SHA || process.env.GITHUB_SHA || null,
-  approvedBy: process.env.RELEASE_APPROVED_BY || null,
-  changeReference: process.env.RELEASE_CHANGE_REFERENCE || null,
+  commitSha: releaseCommitSha || null,
+  approvedBy: releaseApprovedBy || null,
+  changeReference: releaseChangeReference || null,
   generatedAt: new Date().toISOString(),
+  dependencyLockPresent: Boolean(dependencyLockChecksum),
+  dependencyLockSha256: dependencyLockChecksum,
   migrationCount: migrations.length,
   restorePinMigration,
   mergeExecutionEnabled: false,
@@ -74,11 +83,16 @@ const manifest = {
   warnings
 };
 
-const output = process.env.RELEASE_MANIFEST_PATH;
-if (output) {
-  if (!path.isAbsolute(output)) fail('RELEASE_MANIFEST_PATH must be absolute');
-  else fs.writeFileSync(output, JSON.stringify(manifest,null,2), { mode:0o600 });
+if (output && path.isAbsolute(output)) {
+  const outputDirectory = path.dirname(output);
+  if (!fs.existsSync(outputDirectory)) {
+    fail(`Release manifest directory does not exist: ${outputDirectory}`);
+    manifest.ok = false;
+  } else {
+    fs.writeFileSync(output, JSON.stringify(manifest,null,2) + '\n', { mode:0o600 });
+  }
 }
 
+manifest.ok = failures.length === 0;
 console.log(JSON.stringify(manifest,null,2));
 if (failures.length) process.exit(1);
