@@ -22,7 +22,8 @@ The workflow performs the following controlled steps:
 10. Record a visible dependency-audit blocker when the lockfile is absent.
 11. Generate build evidence that reruns the deterministic source-integrity verifier.
 12. Compare the post-install inventory digest with the retained pre-install inventory digest using constant-time comparison.
-13. Upload the complete evidence directory as a retained GitHub Actions artifact.
+13. Publish all evidence files atomically into a private directory and reverify their checksum pairs.
+14. Upload the complete evidence directory as a retained GitHub Actions artifact.
 
 ## Security controls
 
@@ -40,6 +41,10 @@ The workflow performs the following controlled steps:
 - Build evidence must be generated only after the integrated validation suite completes.
 - Build-evidence source verification has a 30-second timeout, forced `SIGKILL` termination and shell execution disabled.
 - Broad evidence collection rejects symbolic links, unsupported filesystem entries and files with additional hard links.
+- Evidence is created in a private `0700` evidence directory.
+- Every evidence file is published with atomic publication and private `0600` permissions.
+- JSON evidence and sidecar checksum pairs are reverified before upload.
+- An `artifact-manifest.json` and `artifact-manifest.sha256` pair binds the final evidence set.
 - Dependency audit and release-candidate eligibility must not be claimed while the lockfile is absent.
 - `ALLOW_PRODUCTION_MUTATION=false` and `ENABLE_CUSTOMER_MERGE_EXECUTION=false` are forced for source-integrity evidence generation.
 
@@ -121,6 +126,28 @@ workspaceSourceIntegrityStableAcrossDependencyInstall: true
 
 This proves dependency installation and validation did not alter the protected source set.
 
+## Atomic evidence publication
+
+The build-evidence command removes any prior disposable evidence directory and creates a fresh private `0700` evidence directory owned by the executing user.
+
+Each evidence file is written to a unique, exclusively created temporary file with mode `0600`, flushed with `fsync`, and then atomically renamed into its final path. The command rejects non-regular outputs, symbolic links, additional hard links, incorrect ownership, and permissions other than `0600`.
+
+After publication, the command reverifies:
+
+- `build-evidence.json` against `build-evidence.sha256`;
+- `workspace-source-integrity.json` against `workspace-source-integrity.sha256`;
+- `artifact-manifest.json` against `artifact-manifest.sha256`.
+
+The final artifact manifest records the checksums of the two primary JSON evidence documents and confirms:
+
+```text
+privateDirectoryVerified: true
+atomicPublicationVerified: true
+checksumPairsVerified: true
+```
+
+Any failed write, rename, permission check, ownership check, or checksum verification fails the evidence command before the upload step can run.
+
 ## Build evidence
 
 The command `npm run evidence:build` creates:
@@ -129,6 +156,8 @@ The command `npm run evidence:build` creates:
 - `build-evidence/build-evidence.sha256`
 - `build-evidence/workspace-source-integrity.json`
 - `build-evidence/workspace-source-integrity.sha256`
+- `build-evidence/artifact-manifest.json`
+- `build-evidence/artifact-manifest.sha256`
 
 The evidence records:
 
@@ -149,7 +178,7 @@ The evidence records:
 - migration count;
 - route-file count;
 - validation-check count;
-- checksums for both evidence documents.
+- private-directory, atomic-publication, and checksum-reverification evidence.
 
 The generated evidence directory is disposable build output and is not a deployment package.
 
@@ -163,10 +192,11 @@ A commit may proceed to controlled preview installation only when all of the fol
 4. The pre-install and post-install source inventory digests match exactly.
 5. Build evidence records `workspaceSourceIntegrityStableAcrossDependencyInstall: true`.
 6. A committed lockfile exists and the dependency audit has no unresolved high or critical production vulnerabilities.
-7. Both evidence JSON files exist and their SHA-256 sidecars match.
-8. Build evidence records `workspaceSourceIntegrityVerified: true` and a valid 64-character `workspaceSourceInventorySha256`.
-9. The evidence records `dependencyLockPresent: true`, `dependencyAuditEligible: true` and `releaseCandidateEligible: true`.
-10. Preview deployment readiness, migration, schema verification, pinned restore-evidence verification and UAT controls are followed separately.
+7. All three JSON evidence files exist and all three SHA-256 sidecars match.
+8. The artifact manifest confirms private-directory, atomic-publication, and checksum-pair verification.
+9. Build evidence records `workspaceSourceIntegrityVerified: true` and a valid 64-character `workspaceSourceInventorySha256`.
+10. The evidence records `dependencyLockPresent: true`, `dependencyAuditEligible: true` and `releaseCandidateEligible: true`.
+11. Preview deployment readiness, migration, schema verification, pinned restore-evidence verification and UAT controls are followed separately.
 
 A successful source-validation step without a dependency lock is not a dependency-audit pass and is not release-candidate approval.
 
@@ -177,10 +207,11 @@ When CI fails or reports a blocker:
 1. Open the workflow run and identify the first failing validation or recorded blocker.
 2. Compare the pre-install and post-install source-integrity inventory digests.
 3. Compare dependency-lock detection with filesystem and source-integrity evidence.
-4. Do not bypass or weaken the check.
-5. Correct the code, dependency state or validation contract on the rebuild branch.
-6. Re-run the workflow on the corrected exact commit.
-7. Retain the failed or blocked run as historical evidence.
+4. Verify the evidence directory permissions and all three checksum pairs.
+5. Do not bypass or weaken the check.
+6. Correct the code, dependency state or validation contract on the rebuild branch.
+7. Re-run the workflow on the corrected exact commit.
+8. Retain the failed or blocked run as historical evidence.
 
 ## Production protection
 
