@@ -38,7 +38,7 @@ const REQUIRED_COLUMNS = {
   os2_work_items:['id','work_type','title','lifecycle_state','assigned_staff_id','master_customer_id','due_at','archived_at'],
   os2_customer_restrictions:['id','restriction_type','restriction_value','restriction_numeric_value','is_active','revoked_at','revoked_by','revoke_reason'],
   os2_restriction_history:['id','restriction_id','master_customer_id','event_type','changed_by','created_at'],
-  os2_approval_requests:['id','request_type','action_key','master_customer_id','request_payload','payload_hash','status','consumed_at','consumed_by','consumed_for_entity_type','consumed_for_entity_id'],
+  os2_approval_requests:['id','request_type','action_key','master_customer_id','request_payload','payload_hash','integrity_version','invalidated_at','invalidated_by','invalidation_reason','status','consumed_at','consumed_by','consumed_for_entity_type','consumed_for_entity_id'],
   os2_approval_consumption_history:['id','approval_request_id','action_key','payload_hash','consumed_by','consumed_at'],
   os2_email_queue:['id','recipient_email','status','attempts','next_attempt_at','worker_id','smtp_message_id'],
   os2_customer_claims:['id','master_customer_id','requested_owner_staff_id','status','reviewed_by'],
@@ -76,7 +76,7 @@ async function main() {
     }
 
     const [migrations] = await pool.execute('SELECT migration_name,checksum,applied_at FROM os2_schema_migrations ORDER BY migration_name');
-    if (migrations.length < 23) fail(`expected at least 23 applied migrations, found ${migrations.length}`);
+    if (migrations.length < 24) fail(`expected at least 24 applied migrations, found ${migrations.length}`);
 
     const [accounts] = await pool.execute('SELECT normalised_account_number,COUNT(*) total FROM os2_customer_accounts WHERE archived_at IS NULL AND normalised_account_number IS NOT NULL GROUP BY normalised_account_number HAVING COUNT(*)>1 LIMIT 20');
     const [primaryAccounts] = await pool.execute('SELECT master_customer_id,COUNT(*) total FROM os2_customer_accounts WHERE archived_at IS NULL AND is_primary=1 GROUP BY master_customer_id HAVING COUNT(*)>1 LIMIT 20');
@@ -88,6 +88,8 @@ async function main() {
     const [invalidAuthorisations] = await pool.execute("SELECT id FROM os2_customer_merge_execution_authorisations WHERE plan_hash NOT REGEXP '^[0-9a-f]{64}$' OR snapshot_hash NOT REGEXP '^[0-9a-f]{64}$' OR (status='authorised' AND (authorised_at IS NULL OR expires_at IS NULL)) OR consumed_at IS NOT NULL LIMIT 20");
     const [invalidRepresentativePermissions] = await pool.execute("SELECT id FROM os2_authorised_representatives WHERE JSON_VALID(permissions_json)=0 LIMIT 20");
     const [activeExpiredRepresentatives] = await pool.execute("SELECT id FROM os2_authorised_representatives WHERE status='active' AND revoked_at IS NULL AND expires_at IS NOT NULL AND expires_at<=NOW() LIMIT 20");
+    const [unsafeApprovals] = await pool.execute("SELECT id FROM os2_approval_requests WHERE consumed_at IS NULL AND status IN ('pending','deferred','approved') AND (integrity_version<>2 OR invalidated_at IS NOT NULL OR payload_hash IS NULL OR payload_hash NOT REGEXP '^[0-9a-f]{64}$') LIMIT 20");
+    const [invalidatedApprovalsStillOpen] = await pool.execute("SELECT id FROM os2_approval_requests WHERE invalidated_at IS NOT NULL AND status IN ('pending','deferred','approved') LIMIT 20");
 
     if (accounts.length) fail(`duplicate active normalised account numbers detected: ${accounts.map(x=>x.normalised_account_number).join(', ')}`);
     if (primaryAccounts.length) fail(`customers with multiple primary accounts detected: ${primaryAccounts.map(x=>x.master_customer_id).join(', ')}`);
@@ -99,12 +101,14 @@ async function main() {
     if (invalidAuthorisations.length) fail(`invalid or consumed merge execution authorisations detected before merge execution release: ${invalidAuthorisations.map(x=>x.id).join(', ')}`);
     if (invalidRepresentativePermissions.length) fail(`representatives with invalid permission JSON detected: ${invalidRepresentativePermissions.map(x=>x.id).join(', ')}`);
     if (activeExpiredRepresentatives.length) fail(`expired representatives still marked active: ${activeExpiredRepresentatives.map(x=>x.id).join(', ')}`);
+    if (unsafeApprovals.length) fail(`open approvals without integrity version 2 and a valid payload hash: ${unsafeApprovals.map(x=>x.id).join(', ')}`);
+    if (invalidatedApprovalsStillOpen.length) fail(`invalidated approvals still in an open or approved state: ${invalidatedApprovalsStillOpen.map(x=>x.id).join(', ')}`);
 
     if (!process.exitCode) console.log(JSON.stringify({
       ok:true,database:dbName,requiredTables:REQUIRED_TABLES.length,verifiedColumnGroups:Object.keys(REQUIRED_COLUMNS).length,
       appliedMigrations:migrations.length,duplicateAccounts:0,multiplePrimaryAccounts:0,duplicateMobiles:0,duplicateAccessGrants:0,
       archivedWithActiveOwnership:0,invalidDuplicatePairs:0,invalidMergePlans:0,invalidAuthorisations:0,
-      invalidRepresentativePermissions:0,activeExpiredRepresentatives:0
+      invalidRepresentativePermissions:0,activeExpiredRepresentatives:0,unsafeApprovals:0,invalidatedApprovalsStillOpen:0
     },null,2));
   } finally {
     await pool.end();
