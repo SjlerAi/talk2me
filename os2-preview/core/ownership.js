@@ -11,6 +11,17 @@ async function lockMasterCustomer(connection, masterCustomerId) {
   return customer;
 }
 
+async function getCurrentOwner(connection, masterCustomerId) {
+  const [[customer]] = await connection.execute(
+    'SELECT id, owner_staff_id AS assigned_staff_id FROM os2_master_customers WHERE id=:id LIMIT 1',
+    { id: Number(masterCustomerId) }
+  );
+  if (!customer) throw new Error('MASTER_CUSTOMER_NOT_FOUND');
+  return customer.owner_staff_id == null && customer.assigned_staff_id == null
+    ? { assigned_staff_id: null }
+    : { assigned_staff_id: Number(customer.assigned_staff_id) };
+}
+
 async function assignMasterCustomer(connection, options) {
   const customer = await lockMasterCustomer(connection, options.masterCustomerId);
   const previousOwner = customer.owner_staff_id == null ? null : Number(customer.owner_staff_id);
@@ -50,4 +61,16 @@ async function assignMasterCustomer(connection, options) {
   return { changed: true, previousOwner, newOwner, historyId: Number(history.insertId) };
 }
 
-module.exports = { lockMasterCustomer, assignMasterCustomer };
+async function transferOwnership(connection, options) {
+  return assignMasterCustomer(connection, {
+    masterCustomerId: options.masterCustomerId,
+    newOwnerStaffId: options.assignedStaffId,
+    actorStaffId: options.actorStaffId,
+    changeType: options.changeType || 'approved_claim',
+    approvalId: options.approvalId || null,
+    reason: options.reason,
+    requestContext: options.requestContext
+  });
+}
+
+module.exports = { lockMasterCustomer, getCurrentOwner, assignMasterCustomer, transferOwnership };
