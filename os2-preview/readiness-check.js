@@ -27,7 +27,8 @@ if (String(process.env.EMAIL_WORKER_ENABLED || '').toLowerCase() === 'true') {
 
 [
   'server.js','package.json','migration-runner.js','schema-verification.js','preview-data-verification.js',
-  'runtime-release-identity-check.js','merge-restore-evidence-verification.js','merge-restore-pin-check.js',
+  'runtime-release-identity-check.js','preview-activation-preflight.js',
+  'merge-restore-evidence-verification.js','merge-restore-pin-check.js',
   'customer-merge-plan-routes.js','customer-merge-freshness-routes.js',
   'customer-merge-execution-authorisation-routes.js','customer-merge-execution-readiness-routes.js',
   'email-worker.js','email-worker-runner.js','integrated-routes.js','operational-routes.js',
@@ -58,6 +59,9 @@ if (scripts['verify:preview-data'] !== 'node preview-data-verification.js') {
 if (scripts['verify:runtime-release-identity'] !== 'node runtime-release-identity-check.js') {
   failures.push('Missing verify:runtime-release-identity command');
 }
+if (scripts['verify:preview-activation-preflight'] !== 'node preview-activation-preflight.js') {
+  failures.push('Missing verify:preview-activation-preflight command');
+}
 if (scripts['check:merge-restore-pin'] !== 'node merge-restore-pin-check.js') {
   failures.push('Missing check:merge-restore-pin command');
 }
@@ -74,6 +78,7 @@ const summary = {
   database: process.env.DB_NAME || null,
   migrationCount,
   runtimeReleaseIdentityCommandRegistered: scripts['verify:runtime-release-identity'] === 'node runtime-release-identity-check.js',
+  previewActivationPreflightCommandRegistered: scripts['verify:preview-activation-preflight'] === 'node preview-activation-preflight.js',
   previewDataVerificationCommandRegistered: scripts['verify:preview-data'] === 'node preview-data-verification.js',
   mergeRestoreEvidenceCommandRegistered: scripts['verify:merge-restore-evidence'] === 'node merge-restore-evidence-verification.js',
   mergeRestorePinCheckRegistered: scripts['check:merge-restore-pin'] === 'node merge-restore-pin-check.js',
