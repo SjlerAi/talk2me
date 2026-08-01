@@ -19,6 +19,7 @@ const createDocumentRouter = require('./document-routes');
 const createOperationalRouter = require('./operational-routes');
 const createControlledImportRouter = require('./controlled-import-routes');
 const createIntelligenceRouter = require('./intelligence-routes');
+const createCollaborationRouter = require('./collaboration-routes');
 const { permissionsFor } = require('./core/permissions');
 
 const app = express();
@@ -194,6 +195,7 @@ app.use(createDocumentRouter({ pool, requireAuth }));
 app.use(createOperationalRouter({ pool, requireAuth }));
 app.use(createControlledImportRouter({ pool, requireAuth }));
 app.use(createIntelligenceRouter({ pool, requireAuth }));
+app.use(createCollaborationRouter({ pool, requireAuth }));
 app.use(createMyWorkRouter({ pool, requireAuth, requestIp }));
 app.use(createAssignmentRouter({ pool, requireAuth, requestIp }));
 app.use(createApprovalRouter({ pool, requireAuth, requestIp }));
