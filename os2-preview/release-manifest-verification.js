@@ -13,6 +13,7 @@ function sha256(buffer) {
   return crypto.createHash('sha256').update(buffer).digest('hex');
 }
 
+const expectedPreviewVersion = '0.59.0';
 const manifestPath = String(process.env.RELEASE_MANIFEST_PATH || '').trim();
 if (!manifestPath) fail('RELEASE_MANIFEST_PATH is required');
 if (!path.isAbsolute(manifestPath)) fail('RELEASE_MANIFEST_PATH must be absolute');
@@ -98,6 +99,7 @@ const expectedPreviewDataOrder = [
 ];
 
 if (manifest.ok !== true) fail('Release manifest is not marked successful');
+if (manifest.version !== expectedPreviewVersion) fail(`Release manifest version must be ${expectedPreviewVersion}`);
 if (manifest.branch !== 'agent/talk2me-os2-integrated-rebuild') fail('Release manifest branch is not the controlled rebuild branch');
 if (!/^[0-9a-f]{40}$/i.test(String(manifest.commitSha || ''))) fail('Release manifest commit SHA is invalid');
 if (manifest.commitIdentityVerified !== true) fail('Release manifest commit identity is not verified');
@@ -125,6 +127,7 @@ console.log(JSON.stringify({
   evidenceDirectoryPrivate: true,
   manifestSha256: actualChecksum,
   version: manifest.version,
+  expectedPreviewVersion,
   commitSha: manifest.commitSha,
   branch: manifest.branch,
   migrationCount: manifest.migrationCount,
