@@ -15,7 +15,7 @@ This runbook controls source validation before any deployment, migration, restar
 - Production: `talk2me.uent.co.za` must remain untouched
 - Customer-merge execution: disabled
 
-## Mandatory preflight
+## Mandatory source-only preflight
 
 Run from `/home/kloka/repositories/talk2me/os2-preview`:
 
@@ -28,16 +28,22 @@ ENABLE_CUSTOMER_MERGE_EXECUTION=false \
 npm run verify:preview-activation-preflight
 ```
 
-The preflight must run these source-only controls in this exact order:
+The preflight must execute these controls in this exact order:
 
 1. `workspace-topology-verification.js`
-2. `runtime-release-identity-check.js`
-3. `readiness-check.js`
-4. `deployment-check.js`
-5. `uat-gate-check.js`
-6. `release-manifest-check.js`
+2. `workspace-topology-governance-check.js`
+3. `migration-ledger-bootstrap-governance-check.js`
+4. `migration-ledger-bootstrap-runner-check.js`
+5. `migration-ledger-bootstrap-evidence-check.js`
+6. `migration-runner-security-check.js`
+7. `runtime-release-identity-check.js`
+8. `readiness-check.js`
+9. `deployment-check.js`
+10. `uat-gate-check.js`
+11. `release-evidence-security-check.js`
+12. `release-manifest-check.js`
 
-Stop immediately if any control cannot start, is interrupted, or returns a non-zero status.
+Stop immediately if any control cannot start, is interrupted, or returns a non-zero status. Every child process must inherit output and receive `ALLOW_PRODUCTION_MUTATION=false` and `ENABLE_CUSTOMER_MERGE_EXECUTION=false`.
 
 ## Workspace topology verification
 
@@ -50,36 +56,96 @@ It must:
 - open directory descriptors with `O_DIRECTORY | O_NOFOLLOW`;
 - compare path and descriptor device/inode identities;
 - reject group-writable or world-writable protected paths;
-- require protected source files to share the preview root owner;
+- require protected source files to share the preview-root owner;
 - open protected workspace files with `O_NOFOLLOW`;
 - compare each protected file path and descriptor device/inode identity;
-- reject symbolic links and additional hard links for `package.json`, an existing `package-lock.json`, and all migration files;
-- enforce bounded file sizes for package metadata, the dependency lockfile, and every migration;
+- reject symbolic links and additional hard links for `package.json`, an existing `package-lock.json`, `MIGRATION_LEDGER_BOOTSTRAP.sql`, and all migration files;
+- enforce bounded file sizes;
 - require at least 25 ordered migration files and explicit migration 025 presence;
 - re-check directory identity after migration inventory validation.
 
-A missing `package-lock.json` is reported during this source-preparation stage but remains a release-freeze blocker. Once the lockfile exists, it must pass the same ownership, permissions, symlink, hard-link, descriptor identity, and bounded-size controls.
+A missing `package-lock.json` is reported during source preparation but remains a release-freeze blocker. Once the lockfile exists, it must pass the same ownership, permissions, symlink, hard-link, descriptor-identity and bounded-size controls.
 
 ## Preflight limitations
 
-A successful preflight does not mean that dependencies have been installed, `package-lock.json` exists, migrations have been applied, preview data verification has passed, the application has been restarted, smoke testing has passed, or formal UAT has started.
+A successful preflight proves only source-governance readiness. It does not mean that:
+
+- dependencies have been installed;
+- `package-lock.json` exists;
+- the preview database has been backed up;
+- the migration-ledger bootstrap has been executed;
+- bootstrap execution evidence exists;
+- migrations have been applied;
+- preview data verification has passed;
+- a release manifest has been frozen;
+- the preview application has been restarted;
+- smoke testing has passed;
+- formal UAT has started.
+
+The successful preflight output must retain:
+
+```text
+databaseBackedVerificationExecuted: false
+migrationsExecuted: false
+previewRestartExecuted: false
+productionMutationEnabled: false
+mergeExecutionEnabled: false
+```
+
+## Activation sequence after source preflight
+
+1. Confirm the checkout is on the controlled branch and intended commit.
+2. Generate and commit `package-lock.json` in a trusted Node.js 20 environment.
+3. Repeat the source-only preflight so the committed lockfile is included.
+4. Run `npm ci` from the committed lockfile.
+5. Run `npm run check`, `npm run check:readiness`, `npm run check:deployment`, and `npm run check:uat-gate`; retain complete output.
+6. Back up and verify `kloka_talk2me`; record the backup reference and SHA-256.
+7. Create a private canonical evidence directory inaccessible to group and world users.
+8. Execute the one-time ledger bootstrap only with `npm run bootstrap:migration-ledger`, explicit preview-only flags, verified backup evidence, named operator, approved change reference, and an absolute `MIGRATION_LEDGER_BOOTSTRAP_EVIDENCE_PATH`.
+9. Verify the generated bootstrap evidence JSON and SHA-256 sidecar with `npm run verify:migration-ledger-bootstrap-evidence`.
+10. Apply migrations only with the same bootstrap evidence path, `ALLOW_PREVIEW_MIGRATIONS=true`, `DB_NAME=kloka_talk2me`, `ALLOW_PRODUCTION_MUTATION=false`, and `ENABLE_CUSTOMER_MERGE_EXECUTION=false`.
+11. Accept migration completion only when the final JSON result reports evidence verification before MySQL, advisory-lock release, and database-connection closure.
+12. Run `DB_NAME=kloka_talk2me npm run verify:preview-data`.
+13. Complete automated and manual preview UAT and retain evidence.
+14. Freeze the release manifest against the exact commit, controlled branch and bootstrap evidence pair.
+15. Verify the frozen release manifest against the same checkout and retained bootstrap evidence pair.
+16. Restart only the preview Node.js application.
+17. Run technical smoke testing.
+18. Record all results in GitHub Issue #83.
+
+## Bootstrap and migration controls
+
+The bootstrap runner must:
+
+- refuse every database except `kloka_talk2me`;
+- require verified backup reference and SHA-256;
+- refuse an existing migration ledger;
+- securely read the reviewed bootstrap source;
+- acquire and verify the preview migration advisory lock;
+- verify the created schema and empty ledger;
+- confirm advisory-lock release;
+- close MySQL before publishing evidence;
+- atomically publish private JSON evidence and its SHA-256 sidecar.
+
+The migration runner must re-run the bootstrap evidence verifier before opening MySQL. It must securely freeze migration sources, validate the ledger as an exact checksum-matching strict prefix, apply only remaining ordered migrations, confirm lock release, close MySQL and only then print final success.
+
+Individual `applied <migration>` lines are not completion evidence.
 
 ## Secure release-evidence verification
 
-After a release manifest has been frozen, post-freeze verification must use `release-manifest-verification.js` with the exact commit SHA, controlled branch, and absolute canonical manifest path.
+After release freeze, `release-manifest-verification.js` must receive the exact commit SHA, controlled branch and absolute canonical manifest path.
 
-The verifier must:
+It must securely verify:
 
-- reject symbolic links for the evidence directory and protected files;
-- require private evidence-file mode `0600` on Linux;
-- open protected files with `O_NOFOLLOW`;
-- compare the validated path device/inode identity with the opened descriptor;
-- read through the validated descriptor rather than reopening by path;
-- enforce bounded file sizes before reading;
-- verify the manifest checksum using constant-time comparison;
-- bind `package.json`, `package-lock.json`, and every migration to the frozen manifest.
+- the release manifest and checksum sidecar;
+- `package.json` and `package-lock.json`;
+- `MIGRATION_LEDGER_BOOTSTRAP.sql`;
+- every migration source in exact order;
+- the private bootstrap execution evidence JSON and checksum sidecar.
 
-Example post-freeze verification:
+Protected reads must reject symbolic links, additional hard links, non-canonical paths, descriptor identity changes, invalid private permissions and oversized files. They must use `O_NOFOLLOW` and descriptor-based reads. Checksums must use constant-time comparison where applicable.
+
+Example:
 
 ```bash
 RELEASE_COMMIT_SHA=<exact-40-character-sha> \
@@ -88,39 +154,28 @@ RELEASE_MANIFEST_PATH=/absolute/private/canonical/path/release-manifest.json \
 node release-manifest-verification.js
 ```
 
-Stop when `O_NOFOLLOW` is unavailable, the path identity changes during secure open, permissions are incorrect, a protected file exceeds its size limit, or any checksum differs.
+Stop when any frozen checksum, commit identity, branch identity, bootstrap evidence field, migration inventory or protected source differs.
 
-## Activation sequence after preflight
-
-1. Confirm the checkout is on the controlled branch and intended commit.
-2. Generate and commit `package-lock.json` using a trusted Node.js 20 environment.
-3. Repeat workspace topology verification so the committed lockfile is included.
-4. Run `npm ci` from the committed lockfile.
-5. Run `npm run check` and retain the complete output.
-6. Back up and verify `kloka_talk2me`.
-7. Apply migrations only with `ALLOW_PREVIEW_MIGRATIONS=true` and `DB_NAME=kloka_talk2me`.
-8. Run `DB_NAME=kloka_talk2me npm run verify:preview-data`.
-9. Freeze and securely verify the release manifest against the exact checkout.
-10. Restart only the preview Node.js application.
-11. Run technical smoke testing.
-12. Start formal UAT only after all previous stages pass.
-
-## Hard stop conditions
+## Hard-stop conditions
 
 Do not proceed when:
 
-- `PREVIEW_APP_ROOT` is missing or differs from `/home/kloka/repositories/talk2me/os2-preview`;
-- the preview root or migrations directory is a symbolic link, changes identity, or is group/world writable;
-- protected source files have inconsistent ownership, symbolic links, additional hard links, path/descriptor identity changes, or exceed bounded file sizes;
+- `PREVIEW_APP_ROOT` differs from `/home/kloka/repositories/talk2me/os2-preview`;
+- the preview root, migrations directory or evidence directory is a symbolic link, changes identity, or has unsafe permissions;
+- protected files have inconsistent ownership, symbolic links, additional hard links, path/descriptor identity changes, or exceed bounded sizes;
 - `DB_NAME` is not exactly `kloka_talk2me`;
 - Node.js is not 20.x;
 - the branch is not `agent/talk2me-os2-integrated-rebuild`;
 - `ALLOW_PRODUCTION_MUTATION=true`;
 - `ENABLE_CUSTOMER_MERGE_EXECUTION=true`;
 - `package-lock.json` is absent before release freeze;
-- preview backup or restore evidence is missing;
-- migration or schema verification fails;
-- secure release-evidence verification fails;
+- verified preview backup evidence is missing;
+- bootstrap evidence is absent or unverifiable;
+- the migration ledger already exists before the controlled one-time bootstrap;
+- migration completion cannot prove advisory-lock release and connection closure;
+- preview data verification fails;
+- UAT evidence is incomplete;
+- secure release-manifest verification fails;
 - the exact deployed commit cannot be proven.
 
-Migration 025, preview data verification, deployment, restart and formal UAT have not yet been executed.
+The migration-ledger bootstrap, migration 025, preview data verification, deployment, restart and formal UAT have not yet been executed.
