@@ -14,25 +14,43 @@ function pathId(path, pattern) {
   const match = String(path || '').match(pattern);
   return match ? positiveId(match[1]) : null;
 }
+async function lookupCustomerId(pool, sql, id) {
+  const [[row]] = await pool.execute(sql,{id});
+  return row && row.master_customer_id ? Number(row.master_customer_id) : null;
+}
 async function resolveCustomerIdFromRequest(pool, req) {
-  const explicit = positiveId(req.body?.masterCustomerId || req.query?.masterCustomerId);
+  const explicit = positiveId(req.body?.masterCustomerId || req.body?.customerId || req.query?.masterCustomerId || req.query?.customerId);
   if (explicit) return explicit;
-  const customerId = pathId(req.path, /\/customers\/(\d+)(?:\/|$)/);
-  if (customerId) return customerId;
-  const mobileLineId = pathId(req.path, /\/mobile-lines\/(\d+)(?:\/|$)/);
-  if (mobileLineId) {
-    const [[row]] = await pool.execute('SELECT master_customer_id FROM os2_mobile_lines WHERE id=:id LIMIT 1',{id:mobileLineId});
-    return row ? Number(row.master_customer_id) : null;
+
+  const directPatterns = [
+    /\/customers\/(\d+)(?:\/|$)/,
+    /\/customer-lifecycle\/(\d+)(?:\/|$)/,
+    /\/customer-access\/(\d+)(?:\/|$)/,
+    /\/customer-merge-plans\/customer\/(\d+)(?:\/|$)/
+  ];
+  for (const pattern of directPatterns) {
+    const id = pathId(req.path,pattern);
+    if (id) return id;
   }
-  const fixedServiceId = pathId(req.path, /\/fixed-services\/(\d+)(?:\/|$)/);
-  if (fixedServiceId) {
-    const [[row]] = await pool.execute(`SELECT fa.master_customer_id FROM os2_fixed_services fs JOIN os2_fixed_accounts fa ON fa.id=fs.fixed_account_id WHERE fs.id=:id LIMIT 1`,{id:fixedServiceId});
-    return row ? Number(row.master_customer_id) : null;
-  }
-  const accountId = pathId(req.path, /\/accounts\/(\d+)(?:\/|$)/);
-  if (accountId) {
-    const [[row]] = await pool.execute('SELECT master_customer_id FROM os2_customer_accounts WHERE id=:id LIMIT 1',{id:accountId});
-    return row ? Number(row.master_customer_id) : null;
+
+  const lookups = [
+    {pattern:/\/mobile-lines\/(\d+)(?:\/|$)/,sql:'SELECT master_customer_id FROM os2_mobile_lines WHERE id=:id LIMIT 1'},
+    {pattern:/\/fixed-accounts\/(\d+)(?:\/|$)/,sql:'SELECT master_customer_id FROM os2_fixed_accounts WHERE id=:id LIMIT 1'},
+    {pattern:/\/fixed-services\/(\d+)(?:\/|$)/,sql:'SELECT fa.master_customer_id FROM os2_fixed_services fs JOIN os2_fixed_accounts fa ON fa.id=fs.fixed_account_id WHERE fs.id=:id LIMIT 1'},
+    {pattern:/\/accounts\/(\d+)(?:\/|$)/,sql:'SELECT master_customer_id FROM os2_customer_accounts WHERE id=:id LIMIT 1'},
+    {pattern:/\/representatives\/(\d+)(?:\/|$)/,sql:'SELECT master_customer_id FROM os2_authorised_representatives WHERE id=:id LIMIT 1'},
+    {pattern:/\/restrictions\/(\d+)(?:\/|$)/,sql:'SELECT master_customer_id FROM os2_customer_restrictions WHERE id=:id LIMIT 1'},
+    {pattern:/\/documents\/(\d+)(?:\/|$)/,sql:'SELECT master_customer_id FROM os2_customer_documents WHERE id=:id LIMIT 1'},
+    {pattern:/\/work-items\/(\d+)(?:\/|$)/,sql:'SELECT master_customer_id FROM os2_work_items WHERE id=:id LIMIT 1'},
+    {pattern:/\/claims\/(\d+)(?:\/|$)/,sql:'SELECT master_customer_id FROM os2_customer_claims WHERE id=:id LIMIT 1'},
+    {pattern:/\/approvals\/(\d+)(?:\/|$)/,sql:'SELECT master_customer_id FROM os2_approval_requests WHERE id=:id LIMIT 1'},
+    {pattern:/\/opportunities\/(\d+)(?:\/|$)/,sql:'SELECT master_customer_id FROM os2_opportunities WHERE id=:id LIMIT 1'},
+    {pattern:/\/duplicate-customers\/(\d+)(?:\/|$)/,sql:'SELECT primary_customer_id AS master_customer_id FROM os2_customer_duplicate_cases WHERE id=:id LIMIT 1'},
+    {pattern:/\/customer-merge-plans\/(\d+)(?:\/|$)/,sql:'SELECT survivor_customer_id AS master_customer_id FROM os2_customer_merge_plans WHERE id=:id LIMIT 1'}
+  ];
+  for (const lookup of lookups) {
+    const id = pathId(req.path,lookup.pattern);
+    if (id) return lookupCustomerId(pool,lookup.sql,id);
   }
   return null;
 }
@@ -97,4 +115,4 @@ function createCustomerAccessGuard({ pool }) {
     } catch (error) { return next(error); }
   };
 }
-module.exports = { MANAGEMENT_ROLES, READ_METHODS, positiveId, pathId, resolveCustomerIdFromRequest, resolveCustomerAccess, createCustomerAccessGuard };
+module.exports = { MANAGEMENT_ROLES, READ_METHODS, positiveId, pathId, lookupCustomerId, resolveCustomerIdFromRequest, resolveCustomerAccess, createCustomerAccessGuard };
