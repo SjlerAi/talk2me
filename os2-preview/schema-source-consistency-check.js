@@ -15,6 +15,7 @@ const previewReadiness=read('readiness-check.js');
 const deploymentCheck=read('deployment-check.js');
 const uatGate=read('uat-gate-check.js');
 const releaseCandidateGate=read('release-candidate-gate.js');
+const releaseManifestCheck=read('release-manifest-check.js');
 const schemaVerification=read('schema-verification.js');
 const restoreEvidenceVerification=read('merge-restore-evidence-verification.js');
 const packageSource=read('package.json');
@@ -95,5 +96,13 @@ need(releaseCandidateGate,'restoreMatchesBackup','release-candidate restore-to-b
 need(releaseCandidateGate,'executionAvailable:false','release-candidate merge execution lock');
 need(releaseCandidateGate,'mergeExecutionEnabled: false','release manifest merge execution lock');
 need(releaseCandidateGate,"package-lock.json is required before release-candidate freeze",'release-candidate dependency lock requirement');
+need(releaseManifestCheck,'20260801_025_merge_authorisation_restore_pin.sql','release manifest migration 025 governance');
+need(releaseManifestCheck,'merge-restore-evidence-verification.js','release manifest restore evidence verifier governance');
+need(releaseManifestCheck,'rt.id=a.restore_test_id','release manifest exact restore pin governance');
+need(releaseManifestCheck,'restoreMatchesBackup','release manifest restore-to-backup governance');
+need(releaseManifestCheck,'executionAvailable:false','release manifest execution lock governance');
+need(releaseManifestCheck,'mergeExecutionEnabled:false','release manifest output execution lock');
+need(releaseManifestCheck,"pkg.scripts.check.includes('release-manifest-check.js')",'release manifest normal validation registration');
+forbid(releaseManifestCheck,"pkg.scripts.check.includes('release-candidate-gate.js') === false",'inverted release-candidate normal-chain assertion');
 
 console.log(JSON.stringify({ok:true,check:'schema-source-consistency'},null,2));
