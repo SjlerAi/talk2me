@@ -28,10 +28,31 @@ mustContain('runtime-release-identity-check.js', [
   'mergeExecutionEnabled: false'
 ]);
 
+mustContain('workspace-topology-verification.js', [
+  'PREVIEW_APP_ROOT is required',
+  'PREVIEW_APP_ROOT must match the executing application root',
+  'O_NOFOLLOW and O_DIRECTORY are required for workspace topology verification',
+  'fs.openSync(directory, fs.constants.O_RDONLY | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW)',
+  'descriptorStat.dev !== pathStat.dev || descriptorStat.ino !== pathStat.ino',
+  'must not be group or world writable',
+  'must not have additional hard links',
+  'owner differs from the preview application root',
+  'Migration 025 is missing from the protected workspace',
+  'directoryNoFollowVerification: true',
+  'directoryDescriptorIdentityVerified: true',
+  'protectedFilesSymlinkFree: true',
+  'protectedFilesHardLinkFree: true',
+  'ownershipConsistent: true',
+  'productionMutationEnabled: false',
+  'mergeExecutionEnabled: false'
+]);
+
 mustContain('preview-activation-preflight.js', [
   "expectedDatabase = 'kloka_talk2me'",
   "expectedBranch = 'agent/talk2me-os2-integrated-rebuild'",
   'expectedNodeMajor = 20',
+  'PREVIEW_APP_ROOT',
+  "'workspace-topology-verification.js'",
   'ALLOW_PRODUCTION_MUTATION=true',
   'ENABLE_CUSTOMER_MERGE_EXECUTION=true',
   "'runtime-release-identity-check.js'",
@@ -43,6 +64,7 @@ mustContain('preview-activation-preflight.js', [
   'result.error',
   'result.signal',
   'result.status !== 0',
+  'workspaceTopologyVerified: true',
   'databaseBackedVerificationExecuted: false',
   'migrationsExecuted: false',
   'previewRestartExecuted: false',
@@ -52,6 +74,10 @@ mustContain('preview-activation-preflight.js', [
 
 mustContain('preview-activation-governance-check.js', [
   'Preview activation preflight order is invalid',
+  'workspaceTopologyVerificationRequired: true',
+  'directoryNoFollowVerificationRequired: true',
+  'protectedFileHardLinkRejectionRequired: true',
+  'ownershipConsistencyRequired: true',
   'verify:preview-activation-preflight',
   'PREVIEW_ACTIVATION_RUNBOOK.md',
   'productionMutationEnabled: false',
@@ -83,6 +109,10 @@ mustContain('release-evidence-security-check.js', [
 ]);
 
 mustContain('PREVIEW_ACTIVATION_RUNBOOK.md', [
+  'PREVIEW_APP_ROOT=/home/kloka/repositories/talk2me/os2-preview',
+  'workspace-topology-verification.js',
+  'directory descriptors with `O_DIRECTORY | O_NOFOLLOW`',
+  'additional hard links',
   'npm run verify:preview-activation-preflight',
   'npm ci',
   'npm run check',
@@ -147,6 +177,7 @@ mustContain('PREVIEW_DEPLOYMENT_RUNBOOK.md', [
 [
   'migrations/20260801_025_merge_authorisation_restore_pin.sql',
   'runtime-release-identity-check.js',
+  'workspace-topology-verification.js',
   'preview-activation-preflight.js',
   'preview-activation-governance-check.js',
   'release-manifest-verification.js',
@@ -176,6 +207,10 @@ console.log(JSON.stringify({
   database: 'kloka_talk2me',
   minimumMigrationCount: 25,
   runtimeReleaseIdentityRequired: true,
+  workspaceTopologyVerificationRequired: true,
+  directoryNoFollowVerificationRequired: true,
+  protectedFileHardLinkRejectionRequired: true,
+  ownershipConsistencyRequired: true,
   previewActivationPreflightRequired: true,
   previewActivationGovernanceRequired: true,
   secureReleaseEvidenceVerificationRequired: true,
