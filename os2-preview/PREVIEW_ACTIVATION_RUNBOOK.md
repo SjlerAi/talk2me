@@ -23,7 +23,7 @@ DB_NAME=kloka_talk2me \
 RELEASE_BRANCH=agent/talk2me-os2-integrated-rebuild \
 ALLOW_PRODUCTION_MUTATION=false \
 ENABLE_CUSTOMER_MERGE_EXECUTION=false \
-npm run preflight:preview-activation
+npm run verify:preview-activation-preflight
 ```
 
 The preflight must run these source-only controls in this exact order:
