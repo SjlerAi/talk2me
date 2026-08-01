@@ -12,6 +12,42 @@ function exists(file) { return fs.existsSync(path.join(root, file)); }
 function fail(message) { failures.push(message); }
 function sha256(file) { return crypto.createHash('sha256').update(fs.readFileSync(path.join(root,file))).digest('hex'); }
 function sha256Text(value) { return crypto.createHash('sha256').update(value).digest('hex'); }
+function writePrivateTemp(file, value) {
+  const descriptor = fs.openSync(file, 'wx', 0o600);
+  try {
+    fs.writeFileSync(descriptor, value, 'utf8');
+    fs.fsyncSync(descriptor);
+  } finally {
+    fs.closeSync(descriptor);
+  }
+}
+function removeIfPresent(file) {
+  try { fs.unlinkSync(file); } catch (error) { if (error.code !== 'ENOENT') throw error; }
+}
+function publishEvidencePair(manifestPath, manifestText, checksumText) {
+  const checksumPath = `${manifestPath}.sha256`;
+  const nonce = `${process.pid}-${crypto.randomBytes(12).toString('hex')}`;
+  const manifestTemp = `${manifestPath}.${nonce}.tmp`;
+  const checksumTemp = `${checksumPath}.${nonce}.tmp`;
+  let checksumPublished = false;
+  let manifestPublished = false;
+
+  try {
+    writePrivateTemp(manifestTemp, manifestText);
+    writePrivateTemp(checksumTemp, checksumText);
+    fs.linkSync(checksumTemp, checksumPath);
+    checksumPublished = true;
+    fs.linkSync(manifestTemp, manifestPath);
+    manifestPublished = true;
+  } catch (error) {
+    if (manifestPublished) removeIfPresent(manifestPath);
+    if (checksumPublished) removeIfPresent(checksumPath);
+    throw error;
+  } finally {
+    removeIfPresent(manifestTemp);
+    removeIfPresent(checksumTemp);
+  }
+}
 
 const pkg = JSON.parse(fs.readFileSync(path.join(root,'package.json'),'utf8'));
 const migrations = fs.readdirSync(path.join(root,'migrations')).filter(name => /^\d+_.+\.sql$/.test(name)).sort();
@@ -126,8 +162,13 @@ if (output && path.isAbsolute(output)) {
   } else if (failures.length === 0) {
     const manifestText = JSON.stringify(manifest,null,2) + '\n';
     const manifestChecksum = sha256Text(manifestText);
-    fs.writeFileSync(output, manifestText, { mode:0o600, flag:'wx' });
-    fs.writeFileSync(checksumOutput, `${manifestChecksum}  ${path.basename(output)}\n`, { mode:0o600, flag:'wx' });
+    const checksumText = `${manifestChecksum}  ${path.basename(output)}\n`;
+    try {
+      publishEvidencePair(output, manifestText, checksumText);
+    } catch (error) {
+      fail(`Release evidence publication failed: ${error.message}`);
+      manifest.ok = false;
+    }
   }
 }
 
