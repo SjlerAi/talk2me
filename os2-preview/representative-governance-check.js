@@ -9,6 +9,8 @@ const core=read('core/representatives.js');
 const routes=read('representative-governance-routes.js');
 const access=read('customer-access-routes.js');
 const migration=read('migrations/20260801_023_representative_governance.sql');
+const schema=read('schema-verification.js');
+const packageJson=read('package.json');
 
 requireText(core,'safeRepresentative','sanitised representative output');
 requireText(core,'try { items = JSON.parse(trimmed); } catch','safe JSON parsing');
@@ -16,8 +18,13 @@ requireText(core,'REPRESENTATIVE_ACTIONS.has(item)','permission whitelist');
 requireText(core,'os2_representative_history','representative lifecycle history');
 requireText(routes,"router.put('/api/os2/representatives/:id'",'representative update route');
 requireText(routes,"representatives:rows.map(safeRepresentative)",'sanitised list response');
-requireText(routes,"REPRESENTATIVE_AND_REASON_REQUIRED",'mandatory revocation reason');
+requireText(routes,'REPRESENTATIVE_AND_REASON_REQUIRED','mandatory revocation reason');
 requireText(access,'createRepresentativeGovernanceRouter','governance router mount');
 requireText(migration,'os2_representative_history','history schema');
+requireText(schema,"'os2_representative_history'",'history table schema verification');
+requireText(schema,'invalidRepresentativePermissions','permission JSON integrity verification');
+requireText(schema,'activeExpiredRepresentatives','expired representative integrity verification');
+requireText(schema,'migrations.length < 23','migration 023 expectation');
+requireText(packageJson,'check:representative-governance','package script registration');
 
-console.log(JSON.stringify({ok:true,check:'representative-governance'},null,2));
+console.log(JSON.stringify({ok:true,check:'representative-governance',schemaMigration:23},null,2));
