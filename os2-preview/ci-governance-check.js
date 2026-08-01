@@ -20,8 +20,14 @@ const workflowMarkers = [
   'permissions:',
   'contents: read',
   'timeout-minutes:',
+  'Detect dependency lock',
+  'package-lock.json is absent',
+  'npm install --ignore-scripts --no-audit --no-fund --package-lock=false',
+  "if: steps.dependency-lock.outputs.present == 'true'",
   'npm run check',
   'npm audit --omit=dev --audit-level=high',
+  'Record dependency audit blocker',
+  'DEPENDENCY_LOCK_PRESENT:',
   'npm run evidence:build',
   'actions/upload-artifact@v4',
   'os2-preview/**',
@@ -35,11 +41,23 @@ if (!pkg.scripts?.['evidence:build']) throw new Error('Missing evidence:build pa
 if (!pkg.scripts?.['check:ci-governance']) throw new Error('Missing check:ci-governance package script');
 if (!pkg.scripts.check.includes('ci-governance-check.js')) throw new Error('CI governance check not included in main validation suite');
 
-const evidenceMarkers = ['sha256', 'migrationCount', 'routeFileCount', 'checkFileCount', 'GITHUB_SHA'];
+const evidenceMarkers = [
+  'sha256',
+  'migrationCount',
+  'routeFileCount',
+  'checkFileCount',
+  'GITHUB_SHA',
+  'DEPENDENCY_LOCK_PRESENT',
+  'dependencyLockPresent',
+  'dependencyAuditEligible',
+  'releaseCandidateEligible'
+];
 for (const marker of evidenceMarkers) {
   if (!evidence.includes(marker)) throw new Error(`Missing build evidence marker: ${marker}`);
 }
 
+if (/cache:\s*npm/.test(workflow)) throw new Error('npm cache must not assume a lockfile before dependency freeze');
+if (/npm install(?![^\n]*--package-lock=false)/.test(workflow)) throw new Error('CI install must not generate an uncommitted dependency lock');
 if (/pull_request_target\s*:/.test(workflow)) throw new Error('Unsafe pull_request_target trigger is prohibited');
 if (/permissions:\s*write-all/.test(workflow)) throw new Error('write-all workflow permission is prohibited');
 if (/continue-on-error:\s*true/.test(workflow)) throw new Error('Validation failures may not be ignored');
@@ -49,5 +67,6 @@ console.log(JSON.stringify({
   module: 'ci-governance',
   workflow: '.github/workflows/os2-preview-ci.yml',
   validationMarkers: workflowMarkers.length,
-  evidenceMarkers: evidenceMarkers.length
+  evidenceMarkers: evidenceMarkers.length,
+  dependencyLockPolicy: 'source-validation-continues-audit-blocked-until-committed-lock'
 }, null, 2));
