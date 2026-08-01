@@ -22,7 +22,9 @@ const createIntelligenceRouter = require('./intelligence-routes');
 const createCollaborationRouter = require('./collaboration-routes');
 const createServiceLifecycleRouter = require('./service-lifecycle-routes');
 const createCommunicationsRouter = require('./communications-routes');
+const createSecurityRouter = require('./security-routes');
 const { permissionsFor } = require('./core/permissions');
+const { requestId, securityHeaders, sameOrigin, rateLimit, hashIdentity, recordSecurityEvent } = require('./security-controls');
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
@@ -44,8 +46,13 @@ const pool = dbConfigured ? mysql.createPool({
 }) : null;
 
 app.disable('x-powered-by');
+app.set('trust proxy', 1);
+app.use(requestId);
+app.use(securityHeaders);
+app.use(rateLimit({ windowMs: 60_000, max: 240, keyPrefix: 'app' }));
 app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: false }));
+app.use(sameOrigin);
 app.use(express.static(publicDir, { index: false, etag: true, maxAge: process.env.NODE_ENV === 'production' ? '5m' : 0 }));
 
 function parseCookies(req) {
@@ -89,12 +96,15 @@ async function loadSession(req, res, next) {
   const token = parseCookies(req)[sessionCookie];
   if (!/^[a-f0-9]{64}$/i.test(String(token || ''))) return next();
   try {
-    const [[row]] = await pool.execute('SELECT session_data FROM app_sessions WHERE session_id=:token AND expires_at>NOW() LIMIT 1', { token });
+    const [[row]] = await pool.execute(`SELECT session_data FROM app_sessions
+      WHERE session_id=:token AND expires_at>NOW() AND revoked_at IS NULL LIMIT 1`, { token });
     if (!row) { clearSessionCookie(res); return next(); }
     const data = JSON.parse(row.session_data || '{}');
     if (!data.os2 || !data.user?.id) { clearSessionCookie(res); return next(); }
     req.user = data.user;
     req.sessionToken = token;
+    pool.execute(`UPDATE app_sessions SET last_seen_at=NOW(),updated_at=NOW() WHERE session_id=:token AND (last_seen_at IS NULL OR last_seen_at<NOW()-INTERVAL 5 MINUTE)`, { token })
+      .catch(error => console.error('Session touch failed', error.code || error.message));
   } catch (error) { console.error('Session load failed', error.code || error.message); }
   return next();
 }
@@ -127,21 +137,34 @@ app.get('/health', async (req, res) => {
     environment: process.env.NODE_ENV || 'development',
     authentication: { enabled:true, signedIn:Boolean(req.user) },
     database,
+    requestId:req.requestId,
     time: new Date().toISOString()
   });
 });
 app.get('/login', (req, res) => req.user ? res.redirect('/') : res.sendFile(path.join(publicDir, 'login.html')));
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', rateLimit({ windowMs: 15 * 60_000, max: 12, keyPrefix: 'login' }), async (req, res) => {
   if (!pool) return res.status(503).json({ ok:false, error:'DATABASE_NOT_CONFIGURED' });
   const identity = String(req.body.identity || '').trim();
   const password = String(req.body.password || '');
   if (!identity || !password) return res.status(400).json({ ok:false, error:'ENTER_USERNAME_AND_PASSWORD' });
+  const identityHash = hashIdentity(identity);
   try {
+    const [[recent]] = await pool.execute(`SELECT COUNT(*) total FROM os2_login_attempts
+      WHERE identity_hash=:identityHash AND was_successful=0 AND attempted_at>NOW()-INTERVAL 15 MINUTE`, { identityHash });
+    if (Number(recent.total) >= 8) {
+      await recordSecurityEvent(pool, req, { eventType:'login_temporarily_blocked', severity:'high', details:{ identityHash } });
+      return res.status(429).json({ ok:false, error:'LOGIN_TEMPORARILY_BLOCKED' });
+    }
     const [[user]] = await pool.execute(`SELECT id,full_name,username,email,role,password_hash
       FROM staff_users WHERE is_active=1 AND
       (LOWER(username)=LOWER(:identity) OR LOWER(email)=LOWER(:identity)) LIMIT 1`, { identity });
     const valid = Boolean(user?.password_hash) && await bcrypt.compare(password, user.password_hash);
-    if (!valid) return res.status(401).json({ ok:false, error:'INVALID_LOGIN' });
+    if (!valid) {
+      await pool.execute(`INSERT INTO os2_login_attempts(identity_hash,ip_address,was_successful,failure_reason,attempted_at)
+        VALUES(:identityHash,:ip,0,'invalid_credentials',NOW())`, { identityHash, ip:requestIp(req) });
+      await recordSecurityEvent(pool, req, { eventType:'login_failed', severity:'warning', details:{ identityHash } });
+      return res.status(401).json({ ok:false, error:'INVALID_LOGIN' });
+    }
     const token = crypto.randomBytes(32).toString('hex');
     const expires = sessionExpiresAt();
     const sessionUser = {
@@ -149,13 +172,17 @@ app.post('/api/auth/login', async (req, res) => {
       email:user.email, role:String(user.role || 'staff').toLowerCase()
     };
     await pool.execute(`INSERT INTO app_sessions
-      (session_id,session_data,expires_at,created_at,updated_at)
-      VALUES (:token,:sessionData,:expires,NOW(),NOW())`, {
-      token, sessionData:JSON.stringify({ os2:true, user:sessionUser, createdAt:new Date().toISOString() }), expires
+      (session_id,session_data,expires_at,created_at,updated_at,last_seen_at,ip_address,user_agent)
+      VALUES (:token,:sessionData,:expires,NOW(),NOW(),NOW(),:ip,:userAgent)`, {
+      token, sessionData:JSON.stringify({ os2:true, user:sessionUser, createdAt:new Date().toISOString() }), expires,
+      ip:requestIp(req), userAgent:String(req.headers['user-agent'] || '').slice(0,255)
     });
+    await pool.execute(`INSERT INTO os2_login_attempts(identity_hash,ip_address,was_successful,attempted_at)
+      VALUES(:identityHash,:ip,1,NOW())`, { identityHash, ip:requestIp(req) });
     await pool.execute('UPDATE staff_users SET last_login_at=NOW() WHERE id=:id', { id:user.id });
     setSessionCookie(res, token, expires);
     await writeSessionAudit(req, sessionUser, 'os2_login', `Signed in to Talk2Me OS2 as ${sessionUser.role}`);
+    await recordSecurityEvent(pool, req, { eventType:'login_succeeded', severity:'info', staffId:user.id });
     return res.json({ ok:true, user:sessionUser, permissions:[...permissionsFor(sessionUser.role)] });
   } catch (error) {
     console.error('Login failed', error.code || error.message);
@@ -164,13 +191,14 @@ app.post('/api/auth/login', async (req, res) => {
 });
 app.post('/api/auth/logout', requireAuth, async (req, res) => {
   try {
-    if (req.sessionToken) await pool.execute('DELETE FROM app_sessions WHERE session_id=:token', { token:req.sessionToken });
+    if (req.sessionToken) await pool.execute(`UPDATE app_sessions SET revoked_at=NOW(),revoked_reason='logout' WHERE session_id=:token`, { token:req.sessionToken });
     await writeSessionAudit(req, req.user, 'os2_logout', 'Signed out of Talk2Me OS2');
+    await recordSecurityEvent(pool, req, { eventType:'logout', severity:'info' });
   } finally { clearSessionCookie(res); }
   res.json({ ok:true });
 });
 app.get('/api/auth/me', requireAuth, (req, res) => res.json({
-  ok:true, user:req.user, permissions:[...permissionsFor(req.user.role, req.user.permissions)]
+  ok:true, user:req.user, permissions:[...permissionsFor(req.user.role, req.user.permissions)], requestId:req.requestId
 }));
 
 app.get('/api/dashboard', requireAuth, async (req, res) => {
@@ -200,6 +228,7 @@ app.use(createControlledImportRouter({ pool, requireAuth }));
 app.use(createIntelligenceRouter({ pool, requireAuth }));
 app.use(createCollaborationRouter({ pool, requireAuth }));
 app.use(createCommunicationsRouter({ pool, requireAuth }));
+app.use(createSecurityRouter({ pool, requireAuth }));
 app.use(createMyWorkRouter({ pool, requireAuth, requestIp }));
 app.use(createAssignmentRouter({ pool, requireAuth, requestIp }));
 app.use(createApprovalRouter({ pool, requireAuth, requestIp }));
@@ -212,15 +241,16 @@ app.use(createAdministrationRouter({ pool, requireAuth, requestIp }));
 
 app.get('/api/admin/session-check', requireRole('owner','manager'), (req, res) => res.json({ ok:true, role:req.user.role }));
 app.get('/', requireAuth, (req, res) => res.sendFile(path.join(publicDir, 'index.html')));
-app.use((error, req, res, next) => {
-  console.error('Unhandled OS2 error', error.code || error.message);
+app.use(async (error, req, res, next) => {
+  console.error('Unhandled OS2 error', req.requestId, error.code || error.message);
+  await recordSecurityEvent(pool, req, { eventType:'unhandled_application_error', severity:'high', details:{ code:error.code || null, message:error.message || null } });
   if (res.headersSent) return next(error);
-  res.status(500).json({ ok:false, error:'UNEXPECTED_SYSTEM_ERROR' });
+  res.status(500).json({ ok:false, error:'UNEXPECTED_SYSTEM_ERROR', requestId:req.requestId });
 });
 app.get('*', (req, res) => req.user ? res.redirect('/') : res.redirect('/login'));
 
 setInterval(() => {
-  if (pool) pool.execute('DELETE FROM app_sessions WHERE expires_at<=NOW()')
+  if (pool) pool.execute(`DELETE FROM app_sessions WHERE expires_at<=NOW() OR revoked_at<NOW()-INTERVAL 30 DAY`)
     .catch(error => console.error('Session cleanup failed', error.code || error.message));
 }, 60 * 60 * 1000).unref();
 
