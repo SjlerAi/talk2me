@@ -10,7 +10,8 @@ const REQUIRED_TABLES = [
   'os2_broadcasts','os2_digest_runs','os2_calendar_events','os2_customer_claims','os2_sticky_notes',
   'os2_sticky_note_shares','os2_service_change_history','os2_security_events','os2_login_attempts',
   'os2_customer_consents','os2_data_subject_requests','os2_data_exports','os2_retention_policies',
-  'os2_retention_reviews','os2_export_access_log','os2_schema_migrations'
+  'os2_retention_reviews','os2_export_access_log','os2_backup_runs','os2_restore_tests',
+  'os2_operational_checks','os2_schema_migrations'
 ];
 
 const REQUIRED_COLUMNS = {
@@ -25,6 +26,9 @@ const REQUIRED_COLUMNS = {
   os2_login_attempts: ['id','identity_hash','ip_address','was_successful','attempted_at'],
   os2_data_exports: ['id','master_customer_id','data_subject_request_id','export_format','status','worker_id','claimed_at','attempts','storage_path','sha256_checksum','row_count','file_count','total_bytes','generated_at','expires_at'],
   os2_export_access_log: ['id','data_export_id','accessed_by','access_type','request_id','ip_address','user_agent','details_json','created_at'],
+  os2_backup_runs: ['id','backup_type','status','database_name','storage_path','file_name','checksum_sha256','file_size_bytes','table_count','row_count_estimate','verified_at'],
+  os2_restore_tests: ['id','backup_run_id','status','target_environment','expected_database_name','verified_checks','failed_checks'],
+  os2_operational_checks: ['id','check_type','status','metric_value','metric_unit','details_json','checked_at'],
   app_sessions: ['session_id','expires_at','last_seen_at','ip_address','user_agent','revoked_at','revoked_reason']
 };
 
@@ -59,7 +63,7 @@ async function main() {
     }
 
     const [migrationRows] = await pool.execute('SELECT migration_name,checksum,applied_at FROM os2_schema_migrations ORDER BY migration_name');
-    if (migrationRows.length < 10) fail(`expected at least 10 applied migrations, found ${migrationRows.length}`);
+    if (migrationRows.length < 11) fail(`expected at least 11 applied migrations, found ${migrationRows.length}`);
 
     const [duplicateAccounts] = await pool.execute(`SELECT normalised_account_number,COUNT(*) total FROM os2_customer_accounts WHERE archived_at IS NULL AND normalised_account_number IS NOT NULL GROUP BY normalised_account_number HAVING COUNT(*)>1 LIMIT 20`);
     const [duplicateMobiles] = await pool.execute(`SELECT mobile_number,COUNT(*) total FROM os2_mobile_lines WHERE archived_at IS NULL AND mobile_number IS NOT NULL GROUP BY mobile_number HAVING COUNT(*)>1 LIMIT 20`);
