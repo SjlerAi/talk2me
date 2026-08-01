@@ -101,7 +101,11 @@ requireMarkers(sourceIntegrity, [
 requireMarkers(sourceIntegrityGovernance, [
   "check: 'workspace-source-integrity-governance'",
   'deterministicInventoryRequired: true',
-  'activationPreflightRegistrationRequired: true'
+  'activationPreflightRegistrationRequired: true',
+  'packageCommandRegistered: true',
+  'normalSyntaxValidationRegistered: true',
+  'normalGovernanceValidationRegistered: true',
+  'environmentBoundVerifierExcludedFromNormalExecution: true'
 ], 'Workspace source integrity governance');
 
 requireMarkers(runbook, [
@@ -119,8 +123,13 @@ requireMarkers(runbook, [
   'Restart only the preview Node.js application'
 ], 'Preview activation runbook');
 
+if (pkg.scripts['verify:workspace-source-integrity'] !== 'node workspace-source-integrity.js') throw new Error('Missing verify:workspace-source-integrity command');
+if (pkg.scripts['check:workspace-source-integrity'] !== 'node workspace-source-integrity-check.js') throw new Error('Missing check:workspace-source-integrity command');
 if (pkg.scripts['verify:preview-activation-preflight'] !== 'node preview-activation-preflight.js') throw new Error('Missing verify:preview-activation-preflight command');
 if (pkg.scripts['check:preview-activation-governance'] !== 'node preview-activation-governance-check.js') throw new Error('Missing check:preview-activation-governance command');
+if (!pkg.scripts.check.includes('node --check workspace-source-integrity.js')) throw new Error('Workspace source integrity syntax check missing from normal validation');
+if (!pkg.scripts.check.includes('node --check workspace-source-integrity-check.js')) throw new Error('Workspace source integrity governance syntax check missing from normal validation');
+if (!pkg.scripts.check.includes('node workspace-source-integrity-check.js')) throw new Error('Workspace source integrity governance missing from normal validation');
 if (!pkg.scripts.check.includes('node --check preview-activation-preflight.js')) throw new Error('Preview activation preflight syntax check missing from normal validation');
 if (!pkg.scripts.check.includes('node --check preview-activation-governance-check.js')) throw new Error('Preview activation governance syntax check missing from normal validation');
 if (!pkg.scripts.check.includes('node preview-activation-governance-check.js')) throw new Error('Preview activation governance regression check missing from normal validation');
@@ -136,6 +145,8 @@ console.log(JSON.stringify({
   workspaceTopologyVerificationRequired: true,
   workspaceSourceIntegrityRequired: true,
   workspaceSourceIntegrityGovernanceRequired: true,
+  workspaceSourceIntegrityCommandsRegistered: true,
+  deterministicSourceInventoryRequired: true,
   workspaceTopologyGovernanceRequired: true,
   migrationLedgerBootstrapGovernanceRequired: true,
   migrationLedgerBootstrapRunnerGovernanceRequired: true,
