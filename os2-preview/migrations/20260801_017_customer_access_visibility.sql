@@ -1,0 +1,20 @@
+CREATE TABLE os2_customer_access_events (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  staff_id BIGINT UNSIGNED NOT NULL,
+  master_customer_id BIGINT UNSIGNED NULL,
+  event_type VARCHAR(60) NOT NULL,
+  access_source VARCHAR(30) NULL,
+  access_level VARCHAR(20) NULL,
+  query_text VARCHAR(180) NULL,
+  result_count INT UNSIGNED NULL,
+  request_id VARCHAR(80) NULL,
+  ip_address VARCHAR(64) NULL,
+  details_json JSON NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_access_events_staff_date (staff_id,created_at),
+  KEY idx_access_events_customer_date (master_customer_id,created_at),
+  KEY idx_access_events_type_date (event_type,created_at),
+  CONSTRAINT fk_access_events_staff FOREIGN KEY (staff_id) REFERENCES staff_users(id),
+  CONSTRAINT fk_access_events_customer FOREIGN KEY (master_customer_id) REFERENCES os2_master_customers(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
