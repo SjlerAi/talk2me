@@ -13,6 +13,7 @@ function sha256(buffer) {
   return crypto.createHash('sha256').update(buffer).digest('hex');
 }
 
+const root = __dirname;
 const expectedPreviewVersion = '0.59.0';
 const manifestPath = String(process.env.RELEASE_MANIFEST_PATH || '').trim();
 if (!manifestPath) fail('RELEASE_MANIFEST_PATH is required');
@@ -134,6 +135,28 @@ if (!migrationNames.has('20260801_025_merge_authorisation_restore_pin.sql')) fai
 if (!Array.isArray(manifest.requiredChecks) || requiredChecks.some(item => !manifest.requiredChecks.includes(item))) fail('Release manifest required-check inventory is incomplete');
 if (!Array.isArray(manifest.requiredScripts) || requiredScripts.some(item => !manifest.requiredScripts.includes(item))) fail('Release manifest required-script inventory is incomplete');
 
+const packageLockPath = path.join(root, 'package-lock.json');
+let packageLockStat;
+try {
+  packageLockStat = fs.lstatSync(packageLockPath);
+} catch {
+  fail('Checked-out package-lock.json is missing');
+}
+if (!packageLockStat.isFile() || packageLockStat.isSymbolicLink()) fail('Checked-out package-lock.json must be a regular non-symlink file');
+const actualDependencyLockChecksum = sha256(fs.readFileSync(packageLockPath));
+if (actualDependencyLockChecksum !== manifest.dependencyLockSha256.toLowerCase()) fail('Release manifest dependency-lock checksum does not match the checked-out package-lock.json');
+
+const migrationsDirectory = path.join(root, 'migrations');
+const actualMigrationFiles = fs.readdirSync(migrationsDirectory).filter(name => /^\d+_.+\.sql$/.test(name)).sort();
+if (actualMigrationFiles.length !== manifest.migrationCount) fail('Release manifest migration inventory does not match the checked-out migration count');
+for (let index = 0; index < actualMigrationFiles.length; index += 1) {
+  const file = actualMigrationFiles[index];
+  const evidence = manifest.migrationChecksums[index];
+  if (!evidence || evidence.file !== file) fail(`Release manifest migration order does not match the checked-out source: ${file}`);
+  const actualMigrationChecksum = sha256(fs.readFileSync(path.join(migrationsDirectory, file)));
+  if (actualMigrationChecksum !== evidence.sha256.toLowerCase()) fail(`Release manifest migration checksum does not match the checked-out source: ${file}`);
+}
+
 console.log(JSON.stringify({
   ok: true,
   check: 'release-manifest-verification',
@@ -149,6 +172,8 @@ console.log(JSON.stringify({
   branch: manifest.branch,
   approvedBy: manifest.approvedBy,
   changeReference: manifest.changeReference,
+  dependencyLockMatchesWorkspace: true,
+  migrationInventoryMatchesWorkspace: true,
   migrationCount: manifest.migrationCount,
   previewDataVerificationRequired: manifest.previewDataVerificationRequired,
   previewDataVerificationOrder: manifest.previewDataVerificationOrder,
