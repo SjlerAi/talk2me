@@ -32,10 +32,10 @@ jobs:
         working-directory: os2-preview
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '20'
 
@@ -101,9 +101,14 @@ jobs:
       - name: Generate build evidence with pre-install source continuity
         env:
           GITHUB_SHA: ${{ github.sha }}
+          GITHUB_REF: ${{ github.ref }}
           GITHUB_REF_NAME: ${{ github.ref_name }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_WORKFLOW_REF: ${{ github.workflow_ref }}
           GITHUB_RUN_ID: ${{ github.run_id }}
           GITHUB_RUN_NUMBER: ${{ github.run_number }}
+          GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
+          GITHUB_ACTOR: ${{ github.actor }}
           DEPENDENCY_LOCK_PRESENT: ${{ steps.dependency-lock.outputs.present }}
           EXPECTED_PREINSTALL_SOURCE_INVENTORY_SHA256: ${{ steps.preinstall-source.outputs.inventory_sha256 }}
           PREVIEW_APP_ROOT: ${{ github.workspace }}/os2-preview
@@ -114,9 +119,9 @@ jobs:
         run: npm run evidence:build
 
       - name: Upload build evidence
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: os2-preview-build-evidence-${{ github.run_number }}
+          name: os2-preview-build-evidence-${{ github.run_number }}-attempt-${{ github.run_attempt }}
           path: os2-preview/build-evidence
           if-no-files-found: error
           retention-days: 30
