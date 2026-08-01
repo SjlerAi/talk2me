@@ -23,7 +23,7 @@ DB_NAME=kloka_talk2me \
 RELEASE_BRANCH=agent/talk2me-os2-integrated-rebuild \
 ALLOW_PRODUCTION_MUTATION=false \
 ENABLE_CUSTOMER_MERGE_EXECUTION=false \
-npm run verify:preview-activation-preflight
+npm run preflight:preview-activation
 ```
 
 The preflight must run these source-only controls in this exact order:
@@ -38,17 +38,33 @@ Stop immediately if any control cannot start, is interrupted, or returns a non-z
 
 ## Preflight limitations
 
-A successful preflight does not mean that:
+A successful preflight does not mean that dependencies have been installed, `package-lock.json` exists, migrations have been applied, preview data verification has passed, the application has been restarted, smoke testing has passed, or formal UAT has started.
 
-- dependencies have been installed;
-- `package-lock.json` exists or is current;
-- migrations have been applied;
-- preview database verification has passed;
-- the preview application has been restarted;
-- technical smoke testing has passed;
-- formal UAT has started or passed.
+## Secure release-evidence verification
 
-These are separate controlled stages.
+After a release manifest has been frozen, post-freeze verification must use `release-manifest-verification.js` with the exact commit SHA, controlled branch, and absolute canonical manifest path.
+
+The verifier must:
+
+- reject symbolic links for the evidence directory and protected files;
+- require private evidence-file mode `0600` on Linux;
+- open protected files with `O_NOFOLLOW`;
+- compare the validated path device/inode identity with the opened descriptor;
+- read through the validated descriptor rather than reopening by path;
+- enforce bounded file sizes before reading;
+- verify the manifest checksum using constant-time comparison;
+- bind `package.json`, `package-lock.json`, and every migration to the frozen manifest.
+
+Example post-freeze verification:
+
+```bash
+RELEASE_COMMIT_SHA=<exact-40-character-sha> \
+RELEASE_BRANCH=agent/talk2me-os2-integrated-rebuild \
+RELEASE_MANIFEST_PATH=/absolute/private/canonical/path/release-manifest.json \
+node release-manifest-verification.js
+```
+
+Stop when `O_NOFOLLOW` is unavailable, the path identity changes during secure open, permissions are incorrect, a protected file exceeds its size limit, or any checksum differs.
 
 ## Activation sequence after preflight
 
@@ -59,13 +75,14 @@ These are separate controlled stages.
 5. Back up and verify `kloka_talk2me`.
 6. Apply migrations only with `ALLOW_PREVIEW_MIGRATIONS=true` and `DB_NAME=kloka_talk2me`.
 7. Run `DB_NAME=kloka_talk2me npm run verify:preview-data`.
-8. Restart only the preview Node.js application.
-9. Run technical smoke testing.
-10. Start formal UAT only after all previous stages pass.
+8. Freeze and securely verify the release manifest against the exact checkout.
+9. Restart only the preview Node.js application.
+10. Run technical smoke testing.
+11. Start formal UAT only after all previous stages pass.
 
 ## Hard stop conditions
 
-Do not proceed when any of the following is true:
+Do not proceed when:
 
 - `DB_NAME` is not exactly `kloka_talk2me`;
 - Node.js is not 20.x;
@@ -75,6 +92,7 @@ Do not proceed when any of the following is true:
 - `package-lock.json` is absent before release freeze;
 - preview backup or restore evidence is missing;
 - migration or schema verification fails;
+- secure release-evidence verification fails;
 - the exact deployed commit cannot be proven.
 
 Migration 025, preview data verification, deployment, restart and formal UAT have not yet been executed.
