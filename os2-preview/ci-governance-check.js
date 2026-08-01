@@ -1,0 +1,53 @@
+'use strict';
+
+const fs = require('fs');
+const path = require('path');
+
+const repoRoot = path.join(__dirname, '..');
+const workflowPath = path.join(repoRoot, '.github', 'workflows', 'os2-preview-ci.yml');
+const packagePath = path.join(__dirname, 'package.json');
+const evidencePath = path.join(__dirname, 'build-evidence.js');
+
+for (const file of [workflowPath, packagePath, evidencePath]) {
+  if (!fs.existsSync(file)) throw new Error(`Missing CI governance file: ${file}`);
+}
+
+const workflow = fs.readFileSync(workflowPath, 'utf8');
+const pkg = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
+const evidence = fs.readFileSync(evidencePath, 'utf8');
+
+const workflowMarkers = [
+  'permissions:',
+  'contents: read',
+  'timeout-minutes:',
+  'npm run check',
+  'npm audit --omit=dev --audit-level=high',
+  'npm run evidence:build',
+  'actions/upload-artifact@v4',
+  'os2-preview/**',
+  'public/os2/**'
+];
+for (const marker of workflowMarkers) {
+  if (!workflow.includes(marker)) throw new Error(`Missing CI workflow control: ${marker}`);
+}
+
+if (!pkg.scripts?.['evidence:build']) throw new Error('Missing evidence:build package script');
+if (!pkg.scripts?.['check:ci-governance']) throw new Error('Missing check:ci-governance package script');
+if (!pkg.scripts.check.includes('ci-governance-check.js')) throw new Error('CI governance check not included in main validation suite');
+
+const evidenceMarkers = ['sha256', 'migrationCount', 'routeFileCount', 'checkFileCount', 'GITHUB_SHA'];
+for (const marker of evidenceMarkers) {
+  if (!evidence.includes(marker)) throw new Error(`Missing build evidence marker: ${marker}`);
+}
+
+if (/pull_request_target\s*:/.test(workflow)) throw new Error('Unsafe pull_request_target trigger is prohibited');
+if (/permissions:\s*write-all/.test(workflow)) throw new Error('write-all workflow permission is prohibited');
+if (/continue-on-error:\s*true/.test(workflow)) throw new Error('Validation failures may not be ignored');
+
+console.log(JSON.stringify({
+  ok: true,
+  module: 'ci-governance',
+  workflow: '.github/workflows/os2-preview-ci.yml',
+  validationMarkers: workflowMarkers.length,
+  evidenceMarkers: evidenceMarkers.length
+}, null, 2));
