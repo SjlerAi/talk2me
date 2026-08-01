@@ -44,6 +44,7 @@ if (!fs.existsSync(path.join(__dirname, 'package-lock.json'))) warnings.push('pa
 [
   'server.js','package.json','MIGRATION_LEDGER_BOOTSTRAP.sql','migration-ledger-bootstrap-governance-check.js',
   'migration-ledger-bootstrap-runner.js','migration-ledger-bootstrap-runner-check.js',
+  'migration-ledger-bootstrap-evidence-verification.js','migration-ledger-bootstrap-evidence-check.js',
   'migration-runner.js','migration-runner-security-check.js','schema-verification.js','preview-data-verification.js',
   'runtime-release-identity-check.js','workspace-topology-verification.js','workspace-topology-governance-check.js',
   'preview-activation-preflight.js','preview-activation-governance-check.js',
@@ -87,6 +88,28 @@ requireMarkers('migration-ledger-bootstrap-runner-check.js', [
   'postCreateSchemaVerificationRequired: true',
   'emptyLedgerRequired: true'
 ]);
+requireMarkers('migration-ledger-bootstrap-evidence-verification.js', [
+  'migration-ledger-bootstrap-evidence-verification',
+  'MIGRATION_LEDGER_BOOTSTRAP_EVIDENCE_PATH is required',
+  'fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW',
+  'timingSafeEqual',
+  'bootstrapMatchesWorkspace: true',
+  'verifiedBackupEvidencePresent: true',
+  'ledgerAbsentBeforeBootstrap: true',
+  'ledgerSchemaVerified: true',
+  'ledgerEmpty: true',
+  'advisoryLockLifecycleVerified: true'
+]);
+requireMarkers('migration-ledger-bootstrap-evidence-check.js', [
+  'migration-ledger-bootstrap-evidence-governance',
+  'secureEvidenceReadRequired: true',
+  'evidenceChecksumRequired: true',
+  'bootstrapWorkspaceBindingRequired: true',
+  'verifiedBackupEvidenceRequired: true',
+  'operatorAndChangeReferenceRequired: true',
+  'ledgerAbsenceBeforeExecutionRequired: true',
+  'advisoryLockLifecycleRequired: true'
+]);
 requireMarkers('migration-runner.js', [
   "PREVIEW_DATABASE = 'kloka_talk2me'",
   "MIGRATION_LOCK_NAME = 'talk2me_os2_preview_migrations'",
@@ -116,6 +139,11 @@ requireMarkers('PREVIEW_DEPLOYMENT_RUNBOOK.md', [
   'ALLOW_MIGRATION_LEDGER_BOOTSTRAP=true',
   'VERIFIED_BACKUP_REFERENCE',
   'VERIFIED_BACKUP_SHA256',
+  'MIGRATION_LEDGER_BOOTSTRAP_EVIDENCE_PATH',
+  'migration-ledger-bootstrap-evidence-verification.js',
+  'bootstrap evidence checksum',
+  'ledger table was absent before execution',
+  'advisory lock lifecycle',
   'MIGRATION_LEDGER_BOOTSTRAP_REQUIRED',
   'talk2me_os2_preview_migrations',
   'Only one controlled migration process may operate at a time.'
@@ -157,6 +185,8 @@ const summary = {
   migrationCount,
   migrationLedgerBootstrapGovernanceRequired: true,
   controlledMigrationLedgerBootstrapRunnerRequired: true,
+  migrationLedgerBootstrapEvidenceVerificationRequired: true,
+  migrationLedgerBootstrapEvidenceGovernanceRequired: true,
   verifiedBackupEvidenceRequiredForBootstrap: true,
   runtimeLedgerCreationDisabled: true,
   workspaceTopologyVerificationRequired: true,
