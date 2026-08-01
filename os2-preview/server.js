@@ -17,6 +17,7 @@ const createAdministrationRouter = require('./administration-routes');
 const createIntegratedRouter = require('./integrated-routes');
 const createDocumentRouter = require('./document-routes');
 const createOperationalRouter = require('./operational-routes');
+const createControlledImportRouter = require('./controlled-import-routes');
 const { permissionsFor } = require('./core/permissions');
 
 const app = express();
@@ -190,6 +191,7 @@ app.get('/api/dashboard', requireAuth, async (req, res) => {
 app.use(createIntegratedRouter({ pool, requireAuth }));
 app.use(createDocumentRouter({ pool, requireAuth }));
 app.use(createOperationalRouter({ pool, requireAuth }));
+app.use(createControlledImportRouter({ pool, requireAuth }));
 app.use(createMyWorkRouter({ pool, requireAuth, requestIp }));
 app.use(createAssignmentRouter({ pool, requireAuth, requestIp }));
 app.use(createApprovalRouter({ pool, requireAuth, requestIp }));
