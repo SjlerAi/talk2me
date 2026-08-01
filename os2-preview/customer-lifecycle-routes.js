@@ -4,6 +4,7 @@ const express=require('express');
 const { withTransaction }=require('./core/transaction');
 const { requirePermission }=require('./core/permissions');
 const { appendAudit }=require('./core/audit');
+const { consumeApproval }=require('./core/approvals');
 
 function positiveId(value){const id=Number(value);return Number.isInteger(id)&&id>0?id:null;}
 function text(value,max=1000){const result=String(value==null?'':value).trim();return result?result.slice(0,max):null;}
@@ -29,13 +30,13 @@ module.exports=function createCustomerLifecycleRouter({pool,requireAuth}){
       const [[customer]]=await pool.execute('SELECT id,display_name,status,archived_at,archive_reason,archived_by,reactivated_at,reactivated_by FROM os2_master_customers WHERE id=:id',{id:customerId});
       if(!customer)return res.status(404).json({ok:false,error:'CUSTOMER_NOT_FOUND'});
       const lifecycleBlockers=await blockers(pool,customerId);
-      res.json({ok:true,customer,blockers:lifecycleBlockers,canArchive:Object.values(lifecycleBlockers).every(value=>value===0)});
+      res.json({ok:true,customer,blockers:lifecycleBlockers,canArchive:Object.values(lifecycleBlockers).every(value=>value===0),archiveApprovalRequired:true});
     }catch(error){res.status(500).json({ok:false,error:'CUSTOMER_LIFECYCLE_STATUS_FAILED'});}
   });
 
   router.post('/api/os2/customer-lifecycle/:customerId/archive',requirePermission('customer.archive'),async(req,res)=>{
-    const customerId=positiveId(req.params.customerId),reason=text(req.body.reason);
-    if(!customerId||!reason)return res.status(400).json({ok:false,error:'CUSTOMER_AND_ARCHIVE_REASON_REQUIRED'});
+    const customerId=positiveId(req.params.customerId),reason=text(req.body.reason),approvalId=positiveId(req.body.approvalId);
+    if(!customerId||!reason||!approvalId)return res.status(400).json({ok:false,error:'CUSTOMER_ARCHIVE_REASON_AND_APPROVAL_REQUIRED'});
     try{
       const result=await withTransaction(pool,async connection=>{
         const [[customer]]=await connection.execute('SELECT * FROM os2_master_customers WHERE id=:id FOR UPDATE',{id:customerId});
@@ -43,13 +44,20 @@ module.exports=function createCustomerLifecycleRouter({pool,requireAuth}){
         if(customer.archived_at)throw Object.assign(new Error('CUSTOMER_ALREADY_ARCHIVED'),{statusCode:409});
         const lifecycleBlockers=await blockers(connection,customerId);
         if(Object.values(lifecycleBlockers).some(value=>value>0))throw Object.assign(new Error('CUSTOMER_ARCHIVE_BLOCKED'),{statusCode:409,details:lifecycleBlockers});
-        const after={status:'archived',archived_at:new Date().toISOString(),archive_reason:reason,archived_by:Number(req.user.id)};
+        const approval=await consumeApproval(connection,{
+          approvalId,actionKey:'customer_archive',masterCustomerId:customerId,
+          targetEntityType:'os2_master_customers',targetEntityId:customerId,
+          payload:{customerId,reason},actorStaffId:req.user.id,
+          consumedForEntityType:'os2_master_customers',consumedForEntityId:customerId,
+          result:{archiveAuthorised:true},requestContext:requestContext(req)
+        });
+        const after={status:'archived',archived_at:new Date().toISOString(),archive_reason:reason,archived_by:Number(req.user.id),approval_id:approval.approvalId};
         await connection.execute(`UPDATE os2_master_customers SET status='archived',archived_at=NOW(),archive_reason=:reason,archived_by=:actor,updated_by=:actor,updated_at=NOW() WHERE id=:id`,{id:customerId,reason,actor:req.user.id});
         await connection.execute(`UPDATE os2_customer_ownership SET is_current=0,effective_to=NOW() WHERE master_customer_id=:id AND is_current=1`,{id:customerId});
         await connection.execute(`UPDATE os2_customer_access_grants SET revoked_at=NOW(),revoked_by=:actor,revoke_reason='customer_archived',updated_at=NOW() WHERE master_customer_id=:id AND revoked_at IS NULL`,{id:customerId,actor:req.user.id});
         await connection.execute(`INSERT INTO os2_customer_lifecycle_history(master_customer_id,event_type,reason,before_json,after_json,changed_by,created_at) VALUES(:id,'archived',:reason,:before,:after,:actor,NOW())`,{id:customerId,reason,before:JSON.stringify(customer),after:JSON.stringify(after),actor:req.user.id});
         await appendAudit(connection,{actorStaffId:req.user.id,actionType:'master_customer_archived',entityType:'os2_master_customers',entityId:customerId,masterCustomerId:customerId,description:`Archived Master Customer ${customer.display_name}`,before:customer,after,requestContext:requestContext(req)});
-        return {customerId,archived:true};
+        return {customerId,archived:true,approvalId:approval.approvalId};
       });
       res.json({ok:true,...result});
     }catch(error){res.status(error.statusCode||500).json({ok:false,error:error.statusCode?error.message:'CUSTOMER_ARCHIVE_FAILED',blockers:error.details||null});}
