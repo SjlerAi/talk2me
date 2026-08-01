@@ -5,6 +5,7 @@ const path = require('path');
 
 const root = __dirname;
 const runner = fs.readFileSync(path.join(root, 'migration-runner.js'), 'utf8');
+const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 
 const markers = [
   "PREVIEW_DATABASE = 'kloka_talk2me'",
@@ -22,11 +23,21 @@ const markers = [
   'MIGRATION_025_MISSING',
   'PRODUCTION_MUTATION_FLAG_PROHIBITED',
   'MERGE_EXECUTION_FLAG_PROHIBITED',
+  'SELECT CONNECTION_ID() AS connection_id',
   'SELECT GET_LOCK(?, ?) AS acquired',
-  'MIGRATION_ADVISORY_LOCK_NOT_ACQUIRED',
+  'SELECT IS_USED_LOCK(?) AS owner_connection_id',
+  'MIGRATION_ADVISORY_LOCK_OWNER_MISMATCH',
+  'MIGRATION_ADVISORY_LOCK_OWNERSHIP_LOST',
   'SELECT RELEASE_LOCK(?) AS released',
+  'MIGRATION_ADVISORY_LOCK_RELEASE_NOT_CONFIRMED',
+  'SELECT migration_name, checksum_sha256 FROM os2_schema_migrations ORDER BY id ASC',
+  'MIGRATION_LEDGER_LONGER_THAN_SOURCE_INVENTORY',
+  'MIGRATION_LEDGER_NOT_STRICT_PREFIX',
+  'MIGRATION_LEDGER_CHECKSUM_INVALID',
   'MIGRATION_CHECKSUM_MISMATCH',
+  'ledgerStrictPrefixVerified: true',
   'advisoryLockUsed: true',
+  'advisoryLockOwnerVerified: true',
   'secureMigrationReads: true',
   'productionMutationEnabled: false',
   'mergeExecutionEnabled: false'
@@ -42,8 +53,20 @@ if (runner.indexOf('secureMigrationDirectory()') > runner.indexOf('mysql.createC
 if (runner.indexOf('acquireMigrationLock(connection)') > runner.indexOf('ensureLedger(connection)')) {
   throw new Error('Migration advisory lock must be acquired before ledger or migration activity');
 }
-if (!runner.includes('if (lockAcquired) await releaseMigrationLock(connection)')) {
+if (runner.indexOf('validateAppliedLedger(appliedRows, migrationSources)') > runner.indexOf('for (const migration of migrationSources)')) {
+  throw new Error('Migration ledger integrity must be validated before applying migrations');
+}
+if (!runner.includes('if (lockAcquired) await releaseMigrationLock(connection, lockConnectionId)')) {
   throw new Error('Migration advisory lock release is not protected in cleanup');
+}
+if (pkg.scripts['check:migration-runner-security'] !== 'node migration-runner-security-check.js') {
+  throw new Error('Missing check:migration-runner-security command');
+}
+if (!pkg.scripts.check.includes('node --check migration-runner-security-check.js')) {
+  throw new Error('Migration runner security syntax check missing from normal validation');
+}
+if (!pkg.scripts.check.includes('node migration-runner-security-check.js')) {
+  throw new Error('Migration runner security regression check missing from normal validation');
 }
 
 console.log(JSON.stringify({
@@ -55,7 +78,11 @@ console.log(JSON.stringify({
   hardLinkRejectionRequired: true,
   boundedMigrationFilesRequired: true,
   strictMigrationInventoryRequired: true,
+  strictLedgerPrefixRequired: true,
+  ledgerChecksumValidationRequired: true,
   advisoryLockRequired: true,
+  advisoryLockOwnerVerificationRequired: true,
+  advisoryLockReleaseConfirmationRequired: true,
   previewDatabaseOnly: true,
   productionMutationEnabled: false,
   mergeExecutionEnabled: false
