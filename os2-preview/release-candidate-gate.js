@@ -21,13 +21,14 @@ const requiredRunbooks = [
 ];
 const requiredChecks = [
   'architecture-check.js','deployment-check.js','uat-gate-check.js','security-check.js','privacy-check.js',
-  'operations-check.js','ci-governance-check.js','schema-verification.js',
+  'operations-check.js','ci-governance-check.js','schema-verification.js','preview-data-verification.js',
   'merge-restore-pin-check.js','merge-restore-evidence-verification.js',
   'customer-merge-execution-readiness-check.js','schema-source-consistency-check.js'
 ];
 const requiredScripts = [
-  'verify:schema','verify:merge-restore-evidence','check:merge-restore-pin','check:customer-merge-execution-readiness',
-  'check:schema-source-consistency','check:readiness','check:deployment','check:uat-gate'
+  'verify:schema','verify:merge-restore-evidence','verify:preview-data','check:merge-restore-pin',
+  'check:customer-merge-execution-readiness','check:schema-source-consistency',
+  'check:readiness','check:deployment','check:uat-gate'
 ];
 const restorePinMigration = '20260801_025_merge_authorisation_restore_pin.sql';
 const explicitReleaseCommitSha = String(process.env.RELEASE_COMMIT_SHA || '').trim();
@@ -58,6 +59,16 @@ if (!releaseApprovedBy) fail('RELEASE_APPROVED_BY is required');
 if (!releaseChangeReference) fail('RELEASE_CHANGE_REFERENCE is required');
 if (!output) fail('RELEASE_MANIFEST_PATH is required');
 else if (!path.isAbsolute(output)) fail('RELEASE_MANIFEST_PATH must be absolute');
+
+const previewDataSource = exists('preview-data-verification.js')
+  ? fs.readFileSync(path.join(root,'preview-data-verification.js'),'utf8')
+  : '';
+if (!previewDataSource.includes("expectedDatabase = 'kloka_talk2me'")) fail('Preview data verification database guard is missing');
+if (previewDataSource.indexOf("'schema-verification.js'") > previewDataSource.indexOf("'merge-restore-evidence-verification.js'")) {
+  fail('Preview data verification order is invalid');
+}
+if (!previewDataSource.includes("stdio: 'inherit'")) fail('Preview data verification must inherit verifier output');
+if (!previewDataSource.includes('mergeExecutionEnabled: false')) fail('Preview data verification merge execution lock is missing');
 
 const readinessSource = exists('customer-merge-execution-readiness-routes.js')
   ? fs.readFileSync(path.join(root,'customer-merge-execution-readiness-routes.js'),'utf8')
@@ -90,6 +101,8 @@ const manifest = {
   dependencyLockSha256: dependencyLockChecksum,
   migrationCount: migrations.length,
   restorePinMigration,
+  previewDataVerificationRequired: true,
+  previewDataVerificationOrder: ['schema-verification.js','merge-restore-evidence-verification.js'],
   mergeExecutionEnabled: false,
   migrationChecksums: migrations.map(file => ({ file, sha256: sha256(path.join('migrations',file)) })),
   requiredRunbooks,
