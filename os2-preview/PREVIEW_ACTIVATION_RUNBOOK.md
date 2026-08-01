@@ -60,7 +60,11 @@ A missing `package-lock.json` remains a release-freeze blocker. Once present, it
 
 Immediately after topology verification, `workspace-source-integrity.js` must create a deterministic SHA-256 inventory in memory and print it to inherited preflight output. It must not modify the workspace or write evidence files.
 
-The inventory covers critical activation, migration, release, UAT, package and server sources plus every ordered migration. Each source is read through secure descriptor-based reads using `O_NOFOLLOW`, canonical path binding, device/inode comparison, additional hard-link rejection, ownership consistency, safe permission checks and bounded reads.
+The inventory covers the package and server entrypoint, bootstrap and migration controls, activation controls, readiness/deployment/UAT gates, release source verification, release freeze and post-freeze verification, all related governance checks, the activation/deployment/UAT/release/CI evidence runbooks, and every ordered migration.
+
+The inventory is self-protecting: it must include `workspace-source-integrity.js` itself and `workspace-source-integrity-check.js`. It must also include workspace topology governance, activation governance, release source-integrity governance, and release-manifest governance. A governance script that defines what is protected cannot sit outside the protected inventory.
+
+Each source is read through secure descriptor-based reads using `O_NOFOLLOW`, canonical path binding, device/inode comparison, additional hard-link rejection, ownership consistency, safe permission checks and bounded reads.
 
 The canonical inventory record contains the relative filename, byte length and SHA-256 checksum for each protected file. Records are sorted by filename and hashed again to produce one source inventory digest named `inventorySha256`.
 
