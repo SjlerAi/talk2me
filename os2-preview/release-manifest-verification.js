@@ -13,6 +13,51 @@ function sha256(buffer) {
   return crypto.createHash('sha256').update(buffer).digest('hex');
 }
 
+function readSecureRegularFile(file, options = {}) {
+  const label = options.label || 'Protected file';
+  const expectedMode = options.expectedMode;
+  const maxBytes = options.maxBytes || 16 * 1024 * 1024;
+  let pathStat;
+  try {
+    pathStat = fs.lstatSync(file);
+  } catch {
+    fail(`${label} is missing: ${file}`);
+  }
+  if (!pathStat.isFile() || pathStat.isSymbolicLink()) fail(`${label} must be a regular non-symlink file: ${file}`);
+  if (process.platform !== 'win32' && Number.isInteger(expectedMode) && (pathStat.mode & 0o777) !== expectedMode) {
+    fail(`${label} permissions must be ${expectedMode.toString(8).padStart(4, '0')}: ${file}`);
+  }
+  let canonicalFile;
+  try {
+    canonicalFile = fs.realpathSync.native(file);
+  } catch {
+    fail(`${label} cannot be resolved canonically: ${file}`);
+  }
+  if (canonicalFile !== file) fail(`${label} path is not canonical: ${file}`);
+  if (typeof fs.constants.O_NOFOLLOW !== 'number') fail('O_NOFOLLOW is required for secure release evidence verification');
+
+  let descriptor;
+  try {
+    descriptor = fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+  } catch (error) {
+    fail(`Unable to securely open ${label.toLowerCase()}: ${file}: ${error.message}`);
+  }
+  try {
+    const descriptorStat = fs.fstatSync(descriptor);
+    if (!descriptorStat.isFile()) fail(`${label} descriptor is not a regular file: ${file}`);
+    if (descriptorStat.dev !== pathStat.dev || descriptorStat.ino !== pathStat.ino) {
+      fail(`${label} changed between path validation and secure open: ${file}`);
+    }
+    if (descriptorStat.size > maxBytes) fail(`${label} exceeds the maximum permitted size: ${file}`);
+    if (process.platform !== 'win32' && Number.isInteger(expectedMode) && (descriptorStat.mode & 0o777) !== expectedMode) {
+      fail(`${label} descriptor permissions must be ${expectedMode.toString(8).padStart(4, '0')}: ${file}`);
+    }
+    return fs.readFileSync(descriptor);
+  } finally {
+    fs.closeSync(descriptor);
+  }
+}
+
 const root = __dirname;
 const expectedPreviewVersion = '0.59.0';
 const expectedReleaseBranch = 'agent/talk2me-os2-integrated-rebuild';
@@ -26,6 +71,7 @@ if (verifiedReleaseBranch !== expectedReleaseBranch) fail(`Unexpected post-freez
 const manifestPath = String(process.env.RELEASE_MANIFEST_PATH || '').trim();
 if (!manifestPath) fail('RELEASE_MANIFEST_PATH is required');
 if (!path.isAbsolute(manifestPath)) fail('RELEASE_MANIFEST_PATH must be absolute');
+if (path.normalize(manifestPath) !== manifestPath) fail('RELEASE_MANIFEST_PATH must be normalized');
 
 const evidenceDirectory = path.dirname(manifestPath);
 let directoryStat;
@@ -34,52 +80,27 @@ try {
 } catch {
   fail(`Release evidence directory is missing: ${evidenceDirectory}`);
 }
-if (!directoryStat.isDirectory() || directoryStat.isSymbolicLink()) {
-  fail(`Release evidence directory must be a real non-symlink directory: ${evidenceDirectory}`);
-}
-if (process.platform !== 'win32' && (directoryStat.mode & 0o077) !== 0) {
-  fail(`Release evidence directory must not permit group or world access: ${evidenceDirectory}`);
-}
+if (!directoryStat.isDirectory() || directoryStat.isSymbolicLink()) fail(`Release evidence directory must be a real non-symlink directory: ${evidenceDirectory}`);
+if (process.platform !== 'win32' && (directoryStat.mode & 0o077) !== 0) fail(`Release evidence directory must not permit group or world access: ${evidenceDirectory}`);
 let canonicalDirectory;
 try {
   canonicalDirectory = fs.realpathSync.native(evidenceDirectory);
 } catch {
   fail(`Release evidence directory cannot be resolved canonically: ${evidenceDirectory}`);
 }
-if (canonicalDirectory !== evidenceDirectory) {
-  fail(`Release evidence directory path is not canonical: ${evidenceDirectory}`);
-}
+if (canonicalDirectory !== evidenceDirectory) fail(`Release evidence directory path is not canonical: ${evidenceDirectory}`);
 
 const checksumPath = `${manifestPath}.sha256`;
-for (const file of [manifestPath, checksumPath]) {
-  let stat;
-  try {
-    stat = fs.lstatSync(file);
-  } catch {
-    fail(`Required release evidence file is missing: ${file}`);
-  }
-  if (!stat.isFile() || stat.isSymbolicLink()) fail(`Release evidence must be a regular non-symlink file: ${file}`);
-  if (process.platform !== 'win32' && (stat.mode & 0o777) !== 0o600) fail(`Release evidence permissions must be 0600: ${file}`);
-  let canonicalFile;
-  try {
-    canonicalFile = fs.realpathSync.native(file);
-  } catch {
-    fail(`Release evidence file cannot be resolved canonically: ${file}`);
-  }
-  if (canonicalFile !== file) fail(`Release evidence file path is not canonical: ${file}`);
-}
-
-const manifestBytes = fs.readFileSync(manifestPath);
-const checksumText = fs.readFileSync(checksumPath, 'utf8');
+const manifestBytes = readSecureRegularFile(manifestPath, { label: 'Release evidence file', expectedMode: 0o600, maxBytes: 4 * 1024 * 1024 });
+const checksumBytes = readSecureRegularFile(checksumPath, { label: 'Release evidence file', expectedMode: 0o600, maxBytes: 4096 });
+const checksumText = checksumBytes.toString('utf8');
 const checksumMatch = checksumText.match(/^([0-9a-f]{64})  ([^\r\n]+)\r?\n$/i);
 if (!checksumMatch) fail('Release manifest checksum file has an invalid format');
 if (checksumMatch[2] !== path.basename(manifestPath)) fail('Release manifest checksum filename does not match the manifest');
 
 const expectedChecksum = checksumMatch[1].toLowerCase();
 const actualChecksum = sha256(manifestBytes);
-if (!crypto.timingSafeEqual(Buffer.from(expectedChecksum, 'hex'), Buffer.from(actualChecksum, 'hex'))) {
-  fail('Release manifest checksum verification failed');
-}
+if (!crypto.timingSafeEqual(Buffer.from(expectedChecksum, 'hex'), Buffer.from(actualChecksum, 'hex'))) fail('Release manifest checksum verification failed');
 
 let manifest;
 try {
@@ -88,24 +109,9 @@ try {
   fail('Release manifest is not valid JSON');
 }
 
-const requiredChecks = [
-  'preview-data-verification.js',
-  'merge-restore-pin-check.js',
-  'merge-restore-evidence-verification.js',
-  'customer-merge-execution-readiness-check.js',
-  'schema-source-consistency-check.js'
-];
-const requiredScripts = [
-  'verify:schema',
-  'verify:preview-data',
-  'verify:merge-restore-evidence',
-  'check:merge-restore-pin',
-  'check:customer-merge-execution-readiness'
-];
-const expectedPreviewDataOrder = [
-  'schema-verification.js',
-  'merge-restore-evidence-verification.js'
-];
+const requiredChecks = ['preview-data-verification.js','merge-restore-pin-check.js','merge-restore-evidence-verification.js','customer-merge-execution-readiness-check.js','schema-source-consistency-check.js'];
+const requiredScripts = ['verify:schema','verify:preview-data','verify:merge-restore-evidence','check:merge-restore-pin','check:customer-merge-execution-readiness'];
+const expectedPreviewDataOrder = ['schema-verification.js','merge-restore-evidence-verification.js'];
 
 if (manifest.ok !== true) fail('Release manifest is not marked successful');
 if (manifest.application !== 'talk2me-os2-preview') fail('Release manifest application identity is invalid');
@@ -125,11 +131,7 @@ if (manifest.dependencyLockPresent !== true) fail('Release manifest does not con
 if (!/^[0-9a-f]{64}$/i.test(String(manifest.dependencyLockSha256 || ''))) fail('Release manifest dependency-lock checksum is invalid');
 if (manifest.restorePinMigration !== '20260801_025_merge_authorisation_restore_pin.sql') fail('Release manifest restore-pin migration is invalid');
 if (manifest.previewDataVerificationRequired !== true) fail('Release manifest does not require preview data verification');
-if (!Array.isArray(manifest.previewDataVerificationOrder) ||
-    manifest.previewDataVerificationOrder.length !== expectedPreviewDataOrder.length ||
-    expectedPreviewDataOrder.some((item, index) => manifest.previewDataVerificationOrder[index] !== item)) {
-  fail('Release manifest preview data verification order is invalid');
-}
+if (!Array.isArray(manifest.previewDataVerificationOrder) || manifest.previewDataVerificationOrder.length !== expectedPreviewDataOrder.length || expectedPreviewDataOrder.some((item, index) => manifest.previewDataVerificationOrder[index] !== item)) fail('Release manifest preview data verification order is invalid');
 if (manifest.mergeExecutionEnabled !== false) fail('Release manifest must keep customer-merge execution disabled');
 if (!Array.isArray(manifest.failures) || manifest.failures.length !== 0) fail('Release manifest contains blocking failures');
 if (!Array.isArray(manifest.warnings)) fail('Release manifest warnings inventory is invalid');
@@ -147,14 +149,7 @@ if (!Array.isArray(manifest.requiredChecks) || requiredChecks.some(item => !mani
 if (!Array.isArray(manifest.requiredScripts) || requiredScripts.some(item => !manifest.requiredScripts.includes(item))) fail('Release manifest required-script inventory is incomplete');
 
 const packageJsonPath = path.join(root, 'package.json');
-let packageJsonStat;
-try {
-  packageJsonStat = fs.lstatSync(packageJsonPath);
-} catch {
-  fail('Checked-out package.json is missing');
-}
-if (!packageJsonStat.isFile() || packageJsonStat.isSymbolicLink()) fail('Checked-out package.json must be a regular non-symlink file');
-const packageJsonBytes = fs.readFileSync(packageJsonPath);
+const packageJsonBytes = readSecureRegularFile(packageJsonPath, { label: 'Checked-out package.json', maxBytes: 1024 * 1024 });
 const actualPackageJsonChecksum = sha256(packageJsonBytes);
 if (actualPackageJsonChecksum !== manifest.packageJsonSha256.toLowerCase()) fail('Release manifest package.json checksum does not match the checked-out package.json');
 let checkedOutPackage;
@@ -168,14 +163,8 @@ if (checkedOutPackage.version !== manifest.version) fail('Release manifest versi
 if (checkedOutPackage.name !== 'talk2me-os2-preview' || checkedOutPackage.version !== expectedPreviewVersion) fail('Checked-out package.json does not match the controlled preview identity');
 
 const packageLockPath = path.join(root, 'package-lock.json');
-let packageLockStat;
-try {
-  packageLockStat = fs.lstatSync(packageLockPath);
-} catch {
-  fail('Checked-out package-lock.json is missing');
-}
-if (!packageLockStat.isFile() || packageLockStat.isSymbolicLink()) fail('Checked-out package-lock.json must be a regular non-symlink file');
-const actualDependencyLockChecksum = sha256(fs.readFileSync(packageLockPath));
+const packageLockBytes = readSecureRegularFile(packageLockPath, { label: 'Checked-out package-lock.json', maxBytes: 16 * 1024 * 1024 });
+const actualDependencyLockChecksum = sha256(packageLockBytes);
 if (actualDependencyLockChecksum !== manifest.dependencyLockSha256.toLowerCase()) fail('Release manifest dependency-lock checksum does not match the checked-out package-lock.json');
 
 const migrationsDirectory = path.join(root, 'migrations');
@@ -185,8 +174,8 @@ for (let index = 0; index < actualMigrationFiles.length; index += 1) {
   const file = actualMigrationFiles[index];
   const evidence = manifest.migrationChecksums[index];
   if (!evidence || evidence.file !== file) fail(`Release manifest migration order does not match the checked-out source: ${file}`);
-  const actualMigrationChecksum = sha256(fs.readFileSync(path.join(migrationsDirectory, file)));
-  if (actualMigrationChecksum !== evidence.sha256.toLowerCase()) fail(`Release manifest migration checksum does not match the checked-out source: ${file}`);
+  const migrationBytes = readSecureRegularFile(path.join(migrationsDirectory, file), { label: 'Checked-out migration', maxBytes: 4 * 1024 * 1024 });
+  if (sha256(migrationBytes) !== evidence.sha256.toLowerCase()) fail(`Release manifest migration checksum does not match the checked-out source: ${file}`);
 }
 
 console.log(JSON.stringify({
@@ -196,6 +185,9 @@ console.log(JSON.stringify({
   evidenceDirectory,
   evidenceDirectoryCanonical: true,
   evidenceDirectoryPrivate: true,
+  evidenceReadsUseNoFollow: true,
+  evidenceDescriptorIdentityVerified: true,
+  protectedFileSizeLimitsEnforced: true,
   manifestSha256: actualChecksum,
   application: manifest.application,
   version: manifest.version,
