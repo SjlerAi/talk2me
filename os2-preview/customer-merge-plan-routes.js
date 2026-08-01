@@ -74,7 +74,7 @@ module.exports=function createCustomerMergePlanRouter({pool,requireAuth}){
         if(customers.length!==2||customers.some(row=>row.archived_at))throw Object.assign(new Error('BOTH_CUSTOMERS_MUST_BE_ACTIVE'),{statusCode:409});
         const plan=await buildPlan(connection,survivorId,sourceId);const planHash=hash(plan);
         const currentSnapshot=await buildSnapshot(connection,survivorId,sourceId);const currentSnapshotHash=hash(currentSnapshot);
-        const [insert]=await connection.execute(`INSERT INTO os2_customer_merge_plans(duplicate_case_id,survivor_customer_id,source_customer_id,status,plan_json,plan_hash,blocker_count,conflict_count,prepared_by,prepared_at,current_snapshot_hash,revalidated_at,created_at,updated_at)
+        await connection.execute(`INSERT INTO os2_customer_merge_plans(duplicate_case_id,survivor_customer_id,source_customer_id,status,plan_json,plan_hash,blocker_count,conflict_count,prepared_by,prepared_at,current_snapshot_hash,revalidated_at,created_at,updated_at)
           VALUES(:caseId,:survivorId,:sourceId,'draft',:plan,:planHash,:blockers,:conflicts,:actor,NOW(),:snapshotHash,NOW(),NOW(),NOW())
           ON DUPLICATE KEY UPDATE survivor_customer_id=VALUES(survivor_customer_id),source_customer_id=VALUES(source_customer_id),status='draft',plan_json=VALUES(plan_json),plan_hash=VALUES(plan_hash),blocker_count=VALUES(blocker_count),conflict_count=VALUES(conflict_count),prepared_by=VALUES(prepared_by),prepared_at=NOW(),current_snapshot_hash=VALUES(current_snapshot_hash),revalidated_at=NOW(),invalidated_at=NULL,invalidated_by=NULL,invalidation_reason=NULL,approved_by=NULL,approved_at=NULL,rejected_by=NULL,rejected_at=NULL,decision_reason=NULL,updated_at=NOW()`,{caseId,survivorId,sourceId,plan:JSON.stringify(plan),planHash,blockers:plan.blockerCount,conflicts:plan.conflictCount,actor:req.user.id,snapshotHash:currentSnapshotHash});
         const [[saved]]=await connection.execute('SELECT id FROM os2_customer_merge_plans WHERE duplicate_case_id=:caseId',{caseId});
@@ -107,7 +107,8 @@ module.exports=function createCustomerMergePlanRouter({pool,requireAuth}){
             const invalidationReason=blocked?'Current customer data contains merge blockers':'Customer data changed after merge plan preparation';
             await connection.execute(`UPDATE os2_customer_merge_plans SET status='invalidated',current_snapshot_hash=:snapshotHash,revalidated_at=NOW(),invalidated_at=NOW(),invalidated_by=:actor,invalidation_reason=:reason,updated_at=NOW() WHERE id=:id`,{id:planId,snapshotHash:currentSnapshotHash,actor:req.user.id,reason:invalidationReason});
             await connection.execute(`INSERT INTO os2_customer_merge_plan_history(merge_plan_id,event_type,from_status,to_status,reason,details_json,changed_by,created_at) VALUES(:id,'approval_revalidation','draft','invalidated',:reason,:details,:actor,NOW())`,{id:planId,reason:invalidationReason,details:JSON.stringify({previousSnapshotHash:plan.current_snapshot_hash||null,currentSnapshotHash,changed,blocked,snapshot:currentSnapshot}),actor:req.user.id});
-            throw Object.assign(new Error(blocked?'MERGE_PLAN_HAS_BLOCKERS':'MERGE_PLAN_STALE'),{statusCode:409});
+            await appendAudit(connection,{actorStaffId:req.user.id,actionType:'customer_merge_plan_invalidated_at_approval',entityType:'os2_customer_merge_plans',entityId:planId,masterCustomerId:plan.survivor_customer_id,description:`Invalidated stale or blocked merge plan ${planId} during approval`,before:{status:'draft',currentSnapshotHash:plan.current_snapshot_hash||null},after:{status:'invalidated',currentSnapshotHash,invalidationReason,changed,blocked},requestContext:context(req)});
+            return {mergePlanId:planId,status:'invalidated',currentSnapshotHash,error:blocked?'MERGE_PLAN_HAS_BLOCKERS':'MERGE_PLAN_STALE',executionAvailable:false};
           }
         }
         await connection.execute(`UPDATE os2_customer_merge_plans SET status=:decision,current_snapshot_hash=:snapshotHash,revalidated_at=IF(:decision='approved',NOW(),revalidated_at),approved_by=IF(:decision='approved',:actor,NULL),approved_at=IF(:decision='approved',NOW(),NULL),rejected_by=IF(:decision='rejected',:actor,NULL),rejected_at=IF(:decision='rejected',NOW(),NULL),decision_reason=:reason,updated_at=NOW() WHERE id=:id`,{id:planId,decision,actor:req.user.id,reason,snapshotHash:currentSnapshotHash});
@@ -115,6 +116,7 @@ module.exports=function createCustomerMergePlanRouter({pool,requireAuth}){
         await appendAudit(connection,{actorStaffId:req.user.id,actionType:'customer_merge_plan_decided',entityType:'os2_customer_merge_plans',entityId:planId,masterCustomerId:plan.survivor_customer_id,description:`Merge plan ${planId} ${decision}; execution disabled`,before:{status:plan.status,currentSnapshotHash:plan.current_snapshot_hash||null},after:{status:decision,reason,planHash:expectedHash,currentSnapshotHash},requestContext:context(req)});
         return {mergePlanId:planId,status:decision,currentSnapshotHash,executionAvailable:false};
       });
+      if(result.error)return res.status(409).json({ok:false,...result});
       res.json({ok:true,...result});
     }catch(error){res.status(error.statusCode||500).json({ok:false,error:error.statusCode?error.message:'MERGE_PLAN_DECISION_FAILED'});}
   });
