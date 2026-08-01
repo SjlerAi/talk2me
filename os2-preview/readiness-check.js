@@ -14,20 +14,25 @@ function checkFile(relativePath) {
   if (!fs.existsSync(path.join(__dirname, relativePath))) failures.push(`Missing file ${relativePath}`);
 }
 
-['DB_HOST','DB_USER','DB_NAME'].forEach(requireEnv);
+['DB_HOST','DB_USER','DB_NAME','PREVIEW_APP_ROOT'].forEach(requireEnv);
 if (process.env.DB_NAME && process.env.DB_NAME !== 'kloka_talk2me') failures.push('DB_NAME is not the preview database');
+if (process.env.PREVIEW_APP_ROOT && path.resolve(process.env.PREVIEW_APP_ROOT) !== __dirname) failures.push('PREVIEW_APP_ROOT does not match the executing preview application root');
 const nodeMajor = Number.parseInt(process.versions.node.split('.')[0], 10);
 if (nodeMajor !== 20) failures.push(`Node.js 20.x is required, found ${process.versions.node}`);
+if (String(process.env.ALLOW_PRODUCTION_MUTATION || '').toLowerCase() === 'true') failures.push('ALLOW_PRODUCTION_MUTATION must remain false');
+if (String(process.env.ENABLE_CUSTOMER_MERGE_EXECUTION || '').toLowerCase() === 'true') failures.push('ENABLE_CUSTOMER_MERGE_EXECUTION must remain false');
 if (String(process.env.NODE_ENV || '').toLowerCase() !== 'production') warnings.push('NODE_ENV is not production');
 if (String(process.env.EMAIL_WORKER_ENABLED || '').toLowerCase() === 'true') {
   ['SMTP_HOST','SMTP_PORT','SMTP_USER','SMTP_PASS','SMTP_FROM'].forEach(requireEnv);
 } else {
   warnings.push('Email worker is disabled');
 }
+if (!fs.existsSync(path.join(__dirname, 'package-lock.json'))) warnings.push('package-lock.json is absent and remains a release-freeze blocker');
 
 [
   'server.js','package.json','migration-runner.js','schema-verification.js','preview-data-verification.js',
-  'runtime-release-identity-check.js','preview-activation-preflight.js',
+  'runtime-release-identity-check.js','workspace-topology-verification.js','preview-activation-preflight.js',
+  'preview-activation-governance-check.js','PREVIEW_ACTIVATION_RUNBOOK.md',
   'merge-restore-evidence-verification.js','merge-restore-pin-check.js',
   'customer-merge-plan-routes.js','customer-merge-freshness-routes.js',
   'customer-merge-execution-authorisation-routes.js','customer-merge-execution-readiness-routes.js',
@@ -50,21 +55,11 @@ const packageJson = require('./package.json');
 const scripts = packageJson.scripts || {};
 if (packageJson.name !== 'talk2me-os2-preview') failures.push('Unexpected preview package identity');
 if (packageJson.version !== '0.59.0') failures.push('Unexpected preview package version');
-if (scripts['verify:merge-restore-evidence'] !== 'node merge-restore-evidence-verification.js') {
-  failures.push('Missing verify:merge-restore-evidence command');
-}
-if (scripts['verify:preview-data'] !== 'node preview-data-verification.js') {
-  failures.push('Missing verify:preview-data command');
-}
-if (scripts['verify:runtime-release-identity'] !== 'node runtime-release-identity-check.js') {
-  failures.push('Missing verify:runtime-release-identity command');
-}
-if (scripts['verify:preview-activation-preflight'] !== 'node preview-activation-preflight.js') {
-  failures.push('Missing verify:preview-activation-preflight command');
-}
-if (scripts['check:merge-restore-pin'] !== 'node merge-restore-pin-check.js') {
-  failures.push('Missing check:merge-restore-pin command');
-}
+if (scripts['verify:merge-restore-evidence'] !== 'node merge-restore-evidence-verification.js') failures.push('Missing verify:merge-restore-evidence command');
+if (scripts['verify:preview-data'] !== 'node preview-data-verification.js') failures.push('Missing verify:preview-data command');
+if (scripts['verify:runtime-release-identity'] !== 'node runtime-release-identity-check.js') failures.push('Missing verify:runtime-release-identity command');
+if (scripts['verify:preview-activation-preflight'] !== 'node preview-activation-preflight.js') failures.push('Missing verify:preview-activation-preflight command');
+if (scripts['check:merge-restore-pin'] !== 'node merge-restore-pin-check.js') failures.push('Missing check:merge-restore-pin command');
 
 const migrationCount = fs.existsSync(migrationDir)
   ? fs.readdirSync(migrationDir).filter(name => name.endsWith('.sql')).length
@@ -75,8 +70,10 @@ const summary = {
   application: packageJson.name,
   version: packageJson.version,
   nodeVersion: process.versions.node,
+  applicationRoot: process.env.PREVIEW_APP_ROOT || null,
   database: process.env.DB_NAME || null,
   migrationCount,
+  workspaceTopologyVerificationRequired: true,
   runtimeReleaseIdentityCommandRegistered: scripts['verify:runtime-release-identity'] === 'node runtime-release-identity-check.js',
   previewActivationPreflightCommandRegistered: scripts['verify:preview-activation-preflight'] === 'node preview-activation-preflight.js',
   previewDataVerificationCommandRegistered: scripts['verify:preview-data'] === 'node preview-data-verification.js',
