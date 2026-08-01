@@ -3,6 +3,7 @@
 const crypto = require('crypto');
 const { appendAudit } = require('./audit');
 
+const CURRENT_INTEGRITY_VERSION = 2;
 const FINAL_STATES = new Set(['approved','rejected']);
 const DECISION_STATES = new Set(['approved','rejected','deferred']);
 const APPROVAL_ACTIONS = new Set([
@@ -31,6 +32,14 @@ function validateAction(action) {
   if (!APPROVAL_ACTIONS.has(value)) throw new Error('INVALID_APPROVAL_ACTION');
   return value;
 }
+function requireIntegrity(request) {
+  if (!request || Number(request.integrity_version) !== CURRENT_INTEGRITY_VERSION) throw new Error('APPROVAL_INTEGRITY_VERSION_UNSUPPORTED');
+  if (request.invalidated_at) throw new Error('APPROVAL_INVALIDATED');
+  if (!/^[a-f0-9]{64}$/i.test(String(request.payload_hash || ''))) throw new Error('APPROVAL_PAYLOAD_HASH_REQUIRED');
+  const expected = payloadHash(request.request_payload);
+  if (request.payload_hash !== expected) throw new Error('APPROVAL_PAYLOAD_INTEGRITY_FAILED');
+  return expected;
+}
 
 async function createApproval(connection, options) {
   const actionKey = validateAction(options.actionKey || options.requestType);
@@ -39,10 +48,10 @@ async function createApproval(connection, options) {
   const [result] = await connection.execute(`
     INSERT INTO os2_approval_requests
       (request_type, action_key, master_customer_id, target_entity_type, target_entity_id,
-       request_payload, payload_hash, status, requested_by, requested_at, created_at, updated_at)
+       request_payload, payload_hash, integrity_version, status, requested_by, requested_at, created_at, updated_at)
     VALUES
       (:requestType,:actionKey,:masterCustomerId,:targetEntityType,:targetEntityId,
-       :payload,:payloadHash,'pending',:requestedBy,NOW(),NOW(),NOW())`, {
+       :payload,:payloadHash,:integrityVersion,'pending',:requestedBy,NOW(),NOW(),NOW())`, {
     requestType: actionKey,
     actionKey,
     masterCustomerId: options.masterCustomerId || null,
@@ -50,6 +59,7 @@ async function createApproval(connection, options) {
     targetEntityId: options.targetEntityId || null,
     payload: JSON.stringify(payload),
     payloadHash: hash,
+    integrityVersion: CURRENT_INTEGRITY_VERSION,
     requestedBy: Number(options.requestedBy)
   });
   const id = Number(result.insertId);
@@ -57,7 +67,7 @@ async function createApproval(connection, options) {
     actorStaffId: options.requestedBy, actionType: 'approval_requested', entityType: 'os2_approval_requests',
     entityId: id, masterCustomerId: options.masterCustomerId,
     description: `Requested approval for ${actionKey}`,
-    after: { actionKey, targetEntityType:options.targetEntityType || null, targetEntityId:options.targetEntityId || null, payloadHash:hash },
+    after: { actionKey, targetEntityType:options.targetEntityType || null, targetEntityId:options.targetEntityId || null, payloadHash:hash, integrityVersion:CURRENT_INTEGRITY_VERSION },
     requestContext: options.requestContext
   });
   return id;
@@ -70,10 +80,8 @@ async function decideApproval(connection, options) {
   if (FINAL_STATES.has(request.status)) throw new Error('APPROVAL_ALREADY_FINAL');
   if (Number(request.requested_by) === Number(options.reviewerStaffId)) throw new Error('SELF_APPROVAL_NOT_ALLOWED');
   validateAction(request.action_key || request.request_type);
-
+  const expectedHash = requireIntegrity(request);
   const payload = safePayload(request.request_payload);
-  const expectedHash = payloadHash(payload);
-  if (request.payload_hash && request.payload_hash !== expectedHash) throw new Error('APPROVAL_PAYLOAD_INTEGRITY_FAILED');
 
   let applicationResult = null;
   if (options.decision === 'approved' && typeof options.applyApprovedAction === 'function') {
@@ -116,19 +124,18 @@ async function consumeApproval(connection, options) {
   if (options.targetEntityType && request.target_entity_type && request.target_entity_type !== options.targetEntityType) throw new Error('APPROVAL_TARGET_MISMATCH');
   if (options.targetEntityId && request.target_entity_id && Number(request.target_entity_id) !== Number(options.targetEntityId)) throw new Error('APPROVAL_TARGET_MISMATCH');
 
-  const storedPayload = safePayload(request.request_payload);
-  const storedHash = payloadHash(storedPayload);
-  if (request.payload_hash && request.payload_hash !== storedHash) throw new Error('APPROVAL_PAYLOAD_INTEGRITY_FAILED');
+  const storedHash = requireIntegrity(request);
   const proposedHash = payloadHash(options.payload || {});
   if (storedHash !== proposedHash) throw new Error('APPROVAL_PAYLOAD_MISMATCH');
 
   const result = options.result || {};
-  await connection.execute(`UPDATE os2_approval_requests SET consumed_at=NOW(),consumed_by=:actor,
+  const [updated] = await connection.execute(`UPDATE os2_approval_requests SET consumed_at=NOW(),consumed_by=:actor,
     consumed_for_entity_type=:entityType,consumed_for_entity_id=:entityId,consumption_result=:result,updated_at=NOW()
-    WHERE id=:id AND consumed_at IS NULL`, {
+    WHERE id=:id AND consumed_at IS NULL AND invalidated_at IS NULL AND integrity_version=:integrityVersion`, {
     id:approvalId,actor:Number(options.actorStaffId),entityType:options.consumedForEntityType || null,
-    entityId:options.consumedForEntityId || null,result:JSON.stringify(result)
+    entityId:options.consumedForEntityId || null,result:JSON.stringify(result),integrityVersion:CURRENT_INTEGRITY_VERSION
   });
+  if (Number(updated.affectedRows) !== 1) throw new Error('APPROVAL_CONSUMPTION_RACE');
   await connection.execute(`INSERT INTO os2_approval_consumption_history
     (approval_request_id,action_key,master_customer_id,target_entity_type,target_entity_id,payload_hash,
      consumed_by,consumed_for_entity_type,consumed_for_entity_id,result_json,consumed_at)
@@ -145,7 +152,7 @@ async function consumeApproval(connection, options) {
     after:{ actionKey,consumedForEntityType:options.consumedForEntityType || null,consumedForEntityId:options.consumedForEntityId || null },
     requestContext:options.requestContext
   });
-  return { approvalId,actionKey,payloadHash:storedHash };
+  return { approvalId,actionKey,payloadHash:storedHash,integrityVersion:CURRENT_INTEGRITY_VERSION };
 }
 
-module.exports = { FINAL_STATES,DECISION_STATES,APPROVAL_ACTIONS,safePayload,payloadHash,createApproval,decideApproval,consumeApproval };
+module.exports = { CURRENT_INTEGRITY_VERSION,FINAL_STATES,DECISION_STATES,APPROVAL_ACTIONS,safePayload,payloadHash,requireIntegrity,createApproval,decideApproval,consumeApproval };
