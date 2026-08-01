@@ -43,6 +43,7 @@ if (!fs.existsSync(path.join(__dirname, 'package-lock.json'))) warnings.push('pa
 
 [
   'server.js','package.json','MIGRATION_LEDGER_BOOTSTRAP.sql','migration-ledger-bootstrap-governance-check.js',
+  'migration-ledger-bootstrap-runner.js','migration-ledger-bootstrap-runner-check.js',
   'migration-runner.js','migration-runner-security-check.js','schema-verification.js','preview-data-verification.js',
   'runtime-release-identity-check.js','workspace-topology-verification.js','workspace-topology-governance-check.js',
   'preview-activation-preflight.js','preview-activation-governance-check.js',
@@ -62,6 +63,29 @@ requireMarkers('migration-ledger-bootstrap-governance-check.js', [
   'packageCommandRegistered: true',
   'normalValidationRegistered: true',
   'previewDatabaseOnly: true'
+]);
+requireMarkers('migration-ledger-bootstrap-runner.js', [
+  "expectedDatabase = 'kloka_talk2me'",
+  'ALLOW_MIGRATION_LEDGER_BOOTSTRAP_NOT_ENABLED',
+  'VERIFIED_BACKUP_REFERENCE',
+  'VERIFIED_BACKUP_SHA256',
+  'BOOTSTRAP_OPERATOR',
+  'BOOTSTRAP_CHANGE_REFERENCE',
+  'BOOTSTRAP_REFUSES_EXISTING_LEDGER_TABLE',
+  'ledgerSchemaVerified: true',
+  'ledgerEmpty: true',
+  'productionMutationEnabled: false',
+  'mergeExecutionEnabled: false'
+]);
+requireMarkers('migration-ledger-bootstrap-runner-check.js', [
+  'migration-ledger-bootstrap-runner-governance',
+  'verifiedBackupEvidenceRequired: true',
+  'explicitExecutionFlagRequired: true',
+  'secureSourceReadRequired: true',
+  'advisoryLockRequired: true',
+  'existingLedgerRefused: true',
+  'postCreateSchemaVerificationRequired: true',
+  'emptyLedgerRequired: true'
 ]);
 requireMarkers('migration-runner.js', [
   "PREVIEW_DATABASE = 'kloka_talk2me'",
@@ -87,11 +111,14 @@ requireMarkers('migration-runner-security-check.js', [
   'advisoryLockRequired: true'
 ]);
 requireMarkers('PREVIEW_DEPLOYMENT_RUNBOOK.md', [
-  'Do not substitute `npm install` for the controlled release path',
-  'MIGRATION_LEDGER_BOOTSTRAP.sql',
+  'Do not substitute `npm install`',
+  'migration-ledger-bootstrap-runner.js',
+  'ALLOW_MIGRATION_LEDGER_BOOTSTRAP=true',
+  'VERIFIED_BACKUP_REFERENCE',
+  'VERIFIED_BACKUP_SHA256',
   'MIGRATION_LEDGER_BOOTSTRAP_REQUIRED',
   'talk2me_os2_preview_migrations',
-  'Only one controlled migration process may operate against the preview database at a time.'
+  'Only one controlled migration process may operate at a time.'
 ]);
 
 const migrationDir = path.join(__dirname, 'migrations');
@@ -129,6 +156,8 @@ const summary = {
   database: process.env.DB_NAME || null,
   migrationCount,
   migrationLedgerBootstrapGovernanceRequired: true,
+  controlledMigrationLedgerBootstrapRunnerRequired: true,
+  verifiedBackupEvidenceRequiredForBootstrap: true,
   runtimeLedgerCreationDisabled: true,
   workspaceTopologyVerificationRequired: true,
   secureMigrationRunnerRequired: true,
