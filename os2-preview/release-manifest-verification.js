@@ -110,6 +110,7 @@ const expectedPreviewDataOrder = [
 if (manifest.ok !== true) fail('Release manifest is not marked successful');
 if (manifest.application !== 'talk2me-os2-preview') fail('Release manifest application identity is invalid');
 if (manifest.version !== expectedPreviewVersion) fail(`Release manifest version must be ${expectedPreviewVersion}`);
+if (!/^[0-9a-f]{64}$/i.test(String(manifest.packageJsonSha256 || ''))) fail('Release manifest package.json checksum is invalid');
 if (manifest.branch !== expectedReleaseBranch) fail('Release manifest branch is not the controlled rebuild branch');
 if (!/^[0-9a-f]{40}$/i.test(String(manifest.commitSha || ''))) fail('Release manifest commit SHA is invalid');
 if (manifest.commitSha.toLowerCase() !== verifiedCommitSha.toLowerCase()) fail('Release manifest commit SHA does not match the post-freeze verified commit SHA');
@@ -145,6 +146,27 @@ if (!migrationNames.has('20260801_025_merge_authorisation_restore_pin.sql')) fai
 if (!Array.isArray(manifest.requiredChecks) || requiredChecks.some(item => !manifest.requiredChecks.includes(item))) fail('Release manifest required-check inventory is incomplete');
 if (!Array.isArray(manifest.requiredScripts) || requiredScripts.some(item => !manifest.requiredScripts.includes(item))) fail('Release manifest required-script inventory is incomplete');
 
+const packageJsonPath = path.join(root, 'package.json');
+let packageJsonStat;
+try {
+  packageJsonStat = fs.lstatSync(packageJsonPath);
+} catch {
+  fail('Checked-out package.json is missing');
+}
+if (!packageJsonStat.isFile() || packageJsonStat.isSymbolicLink()) fail('Checked-out package.json must be a regular non-symlink file');
+const packageJsonBytes = fs.readFileSync(packageJsonPath);
+const actualPackageJsonChecksum = sha256(packageJsonBytes);
+if (actualPackageJsonChecksum !== manifest.packageJsonSha256.toLowerCase()) fail('Release manifest package.json checksum does not match the checked-out package.json');
+let checkedOutPackage;
+try {
+  checkedOutPackage = JSON.parse(packageJsonBytes.toString('utf8'));
+} catch {
+  fail('Checked-out package.json is not valid JSON');
+}
+if (checkedOutPackage.name !== manifest.application) fail('Release manifest application does not match the checked-out package.json');
+if (checkedOutPackage.version !== manifest.version) fail('Release manifest version does not match the checked-out package.json');
+if (checkedOutPackage.name !== 'talk2me-os2-preview' || checkedOutPackage.version !== expectedPreviewVersion) fail('Checked-out package.json does not match the controlled preview identity');
+
 const packageLockPath = path.join(root, 'package-lock.json');
 let packageLockStat;
 try {
@@ -178,6 +200,7 @@ console.log(JSON.stringify({
   application: manifest.application,
   version: manifest.version,
   expectedPreviewVersion,
+  packageManifestMatchesWorkspace: true,
   commitSha: manifest.commitSha,
   commitShaMatchesVerifiedCheckout: true,
   branch: manifest.branch,
