@@ -24,20 +24,45 @@ if (String(process.env.EMAIL_WORKER_ENABLED || '').toLowerCase() === 'true') {
 }
 
 [
-  'server.js','package.json','migration-runner.js','email-worker.js','email-worker-runner.js',
-  'integrated-routes.js','operational-routes.js','service-lifecycle-routes.js',
-  'controlled-import-routes.js','communications-routes.js','collaboration-routes.js',
-  'intelligence-routes.js','document-routes.js'
+  'server.js','package.json','migration-runner.js','schema-verification.js',
+  'merge-restore-evidence-verification.js','merge-restore-pin-check.js',
+  'customer-merge-plan-routes.js','customer-merge-freshness-routes.js',
+  'customer-merge-execution-authorisation-routes.js','customer-merge-execution-readiness-routes.js',
+  'email-worker.js','email-worker-runner.js','integrated-routes.js','operational-routes.js',
+  'service-lifecycle-routes.js','controlled-import-routes.js','communications-routes.js',
+  'collaboration-routes.js','intelligence-routes.js','document-routes.js'
 ].forEach(checkFile);
 
-const migrations = fs.readdirSync(path.join(__dirname, 'migrations')).filter(name => name.endsWith('.sql')).sort();
-if (migrations.length < 7) failures.push(`Expected at least 7 migrations, found ${migrations.length}`);
+const migrationDir = path.join(__dirname, 'migrations');
+if (!fs.existsSync(migrationDir)) {
+  failures.push('Missing migrations directory');
+} else {
+  const migrations = fs.readdirSync(migrationDir).filter(name => name.endsWith('.sql')).sort();
+  if (migrations.length < 25) failures.push(`Expected at least 25 migrations, found ${migrations.length}`);
+  const requiredMigration = '20260801_025_merge_authorisation_restore_pin.sql';
+  if (!migrations.includes(requiredMigration)) failures.push(`Missing migration ${requiredMigration}`);
+}
+
+const packageJson = require('./package.json');
+const scripts = packageJson.scripts || {};
+if (scripts['verify:merge-restore-evidence'] !== 'node merge-restore-evidence-verification.js') {
+  failures.push('Missing verify:merge-restore-evidence command');
+}
+if (scripts['check:merge-restore-pin'] !== 'node merge-restore-pin-check.js') {
+  failures.push('Missing check:merge-restore-pin command');
+}
+
+const migrationCount = fs.existsSync(migrationDir)
+  ? fs.readdirSync(migrationDir).filter(name => name.endsWith('.sql')).length
+  : 0;
 
 const summary = {
   ok: failures.length === 0,
-  version: require('./package.json').version,
+  version: packageJson.version,
   database: process.env.DB_NAME || null,
-  migrationCount: migrations.length,
+  migrationCount,
+  mergeRestoreEvidenceCommandRegistered: scripts['verify:merge-restore-evidence'] === 'node merge-restore-evidence-verification.js',
+  mergeRestorePinCheckRegistered: scripts['check:merge-restore-pin'] === 'node merge-restore-pin-check.js',
   failures,
   warnings
 };
