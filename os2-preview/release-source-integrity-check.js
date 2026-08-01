@@ -62,6 +62,14 @@ requireMarkers(releaseGate, [
 
 requireMarkers(manifestVerifier, [
   "check: 'release-manifest-verification'",
+  'function verifyFrozenSource(root, inventorySha256)',
+  "'release-source-integrity-verification.js'",
+  'RELEASE_SOURCE_INVENTORY_SHA256: inventorySha256',
+  'manifest.releaseSourceIntegrityVerified !== true',
+  'manifest.releaseSourcePackageLockPresent !== true',
+  'verifyFrozenSource(root, manifest.approvedSourceInventorySha256)',
+  'releaseSourceIntegrityReverifiedAfterFreeze: true',
+  'approvedSourceInventorySha256: manifest.approvedSourceInventorySha256',
   'productionMutationEnabled: false',
   'mergeExecutionEnabled: false'
 ], 'Release manifest verifier');
@@ -86,6 +94,9 @@ if (preflight.includes("'release-source-integrity-verification.js'")) {
 if (releaseGate.indexOf("'release-source-integrity-verification.js'") > releaseGate.indexOf('publishEvidencePair(output')) {
   throw new Error('Release source integrity must be verified before release-manifest publication');
 }
+if (manifestVerifier.indexOf('verifyFrozenSource(root, manifest.approvedSourceInventorySha256)') > manifestVerifier.indexOf("readSecureRegularFile(path.join(root, 'package.json')")) {
+  throw new Error('Post-freeze source verification must precede individual checked-out source verification');
+}
 
 console.log(JSON.stringify({
   ok: true,
@@ -98,6 +109,8 @@ console.log(JSON.stringify({
   releaseManifestFreezesApprovedDigest: true,
   releaseManifestRecordsSourceVerification: true,
   sourceVerificationPrecedesManifestPublication: true,
+  postFreezeSourceReverificationRequired: true,
+  postFreezeSourceReverificationPrecedesIndividualSourceChecks: true,
   secureDescriptorEvidenceRequired: true,
   environmentBoundVerifierExcludedFromSourceOnlyPreflight: true,
   activationGovernanceRegistrationRequired: true,
