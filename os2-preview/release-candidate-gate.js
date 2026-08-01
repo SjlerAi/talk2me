@@ -29,9 +29,12 @@ const requiredScripts = [
   'check:schema-source-consistency','check:readiness','check:deployment','check:uat-gate'
 ];
 const restorePinMigration = '20260801_025_merge_authorisation_restore_pin.sql';
-const releaseCommitSha = String(process.env.RELEASE_COMMIT_SHA || process.env.GITHUB_SHA || '').trim();
+const explicitReleaseCommitSha = String(process.env.RELEASE_COMMIT_SHA || '').trim();
+const githubCommitSha = String(process.env.GITHUB_SHA || '').trim();
+const releaseCommitSha = explicitReleaseCommitSha || githubCommitSha;
 const releaseApprovedBy = String(process.env.RELEASE_APPROVED_BY || '').trim();
 const releaseChangeReference = String(process.env.RELEASE_CHANGE_REFERENCE || '').trim();
+const releaseBranch = String(process.env.RELEASE_BRANCH || process.env.GITHUB_REF_NAME || '').trim();
 const output = String(process.env.RELEASE_MANIFEST_PATH || '').trim();
 
 if (!/^0\.\d+\.0$/.test(pkg.version)) fail(`Unexpected preview version format: ${pkg.version}`);
@@ -44,6 +47,11 @@ for (const script of requiredScripts) if (!pkg.scripts || !pkg.scripts[script]) 
 if (!exists('package-lock.json')) fail('package-lock.json is required before release-candidate freeze');
 if (!releaseCommitSha) fail('RELEASE_COMMIT_SHA or GITHUB_SHA is required');
 else if (!/^[0-9a-f]{40}$/i.test(releaseCommitSha)) fail('Release commit SHA must be a full 40-character hexadecimal SHA');
+if (explicitReleaseCommitSha && githubCommitSha && explicitReleaseCommitSha.toLowerCase() !== githubCommitSha.toLowerCase()) {
+  fail('RELEASE_COMMIT_SHA must match the exact GITHUB_SHA being validated');
+}
+if (!releaseBranch) fail('RELEASE_BRANCH or GITHUB_REF_NAME is required');
+else if (releaseBranch !== 'agent/talk2me-os2-integrated-rebuild') fail(`Unexpected release branch: ${releaseBranch}`);
 if (!releaseApprovedBy) fail('RELEASE_APPROVED_BY is required');
 if (!releaseChangeReference) fail('RELEASE_CHANGE_REFERENCE is required');
 if (!output) fail('RELEASE_MANIFEST_PATH is required');
@@ -67,6 +75,12 @@ const manifest = {
   application: pkg.name,
   version: pkg.version,
   commitSha: releaseCommitSha || null,
+  branch: releaseBranch || null,
+  commitIdentityVerified: Boolean(
+    releaseCommitSha &&
+    /^[0-9a-f]{40}$/i.test(releaseCommitSha) &&
+    (!explicitReleaseCommitSha || !githubCommitSha || explicitReleaseCommitSha.toLowerCase() === githubCommitSha.toLowerCase())
+  ),
   approvedBy: releaseApprovedBy || null,
   changeReference: releaseChangeReference || null,
   generatedAt: new Date().toISOString(),
@@ -88,8 +102,8 @@ if (output && path.isAbsolute(output)) {
   if (!fs.existsSync(outputDirectory)) {
     fail(`Release manifest directory does not exist: ${outputDirectory}`);
     manifest.ok = false;
-  } else {
-    fs.writeFileSync(output, JSON.stringify(manifest,null,2) + '\n', { mode:0o600 });
+  } else if (failures.length === 0) {
+    fs.writeFileSync(output, JSON.stringify(manifest,null,2) + '\n', { mode:0o600, flag:'wx' });
   }
 }
 
