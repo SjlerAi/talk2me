@@ -23,7 +23,7 @@ const REQUIRED_COLUMNS = {
   os2_customer_duplicate_history:['id','duplicate_case_id','event_type','from_status','to_status','reason','changed_by','created_at'],
   os2_customer_merge_plans:['id','duplicate_case_id','survivor_customer_id','source_customer_id','status','plan_json','plan_hash','blocker_count','conflict_count','prepared_by','approved_by','approved_at','current_snapshot_hash','revalidated_at','invalidated_at','executed_at'],
   os2_customer_merge_plan_history:['id','merge_plan_id','event_type','from_status','to_status','reason','changed_by','created_at'],
-  os2_customer_merge_execution_authorisations:['id','merge_plan_id','plan_hash','snapshot_hash','backup_run_id','change_reference','status','requested_by','requested_at','authorised_by','authorised_at','expires_at','revoked_by','revoked_at','revocation_reason','consumed_at','consumed_by'],
+  os2_customer_merge_execution_authorisations:['id','merge_plan_id','plan_hash','snapshot_hash','backup_run_id','restore_test_id','change_reference','status','requested_by','requested_at','authorised_by','authorised_at','expires_at','revoked_by','revoked_at','revocation_reason','consumed_at','consumed_by'],
   os2_customer_merge_execution_authorisation_history:['id','authorisation_id','event_type','from_status','to_status','reason','details_json','changed_by','created_at'],
   os2_customer_accounts:['id','master_customer_id','account_number','normalised_account_number','account_status','is_primary','archived_at','archive_reason','archived_by'],
   os2_account_history:['id','account_id','master_customer_id','event_type','reason','changed_by','created_at'],
@@ -76,7 +76,7 @@ async function main() {
     }
 
     const [migrations] = await pool.execute('SELECT migration_name,checksum,applied_at FROM os2_schema_migrations ORDER BY migration_name');
-    if (migrations.length < 24) fail(`expected at least 24 applied migrations, found ${migrations.length}`);
+    if (migrations.length < 25) fail(`expected at least 25 applied migrations, found ${migrations.length}`);
 
     const [accounts] = await pool.execute('SELECT normalised_account_number,COUNT(*) total FROM os2_customer_accounts WHERE archived_at IS NULL AND normalised_account_number IS NOT NULL GROUP BY normalised_account_number HAVING COUNT(*)>1 LIMIT 20');
     const [primaryAccounts] = await pool.execute('SELECT master_customer_id,COUNT(*) total FROM os2_customer_accounts WHERE archived_at IS NULL AND is_primary=1 GROUP BY master_customer_id HAVING COUNT(*)>1 LIMIT 20');
@@ -85,7 +85,7 @@ async function main() {
     const [archivedWithActiveOwnership] = await pool.execute('SELECT mc.id FROM os2_master_customers mc JOIN os2_customer_ownership o ON o.master_customer_id=mc.id AND o.is_current=1 WHERE mc.archived_at IS NOT NULL LIMIT 20');
     const [invalidDuplicatePairs] = await pool.execute('SELECT id FROM os2_customer_duplicate_cases WHERE primary_customer_id>=candidate_customer_id OR primary_customer_id=candidate_customer_id LIMIT 20');
     const [invalidMergePlans] = await pool.execute("SELECT id FROM os2_customer_merge_plans WHERE survivor_customer_id=source_customer_id OR plan_hash NOT REGEXP '^[0-9a-f]{64}$' OR executed_at IS NOT NULL LIMIT 20");
-    const [invalidAuthorisations] = await pool.execute("SELECT id FROM os2_customer_merge_execution_authorisations WHERE plan_hash NOT REGEXP '^[0-9a-f]{64}$' OR snapshot_hash NOT REGEXP '^[0-9a-f]{64}$' OR (status='authorised' AND (authorised_at IS NULL OR expires_at IS NULL)) OR consumed_at IS NOT NULL LIMIT 20");
+    const [invalidAuthorisations] = await pool.execute("SELECT id FROM os2_customer_merge_execution_authorisations WHERE plan_hash NOT REGEXP '^[0-9a-f]{64}$' OR snapshot_hash NOT REGEXP '^[0-9a-f]{64}$' OR restore_test_id IS NULL OR (status='authorised' AND (authorised_at IS NULL OR expires_at IS NULL)) OR consumed_at IS NOT NULL LIMIT 20");
     const [invalidRepresentativePermissions] = await pool.execute("SELECT id FROM os2_authorised_representatives WHERE JSON_VALID(permissions_json)=0 LIMIT 20");
     const [activeExpiredRepresentatives] = await pool.execute("SELECT id FROM os2_authorised_representatives WHERE status='active' AND revoked_at IS NULL AND expires_at IS NOT NULL AND expires_at<=NOW() LIMIT 20");
     const [unsafeApprovals] = await pool.execute("SELECT id FROM os2_approval_requests WHERE consumed_at IS NULL AND status IN ('pending','deferred','approved') AND (integrity_version<>2 OR invalidated_at IS NOT NULL OR payload_hash IS NULL OR payload_hash NOT REGEXP '^[0-9a-f]{64}$') LIMIT 20");
@@ -98,7 +98,7 @@ async function main() {
     if (archivedWithActiveOwnership.length) fail(`archived customers with active ownership detected: ${archivedWithActiveOwnership.map(x=>x.id).join(', ')}`);
     if (invalidDuplicatePairs.length) fail(`invalid duplicate customer pair ordering detected: ${invalidDuplicatePairs.map(x=>x.id).join(', ')}`);
     if (invalidMergePlans.length) fail(`invalid or executed merge plans detected before merge execution release: ${invalidMergePlans.map(x=>x.id).join(', ')}`);
-    if (invalidAuthorisations.length) fail(`invalid or consumed merge execution authorisations detected before merge execution release: ${invalidAuthorisations.map(x=>x.id).join(', ')}`);
+    if (invalidAuthorisations.length) fail(`invalid, unpinned or consumed merge execution authorisations detected before merge execution release: ${invalidAuthorisations.map(x=>x.id).join(', ')}`);
     if (invalidRepresentativePermissions.length) fail(`representatives with invalid permission JSON detected: ${invalidRepresentativePermissions.map(x=>x.id).join(', ')}`);
     if (activeExpiredRepresentatives.length) fail(`expired representatives still marked active: ${activeExpiredRepresentatives.map(x=>x.id).join(', ')}`);
     if (unsafeApprovals.length) fail(`open approvals without integrity version 2 and a valid payload hash: ${unsafeApprovals.map(x=>x.id).join(', ')}`);
