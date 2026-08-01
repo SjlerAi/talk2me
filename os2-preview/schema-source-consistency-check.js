@@ -13,6 +13,7 @@ const authorisation=read('customer-merge-execution-authorisation-routes.js');
 const readiness=read('customer-merge-execution-readiness-routes.js');
 const schemaVerification=read('schema-verification.js');
 const restoreEvidenceVerification=read('merge-restore-evidence-verification.js');
+const packageSource=read('package.json');
 const migration001=read('migrations/20260801_001_integrated_core.sql');
 const migration011=read('migrations/20260801_011_backup_recovery_and_operations.sql');
 const migration021=read('migrations/20260801_021_merge_plan_freshness.sql');
@@ -56,5 +57,8 @@ need(restoreEvidenceVerification,"rt.status <> 'passed'",'passed restore require
 need(restoreEvidenceVerification,"rt.target_environment <> 'isolated_preview_restore'",'isolated restore requirement');
 need(restoreEvidenceVerification,"rt.actual_database_name <> 'kloka_talk2me'",'restored database identity requirement');
 need(restoreEvidenceVerification,'rt.completed_at > a.authorised_at','restore chronology requirement');
+need(packageSource,'"verify:merge-restore-evidence": "node merge-restore-evidence-verification.js"','restore evidence verification command');
+need(packageSource,'node --check merge-restore-evidence-verification.js','restore evidence verifier syntax registration');
+need(packageSource,'"version": "0.57.0"','restore evidence verification release version');
 
 console.log(JSON.stringify({ok:true,check:'schema-source-consistency'},null,2));
