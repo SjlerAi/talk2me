@@ -22,6 +22,7 @@ requireMarkers(verifier, [
   'descriptorStat.nlink !== 1',
   'descriptorStat.size > maxBytes',
   'crypto.createHash(\'sha256\')',
+  "['../.github/workflows/os2-preview-ci.yml', 1024 * 1024]",
   "['workspace-source-integrity.js', 2 * 1024 * 1024]",
   "['workspace-source-integrity-check.js', 2 * 1024 * 1024]",
   "['workspace-topology-governance-check.js', 2 * 1024 * 1024]",
@@ -38,6 +39,7 @@ requireMarkers(verifier, [
   'selfProtected: files.some',
   'governanceProtected: files.some',
   'activationGovernanceProtected: files.some',
+  'ciWorkflowProtected: files.some',
   'ciEvidenceControlsProtected: files.some',
   'releaseGovernanceProtected: files.some',
   'secureDescriptorReads: true',
@@ -72,7 +74,8 @@ requireMarkers(runbook, [
   'workspace-source-integrity-check.js',
   'deterministic SHA-256 inventory',
   'secure descriptor-based reads',
-  'source inventory digest'
+  'source inventory digest',
+  'CI workflow file itself is part of the protected source inventory'
 ], 'Activation runbook');
 
 if (pkg.scripts['verify:workspace-source-integrity'] !== 'node workspace-source-integrity.js') throw new Error('Missing verify:workspace-source-integrity command');
@@ -96,6 +99,7 @@ console.log(JSON.stringify({
   sourceGovernanceProtectionRequired: true,
   topologyGovernanceProtectionRequired: true,
   activationGovernanceProtectionRequired: true,
+  ciWorkflowProtectionRequired: true,
   ciBuildEvidenceProtectionRequired: true,
   ciGovernanceProtectionRequired: true,
   releaseSourceGovernanceProtectionRequired: true,
