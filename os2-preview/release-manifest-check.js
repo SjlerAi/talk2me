@@ -4,6 +4,7 @@ const fs=require('fs');
 const path=require('path');
 const root=__dirname;
 const gate=fs.readFileSync(path.join(root,'release-candidate-gate.js'),'utf8');
+const verifier=fs.readFileSync(path.join(root,'release-manifest-verification.js'),'utf8');
 const runbook=fs.readFileSync(path.join(root,'RELEASE_CANDIDATE_RUNBOOK.md'),'utf8');
 const pkg=JSON.parse(fs.readFileSync(path.join(root,'package.json'),'utf8'));
 const required=[
@@ -48,11 +49,30 @@ if(!gate.includes('else if (failures.length === 0)')) throw new Error('Release m
 if(!gate.includes('fs.writeFileSync(checksumOutput')) throw new Error('Release manifest checksum sidecar is required');
 if(!gate.includes("mode:0o600, flag:'wx'")) throw new Error('Release evidence files must be private and non-overwriting');
 
+const verifierMarkers=[
+  'RELEASE_MANIFEST_PATH is required',
+  'RELEASE_MANIFEST_PATH must be absolute',
+  'Required release evidence file is missing',
+  'regular non-symlink file',
+  'permissions must be 0600',
+  'timingSafeEqual',
+  'checksum verification failed',
+  'commitIdentityVerified',
+  'dependencyLockPresent',
+  'dependencyLockSha256',
+  '20260801_025_merge_authorisation_restore_pin.sql',
+  'mergeExecutionEnabled !== false',
+  'migrationChecksums.length < 25',
+  'release-manifest-verification'
+];
+for(const marker of verifierMarkers) if(!verifier.includes(marker)) throw new Error(`Missing release verifier marker: ${marker}`);
+
 const runbookMarkers=[
   '20260801_025_merge_authorisation_restore_pin.sql',
   'npm run verify:merge-restore-evidence',
   'npm run check:merge-restore-pin',
   'npm run check:customer-merge-execution-readiness',
+  'node release-manifest-verification.js',
   'exact passed restore test for the same verified backup',
   'restore completed before Owner authorisation',
   'A newer restore test must not be substituted',
@@ -82,5 +102,7 @@ console.log(JSON.stringify({
   failedManifestWriteProhibited:true,
   manifestChecksumSidecarRequired:true,
   releaseEvidenceOverwriteProhibited:true,
+  postFreezeManifestVerificationRequired:true,
+  verifierMarkers:verifierMarkers.length,
   runbookMarkers:runbookMarkers.length
 },null,2));
