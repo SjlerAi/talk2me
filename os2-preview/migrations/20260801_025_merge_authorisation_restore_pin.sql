@@ -3,11 +3,12 @@ ALTER TABLE os2_customer_merge_execution_authorisations
   ADD INDEX idx_merge_execution_restore (restore_test_id);
 
 UPDATE os2_customer_merge_execution_authorisations a
-JOIN (
-  SELECT rt.backup_run_id,MAX(rt.id) restore_test_id
+SET a.restore_test_id=(
+  SELECT rt.id
   FROM os2_restore_tests rt
-  WHERE rt.status='passed'
-  GROUP BY rt.backup_run_id
-) latest ON latest.backup_run_id=a.backup_run_id
-SET a.restore_test_id=latest.restore_test_id
+  WHERE rt.backup_run_id=a.backup_run_id
+    AND rt.status='passed'
+  ORDER BY rt.completed_at DESC,rt.id DESC
+  LIMIT 1
+)
 WHERE a.restore_test_id IS NULL;
