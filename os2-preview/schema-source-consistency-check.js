@@ -11,6 +11,7 @@ const plan=read('customer-merge-plan-routes.js');
 const freshness=read('customer-merge-freshness-routes.js');
 const authorisation=read('customer-merge-execution-authorisation-routes.js');
 const readiness=read('customer-merge-execution-readiness-routes.js');
+const previewReadiness=read('readiness-check.js');
 const schemaVerification=read('schema-verification.js');
 const restoreEvidenceVerification=read('merge-restore-evidence-verification.js');
 const packageSource=read('package.json');
@@ -60,5 +61,11 @@ need(restoreEvidenceVerification,'rt.completed_at > a.authorised_at','restore ch
 need(packageSource,'"verify:merge-restore-evidence": "node merge-restore-evidence-verification.js"','restore evidence verification command');
 need(packageSource,'node --check merge-restore-evidence-verification.js','restore evidence verifier syntax registration');
 need(packageSource,'"version": "0.57.0"','restore evidence verification release version');
+need(previewReadiness,"process.env.DB_NAME !== 'kloka_talk2me'",'preview readiness database refusal');
+need(previewReadiness,"migrations.length < 25",'preview readiness migration floor');
+need(previewReadiness,"20260801_025_merge_authorisation_restore_pin.sql",'preview readiness migration 025 requirement');
+need(previewReadiness,"merge-restore-evidence-verification.js",'preview readiness restore evidence verifier requirement');
+need(previewReadiness,"scripts['verify:merge-restore-evidence']",'preview readiness restore evidence command requirement');
+need(previewReadiness,"scripts['check:merge-restore-pin']",'preview readiness restore pin command requirement');
 
 console.log(JSON.stringify({ok:true,check:'schema-source-consistency'},null,2));
