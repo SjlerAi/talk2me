@@ -13,7 +13,8 @@ module.exports=function createCustomerMergeExecutionReadinessRouter({pool,requir
     const authorisationId=positiveId(req.params.authorisationId);
     if(!authorisationId)return res.status(400).json({ok:false,error:'INVALID_AUTHORISATION_ID'});
     try{
-      const [[row]]=await pool.execute(`SELECT a.*,p.status plan_status,p.plan_hash current_plan_hash,p.current_snapshot_hash,
+      const [[row]]=await pool.execute(`SELECT a.*,(a.expires_at>NOW()) authorisation_unexpired,
+        p.status plan_status,p.plan_hash current_plan_hash,p.current_snapshot_hash,
         p.blocker_count,p.conflict_count,p.invalidated_at,p.executed_at,p.revalidated_at,
         b.status backup_status,b.backup_type,b.database_name,b.completed_at backup_completed_at,b.verified_at,b.checksum_sha256,b.storage_path,b.file_name,
         rt.status restore_status,rt.target_environment restore_target_environment,rt.expected_database_name restore_expected_database_name,
