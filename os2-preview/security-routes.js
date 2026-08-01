@@ -11,6 +11,7 @@ const createDuplicateCustomerRouter=require('./duplicate-customer-routes');
 const createCustomerMergePlanRouter=require('./customer-merge-plan-routes');
 const createCustomerMergeFreshnessRouter=require('./customer-merge-freshness-routes');
 const createMergeExecutionAuthorisationRouter=require('./customer-merge-execution-authorisation-routes');
+const createMergeExecutionReadinessRouter=require('./customer-merge-execution-readiness-routes');
 
 function positiveId(v){const n=Number(v);return Number.isInteger(n)&&n>0?n:null;}
 function management(user){return ['owner','manager'].includes(String(user?.role||'').toLowerCase());}
@@ -26,6 +27,7 @@ module.exports=function createSecurityRouter({pool,requireAuth}){
   router.use(createCustomerMergePlanRouter({pool,requireAuth}));
   router.use(createCustomerMergeFreshnessRouter({pool,requireAuth}));
   router.use(createMergeExecutionAuthorisationRouter({pool,requireAuth}));
+  router.use(createMergeExecutionReadinessRouter({pool,requireAuth}));
 
   router.get('/api/os2/security/sessions',async(req,res)=>{
     try{
