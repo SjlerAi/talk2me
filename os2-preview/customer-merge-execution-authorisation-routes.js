@@ -22,12 +22,14 @@ module.exports=function createMergeExecutionAuthorisationRouter({pool,requireAut
         const [[plan]]=await connection.execute('SELECT * FROM os2_customer_merge_plans WHERE id=:id FOR UPDATE',{id:mergePlanId});
         if(!plan)throw Object.assign(new Error('MERGE_PLAN_NOT_FOUND'),{statusCode:404});
         if(plan.status!=='approved')throw Object.assign(new Error('APPROVED_MERGE_PLAN_REQUIRED'),{statusCode:409});
+        if(plan.invalidated_at)throw Object.assign(new Error('MERGE_PLAN_INVALIDATED'),{statusCode:409});
+        if(plan.executed_at)throw Object.assign(new Error('MERGE_PLAN_ALREADY_EXECUTED'),{statusCode:409});
         if(plan.plan_hash!==planHash||plan.current_snapshot_hash!==snapshotHash)throw Object.assign(new Error('MERGE_PLAN_HASH_MISMATCH'),{statusCode:409});
         if(Number(plan.blocker_count)>0||Number(plan.conflict_count)>0)throw Object.assign(new Error('MERGE_PLAN_NOT_CLEAR'),{statusCode:409});
-        if(!plan.last_revalidated_at)throw Object.assign(new Error('MERGE_PLAN_REVALIDATION_REQUIRED'),{statusCode:409});
+        if(!plan.revalidated_at)throw Object.assign(new Error('MERGE_PLAN_REVALIDATION_REQUIRED'),{statusCode:409});
         const [[backup]]=await connection.execute(`SELECT id,status,verified_at,database_name FROM os2_backup_runs WHERE id=:id FOR UPDATE`,{id:backupRunId});
         if(!backup||backup.status!=='verified'||!backup.verified_at||backup.database_name!=='kloka_talk2me')throw Object.assign(new Error('VERIFIED_PREVIEW_BACKUP_REQUIRED'),{statusCode:409});
-        const [insert]=await connection.execute(`INSERT INTO os2_customer_merge_execution_authorisations
+        await connection.execute(`INSERT INTO os2_customer_merge_execution_authorisations
           (merge_plan_id,plan_hash,snapshot_hash,backup_run_id,change_reference,status,requested_by,requested_at,created_at,updated_at)
           VALUES(:mergePlanId,:planHash,:snapshotHash,:backupRunId,:changeReference,'pending',:actor,NOW(),NOW(),NOW())
           ON DUPLICATE KEY UPDATE plan_hash=VALUES(plan_hash),snapshot_hash=VALUES(snapshot_hash),backup_run_id=VALUES(backup_run_id),change_reference=VALUES(change_reference),status='pending',requested_by=VALUES(requested_by),requested_at=NOW(),authorised_by=NULL,authorised_at=NULL,expires_at=NULL,revoked_by=NULL,revoked_at=NULL,revocation_reason=NULL,consumed_at=NULL,consumed_by=NULL,updated_at=NOW()`,{mergePlanId,planHash,snapshotHash,backupRunId,changeReference,actor:req.user.id});
@@ -50,7 +52,7 @@ module.exports=function createMergeExecutionAuthorisationRouter({pool,requireAut
         if(authorisation.status!=='pending')throw Object.assign(new Error('AUTHORISATION_NOT_PENDING'),{statusCode:409});
         if(Number(authorisation.requested_by)===Number(req.user.id))throw Object.assign(new Error('SELF_AUTHORISATION_NOT_ALLOWED'),{statusCode:409});
         const [[plan]]=await connection.execute('SELECT * FROM os2_customer_merge_plans WHERE id=:id FOR UPDATE',{id:authorisation.merge_plan_id});
-        if(!plan||plan.status!=='approved'||plan.plan_hash!==authorisation.plan_hash||plan.current_snapshot_hash!==authorisation.snapshot_hash)throw Object.assign(new Error('MERGE_PLAN_CHANGED'),{statusCode:409});
+        if(!plan||plan.status!=='approved'||plan.invalidated_at||plan.executed_at||!plan.revalidated_at||Number(plan.blocker_count)>0||Number(plan.conflict_count)>0||plan.plan_hash!==authorisation.plan_hash||plan.current_snapshot_hash!==authorisation.snapshot_hash)throw Object.assign(new Error('MERGE_PLAN_CHANGED'),{statusCode:409});
         const expiresAt=decision==='authorised'?new Date(Date.now()+30*60*1000):null;
         await connection.execute(`UPDATE os2_customer_merge_execution_authorisations SET status=:decision,authorised_by=IF(:decision='authorised',:actor,NULL),authorised_at=IF(:decision='authorised',NOW(),NULL),expires_at=IF(:decision='authorised',DATE_ADD(NOW(),INTERVAL 30 MINUTE),NULL),revocation_reason=IF(:decision='rejected',:reason,NULL),updated_at=NOW() WHERE id=:id`,{id,decision,actor:req.user.id,reason});
         await connection.execute(`INSERT INTO os2_customer_merge_execution_authorisation_history(authorisation_id,event_type,from_status,to_status,reason,details_json,changed_by,created_at) VALUES(:id,'decision','pending',:decision,:reason,:details,:actor,NOW())`,{id,decision,reason,details:JSON.stringify({expiresAt,executionAvailable:false}),actor:req.user.id});
