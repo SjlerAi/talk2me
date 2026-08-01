@@ -96,7 +96,11 @@ for(const marker of verifierMarkers) if(!verifier.includes(marker)) throw new Er
 
 const runbookMarkers=[
   '20260801_025_merge_authorisation_restore_pin.sql',
-  'npm run verify:merge-restore-evidence',
+  'DB_NAME=kloka_talk2me npm run verify:preview-data',
+  'schema-verification.js` first',
+  'merge-restore-evidence-verification.js` second',
+  'Running only `npm run verify:schema` or only `npm run verify:merge-restore-evidence` is not sufficient release evidence.',
+  'Stop the release-candidate process if either verifier fails, is interrupted, or cannot start.',
   'npm run check:merge-restore-pin',
   'npm run check:customer-merge-execution-readiness',
   'node release-manifest-verification.js',
@@ -108,7 +112,7 @@ const runbookMarkers=[
   'talk2me.kloka.co.za',
   'kloka_talk2me',
   'talk2me.uent.co.za',
-  'Migration 025, preview schema verification, pinned restore-evidence verification, deployment, restart and formal UAT have not yet been executed.'
+  'Migration 025, preview data verification, deployment, restart and formal UAT have not yet been executed.'
 ];
 for(const marker of runbookMarkers) if(!runbook.includes(marker)) throw new Error(`Missing release runbook marker: ${marker}`);
 
@@ -134,6 +138,7 @@ console.log(JSON.stringify({
   manifestChecksumSidecarRequired:true,
   releaseEvidenceOverwriteProhibited:true,
   postFreezeManifestVerificationRequired:true,
+  releaseRunbookPreviewDataProtected:true,
   previewDataMarkers:previewDataMarkers.length,
   verifierMarkers:verifierMarkers.length,
   runbookMarkers:runbookMarkers.length
