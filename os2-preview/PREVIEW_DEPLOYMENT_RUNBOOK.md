@@ -8,21 +8,47 @@ It must never be used against `talk2me.uent.co.za` or any production database.
 1. Confirm the checked-out branch is `agent/talk2me-os2-integrated-rebuild`.
 2. Confirm the application directory is `/home/kloka/repositories/talk2me/os2-preview`.
 3. Confirm `DB_NAME=kloka_talk2me`.
-4. Confirm a current preview-database backup exists.
-5. Install dependencies with `npm ci` where a lockfile is available, otherwise `npm install`.
-6. Run `npm run check`.
-7. Run `npm run check:readiness`.
-8. Stop immediately if either command reports a failure.
+4. Confirm `ALLOW_PRODUCTION_MUTATION=false` and `ENABLE_CUSTOMER_MERGE_EXECUTION=false`.
+5. Confirm a current preview-database backup exists and has passed backup verification.
+6. Stop when `package-lock.json` is absent. Do not substitute `npm install` for the controlled release path.
+7. Install dependencies with `npm ci` from the committed lockfile.
+8. Run `npm run check`.
+9. Run `npm run check:readiness`.
+10. Stop immediately if either command reports a failure.
 
 ## 2. Controlled migration
 
-Set `ALLOW_PREVIEW_MIGRATIONS=true` only for the migration command.
+Set `ALLOW_PREVIEW_MIGRATIONS=true` only for the migration command and keep both prohibited execution flags false.
 
 ```bash
-ALLOW_PREVIEW_MIGRATIONS=true npm run migrate:preview
+DB_NAME=kloka_talk2me \
+ALLOW_PREVIEW_MIGRATIONS=true \
+ALLOW_PRODUCTION_MUTATION=false \
+ENABLE_CUSTOMER_MERGE_EXECUTION=false \
+npm run migrate:preview
 ```
 
-The migration runner refuses any database name other than `kloka_talk2me`, records every migration checksum, and stops if an already-applied migration has changed.
+The migration runner must:
+
+- refuse every database except `kloka_talk2me`;
+- reject `ALLOW_PRODUCTION_MUTATION=true`;
+- reject `ENABLE_CUSTOMER_MERGE_EXECUTION=true`;
+- securely open the migrations directory with `O_DIRECTORY | O_NOFOLLOW`;
+- securely open every migration with `O_NOFOLLOW`;
+- compare path and descriptor device/inode identity;
+- reject symbolic links and additional hard links;
+- reject group-writable or world-writable migration sources;
+- enforce a maximum migration file size;
+- reject invalid SQL migration filenames rather than silently ignoring them;
+- require at least 25 migrations and explicit migration 025 presence;
+- read and freeze the complete migration source inventory before connecting to the database;
+- acquire the MySQL advisory lock `talk2me_os2_preview_migrations` before ledger or migration activity;
+- stop when the advisory lock cannot be acquired;
+- record every migration checksum;
+- stop when an already-applied migration checksum differs;
+- release the advisory lock during cleanup.
+
+Only one controlled migration process may operate against the preview database at a time.
 
 ## 3. Mandatory preview data verification
 
