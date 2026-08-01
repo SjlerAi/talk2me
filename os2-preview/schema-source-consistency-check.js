@@ -13,6 +13,7 @@ const authorisation=read('customer-merge-execution-authorisation-routes.js');
 const readiness=read('customer-merge-execution-readiness-routes.js');
 const previewReadiness=read('readiness-check.js');
 const deploymentCheck=read('deployment-check.js');
+const uatGate=read('uat-gate-check.js');
 const schemaVerification=read('schema-verification.js');
 const restoreEvidenceVerification=read('merge-restore-evidence-verification.js');
 const packageSource=read('package.json');
@@ -74,5 +75,14 @@ need(deploymentCheck,'merge-restore-evidence-verification.js','deployment gate r
 need(deploymentCheck,"'verify:merge-restore-evidence'",'deployment gate restore verification command requirement');
 need(deploymentCheck,"'check:merge-restore-pin'",'deployment gate restore pin command requirement');
 need(deploymentCheck,'executionEnabled: false','deployment gate merge execution lock evidence');
+need(uatGate,'migrations.length < 25','UAT gate migration floor');
+need(uatGate,'20260801_025_merge_authorisation_restore_pin.sql','UAT gate migration 025 requirement');
+need(uatGate,'merge-restore-evidence-verification.js','UAT gate restore evidence verifier requirement');
+need(uatGate,'rt.id = a.restore_test_id','UAT gate exact pinned restore join requirement');
+need(uatGate,'rt.backup_run_id <> a.backup_run_id','UAT gate restore-to-backup relationship requirement');
+need(uatGate,'rt.completed_at > a.authorised_at','UAT gate restore chronology requirement');
+need(uatGate,"pkg.scripts['verify:merge-restore-evidence']",'UAT gate restore evidence command requirement');
+need(uatGate,"pkg.scripts['check:merge-restore-pin']",'UAT gate restore pin command requirement');
+need(uatGate,'executionAvailable:false','UAT gate merge execution lock');
 
 console.log(JSON.stringify({ok:true,check:'schema-source-consistency'},null,2));
