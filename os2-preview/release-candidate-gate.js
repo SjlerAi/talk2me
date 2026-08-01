@@ -63,21 +63,31 @@ function publishEvidencePair(manifestPath, manifestText, checksumText) {
     removeIfPresent(checksumTemp);
   }
 }
-function verifyBootstrapEvidence(evidencePath) {
-  const result = spawnSync(process.execPath, [path.join(root, 'migration-ledger-bootstrap-evidence-verification.js')], {
+function runVerifier(script, extraEnv, label) {
+  const result = spawnSync(process.execPath, [path.join(root, script)], {
     cwd: root,
     env: {
       ...process.env,
       DB_NAME: expectedDatabase,
-      MIGRATION_LEDGER_BOOTSTRAP_EVIDENCE_PATH: evidencePath,
+      PREVIEW_APP_ROOT: root,
+      RELEASE_BRANCH: expectedBranch,
       ALLOW_PRODUCTION_MUTATION: 'false',
-      ENABLE_CUSTOMER_MERGE_EXECUTION: 'false'
+      ENABLE_CUSTOMER_MERGE_EXECUTION: 'false',
+      ...extraEnv
     },
-    stdio: 'inherit'
+    encoding: 'utf8',
+    maxBuffer: 16 * 1024 * 1024,
+    windowsHide: true
   });
-  if (result.error) throw new Error(`Bootstrap evidence verifier could not start: ${result.error.message}`);
-  if (result.signal) throw new Error(`Bootstrap evidence verifier was interrupted by signal ${result.signal}`);
-  if (result.status !== 0) throw new Error(`Bootstrap evidence verifier failed with status ${result.status}`);
+  if (result.error) throw new Error(`${label} could not start: ${result.error.message}`);
+  if (result.signal) throw new Error(`${label} was interrupted by signal ${result.signal}`);
+  if (result.status !== 0) throw new Error(`${label} failed with status ${result.status}: ${String(result.stderr || '').trim()}`);
+  const output = String(result.stdout || '').trim();
+  if (output) process.stdout.write(`${output}\n`);
+  let parsed;
+  try { parsed = JSON.parse(output); } catch { throw new Error(`${label} did not return valid JSON`); }
+  if (parsed.ok !== true) throw new Error(`${label} did not report success`);
+  return parsed;
 }
 
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
@@ -89,6 +99,7 @@ const approvedBy = requireValue('RELEASE_APPROVED_BY');
 const changeReference = requireValue('RELEASE_CHANGE_REFERENCE');
 const output = requireValue('RELEASE_MANIFEST_PATH');
 const bootstrapEvidencePath = requireValue('MIGRATION_LEDGER_BOOTSTRAP_EVIDENCE_PATH');
+const approvedSourceInventorySha256 = requireValue('RELEASE_SOURCE_INVENTORY_SHA256').toLowerCase();
 
 if (pkg.name !== 'talk2me-os2-preview') fail(`Unexpected preview package name: ${pkg.name}`);
 if (pkg.version !== '0.59.0') fail(`Unexpected preview package version: ${pkg.version}`);
@@ -98,6 +109,7 @@ else if (!/^[0-9a-f]{40}$/i.test(releaseCommitSha)) fail('Release commit SHA mus
 if (explicitSha && githubSha && explicitSha.toLowerCase() !== githubSha.toLowerCase()) fail('RELEASE_COMMIT_SHA must match the exact GITHUB_SHA being validated');
 if (!releaseBranch) fail('RELEASE_BRANCH or GITHUB_REF_NAME is required');
 else if (releaseBranch !== expectedBranch) fail(`Unexpected release branch: ${releaseBranch}`);
+if (!/^[0-9a-f]{64}$/.test(approvedSourceInventorySha256)) fail('RELEASE_SOURCE_INVENTORY_SHA256 must be a 64-character hexadecimal SHA-256');
 if (String(process.env.ALLOW_PRODUCTION_MUTATION || '').toLowerCase() === 'true') fail('Release freeze refuses ALLOW_PRODUCTION_MUTATION=true');
 if (String(process.env.ENABLE_CUSTOMER_MERGE_EXECUTION || '').toLowerCase() === 'true') fail('Release freeze refuses ENABLE_CUSTOMER_MERGE_EXECUTION=true');
 if (!path.isAbsolute(output)) fail('RELEASE_MANIFEST_PATH must be absolute');
@@ -107,7 +119,8 @@ if (path.normalize(bootstrapEvidencePath) !== bootstrapEvidencePath) fail('MIGRA
 
 const requiredFiles = [
   bootstrapFile, 'migration-ledger-bootstrap-evidence-verification.js', 'migration-ledger-bootstrap-evidence-check.js',
-  'migration-runner-security-check.js', 'workspace-topology-governance-check.js', 'preview-activation-governance-check.js',
+  'migration-runner-security-check.js', 'workspace-topology-governance-check.js', 'workspace-source-integrity.js',
+  'release-source-integrity-verification.js', 'release-source-integrity-check.js', 'preview-activation-governance-check.js',
   'release-evidence-security-check.js', 'deployment-check.js', 'uat-gate-check.js', 'schema-verification.js',
   'preview-data-verification.js', 'merge-restore-evidence-verification.js', `migrations/${restorePinMigration}`
 ];
@@ -123,9 +136,22 @@ for (const script of requiredScripts) if (!pkg.scripts || !pkg.scripts[script]) 
 
 let bootstrapEvidenceSha256 = null;
 let bootstrapEvidenceSidecarSha256 = null;
-if (bootstrapEvidencePath && path.isAbsolute(bootstrapEvidencePath) && path.normalize(bootstrapEvidencePath) === bootstrapEvidencePath) {
+let sourceIntegrityEvidence = null;
+if (failures.length === 0) {
   try {
-    verifyBootstrapEvidence(bootstrapEvidencePath);
+    sourceIntegrityEvidence = runVerifier(
+      'release-source-integrity-verification.js',
+      { RELEASE_SOURCE_INVENTORY_SHA256: approvedSourceInventorySha256 },
+      'Release source integrity verifier'
+    );
+    if (String(sourceIntegrityEvidence.inventorySha256 || '').toLowerCase() !== approvedSourceInventorySha256) {
+      throw new Error('Release source integrity verifier returned an unexpected inventory digest');
+    }
+    runVerifier(
+      'migration-ledger-bootstrap-evidence-verification.js',
+      { MIGRATION_LEDGER_BOOTSTRAP_EVIDENCE_PATH: bootstrapEvidencePath },
+      'Bootstrap evidence verifier'
+    );
     bootstrapEvidenceSha256 = sha256File(bootstrapEvidencePath);
     bootstrapEvidenceSidecarSha256 = sha256File(`${bootstrapEvidencePath}.sha256`);
   } catch (error) {
@@ -163,6 +189,11 @@ const manifest = {
   approvedBy: approvedBy || null,
   changeReference: changeReference || null,
   generatedAt: new Date().toISOString(),
+  approvedSourceInventorySha256: approvedSourceInventorySha256 || null,
+  releaseSourceIntegrityVerified: Boolean(sourceIntegrityEvidence && sourceIntegrityEvidence.exactApprovedInventoryMatched === true),
+  releaseSourceProtectedFileCount: sourceIntegrityEvidence ? sourceIntegrityEvidence.protectedFileCount : null,
+  releaseSourceMigrationCount: sourceIntegrityEvidence ? sourceIntegrityEvidence.migrationCount : null,
+  releaseSourcePackageLockPresent: sourceIntegrityEvidence ? sourceIntegrityEvidence.packageLockPresent : false,
   migrationLedgerBootstrapFile: bootstrapFile,
   migrationLedgerBootstrapSha256: sha256File(path.join(root, bootstrapFile)),
   migrationLedgerBootstrapEvidencePath: bootstrapEvidencePath || null,
