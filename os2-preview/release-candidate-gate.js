@@ -95,6 +95,7 @@ const releaseBranch = String(process.env.RELEASE_BRANCH || process.env.GITHUB_RE
 const output = String(process.env.RELEASE_MANIFEST_PATH || '').trim();
 const checksumOutput = output ? `${output}.sha256` : '';
 
+if (pkg.name !== 'talk2me-os2-preview') fail(`Unexpected preview package name: ${pkg.name}`);
 if (!/^0\.\d+\.0$/.test(pkg.version)) fail(`Unexpected preview version format: ${pkg.version}`);
 if (migrations.length < 25) fail(`Expected at least 25 migrations, found ${migrations.length}`);
 if (!migrations.includes(restorePinMigration)) fail(`Missing required migration: ${restorePinMigration}`);
@@ -137,11 +138,13 @@ const forbiddenRuntimeCreate = fs.readdirSync(root)
   .filter(name => /CREATE\s+TABLE/i.test(fs.readFileSync(path.join(root,name),'utf8')));
 if (forbiddenRuntimeCreate.length) fail(`Runtime CREATE TABLE found in: ${forbiddenRuntimeCreate.join(', ')}`);
 
+const packageJsonChecksum = sha256('package.json');
 const dependencyLockChecksum = exists('package-lock.json') ? sha256('package-lock.json') : null;
 const manifest = {
   ok: failures.length === 0,
   application: pkg.name,
   version: pkg.version,
+  packageJsonSha256: packageJsonChecksum,
   commitSha: releaseCommitSha || null,
   branch: releaseBranch || null,
   commitIdentityVerified: Boolean(
