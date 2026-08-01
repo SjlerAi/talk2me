@@ -11,9 +11,13 @@ This runbook applies only to `https://talk2me.kloka.co.za` and database `kloka_t
 5. Run `npm run check`.
 6. Run `npm run check:readiness`.
 7. Run preview migrations only with `ALLOW_PREVIEW_MIGRATIONS=true`.
-8. Run `npm run verify:schema` after migrations.
-9. Restart only the preview Node.js application.
-10. Confirm `/health` returns the expected OS2 version and connected preview database.
+8. Run `DB_NAME=kloka_talk2me npm run verify:preview-data` after migrations.
+9. Confirm the orchestrator completed `schema-verification.js` before `merge-restore-evidence-verification.js`.
+10. Confirm the successful result identifies `kloka_talk2me` and reports `mergeExecutionEnabled: false`.
+11. Restart only the preview Node.js application.
+12. Confirm `/health` returns the expected OS2 version and connected preview database.
+
+Do not begin automated or manual UAT when the preview data-verification orchestrator fails, is interrupted, or has not been run. Running only `npm run verify:schema` is not sufficient because pinned restore evidence must be verified in the same controlled sequence.
 
 ## Read-only automated UAT
 
@@ -116,6 +120,8 @@ Keep the email worker disabled for initial UAT.
 
 Record for every scenario:
 
+- exact commit SHA and preview version;
+- preview data-verification result and execution order;
 - test date and tester;
 - role used;
 - customer or work-item reference;
@@ -124,4 +130,4 @@ Record for every scenario:
 - screenshot or error detail;
 - pass, fail or deferred status.
 
-Do not declare the rebuild ready until schema verification, automated UAT, role-based UAT, import UAT and controlled email testing all pass on the preview environment.
+Do not declare the rebuild ready until preview data verification, automated UAT, role-based UAT, import UAT and controlled email testing all pass on the preview environment.
