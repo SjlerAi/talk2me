@@ -8,51 +8,36 @@ This procedure controls the point at which a development build may be frozen as 
 
 1. A reviewed `package-lock.json` is committed.
 2. GitHub validation has completed successfully for the exact candidate commit.
-3. The retained CI build evidence contains a successful workspace source-integrity record and deterministic inventory SHA-256.
-4. The exact approved workspace source digest is recorded as `RELEASE_SOURCE_INVENTORY_SHA256`.
-5. `node release-source-integrity-verification.js` passes against the exact candidate checkout and requires `package-lock.json` to be included in the protected inventory.
+3. Retained CI evidence contains the successful workspace source-integrity JSON, checksum sidecar and deterministic inventory SHA-256.
+4. The approved digest is recorded as `RELEASE_SOURCE_INVENTORY_SHA256`.
+5. `node release-source-integrity-verification.js` passes against the exact checkout and requires `package-lock.json to be included in the protected inventory`.
 6. A verified preview backup exists and its reference and SHA-256 were used by the controlled migration-ledger bootstrap runner.
-7. The migration-ledger bootstrap was executed only with `npm run bootstrap:migration-ledger` against `kloka_talk2me`.
-8. The private bootstrap execution evidence JSON and SHA-256 sidecar exist at the approved absolute canonical path.
-9. `npm run verify:migration-ledger-bootstrap-evidence` passes for that exact evidence pair and checked-out bootstrap source.
-10. All preview migrations, including `20260801_025_merge_authorisation_restore_pin.sql`, have been applied to `kloka_talk2me` only.
-11. The migration runner used the same `MIGRATION_LEDGER_BOOTSTRAP_EVIDENCE_PATH`, verified it before opening MySQL, released the advisory lock, and closed the database connection before final success.
-12. `DB_NAME=kloka_talk2me npm run verify:preview-data` passes against the preview database.
-13. Preview data verification runs `schema-verification.js` first and `merge-restore-evidence-verification.js` second.
-14. Running only `npm run verify:schema` or only `npm run verify:merge-restore-evidence` is not sufficient release evidence.
-15. `npm run check:merge-restore-pin` passes.
-16. `npm run check:customer-merge-execution-readiness` confirms exact restore evidence is pinned and merge execution remains disabled.
-17. Automated preview UAT and the documented manual UAT stages are complete.
-18. Security, privacy, communications, worker, deployment and UAT governance checks have been evidenced.
-19. The candidate commit SHA, controlled branch, approver and change reference are recorded.
+7. The migration-ledger bootstrap ran only against `kloka_talk2me` and produced a private JSON evidence pair.
+8. All ordered migrations, including `20260801_025_merge_authorisation_restore_pin.sql`, were applied by the controlled migration runner.
+9. Migration completion proves bootstrap-evidence verification before MySQL, advisory-lock release and database-connection closure.
+10. `DB_NAME=kloka_talk2me npm run verify:preview-data` passed in the required order.
+11. Automated and manual UAT evidence is complete.
+12. Production mutation and customer-merge execution remain disabled.
 
-Stop the release-candidate process if source-integrity verification, bootstrap evidence verification, migration completion evidence, preview data verification, UAT, or any required governance control fails, is interrupted, or cannot start.
+Stop when any source, dependency, backup, bootstrap, migration, restore, preview-data, UAT, release-freeze or post-freeze control fails, times out, is interrupted or cannot start.
 
 ## Required evidence order
 
-Record evidence in this order so later evidence cannot silently replace earlier approval inputs:
+1. Exact commit, controlled branch and version.
+2. Dependency lock and audit result.
+3. CI workspace source inventory and digest.
+4. Approved release source-integrity output.
+5. Verified preview backup evidence.
+6. Bootstrap source and private bootstrap execution evidence pair.
+7. Migration completion evidence.
+8. Restore evidence and preview-data verification.
+9. Automated and manual UAT evidence.
+10. Release manifest and checksum sidecar.
+11. Post-freeze manifest verification.
 
-1. exact candidate commit, controlled branch and preview version;
-2. committed dependency lock and dependency audit result;
-3. retained CI workspace source-integrity JSON, checksum sidecar and deterministic inventory SHA-256;
-4. successful release source-integrity verification against the exact approved workspace source digest;
-5. verified preview backup reference, SHA-256 and database identity;
-6. migration-ledger bootstrap source SHA-256;
-7. bootstrap execution evidence JSON and SHA-256 sidecar;
-8. successful bootstrap evidence verification output;
-9. final migration completion output showing evidence verification before MySQL, advisory-lock release and connection closure;
-10. isolated restore-test ID for the verified backup;
-11. successful preview data verification showing schema-first and restore-evidence-second completion;
-12. restore-pin and merge-readiness checks;
-13. automated and manual UAT evidence;
-14. release-candidate manifest and checksum sidecar;
-15. post-freeze manifest verification against the exact checkout and bootstrap evidence pair.
-
-A newer source inventory, restore test, backup, bootstrap evidence pair or migration output must not be substituted for evidence already used by the candidate.
+A newer checkout, digest, backup, bootstrap result, migration result or restore test must not be substituted into an already frozen candidate.
 
 ## Approved source-integrity verification
-
-Before release freeze, copy the deterministic `workspaceSourceInventorySha256` value from the retained CI build evidence. Do not calculate or approve a different digest from an unreviewed checkout.
 
 Run from the exact candidate checkout:
 
@@ -66,44 +51,102 @@ ENABLE_CUSTOMER_MERGE_EXECUTION=false \
 node release-source-integrity-verification.js
 ```
 
-This verifier reruns `workspace-source-integrity.js` using secure descriptor-based reads and requires the current deterministic inventory digest to match the approved CI digest exactly. It also requires the committed `package-lock.json` to be included in the protected inventory.
-
-A digest mismatch means the checkout differs from the approved source state. Stop immediately and create a new exact-commit validation and evidence cycle.
+A digest mismatch invalidates the candidate and requires a new exact-commit CI and evidence cycle.
 
 ## Freeze command
-
-Run from the preview application directory with the exact candidate identity, the same bootstrap evidence path used by controlled migration, and an absolute private release-manifest path:
 
 ```bash
 RELEASE_COMMIT_SHA=<exact-40-character-git-sha> \
 RELEASE_BRANCH=agent/talk2me-os2-integrated-rebuild \
 RELEASE_APPROVED_BY=<name> \
 RELEASE_CHANGE_REFERENCE=<issue-or-change-reference> \
+RELEASE_SOURCE_INVENTORY_SHA256=<approved-64-character-sha256> \
 MIGRATION_LEDGER_BOOTSTRAP_EVIDENCE_PATH=/absolute/private/canonical/path/bootstrap-evidence.json \
 RELEASE_MANIFEST_PATH=/absolute/private/canonical/path/talk2me-release-manifest.json \
+ALLOW_PRODUCTION_MUTATION=false \
+ENABLE_CUSTOMER_MERGE_EXECUTION=false \
 npm run check:release-candidate
 ```
 
-The freeze must fail when:
+The freeze must fail when the lock is absent, exact identity is missing, approved source differs, bootstrap evidence is unsafe or incomplete, migration evidence is incomplete, release metadata is invalid, or either mutation safety flag is enabled.
 
-- the dependency lock is absent;
-- the exact commit or branch identity is missing or invalid;
-- approved source-integrity evidence is absent or does not match the current protected source inventory;
-- bootstrap evidence is absent, modified, non-private, non-canonical or fails verification;
-- the bootstrap source checksum differs from the checked-out source;
-- verified backup evidence is incomplete;
-- ledger absence, exact table creation, schema verification or empty-ledger proof is missing;
-- advisory-lock ownership or release proof is incomplete;
-- runtime table creation is detected;
-- migration 025 or merge recovery controls are missing;
-- release metadata is incomplete;
-- production mutation or customer-merge execution is enabled.
+## Exact release-manifest semantic contract
 
-The release manifest must freeze the bootstrap evidence path, bootstrap evidence SHA-256, bootstrap evidence-sidecar SHA-256, bootstrap source SHA-256, dependency-lock SHA-256, package manifest SHA-256 and each migration SHA-256.
+Post-freeze verification does not accept a manifest merely because its checksum is valid. The manifest must satisfy the complete semantic contract below.
+
+1. Application identity is exactly `talk2me-os2-preview`.
+2. Version is exactly `0.59.0`.
+3. Branch is exactly `agent/talk2me-os2-integrated-rebuild`.
+4. Commit identity is a full 40-character SHA and matches the verified checkout.
+5. Approver evidence is present, trimmed, bounded and control-character free.
+6. Change reference is present, trimmed, bounded and control-character free.
+7. `generatedAt` uses canonical UTC ISO-8601 format.
+8. `generatedAt` is not more than five minutes in the future.
+9. The manifest is no older than 30 days.
+10. `packageJsonSha256` has valid SHA-256 syntax.
+11. `dependencyLockSha256` has valid SHA-256 syntax.
+12. `approvedSourceInventorySha256` has valid SHA-256 syntax.
+13. `migrationLedgerBootstrapSha256` has valid SHA-256 syntax.
+14. The dependency lock is explicitly present.
+15. Release source integrity is explicitly verified.
+16. Release source evidence confirms the dependency lock.
+17. The source protected-file count is valid.
+18. The source migration count is valid.
+19. Reverification must reproduce the frozen source protected-file count.
+20. Reverification must reproduce the frozen source migration count.
+21. The bootstrap filename is exact.
+22. The bootstrap evidence pair was verified before release freeze.
+23. Runtime ledger creation is disabled.
+24. Migration completion requires confirmed lock release.
+25. Migration success requires connection closure.
+26. Production mutation remains false.
+27. Merge execution remains false.
+28. The manifest failures array exists and is empty.
+29. `restorePinMigration` is exactly `20260801_025_merge_authorisation_restore_pin.sql`.
+30. `previewDataVerificationRequired` is true.
+31. `previewDataVerificationOrder` is exactly schema first and restore evidence second.
+32. The exact required-file inventory is present in the frozen order.
+33. The exact required-script inventory is present in the frozen order.
+34. Required-file and required-script inventories contain no duplicates.
+35. `migrationCount` equals the actual ordered migration count.
+36. The frozen migration inventory length equals the actual migration count.
+37. Migration filenames are unique.
+38. Migration filenames remain in exact sorted order.
+39. Every migration checksum has valid SHA-256 syntax.
+40. Every migration checksum matches the secure descriptor read.
+41. The restore-pin migration exists in the checked-out inventory.
+42. Package name and version match the manifest.
+43. Every required package script exists in the checked-out package.
+44. The dependency-lock name and version match the package.
+45. `lockfileVersion` is supported and at least 2.
+46. The bootstrap evidence root is an object with the expected runner identity.
+47. The bootstrap evidence database and source filename are exact.
+48. The verified backup reference and verified backup SHA-256 are valid.
+49. The bootstrap operator and bootstrap change reference are valid.
+50. Bootstrap start and completion timestamps are canonical, ordered, and bootstrap completion must precede release freeze.
+
+These are 50 meaningful release-semantic controls. Failure of any one invalidates the release candidate.
+
+## Sanitized post-freeze verifier environment
+
+The child source verifier uses a sanitized allowlisted environment. It may inherit only basic path, home, locale, temporary-directory and CI identity values. It must not inherit `NODE_OPTIONS`, `NODE_PATH`, `BASH_ENV`, `ENV`, `CDPATH`, `GIT_DIR`, `GIT_WORK_TREE`, `NPM_CONFIG_PREFIX` or `NPM_CONFIG_USERCONFIG`.
+
+The child environment forces:
+
+```text
+PREVIEW_APP_ROOT=<exact checkout root>
+DB_NAME=kloka_talk2me
+RELEASE_BRANCH=agent/talk2me-os2-integrated-rebuild
+NODE_ENV=production
+ALLOW_PRODUCTION_MUTATION=false
+ENABLE_CUSTOMER_MERGE_EXECUTION=false
+```
+
+The verifier runs with shell execution disabled, a 30-second timeout, forced `SIGKILL` termination and hidden-window execution.
 
 ## Post-freeze manifest verification
 
-Immediately after the freeze succeeds, verify the manifest and all bound sources from the same checkout:
+Run immediately after freeze from the same checkout:
 
 ```bash
 RELEASE_COMMIT_SHA=<exact-40-character-git-sha> \
@@ -112,77 +155,31 @@ RELEASE_MANIFEST_PATH=/absolute/private/canonical/path/talk2me-release-manifest.
 node release-manifest-verification.js
 ```
 
-The verifier must securely reopen and validate:
+Verification securely reopens the manifest pair, package files, bootstrap source, bootstrap evidence pair, migrations directory and every migration. It uses canonical paths, `O_DIRECTORY`, `O_NOFOLLOW`, pathname/descriptor identity checks, ownership checks, private evidence permissions, single-link enforcement, bounded reads and byte-count stability.
 
-- the release-manifest JSON and SHA-256 sidecar;
-- `package.json` and the committed `package-lock.json`;
-- `MIGRATION_LEDGER_BOOTSTRAP.sql`;
-- every migration source in exact order;
-- the bootstrap execution evidence JSON and its SHA-256 sidecar.
-
-Verification must fail when:
-
-- an evidence path is missing, relative, non-normalized or non-canonical;
-- an evidence directory is a symbolic link or is accessible to group or world users;
-- a protected file is a symbolic link, has additional hard links, changes pathname/descriptor identity, exceeds its size limit or has invalid permissions;
-- `O_NOFOLLOW` is unavailable;
-- a checksum sidecar has the wrong format or filename;
-- any frozen SHA-256 differs from the checked-out or retained source;
-- commit identity or branch identity differs from the candidate;
-- migration 025 is absent or migration order differs;
-- bootstrap evidence no longer proves the preview database, reviewed source, verified backup, absent ledger, exact table creation, schema verification, empty ledger and complete lock lifecycle;
-- preview data verification requirements are absent;
-- `runtimeLedgerCreationDisabled` is not `true`;
-- `mergeExecutionEnabled` is not `false`.
-
-Retain the successful verification output with the release evidence. Re-run verification whenever the manifest or bootstrap evidence is copied or retrieved from storage. A failed verification invalidates the candidate until the evidence chain is investigated and recreated.
+The migration directory identity is captured before inventory enumeration and rechecked afterwards. Evidence and migration checksums use constant-time comparison where applicable.
 
 ## Evidence retained
 
-- Exact commit SHA, controlled branch and preview version
-- Package manifest and dependency-lock SHA-256 values
-- Retained workspace source-integrity JSON and checksum sidecar
-- Approved deterministic workspace source inventory SHA-256
-- Successful release source-integrity verification output
-- Verified preview backup reference, database identity and SHA-256
-- Bootstrap source filename and SHA-256
-- Private bootstrap execution evidence JSON and SHA-256 sidecar
-- Successful bootstrap evidence-verification output
-- Final migration completion output showing evidence verification before MySQL, advisory-lock release and connection closure
-- Migration inventory and SHA-256 checksum per migration
-- Migration 025 presence and checksum
-- Required runbook, validation and package-command inventories
-- Release approver and change reference
-- Private release-manifest JSON and SHA-256 sidecar
-- Successful post-freeze manifest-verification output
-- GitHub Actions run URL and build-evidence artifact
-- Pinned restore-test ID and backup relationship
-- Restore environment, restored database, completion time and failed-check count
-- `verify:preview-data` output and exact verifier order
-- `check:merge-restore-pin` output
-- Merge readiness output showing `executionAvailable: false`
-- Automated and manual UAT evidence
-
-## Merge execution protection
-
-Release-candidate freeze does not enable customer-merge execution. The release manifest must retain:
-
-```text
-mergeExecutionEnabled: false
-```
-
-Any future merge execution implementation requires a separate reviewed change, explicit transactional controls, rollback evidence and a new release-candidate cycle.
+- Exact commit SHA, branch and version
+- CI source inventory and approved digest
+- Package and dependency-lock checksums
+- Backup reference and backup SHA-256
+- Bootstrap source and execution evidence pair
+- Migration inventory and checksums
+- Preview-data and restore evidence
+- UAT evidence
+- Private release manifest and sidecar
+- Successful post-freeze verification output
 
 ## Change control after freeze
 
-Any code, migration, package, bootstrap source, bootstrap execution evidence, backup, restore evidence or configuration change after candidate freeze invalidates the candidate. A new commit, validation run, source-integrity evidence, backup, bootstrap evidence pair, migration run, restore test, manifest and UAT evidence set is required.
+Any code, migration, package, lockfile, bootstrap source, bootstrap evidence, backup, restore evidence, configuration or governance change invalidates the candidate. A new commit and complete evidence cycle are required.
 
 ## Production protection
 
-This runbook applies only to `talk2me.kloka.co.za` and database `kloka_talk2me`. It must not be used to deploy, migrate, restart or modify `talk2me.uent.co.za`.
+This runbook applies only to `talk2me.kloka.co.za` and `kloka_talk2me`. It must not deploy, migrate, restart or modify `talk2me.uent.co.za`.
 
 ## Current blocker
 
-The branch does not yet contain a generated and reviewed `package-lock.json`. The release-candidate gate is therefore intentionally expected to fail until dependencies are installed in a controlled Node.js 20 environment and the resulting lockfile is reviewed and committed.
-
-The migration-ledger bootstrap, migration 025, preview data verification, deployment, restart and formal UAT have not yet been executed.
+The branch does not yet contain a reviewed `package-lock.json`. The release gate therefore remains intentionally blocked. The migration-ledger bootstrap, migration 025 application, preview data verification, deployment, restart and formal UAT have not yet been executed.
