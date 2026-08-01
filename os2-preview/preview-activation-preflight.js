@@ -7,6 +7,7 @@ const root = __dirname;
 const expectedDatabase = 'kloka_talk2me';
 const expectedBranch = 'agent/talk2me-os2-integrated-rebuild';
 const expectedNodeMajor = 20;
+const childTimeoutMs = 30000;
 const database = String(process.env.DB_NAME || '').trim();
 const branch = String(process.env.RELEASE_BRANCH || process.env.GITHUB_REF_NAME || '').trim();
 const configuredRoot = String(process.env.PREVIEW_APP_ROOT || '').trim();
@@ -37,7 +38,6 @@ const checks = [
   'workspace-topology-verification.js',
   'workspace-source-integrity.js',
   'workspace-source-integrity-check.js',
-  'release-source-integrity-check.js',
   'workspace-topology-governance-check.js',
   'migration-ledger-bootstrap-governance-check.js',
   'migration-ledger-bootstrap-runner-check.js',
@@ -48,6 +48,7 @@ const checks = [
   'deployment-check.js',
   'uat-gate-check.js',
   'release-evidence-security-check.js',
+  'release-source-integrity-check.js',
   'release-manifest-check.js'
 ];
 
@@ -63,8 +64,13 @@ for (const script of checks) {
       ALLOW_PRODUCTION_MUTATION: 'false',
       ENABLE_CUSTOMER_MERGE_EXECUTION: 'false'
     },
-    stdio: 'inherit'
+    stdio: 'inherit',
+    timeout: childTimeoutMs,
+    killSignal: 'SIGKILL',
+    shell: false,
+    windowsHide: true
   });
+  if (result.error && result.error.code === 'ETIMEDOUT') fail(`${script} exceeded ${childTimeoutMs}ms`);
   if (result.error) fail(`${script} could not start: ${result.error.message}`);
   if (result.signal) fail(`${script} was interrupted by signal ${result.signal}`);
   if (result.status !== 0) fail(`${script} failed with status ${result.status}`);
@@ -82,15 +88,20 @@ console.log(JSON.stringify({
   nodeVersion: process.versions.node,
   completed,
   orderedGovernanceChecksCompleted: completed.length,
+  childProcessTimeoutMs: childTimeoutMs,
+  childProcessKillSignal: 'SIGKILL',
+  childProcessShellDisabled: true,
   workspaceTopologyVerified: true,
   workspaceSourceIntegrityVerified: true,
   workspaceSourceIntegrityGovernanceVerified: true,
+  workspaceTopologyGovernanceVerified: true,
   releaseSourceIntegrityGovernanceVerified: true,
   bootstrapGovernanceVerified: true,
   bootstrapRunnerGovernanceVerified: true,
   bootstrapEvidenceGovernanceVerified: true,
   migrationRunnerSecurityVerified: true,
   releaseEvidenceSecurityVerified: true,
+  releaseManifestGovernanceVerified: true,
   databaseBackedVerificationExecuted: false,
   migrationsExecuted: false,
   previewRestartExecuted: false,
