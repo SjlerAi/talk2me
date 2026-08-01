@@ -8,7 +8,7 @@ const REQUIRED_TABLES = [
   'os2_work_items','os2_work_item_history','os2_approval_requests','os2_audit_log','os2_import_batches',
   'os2_import_rows','os2_opportunities','os2_attendance_corrections','os2_notifications','os2_email_queue',
   'os2_broadcasts','os2_digest_runs','os2_calendar_events','os2_customer_claims','os2_sticky_notes',
-  'os2_sticky_note_shares','os2_service_change_history','os2_schema_migrations'
+  'os2_sticky_note_shares','os2_service_change_history','os2_security_events','os2_login_attempts','os2_schema_migrations'
 ];
 
 const REQUIRED_COLUMNS = {
@@ -18,7 +18,10 @@ const REQUIRED_COLUMNS = {
   os2_fixed_services: ['id','fixed_account_id','service_name','mac_address','solution_id','order_number','archived_at'],
   os2_work_items: ['id','work_type','title','lifecycle_state','assigned_staff_id','master_customer_id','due_at','archived_at'],
   os2_email_queue: ['id','recipient_email','status','attempts','next_attempt_at','worker_id','smtp_message_id'],
-  os2_customer_claims: ['id','master_customer_id','requested_owner_staff_id','status','reviewed_by']
+  os2_customer_claims: ['id','master_customer_id','requested_owner_staff_id','status','reviewed_by'],
+  os2_security_events: ['id','event_type','severity','staff_id','request_id','ip_address','details_json','created_at'],
+  os2_login_attempts: ['id','identity_hash','ip_address','was_successful','attempted_at'],
+  app_sessions: ['session_id','expires_at','last_seen_at','ip_address','user_agent','revoked_at','revoked_reason']
 };
 
 function fail(message) {
@@ -52,7 +55,7 @@ async function main() {
     }
 
     const [migrationRows] = await pool.execute('SELECT migration_name,checksum,applied_at FROM os2_schema_migrations ORDER BY migration_name');
-    if (migrationRows.length < 7) fail(`expected at least 7 applied migrations, found ${migrationRows.length}`);
+    if (migrationRows.length < 8) fail(`expected at least 8 applied migrations, found ${migrationRows.length}`);
 
     const [duplicateAccounts] = await pool.execute(`SELECT normalised_account_number,COUNT(*) total FROM os2_customer_accounts WHERE archived_at IS NULL AND normalised_account_number IS NOT NULL GROUP BY normalised_account_number HAVING COUNT(*)>1 LIMIT 20`);
     const [duplicateMobiles] = await pool.execute(`SELECT mobile_number,COUNT(*) total FROM os2_mobile_lines WHERE archived_at IS NULL AND mobile_number IS NOT NULL GROUP BY mobile_number HAVING COUNT(*)>1 LIMIT 20`);
