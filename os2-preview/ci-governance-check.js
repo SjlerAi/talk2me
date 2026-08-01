@@ -7,14 +7,16 @@ const repoRoot = path.join(__dirname, '..');
 const workflowPath = path.join(repoRoot, '.github', 'workflows', 'os2-preview-ci.yml');
 const packagePath = path.join(__dirname, 'package.json');
 const evidencePath = path.join(__dirname, 'build-evidence.js');
+const runbookPath = path.join(__dirname, 'CI_AND_BUILD_EVIDENCE_RUNBOOK.md');
 
-for (const file of [workflowPath, packagePath, evidencePath]) {
+for (const file of [workflowPath, packagePath, evidencePath, runbookPath]) {
   if (!fs.existsSync(file)) throw new Error(`Missing CI governance file: ${file}`);
 }
 
 const workflow = fs.readFileSync(workflowPath, 'utf8');
 const pkg = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
 const evidence = fs.readFileSync(evidencePath, 'utf8');
+const runbook = fs.readFileSync(runbookPath, 'utf8');
 
 const workflowMarkers = [
   'permissions:',
@@ -56,6 +58,20 @@ for (const marker of evidenceMarkers) {
   if (!evidence.includes(marker)) throw new Error(`Missing build evidence marker: ${marker}`);
 }
 
+const runbookMarkers = [
+  'npm install --ignore-scripts --no-audit --no-fund --package-lock=false',
+  'dependencyLockPresent: false',
+  'dependencyAuditEligible: false',
+  'releaseCandidateEligible: false',
+  'npm ci --ignore-scripts --no-audit --no-fund',
+  'release-candidate gate must continue to fail',
+  'pinned restore-evidence verification',
+  'Production at `talk2me.uent.co.za` remains outside this workflow'
+];
+for (const marker of runbookMarkers) {
+  if (!runbook.includes(marker)) throw new Error(`Missing CI runbook control: ${marker}`);
+}
+
 if (/cache:\s*npm/.test(workflow)) throw new Error('npm cache must not assume a lockfile before dependency freeze');
 if (/npm install(?![^\n]*--package-lock=false)/.test(workflow)) throw new Error('CI install must not generate an uncommitted dependency lock');
 if (/pull_request_target\s*:/.test(workflow)) throw new Error('Unsafe pull_request_target trigger is prohibited');
@@ -68,5 +84,6 @@ console.log(JSON.stringify({
   workflow: '.github/workflows/os2-preview-ci.yml',
   validationMarkers: workflowMarkers.length,
   evidenceMarkers: evidenceMarkers.length,
+  runbookMarkers: runbookMarkers.length,
   dependencyLockPolicy: 'source-validation-continues-audit-blocked-until-committed-lock'
 }, null, 2));
