@@ -9,8 +9,8 @@ const REQUIRED_TABLES = [
   'os2_import_rows','os2_opportunities','os2_attendance_corrections','os2_notifications','os2_email_queue',
   'os2_broadcasts','os2_digest_runs','os2_calendar_events','os2_customer_claims','os2_sticky_notes',
   'os2_sticky_note_shares','os2_service_change_history','os2_security_events','os2_login_attempts',
-  'os2_customer_consents','os2_data_subject_requests','os2_data_exports','os2_retention_policies','os2_retention_reviews',
-  'os2_schema_migrations'
+  'os2_customer_consents','os2_data_subject_requests','os2_data_exports','os2_retention_policies',
+  'os2_retention_reviews','os2_export_access_log','os2_schema_migrations'
 ];
 
 const REQUIRED_COLUMNS = {
@@ -23,11 +23,8 @@ const REQUIRED_COLUMNS = {
   os2_customer_claims: ['id','master_customer_id','requested_owner_staff_id','status','reviewed_by'],
   os2_security_events: ['id','event_type','severity','staff_id','request_id','ip_address','details_json','created_at'],
   os2_login_attempts: ['id','identity_hash','ip_address','was_successful','attempted_at'],
-  os2_customer_consents: ['id','master_customer_id','consent_type','consent_status','recorded_by'],
-  os2_data_subject_requests: ['id','master_customer_id','request_type','status','request_reference','due_at','reviewed_by'],
-  os2_data_exports: ['id','master_customer_id','data_subject_request_id','status','content_sha256','expires_at'],
-  os2_retention_policies: ['id','entity_type','retention_days','action_type','is_active'],
-  os2_retention_reviews: ['id','retention_policy_id','entity_type','entity_id','status','reviewed_by'],
+  os2_data_exports: ['id','master_customer_id','data_subject_request_id','export_format','status','worker_id','claimed_at','attempts','storage_path','sha256_checksum','row_count','file_count','total_bytes','generated_at','expires_at'],
+  os2_export_access_log: ['id','data_export_id','accessed_by','access_type','request_id','ip_address','user_agent','details_json','created_at'],
   app_sessions: ['session_id','expires_at','last_seen_at','ip_address','user_agent','revoked_at','revoked_reason']
 };
 
@@ -62,7 +59,7 @@ async function main() {
     }
 
     const [migrationRows] = await pool.execute('SELECT migration_name,checksum,applied_at FROM os2_schema_migrations ORDER BY migration_name');
-    if (migrationRows.length < 9) fail(`expected at least 9 applied migrations, found ${migrationRows.length}`);
+    if (migrationRows.length < 10) fail(`expected at least 10 applied migrations, found ${migrationRows.length}`);
 
     const [duplicateAccounts] = await pool.execute(`SELECT normalised_account_number,COUNT(*) total FROM os2_customer_accounts WHERE archived_at IS NULL AND normalised_account_number IS NOT NULL GROUP BY normalised_account_number HAVING COUNT(*)>1 LIMIT 20`);
     const [duplicateMobiles] = await pool.execute(`SELECT mobile_number,COUNT(*) total FROM os2_mobile_lines WHERE archived_at IS NULL AND mobile_number IS NOT NULL GROUP BY mobile_number HAVING COUNT(*)>1 LIMIT 20`);
