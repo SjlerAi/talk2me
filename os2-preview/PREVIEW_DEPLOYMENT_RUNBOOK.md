@@ -124,7 +124,7 @@ mergeExecutionEnabled: false
 
 ## 13. Mandatory preview data verification
 
-After migration and before restart, run the controlled command with the complete preview identity:
+After migration and before restart, run:
 
 ```bash
 PREVIEW_APP_ROOT=/home/kloka/repositories/talk2me/os2-preview \
@@ -139,55 +139,68 @@ ENABLE_CUSTOMER_MERGE_EXECUTION=false \
 npm run verify:preview-data
 ```
 
-### Preview data-verification orchestration
+The database-backed verifier runs only after controlled migrations. Schema verification must complete before restore-evidence verification. Both verifiers run with a frozen sanitized environment, a 60-second timeout, forced `SIGKILL`, shell execution disabled and bounded output.
 
-The orchestrator validates the exact preview database, exact controlled branch, absolute canonical application root, Node.js 20, disabled production mutation, disabled merge execution, database host, database user and valid port before starting a verifier.
+### Exact schema and migration-ledger contract
 
-Both database verifiers run in the same frozen sanitized allowlisted environment. The complete parent environment is not inherited. Node, shell, Git and npm startup overrides are excluded. Preview identity and safety flags are forced in every child.
+Schema verification now requires exactly 25 migration ledger rows. It reads the governed columns `id`, `migration_name`, `checksum_sha256`, `executed_at`, `executed_by` and `execution_ms`; the legacy names `checksum` and `applied_at` are invalid.
 
-Each verifier has a 60-second timeout, forced `SIGKILL`, shell execution disabled, hidden-window execution and a 4 MiB output limit. Startup errors, timeout, signal termination, non-zero status, invalid JSON, an unsuccessful result or database mismatch are hard stops.
+The ledger must prove:
 
-The schema verification must complete first. `merge-restore-evidence-verification.js` may run only after successful schema evidence has been parsed and accepted.
+- strictly increasing positive IDs;
+- exact contiguous `20260801_001` through `20260801_025` naming;
+- unique migration names;
+- lowercase 64-character source checksums;
+- valid execution timestamps;
+- bounded operator identity;
+- non-negative execution duration;
+- `20260801_025_merge_authorisation_restore_pin.sql` applied.
 
-The schema output must prove:
+Every required table must use InnoDB and `utf8mb4_unicode_ci`. Every required column group must be present, including the exact migration-ledger columns.
 
-- at least 50 required tables;
-- at least 25 verified column groups;
-- at least 25 applied migrations;
-- zero duplicate active account numbers;
-- zero customers with multiple primary accounts;
-- zero duplicate active mobile numbers;
-- zero duplicate active access grants;
-- zero archived customers with active ownership;
-- zero invalid duplicate pairs;
-- zero invalid merge plans;
-- zero invalid or unpinned authorisations;
-- zero invalid representative permission documents;
-- zero expired active representatives;
-- zero unsafe approvals;
-- zero invalidated approvals still open.
+### Zero-defect data controls
 
-This zero-defect evidence is mandatory. A successful exit status without the complete zero-defect evidence is not accepted.
+The schema verifier performs 18 zero-defect data checks. It blocks restart when it finds:
 
-The restore verifier must return its exact verifier identity and its restore-authorisation defect count must be zero. Any missing backup, invalid backup, missing restore test, failed restore, database mismatch, incomplete checksum or incorrectly ordered restore evidence blocks acceptance.
+1. duplicate active account numbers;
+2. multiple primary accounts for one customer;
+3. duplicate active mobile numbers;
+4. duplicate active access grants;
+5. archived customers with active ownership;
+6. invalid duplicate-customer pairs;
+7. invalid merge plans;
+8. invalid merge authorisations;
+9. invalid representative permission JSON;
+10. expired representatives still active;
+11. unsafe open approvals;
+12. invalidated approvals still open;
+13. orphan customer accounts;
+14. orphan mobile lines;
+15. orphan customer work items;
+16. negative import counters;
+17. malformed export checksums;
+18. verified backups without a valid checksum and verification timestamp.
 
-Final preview-data evidence must report:
+### Pinned backup and restore evidence
+
+Every pinned backup must have status `verified`, type `database` or `full`, database `kloka_talk2me`, ordered start/completion/verification timestamps, a bounded storage path, a safe filename, a lowercase SHA-256, positive file size, at least 50 tables, a non-negative row estimate and no failure reason.
+
+Every restore test must have status `passed`, target `isolated_preview_restore`, matching expected and actual database names, ordered timestamps, start after backup verification, a matching table count, at least one verified check, zero failed checks, evidence JSON, no failure reason and a named restore reviewer.
+
+An authorised merge must pin both records, use matching backup IDs, complete restore before authorisation, have a valid expiry after authorisation, and remain unrevoked and unconsumed.
+
+Successful preview-data evidence must report:
 
 ```text
-schemaVerifiedBeforeRestoreEvidence: true
-verifierEnvironmentSanitized: true
-verifierEnvironmentFrozen: true
-fullParentEnvironmentInherited: false
-schemaEvidenceParsed: true
+exactMigrationLedgerVerified: true
 schemaZeroDefectEvidenceVerified: true
-restoreEvidenceParsed: true
-restoreAuthorisationDefects: 0
+restoreEvidenceSemanticsVerified: true
 databaseBackedVerificationExecuted: true
 productionMutationEnabled: false
 mergeExecutionEnabled: false
 ```
 
-Running only `npm run verify:schema`, only the restore verifier or manually reviewing console output is not sufficient preview-data verification.
+Running only `npm run verify:schema`, only the restore verifier, or manually reviewing console output is not sufficient.
 
 ## 14. Restart and smoke testing
 
