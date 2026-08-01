@@ -119,7 +119,11 @@ requireMarkers(releaseSourceGovernance, [
   'protectedFileCountConsistencyRequired: true',
   'migrationInventoryMinimumRequired: true',
   'verificationBeforeReleasePublicationRequired: true',
-  'postFreezeVerificationBeforeIndividualFilesRequired: true'
+  'postFreezeVerificationBeforeIndividualFilesRequired: true',
+  'packageCommandsRegistered: true',
+  'normalSyntaxValidationRegistered: true',
+  'normalGovernanceValidationRegistered: true',
+  'environmentBoundVerifierExcludedFromNormalExecution: true'
 ], 'Release source integrity governance');
 
 requireMarkers(runbook, [
@@ -139,14 +143,24 @@ requireMarkers(runbook, [
 
 if (pkg.scripts['verify:workspace-source-integrity'] !== 'node workspace-source-integrity.js') throw new Error('Missing verify:workspace-source-integrity command');
 if (pkg.scripts['check:workspace-source-integrity'] !== 'node workspace-source-integrity-check.js') throw new Error('Missing check:workspace-source-integrity command');
+if (pkg.scripts['verify:release-source-integrity'] !== 'node release-source-integrity-verification.js') throw new Error('Missing verify:release-source-integrity command');
+if (pkg.scripts['check:release-source-integrity'] !== 'node release-source-integrity-check.js') throw new Error('Missing check:release-source-integrity command');
 if (pkg.scripts['verify:preview-activation-preflight'] !== 'node preview-activation-preflight.js') throw new Error('Missing verify:preview-activation-preflight command');
 if (pkg.scripts['check:preview-activation-governance'] !== 'node preview-activation-governance-check.js') throw new Error('Missing check:preview-activation-governance command');
-if (!pkg.scripts.check.includes('node --check workspace-source-integrity.js')) throw new Error('Workspace source integrity syntax check missing from normal validation');
-if (!pkg.scripts.check.includes('node --check workspace-source-integrity-check.js')) throw new Error('Workspace source integrity governance syntax check missing from normal validation');
-if (!pkg.scripts.check.includes('node workspace-source-integrity-check.js')) throw new Error('Workspace source integrity governance missing from normal validation');
-if (!pkg.scripts.check.includes('node --check preview-activation-preflight.js')) throw new Error('Preview activation preflight syntax check missing from normal validation');
-if (!pkg.scripts.check.includes('node --check preview-activation-governance-check.js')) throw new Error('Preview activation governance syntax check missing from normal validation');
-if (!pkg.scripts.check.includes('node preview-activation-governance-check.js')) throw new Error('Preview activation governance regression check missing from normal validation');
+for (const marker of [
+  'node --check workspace-source-integrity.js',
+  'node --check workspace-source-integrity-check.js',
+  'node workspace-source-integrity-check.js',
+  'node --check release-source-integrity-verification.js',
+  'node --check release-source-integrity-check.js',
+  'node release-source-integrity-check.js',
+  'node --check preview-activation-preflight.js',
+  'node --check preview-activation-governance-check.js',
+  'node preview-activation-governance-check.js'
+]) {
+  if (!pkg.scripts.check.includes(marker)) throw new Error(`Normal validation missing ${marker}`);
+}
+if (pkg.scripts.check.includes('node release-source-integrity-verification.js')) throw new Error('Environment-bound release source verifier must not execute in normal validation');
 
 console.log(JSON.stringify({
   ok: true,
@@ -172,6 +186,8 @@ console.log(JSON.stringify({
   uatGovernanceRequired: true,
   releaseEvidenceSecurityRequired: true,
   releaseSourceIntegrityGovernanceRequired: true,
+  releaseSourceIntegrityCommandsRegistered: true,
+  releaseSourceIntegrityNormalValidationRegistered: true,
   releaseSourceIntegrityExecutionBounded: true,
   releaseManifestGovernanceRequired: true,
   productionMutationEnabled: false,
