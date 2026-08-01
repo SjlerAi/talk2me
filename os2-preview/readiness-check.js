@@ -3,202 +3,153 @@
 const fs = require('fs');
 const path = require('path');
 
+const root = __dirname;
 const failures = [];
 const warnings = [];
 
 function requireEnv(name) {
   if (!String(process.env[name] || '').trim()) failures.push(`Missing ${name}`);
 }
-
-function checkFile(relativePath) {
-  if (!fs.existsSync(path.join(__dirname, relativePath))) failures.push(`Missing file ${relativePath}`);
+function read(file) {
+  const full = path.join(root, file);
+  if (!fs.existsSync(full)) {
+    failures.push(`Missing file ${file}`);
+    return '';
+  }
+  return fs.readFileSync(full, 'utf8');
 }
-
-function requireMarkers(relativePath, markers) {
-  const file = path.join(__dirname, relativePath);
-  if (!fs.existsSync(file)) {
-    failures.push(`Missing file ${relativePath}`);
-    return;
-  }
-  const content = fs.readFileSync(file, 'utf8');
-  for (const marker of markers) {
-    if (!content.includes(marker)) failures.push(`${relativePath} missing ${marker}`);
-  }
+function requireMarkers(file, markers) {
+  const source = read(file);
+  for (const marker of markers) if (!source.includes(marker)) failures.push(`${file} missing ${marker}`);
 }
 
 ['DB_HOST','DB_USER','DB_NAME','PREVIEW_APP_ROOT'].forEach(requireEnv);
 if (process.env.DB_NAME && process.env.DB_NAME !== 'kloka_talk2me') failures.push('DB_NAME is not the preview database');
-if (process.env.PREVIEW_APP_ROOT && path.resolve(process.env.PREVIEW_APP_ROOT) !== __dirname) failures.push('PREVIEW_APP_ROOT does not match the executing preview application root');
+if (process.env.PREVIEW_APP_ROOT && path.resolve(process.env.PREVIEW_APP_ROOT) !== root) failures.push('PREVIEW_APP_ROOT does not match the executing preview application root');
 const nodeMajor = Number.parseInt(process.versions.node.split('.')[0], 10);
 if (nodeMajor !== 20) failures.push(`Node.js 20.x is required, found ${process.versions.node}`);
 if (String(process.env.ALLOW_PRODUCTION_MUTATION || '').toLowerCase() === 'true') failures.push('ALLOW_PRODUCTION_MUTATION must remain false');
 if (String(process.env.ENABLE_CUSTOMER_MERGE_EXECUTION || '').toLowerCase() === 'true') failures.push('ENABLE_CUSTOMER_MERGE_EXECUTION must remain false');
 if (String(process.env.NODE_ENV || '').toLowerCase() !== 'production') warnings.push('NODE_ENV is not production');
-if (String(process.env.EMAIL_WORKER_ENABLED || '').toLowerCase() === 'true') {
-  ['SMTP_HOST','SMTP_PORT','SMTP_USER','SMTP_PASS','SMTP_FROM'].forEach(requireEnv);
-} else {
-  warnings.push('Email worker is disabled');
-}
-if (!fs.existsSync(path.join(__dirname, 'package-lock.json'))) warnings.push('package-lock.json is absent and remains a release-freeze blocker');
+if (!fs.existsSync(path.join(root, 'package-lock.json'))) warnings.push('package-lock.json is absent and remains a release-freeze blocker');
 
-[
-  'server.js','package.json','MIGRATION_LEDGER_BOOTSTRAP.sql','migration-ledger-bootstrap-governance-check.js',
-  'migration-ledger-bootstrap-runner.js','migration-ledger-bootstrap-runner-check.js',
-  'migration-ledger-bootstrap-evidence-verification.js','migration-ledger-bootstrap-evidence-check.js',
-  'migration-runner.js','migration-runner-security-check.js','schema-verification.js','preview-data-verification.js',
-  'runtime-release-identity-check.js','workspace-topology-verification.js','workspace-topology-governance-check.js',
+const requiredFiles = [
+  'server.js','package.json','MIGRATION_LEDGER_BOOTSTRAP.sql',
+  'migration-ledger-bootstrap-governance-check.js','migration-ledger-bootstrap-runner.js',
+  'migration-ledger-bootstrap-runner-check.js','migration-ledger-bootstrap-evidence-verification.js',
+  'migration-ledger-bootstrap-evidence-check.js','migration-runner.js','migration-runner-security-check.js',
+  'workspace-topology-verification.js','workspace-topology-governance-check.js',
   'preview-activation-preflight.js','preview-activation-governance-check.js',
-  'PREVIEW_ACTIVATION_RUNBOOK.md','PREVIEW_DEPLOYMENT_RUNBOOK.md',
-  'merge-restore-evidence-verification.js','merge-restore-pin-check.js',
-  'customer-merge-plan-routes.js','customer-merge-freshness-routes.js',
-  'customer-merge-execution-authorisation-routes.js','customer-merge-execution-readiness-routes.js',
-  'email-worker.js','email-worker-runner.js','integrated-routes.js','operational-routes.js',
-  'service-lifecycle-routes.js','controlled-import-routes.js','communications-routes.js',
-  'collaboration-routes.js','intelligence-routes.js','document-routes.js'
-].forEach(checkFile);
+  'release-evidence-security-check.js','release-manifest-check.js',
+  'runtime-release-identity-check.js','deployment-check.js','uat-gate-check.js',
+  'schema-verification.js','preview-data-verification.js','merge-restore-evidence-verification.js',
+  'PREVIEW_ACTIVATION_RUNBOOK.md','PREVIEW_DEPLOYMENT_RUNBOOK.md','PREVIEW_UAT_RUNBOOK.md'
+];
+requiredFiles.forEach(read);
 
-requireMarkers('migration-ledger-bootstrap-governance-check.js', [
-  'migration-ledger-bootstrap-governance',
-  'runtimeLedgerCreationDisabled: true',
-  'workspaceProtectionRequired: true',
-  'packageCommandRegistered: true',
-  'normalValidationRegistered: true',
-  'previewDatabaseOnly: true'
+requireMarkers('preview-activation-preflight.js', [
+  "'workspace-topology-verification.js'",
+  "'workspace-topology-governance-check.js'",
+  "'migration-ledger-bootstrap-governance-check.js'",
+  "'migration-ledger-bootstrap-runner-check.js'",
+  "'migration-ledger-bootstrap-evidence-check.js'",
+  "'migration-runner-security-check.js'",
+  "'runtime-release-identity-check.js'",
+  "'readiness-check.js'",
+  "'deployment-check.js'",
+  "'uat-gate-check.js'",
+  "'release-evidence-security-check.js'",
+  "'release-manifest-check.js'",
+  'orderedGovernanceChecksCompleted: completed.length',
+  'databaseBackedVerificationExecuted: false',
+  'migrationsExecuted: false',
+  'previewRestartExecuted: false'
 ]);
-requireMarkers('migration-ledger-bootstrap-runner.js', [
-  "expectedDatabase = 'kloka_talk2me'",
-  'ALLOW_MIGRATION_LEDGER_BOOTSTRAP_NOT_ENABLED',
-  'VERIFIED_BACKUP_REFERENCE',
-  'VERIFIED_BACKUP_SHA256',
-  'BOOTSTRAP_OPERATOR',
-  'BOOTSTRAP_CHANGE_REFERENCE',
-  'BOOTSTRAP_REFUSES_EXISTING_LEDGER_TABLE',
-  'ledgerSchemaVerified: true',
-  'ledgerEmpty: true',
+requireMarkers('preview-activation-governance-check.js', [
+  "check: 'preview-activation-governance'",
+  'orderedSourceChecks: orderedScripts.length',
+  'migrationLedgerBootstrapGovernanceRequired: true',
+  'migrationLedgerBootstrapRunnerGovernanceRequired: true',
+  'migrationLedgerBootstrapEvidenceGovernanceRequired: true',
+  'migrationRunnerSecurityRequired: true',
+  'releaseEvidenceSecurityRequired: true',
+  'packageCommandRegistered: true',
+  'normalValidationRegistered: true'
+]);
+requireMarkers('migration-runner.js', [
+  "required('MIGRATION_LEDGER_BOOTSTRAP_EVIDENCE_PATH')",
+  'bootstrapEvidenceVerifiedBeforeDatabaseConnection: true',
+  'ledgerStrictPrefixVerified: true',
+  'advisoryLockReleased: true',
+  'databaseConnectionClosedBeforeSuccess: true',
   'productionMutationEnabled: false',
   'mergeExecutionEnabled: false'
 ]);
-requireMarkers('migration-ledger-bootstrap-runner-check.js', [
-  'migration-ledger-bootstrap-runner-governance',
-  'verifiedBackupEvidenceRequired: true',
-  'explicitExecutionFlagRequired: true',
-  'secureSourceReadRequired: true',
-  'advisoryLockRequired: true',
-  'existingLedgerRefused: true',
-  'postCreateSchemaVerificationRequired: true',
-  'emptyLedgerRequired: true'
+requireMarkers('migration-ledger-bootstrap-runner.js', [
+  'VERIFIED_BACKUP_REFERENCE','VERIFIED_BACKUP_SHA256','MIGRATION_LEDGER_BOOTSTRAP_EVIDENCE_PATH',
+  'BOOTSTRAP_REFUSES_EXISTING_LEDGER_TABLE','privateAtomicEvidencePublished: true'
 ]);
 requireMarkers('migration-ledger-bootstrap-evidence-verification.js', [
-  'migration-ledger-bootstrap-evidence-verification',
-  'MIGRATION_LEDGER_BOOTSTRAP_EVIDENCE_PATH is required',
-  'fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW',
-  'timingSafeEqual',
-  'bootstrapMatchesWorkspace: true',
-  'verifiedBackupEvidencePresent: true',
-  'ledgerAbsentBeforeBootstrap: true',
-  'ledgerSchemaVerified: true',
-  'ledgerEmpty: true',
-  'advisoryLockLifecycleVerified: true'
+  'bootstrapMatchesWorkspace: true','verifiedBackupEvidencePresent: true',
+  'ledgerAbsentBeforeBootstrap: true','advisoryLockLifecycleVerified: true'
 ]);
-requireMarkers('migration-ledger-bootstrap-evidence-check.js', [
-  'migration-ledger-bootstrap-evidence-governance',
-  'secureEvidenceReadRequired: true',
-  'evidenceChecksumRequired: true',
-  'bootstrapWorkspaceBindingRequired: true',
-  'verifiedBackupEvidenceRequired: true',
-  'operatorAndChangeReferenceRequired: true',
-  'ledgerAbsenceBeforeExecutionRequired: true',
-  'advisoryLockLifecycleRequired: true'
+requireMarkers('deployment-check.js', [
+  'migrationLedgerBootstrapRequired: true','bootstrapEvidenceRequired: true',
+  'migrationCompletionRequiresLockRelease: true','databaseConnectionClosedBeforeMigrationSuccess: true'
 ]);
-requireMarkers('migration-runner.js', [
-  "PREVIEW_DATABASE = 'kloka_talk2me'",
-  "MIGRATION_LOCK_NAME = 'talk2me_os2_preview_migrations'",
-  'MIGRATION_LEDGER_BOOTSTRAP_REQUIRED',
-  'ALLOW_PREVIEW_MIGRATIONS_NOT_ENABLED',
-  'PRODUCTION_MUTATION_FLAG_PROHIBITED',
-  'MERGE_EXECUTION_FLAG_PROHIBITED',
-  'fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW',
-  'fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW',
-  'MIGRATION_ADVISORY_LOCK_NOT_ACQUIRED',
-  'MIGRATION_CHECKSUM_MISMATCH',
-  'advisoryLockUsed: true',
-  'secureMigrationReads: true'
+requireMarkers('uat-gate-check.js', [
+  'migrationLedgerBootstrapEvidenceRequired: true',
+  'migrationEvidenceVerifiedBeforeDatabaseConnection: true',
+  'migrationCompletionRequiresConfirmedLockRelease: true'
 ]);
-requireMarkers('migration-runner-security-check.js', [
-  'migration-runner-security',
-  'secureDirectoryOpenRequired: true',
-  'secureFileOpenRequired: true',
-  'descriptorIdentityRequired: true',
-  'hardLinkRejectionRequired: true',
-  'boundedMigrationFilesRequired: true',
-  'advisoryLockRequired: true'
-]);
-requireMarkers('PREVIEW_DEPLOYMENT_RUNBOOK.md', [
-  'Do not substitute `npm install`',
-  'migration-ledger-bootstrap-runner.js',
-  'ALLOW_MIGRATION_LEDGER_BOOTSTRAP=true',
-  'VERIFIED_BACKUP_REFERENCE',
-  'VERIFIED_BACKUP_SHA256',
-  'MIGRATION_LEDGER_BOOTSTRAP_EVIDENCE_PATH',
-  'migration-ledger-bootstrap-evidence-verification.js',
-  'bootstrap evidence checksum',
-  'ledger table was absent before execution',
-  'advisory lock lifecycle',
-  'MIGRATION_LEDGER_BOOTSTRAP_REQUIRED',
-  'talk2me_os2_preview_migrations',
-  'Only one controlled migration process may operate at a time.'
+requireMarkers('PREVIEW_UAT_RUNBOOK.md', [
+  'bootstrap evidence path and bootstrap source SHA-256',
+  'final migration completion result showing evidence verification, lock release and connection closure',
+  'Do not treat individual `applied <migration>` messages as migration completion evidence.'
 ]);
 
-const migrationDir = path.join(__dirname, 'migrations');
+const migrationDir = path.join(root, 'migrations');
+let migrationCount = 0;
 if (!fs.existsSync(migrationDir)) {
   failures.push('Missing migrations directory');
 } else {
   const migrations = fs.readdirSync(migrationDir).filter(name => name.endsWith('.sql')).sort();
-  if (migrations.length < 25) failures.push(`Expected at least 25 migrations, found ${migrations.length}`);
-  const requiredMigration = '20260801_025_merge_authorisation_restore_pin.sql';
-  if (!migrations.includes(requiredMigration)) failures.push(`Missing migration ${requiredMigration}`);
+  migrationCount = migrations.length;
+  if (migrationCount < 25) failures.push(`Expected at least 25 migrations, found ${migrationCount}`);
+  if (!migrations.includes('20260801_025_merge_authorisation_restore_pin.sql')) failures.push('Missing migration 20260801_025_merge_authorisation_restore_pin.sql');
 }
 
-const packageJson = require('./package.json');
-const scripts = packageJson.scripts || {};
-if (packageJson.name !== 'talk2me-os2-preview') failures.push('Unexpected preview package identity');
-if (packageJson.version !== '0.59.0') failures.push('Unexpected preview package version');
-if (scripts['verify:merge-restore-evidence'] !== 'node merge-restore-evidence-verification.js') failures.push('Missing verify:merge-restore-evidence command');
-if (scripts['verify:preview-data'] !== 'node preview-data-verification.js') failures.push('Missing verify:preview-data command');
-if (scripts['verify:runtime-release-identity'] !== 'node runtime-release-identity-check.js') failures.push('Missing verify:runtime-release-identity command');
-if (scripts['verify:preview-activation-preflight'] !== 'node preview-activation-preflight.js') failures.push('Missing verify:preview-activation-preflight command');
-if (scripts['check:migration-ledger-bootstrap'] !== 'node migration-ledger-bootstrap-governance-check.js') failures.push('Missing check:migration-ledger-bootstrap command');
-if (scripts['check:migration-runner-security'] !== 'node migration-runner-security-check.js') failures.push('Missing check:migration-runner-security command');
-if (scripts['check:merge-restore-pin'] !== 'node merge-restore-pin-check.js') failures.push('Missing check:merge-restore-pin command');
-
-const migrationCount = fs.existsSync(migrationDir)
-  ? fs.readdirSync(migrationDir).filter(name => name.endsWith('.sql')).length
-  : 0;
+const pkg = JSON.parse(read('package.json') || '{}');
+const exactScripts = {
+  'verify:preview-activation-preflight': 'node preview-activation-preflight.js',
+  'check:preview-activation-governance': 'node preview-activation-governance-check.js',
+  'check:workspace-topology-governance': 'node workspace-topology-governance-check.js',
+  'check:release-evidence-security': 'node release-evidence-security-check.js',
+  'bootstrap:migration-ledger': 'node migration-ledger-bootstrap-runner.js',
+  'verify:migration-ledger-bootstrap-evidence': 'node migration-ledger-bootstrap-evidence-verification.js',
+  'migrate:preview': 'node migration-runner.js',
+  'check:deployment': 'node deployment-check.js',
+  'check:uat-gate': 'node uat-gate-check.js'
+};
+for (const [name, command] of Object.entries(exactScripts)) {
+  if (!pkg.scripts || pkg.scripts[name] !== command) failures.push(`Missing exact package command ${name}`);
+}
 
 const summary = {
   ok: failures.length === 0,
-  application: packageJson.name,
-  version: packageJson.version,
+  application: pkg.name,
+  version: pkg.version,
   nodeVersion: process.versions.node,
   applicationRoot: process.env.PREVIEW_APP_ROOT || null,
   database: process.env.DB_NAME || null,
   migrationCount,
-  migrationLedgerBootstrapGovernanceRequired: true,
-  controlledMigrationLedgerBootstrapRunnerRequired: true,
-  migrationLedgerBootstrapEvidenceVerificationRequired: true,
-  migrationLedgerBootstrapEvidenceGovernanceRequired: true,
-  verifiedBackupEvidenceRequiredForBootstrap: true,
-  runtimeLedgerCreationDisabled: true,
-  workspaceTopologyVerificationRequired: true,
-  secureMigrationRunnerRequired: true,
-  migrationAdvisoryLockRequired: true,
-  migrationSourceDescriptorBindingRequired: true,
-  runtimeReleaseIdentityCommandRegistered: scripts['verify:runtime-release-identity'] === 'node runtime-release-identity-check.js',
-  previewActivationPreflightCommandRegistered: scripts['verify:preview-activation-preflight'] === 'node preview-activation-preflight.js',
-  previewDataVerificationCommandRegistered: scripts['verify:preview-data'] === 'node preview-data-verification.js',
-  migrationLedgerBootstrapCommandRegistered: scripts['check:migration-ledger-bootstrap'] === 'node migration-ledger-bootstrap-governance-check.js',
-  mergeRestoreEvidenceCommandRegistered: scripts['verify:merge-restore-evidence'] === 'node merge-restore-evidence-verification.js',
-  mergeRestorePinCheckRegistered: scripts['check:merge-restore-pin'] === 'node merge-restore-pin-check.js',
+  orderedActivationGovernanceChecksRequired: 12,
+  migrationLedgerBootstrapEvidenceRequired: true,
+  migrationEvidenceVerifiedBeforeDatabaseConnection: true,
+  migrationCompletionRequiresConfirmedLockRelease: true,
+  databaseConnectionClosedBeforeMigrationSuccess: true,
+  workspaceTopologyGovernanceRequired: true,
+  releaseEvidenceSecurityRequired: true,
   productionMutationEnabled: false,
   mergeExecutionEnabled: false,
   failures,
