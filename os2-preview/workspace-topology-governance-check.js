@@ -89,14 +89,12 @@ for (let index = 1; index < ordered.length; index += 1) {
 
 requireMarkers(runbook, [
   'workspace-topology-verification.js',
-  'protected workspace files with `O_NOFOLLOW`',
-  'critical migration, release and operational-control files',
-  'migration directory contains only ordered `.sql` migration files',
-  're-verify directory descriptor identity after inventory validation',
+  'O_DIRECTORY | O_NOFOLLOW',
+  'critical activation, migration, release, UAT, package and server sources',
+  'every ordered migration',
   'additional hard links',
   'bounded file sizes',
-  'topology verifier and its governance check are both part of the protected topology',
-  'source-integrity, activation and release-governance controls are protected by topology verification'
+  'source inventory digest'
 ], 'Activation runbook');
 
 if (pkg.scripts['check:workspace-topology-governance'] !== 'node workspace-topology-governance-check.js') throw new Error('Missing check:workspace-topology-governance command');
