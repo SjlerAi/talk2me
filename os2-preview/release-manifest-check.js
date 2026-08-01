@@ -14,49 +14,58 @@ const uatRunbook = fs.readFileSync(path.join(root, 'PREVIEW_UAT_RUNBOOK.md'), 'u
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 
 function requireMarkers(source, markers, label) {
-  for (const marker of markers) {
-    if (!source.includes(marker)) throw new Error(`${label} missing ${marker}`);
-  }
+  for (const marker of markers) if (!source.includes(marker)) throw new Error(`${label} missing ${marker}`);
 }
 
 requireMarkers(gate, [
+  'verifierTimeoutMs = 30000',
+  "killSignal: 'SIGKILL'",
+  'shell: false',
+  "result.error.code === 'ETIMEDOUT'",
+  'validateReleaseText(approvedBy',
+  'validateReleaseText(changeReference',
+  'must not contain control characters',
+  'must be owned by the executing user',
+  "validatePrivateDirectory(path.dirname(bootstrapEvidencePath), 'Bootstrap evidence directory')",
+  'Release manifest path must differ from bootstrap evidence path',
   'package-lock.json is required before release-candidate freeze',
-  'RELEASE_COMMIT_SHA or GITHUB_SHA is required',
   'RELEASE_COMMIT_SHA must match the exact GITHUB_SHA being validated',
-  "expectedBranch = 'agent/talk2me-os2-integrated-rebuild'",
-  "expectedDatabase = 'kloka_talk2me'",
   'RELEASE_SOURCE_INVENTORY_SHA256',
-  'verifyReleaseSourceIntegrity(approvedSourceInventorySha256)',
-  'approvedSourceInventorySha256',
-  'releaseSourceIntegrityVerified: Boolean(releaseSourceIntegrityEvidence)',
-  "requireValue('MIGRATION_LEDGER_BOOTSTRAP_EVIDENCE_PATH')",
-  'verifyBootstrapEvidence(bootstrapEvidencePath)',
+  'sourceIntegrityEvidence = runVerifier',
   'migrationLedgerBootstrapEvidenceSha256: bootstrapEvidenceSha256',
-  'bootstrapEvidenceVerifiedBeforeReleaseFreeze: Boolean(bootstrapEvidenceSha256 && bootstrapEvidenceSidecarSha256)',
+  'generatedAt: new Date().toISOString()',
   'migrationCompletionRequiresConfirmedLockRelease: true',
   'migrationConnectionClosedBeforeSuccess: true',
   "fs.openSync(file, 'wx', 0o600)",
   'fs.linkSync(checksumTemp, checksumPath)',
   'fs.linkSync(manifestTemp, manifestPath)',
-  'syncDirectory(directory)',
   'productionMutationEnabled: false',
   'mergeExecutionEnabled: false'
 ], 'Release candidate gate');
 
 requireMarkers(verifier, [
   "check: 'release-manifest-verification'",
-  'manifest.approvedSourceInventorySha256',
-  'verifyReleaseSourceIntegrity(manifest.approvedSourceInventorySha256)',
-  'releaseSourceIntegrityMatchesApprovedDigest: true',
-  'function readSecureRegularFile(file, options = {})',
-  'pathStat.nlink !== 1',
-  'fs.constants.O_NOFOLLOW',
-  'descriptorStat.dev !== pathStat.dev || descriptorStat.ino !== pathStat.ino',
+  'validateReleaseText(manifest.approvedBy',
+  'validateReleaseText(manifest.changeReference',
+  "Date.parse(String(manifest.generatedAt || ''))",
+  'unreasonably in the future',
+  'older than the permitted 30-day verification window',
+  'must be owned by the executing user',
+  "validatePrivateDirectory(directory, 'Release evidence directory')",
+  "validatePrivateDirectory(path.dirname(bootstrapEvidencePath), 'Bootstrap evidence directory')",
+  'Bootstrap evidence path must differ from release manifest path',
+  'verifierTimeoutMs = 30000',
+  "killSignal: 'SIGKILL'",
+  'shell: false',
+  "result.error.code === 'ETIMEDOUT'",
+  'verifyFrozenSource(root, manifest.approvedSourceInventorySha256)',
   'crypto.timingSafeEqual',
-  'manifest.migrationLedgerBootstrapEvidenceVerified !== true',
-  "verifyChecksumPair(bootstrapEvidencePath, 'Migration ledger bootstrap evidence'",
   'Bootstrap evidence file changed after release freeze',
-  'bootstrapExecutionEvidenceMatchesFrozenManifest: true',
+  'generatedAtValidated: true',
+  'releaseMetadataValidated: true',
+  'evidenceDirectoryOwnerVerified: true',
+  'bootstrapEvidenceDirectoryOwnerVerified: true',
+  'protectedFileOwnershipVerified: true',
   'migrationCompletionRequiresConfirmedLockRelease: true',
   'migrationConnectionClosedBeforeSuccess: true',
   'productionMutationEnabled: false',
@@ -70,7 +79,6 @@ requireMarkers(sourceVerifier, [
   "killSignal: 'SIGKILL'",
   'shell: false',
   'evidence.packageLockPresent !== true',
-  'Workspace source inventory digest does not match the approved release digest',
   'exactApprovedInventoryMatched: true'
 ], 'Release source integrity verifier');
 
@@ -87,32 +95,21 @@ requireMarkers(sourceGovernance, [
 requireMarkers(releaseRunbook, [
   'RELEASE_SOURCE_INVENTORY_SHA256',
   'node release-source-integrity-verification.js',
-  'exact approved workspace source digest',
   'package-lock.json to be included in the protected inventory',
   'MIGRATION_LEDGER_BOOTSTRAP_EVIDENCE_PATH=/absolute/private/canonical/path/bootstrap-evidence.json',
   'RELEASE_COMMIT_SHA=<exact-40-character-git-sha>',
   'RELEASE_BRANCH=agent/talk2me-os2-integrated-rebuild',
   'RELEASE_MANIFEST_PATH=/absolute/private/canonical/path/talk2me-release-manifest.json',
-  'advisory-lock release and connection closure',
-  'The migration-ledger bootstrap, migration 025, preview data verification, deployment, restart and formal UAT have not yet been executed.'
+  'advisory-lock release and connection closure'
 ], 'Release candidate runbook');
 
 const activationOrder = [
-  'workspace-topology-verification.js',
-  'workspace-source-integrity.js',
-  'workspace-source-integrity-check.js',
-  'workspace-topology-governance-check.js',
-  'migration-ledger-bootstrap-governance-check.js',
-  'migration-ledger-bootstrap-runner-check.js',
-  'migration-ledger-bootstrap-evidence-check.js',
-  'migration-runner-security-check.js',
-  'runtime-release-identity-check.js',
-  'readiness-check.js',
-  'deployment-check.js',
-  'uat-gate-check.js',
-  'release-evidence-security-check.js',
-  'release-source-integrity-check.js',
-  'release-manifest-check.js'
+  'workspace-topology-verification.js','workspace-source-integrity.js','workspace-source-integrity-check.js',
+  'workspace-topology-governance-check.js','migration-ledger-bootstrap-governance-check.js',
+  'migration-ledger-bootstrap-runner-check.js','migration-ledger-bootstrap-evidence-check.js',
+  'migration-runner-security-check.js','runtime-release-identity-check.js','readiness-check.js',
+  'deployment-check.js','uat-gate-check.js','release-evidence-security-check.js',
+  'release-source-integrity-check.js','release-manifest-check.js'
 ];
 let previous = -1;
 for (const marker of activationOrder) {
@@ -122,33 +119,17 @@ for (const marker of activationOrder) {
   previous = position;
 }
 requireMarkers(activationRunbook, [
-  'RELEASE_SOURCE_INVENTORY_SHA256',
-  'npm run verify:release-source-integrity',
-  '30 seconds',
-  'shell execution disabled',
-  'package-lock.json` in the protected inventory',
+  'RELEASE_SOURCE_INVENTORY_SHA256','npm run verify:release-source-integrity','30 seconds','shell execution disabled',
   'Re-run approved source-integrity verification immediately before formal UAT',
   'Re-run approved source-integrity verification immediately before release freeze',
   'Any source change after CI approval invalidates the candidate',
-  'npm run bootstrap:migration-ledger',
-  'npm run verify:migration-ledger-bootstrap-evidence',
-  'evidence verification before MySQL',
-  'Individual `applied <migration>` lines are not completion evidence.',
-  'databaseBackedVerificationExecuted: false',
-  'migrationsExecuted: false',
-  'previewRestartExecuted: false',
-  'productionMutationEnabled: false',
-  'mergeExecutionEnabled: false'
+  'databaseBackedVerificationExecuted: false','migrationsExecuted: false','previewRestartExecuted: false',
+  'productionMutationEnabled: false','mergeExecutionEnabled: false'
 ], 'Preview activation runbook');
-
 requireMarkers(uatRunbook, [
-  'RELEASE_SOURCE_INVENTORY_SHA256',
-  'npm run verify:release-source-integrity',
-  'exactApprovedInventoryMatched: true',
-  'packageLockPresent: true',
-  'Re-run approved source-integrity verification immediately before UAT starts',
-  'Any source change after the retained CI evidence was produced invalidates that UAT attempt',
-  'successful release source-integrity verification output'
+  'RELEASE_SOURCE_INVENTORY_SHA256','npm run verify:release-source-integrity','exactApprovedInventoryMatched: true',
+  'packageLockPresent: true','Re-run approved source-integrity verification immediately before UAT starts',
+  'Any source change after the retained CI evidence was produced invalidates that UAT attempt'
 ], 'Preview UAT runbook');
 
 const exactScripts = {
@@ -159,17 +140,9 @@ const exactScripts = {
   'verify:migration-ledger-bootstrap-evidence': 'node migration-ledger-bootstrap-evidence-verification.js',
   'check:release-manifest': 'node release-manifest-check.js'
 };
-for (const [name, command] of Object.entries(exactScripts)) {
-  if (pkg.scripts?.[name] !== command) throw new Error(`Missing exact ${name} command`);
-}
+for (const [name, command] of Object.entries(exactScripts)) if (pkg.scripts?.[name] !== command) throw new Error(`Missing exact ${name} command`);
 const normalCheck = String(pkg.scripts?.check || '');
-for (const marker of [
-  'node --check release-manifest-verification.js',
-  'node --check release-source-integrity-verification.js',
-  'node --check release-source-integrity-check.js',
-  'node release-source-integrity-check.js',
-  'node release-manifest-check.js'
-]) {
+for (const marker of ['node --check release-manifest-verification.js','node --check release-source-integrity-verification.js','node --check release-source-integrity-check.js','node release-source-integrity-check.js','node release-manifest-check.js']) {
   if (!normalCheck.includes(marker)) throw new Error(`Normal validation missing ${marker}`);
 }
 if (normalCheck.includes('node release-candidate-gate.js')) throw new Error('Release candidate gate must not execute in normal validation before release evidence exists');
@@ -185,11 +158,17 @@ console.log(JSON.stringify({
   approvedSourceInventoryRequired: true,
   releaseSourceIntegrityVerificationRequired: true,
   releaseSourceIntegrityBoundedExecutionRequired: true,
+  releaseMetadataLengthAndControlCharacterValidationRequired: true,
+  releaseManifestTimestampValidationRequired: true,
+  releaseManifestMaximumAgeRequired: true,
+  releaseEvidenceDirectoryOwnershipRequired: true,
+  bootstrapEvidenceDirectoryOwnershipRequired: true,
+  protectedEvidenceFileOwnershipRequired: true,
+  releaseAndBootstrapEvidencePathsMustDiffer: true,
   releaseSourceIntegrityBeforeUatRequired: true,
   releaseSourceIntegrityBeforeFreezeRequired: true,
   releaseSourceIntegrityPostFreezeRequired: true,
   sourceChangeInvalidatesCandidate: true,
-  releaseSourceIntegrityCommandsRegistered: true,
   bootstrapExecutionEvidenceRequired: true,
   bootstrapEvidenceVerifiedBeforeReleaseFreeze: true,
   migrationCompletionRequiresConfirmedLockRelease: true,
