@@ -24,8 +24,25 @@ function writePrivateTemp(file, value) {
 function removeIfPresent(file) {
   try { fs.unlinkSync(file); } catch (error) { if (error.code !== 'ENOENT') throw error; }
 }
+function syncDirectory(directory) {
+  const descriptor = fs.openSync(directory, 'r');
+  try { fs.fsyncSync(descriptor); } finally { fs.closeSync(descriptor); }
+}
+function validatePrivateDirectory(directory) {
+  const stat = fs.lstatSync(directory);
+  if (stat.isSymbolicLink() || !stat.isDirectory()) {
+    throw new Error(`Release manifest directory must be a regular non-symlink directory: ${directory}`);
+  }
+  if (process.platform !== 'win32' && (stat.mode & 0o077) !== 0) {
+    throw new Error(`Release manifest directory permissions must not allow group or world access: ${directory}`);
+  }
+  if (fs.realpathSync(directory) !== path.resolve(directory)) {
+    throw new Error(`Release manifest directory must resolve to its exact path: ${directory}`);
+  }
+}
 function publishEvidencePair(manifestPath, manifestText, checksumText) {
   const checksumPath = `${manifestPath}.sha256`;
+  const directory = path.dirname(manifestPath);
   const nonce = `${process.pid}-${crypto.randomBytes(12).toString('hex')}`;
   const manifestTemp = `${manifestPath}.${nonce}.tmp`;
   const checksumTemp = `${checksumPath}.${nonce}.tmp`;
@@ -39,9 +56,11 @@ function publishEvidencePair(manifestPath, manifestText, checksumText) {
     checksumPublished = true;
     fs.linkSync(manifestTemp, manifestPath);
     manifestPublished = true;
+    syncDirectory(directory);
   } catch (error) {
     if (manifestPublished) removeIfPresent(manifestPath);
     if (checksumPublished) removeIfPresent(checksumPath);
+    syncDirectory(directory);
     throw error;
   } finally {
     removeIfPresent(manifestTemp);
@@ -153,7 +172,11 @@ if (output && path.isAbsolute(output)) {
   if (!fs.existsSync(outputDirectory)) {
     fail(`Release manifest directory does not exist: ${outputDirectory}`);
     manifest.ok = false;
-  } else if (fs.existsSync(output)) {
+  } else {
+    try { validatePrivateDirectory(outputDirectory); }
+    catch (error) { fail(error.message); manifest.ok = false; }
+  }
+  if (fs.existsSync(output)) {
     fail(`Release manifest already exists: ${output}`);
     manifest.ok = false;
   } else if (fs.existsSync(checksumOutput)) {
