@@ -42,9 +42,9 @@ if (String(process.env.EMAIL_WORKER_ENABLED || '').toLowerCase() === 'true') {
 if (!fs.existsSync(path.join(__dirname, 'package-lock.json'))) warnings.push('package-lock.json is absent and remains a release-freeze blocker');
 
 [
-  'server.js','package.json','migration-runner.js','migration-runner-security-check.js',
-  'schema-verification.js','preview-data-verification.js','runtime-release-identity-check.js',
-  'workspace-topology-verification.js','workspace-topology-governance-check.js',
+  'server.js','package.json','MIGRATION_LEDGER_BOOTSTRAP.sql','migration-ledger-bootstrap-governance-check.js',
+  'migration-runner.js','migration-runner-security-check.js','schema-verification.js','preview-data-verification.js',
+  'runtime-release-identity-check.js','workspace-topology-verification.js','workspace-topology-governance-check.js',
   'preview-activation-preflight.js','preview-activation-governance-check.js',
   'PREVIEW_ACTIVATION_RUNBOOK.md','PREVIEW_DEPLOYMENT_RUNBOOK.md',
   'merge-restore-evidence-verification.js','merge-restore-pin-check.js',
@@ -55,9 +55,18 @@ if (!fs.existsSync(path.join(__dirname, 'package-lock.json'))) warnings.push('pa
   'collaboration-routes.js','intelligence-routes.js','document-routes.js'
 ].forEach(checkFile);
 
+requireMarkers('migration-ledger-bootstrap-governance-check.js', [
+  'migration-ledger-bootstrap-governance',
+  'runtimeLedgerCreationDisabled: true',
+  'workspaceProtectionRequired: true',
+  'packageCommandRegistered: true',
+  'normalValidationRegistered: true',
+  'previewDatabaseOnly: true'
+]);
 requireMarkers('migration-runner.js', [
   "PREVIEW_DATABASE = 'kloka_talk2me'",
   "MIGRATION_LOCK_NAME = 'talk2me_os2_preview_migrations'",
+  'MIGRATION_LEDGER_BOOTSTRAP_REQUIRED',
   'ALLOW_PREVIEW_MIGRATIONS_NOT_ENABLED',
   'PRODUCTION_MUTATION_FLAG_PROHIBITED',
   'MERGE_EXECUTION_FLAG_PROHIBITED',
@@ -79,6 +88,8 @@ requireMarkers('migration-runner-security-check.js', [
 ]);
 requireMarkers('PREVIEW_DEPLOYMENT_RUNBOOK.md', [
   'Do not substitute `npm install` for the controlled release path',
+  'MIGRATION_LEDGER_BOOTSTRAP.sql',
+  'MIGRATION_LEDGER_BOOTSTRAP_REQUIRED',
   'talk2me_os2_preview_migrations',
   'Only one controlled migration process may operate against the preview database at a time.'
 ]);
@@ -101,6 +112,8 @@ if (scripts['verify:merge-restore-evidence'] !== 'node merge-restore-evidence-ve
 if (scripts['verify:preview-data'] !== 'node preview-data-verification.js') failures.push('Missing verify:preview-data command');
 if (scripts['verify:runtime-release-identity'] !== 'node runtime-release-identity-check.js') failures.push('Missing verify:runtime-release-identity command');
 if (scripts['verify:preview-activation-preflight'] !== 'node preview-activation-preflight.js') failures.push('Missing verify:preview-activation-preflight command');
+if (scripts['check:migration-ledger-bootstrap'] !== 'node migration-ledger-bootstrap-governance-check.js') failures.push('Missing check:migration-ledger-bootstrap command');
+if (scripts['check:migration-runner-security'] !== 'node migration-runner-security-check.js') failures.push('Missing check:migration-runner-security command');
 if (scripts['check:merge-restore-pin'] !== 'node merge-restore-pin-check.js') failures.push('Missing check:merge-restore-pin command');
 
 const migrationCount = fs.existsSync(migrationDir)
@@ -115,6 +128,8 @@ const summary = {
   applicationRoot: process.env.PREVIEW_APP_ROOT || null,
   database: process.env.DB_NAME || null,
   migrationCount,
+  migrationLedgerBootstrapGovernanceRequired: true,
+  runtimeLedgerCreationDisabled: true,
   workspaceTopologyVerificationRequired: true,
   secureMigrationRunnerRequired: true,
   migrationAdvisoryLockRequired: true,
@@ -122,6 +137,7 @@ const summary = {
   runtimeReleaseIdentityCommandRegistered: scripts['verify:runtime-release-identity'] === 'node runtime-release-identity-check.js',
   previewActivationPreflightCommandRegistered: scripts['verify:preview-activation-preflight'] === 'node preview-activation-preflight.js',
   previewDataVerificationCommandRegistered: scripts['verify:preview-data'] === 'node preview-data-verification.js',
+  migrationLedgerBootstrapCommandRegistered: scripts['check:migration-ledger-bootstrap'] === 'node migration-ledger-bootstrap-governance-check.js',
   mergeRestoreEvidenceCommandRegistered: scripts['verify:merge-restore-evidence'] === 'node merge-restore-evidence-verification.js',
   mergeRestorePinCheckRegistered: scripts['check:merge-restore-pin'] === 'node merge-restore-pin-check.js',
   productionMutationEnabled: false,
