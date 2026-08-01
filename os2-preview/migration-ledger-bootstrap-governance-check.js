@@ -10,6 +10,7 @@ const runner = fs.readFileSync(path.join(root, 'migration-runner.js'), 'utf8');
 const topology = fs.readFileSync(path.join(root, 'workspace-topology-verification.js'), 'utf8');
 const runbook = fs.readFileSync(path.join(root, 'PREVIEW_DEPLOYMENT_RUNBOOK.md'), 'utf8');
 const bootstrap = fs.readFileSync(bootstrapPath, 'utf8');
+const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 
 const forbidden = [
   'CREATE TABLE IF NOT EXISTS',
@@ -48,6 +49,16 @@ for (const marker of ['MIGRATION_LEDGER_BOOTSTRAP.sql', 'Do not use application 
   if (!runbook.includes(marker)) throw new Error(`Deployment runbook missing bootstrap marker: ${marker}`);
 }
 
+if (pkg.scripts['check:migration-ledger-bootstrap'] !== 'node migration-ledger-bootstrap-governance-check.js') {
+  throw new Error('Missing check:migration-ledger-bootstrap command');
+}
+if (!pkg.scripts.check.includes('node --check migration-ledger-bootstrap-governance-check.js')) {
+  throw new Error('Bootstrap governance syntax check missing from normal validation');
+}
+if (!pkg.scripts.check.includes('node migration-ledger-bootstrap-governance-check.js')) {
+  throw new Error('Bootstrap governance regression check missing from normal validation');
+}
+
 const sha256 = crypto.createHash('sha256').update(bootstrap).digest('hex');
 console.log(JSON.stringify({
   ok: true,
@@ -57,6 +68,8 @@ console.log(JSON.stringify({
   createsExactlyOneTable: true,
   runtimeLedgerCreationDisabled: true,
   workspaceProtectionRequired: true,
+  packageCommandRegistered: true,
+  normalValidationRegistered: true,
   previewDatabaseOnly: true,
   productionMutationEnabled: false,
   mergeExecutionEnabled: false
