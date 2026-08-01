@@ -15,7 +15,7 @@ It must never be used against `talk2me.uent.co.za` or any production database.
 
 The migration runner is prohibited from creating tables at runtime. The bootstrap must be executed only through `migration-ledger-bootstrap-runner.js`, never through application startup and never by copying SQL into an uncontrolled session.
 
-The runner requires all of the following explicit evidence and controls:
+Create a private canonical evidence directory before execution. It must be a real non-symlink directory, owned by the operator, and inaccessible to group and world users.
 
 ```bash
 DB_NAME=kloka_talk2me \
@@ -26,7 +26,8 @@ VERIFIED_BACKUP_REFERENCE=<verified-preview-backup-reference> \
 VERIFIED_BACKUP_SHA256=<64-character-sha256> \
 BOOTSTRAP_OPERATOR=<named-operator> \
 BOOTSTRAP_CHANGE_REFERENCE=<approved-change-reference> \
-node migration-ledger-bootstrap-runner.js
+MIGRATION_LEDGER_BOOTSTRAP_EVIDENCE_PATH=/absolute/private/canonical/path/bootstrap-evidence.json \
+npm run bootstrap:migration-ledger
 ```
 
 The controlled runner:
@@ -36,12 +37,16 @@ The controlled runner:
 - validates that the SQL creates exactly one table and contains no prohibited mutation statements;
 - refuses every database except `kloka_talk2me`;
 - requires explicit verified-backup reference and SHA-256 evidence;
+- validates the evidence target before opening a database connection;
 - acquires `talk2me_os2_preview_migrations` and binds ownership to the active `CONNECTION_ID()`;
 - refuses an existing ledger table rather than altering or reusing it silently;
 - executes the reviewed bootstrap source once;
 - verifies the created ledger schema, engine, collation, columns, primary key, and unique key;
 - confirms the ledger is empty;
-- confirms advisory-lock ownership before release.
+- confirms advisory-lock ownership and successful release;
+- closes the database connection before evidence publication;
+- atomically publishes a private JSON evidence file and SHA-256 sidecar using exclusive `0600` temporary files, filesystem sync, and no-overwrite hard-link publication;
+- removes partial publication if either final evidence file cannot be published.
 
 Hard stops:
 
@@ -49,8 +54,10 @@ Hard stops:
 - never set `ALLOW_PRODUCTION_MUTATION=true`;
 - never set `ENABLE_CUSTOMER_MERGE_EXECUTION=true`;
 - never run without a verified preview backup reference and SHA-256;
+- never use a relative, non-canonical, shared, or pre-existing evidence path;
 - never change the bootstrap SQL without review and a new commit;
 - stop if the ledger table already exists;
+- stop if advisory-lock release cannot be confirmed;
 - stop if the runner reports `MIGRATION_LEDGER_BOOTSTRAP_REQUIRED`;
 - do not replace the bootstrap runner with runtime `CREATE TABLE` logic.
 
@@ -58,23 +65,20 @@ The migration runner separately verifies the ledger table engine, collation, exa
 
 ## 3. Bootstrap execution evidence
 
-After successful bootstrap execution, preserve the complete JSON result as a private evidence file with mode `0600`. The evidence must record the preview database, bootstrap filename and SHA-256, verified backup reference and SHA-256, named operator, approved change reference, start and completion timestamps, the pre-existing and created ledger-table counts, schema verification, empty-ledger result, advisory lock lifecycle, and both prohibited execution flags set to false.
+The bootstrap runner itself creates the private JSON evidence file and SHA-256 sidecar. Do not redirect console output as a substitute and do not hand-author either file.
 
-Create a sidecar bootstrap evidence checksum in this exact format:
+The evidence records the preview database, bootstrap filename and SHA-256, verified backup reference and SHA-256, named operator, approved change reference, start and completion timestamps, pre-existing and created ledger-table counts, schema verification, empty-ledger result, advisory-lock lifecycle, and both prohibited execution flags set to false.
 
-```text
-<64-character-sha256><two spaces><evidence-filename>
-```
-
-Verify this evidence before applying migration 001 or any later migration:
+Verify the generated pair before applying migration 001 or any later migration:
 
 ```bash
 MIGRATION_LEDGER_BOOTSTRAP_EVIDENCE_PATH=/absolute/private/canonical/path/bootstrap-evidence.json \
-node migration-ledger-bootstrap-evidence-verification.js
+npm run verify:migration-ledger-bootstrap-evidence
 ```
 
 The verifier must:
 
+- validate a private canonical evidence directory;
 - securely open the evidence and checksum files with `O_NOFOLLOW`;
 - reject symbolic links, additional hard links, non-private permissions, oversized files, and path/descriptor identity changes;
 - validate the bootstrap evidence checksum with constant-time comparison;
@@ -86,7 +90,7 @@ The verifier must:
 - confirm the complete advisory lock lifecycle, including release;
 - retain production mutation and customer-merge execution as disabled.
 
-Do not proceed to controlled migrations when `MIGRATION_LEDGER_BOOTSTRAP_EVIDENCE_PATH` is missing or when `migration-ledger-bootstrap-evidence-verification.js` fails.
+Do not proceed to controlled migrations when the evidence pair is absent, has been modified, or fails verification.
 
 ## 4. Controlled migration
 
