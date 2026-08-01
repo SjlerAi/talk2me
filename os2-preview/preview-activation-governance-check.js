@@ -72,6 +72,8 @@ for (const marker of [
   'descriptorIdentityRequired: true',
   'hardLinkRejectionRequired: true',
   'boundedProtectedFilesRequired: true',
+  'packageCommandRegistered: true',
+  'normalValidationRegistered: true',
   'migration025Required: true'
 ]) {
   if (!topologyGovernance.includes(marker)) throw new Error(`Workspace topology governance missing marker: ${marker}`);
@@ -116,12 +118,11 @@ for (const marker of requiredRunbookMarkers) {
   if (!runbook.includes(marker)) throw new Error(`Preview activation runbook missing marker: ${marker}`);
 }
 
-if (pkg.scripts['verify:preview-activation-preflight'] !== 'node preview-activation-preflight.js') {
-  throw new Error('Missing verify:preview-activation-preflight command');
-}
-if (!pkg.scripts.check.includes('node --check preview-activation-preflight.js')) {
-  throw new Error('Preview activation preflight syntax check missing from normal validation');
-}
+if (pkg.scripts['verify:preview-activation-preflight'] !== 'node preview-activation-preflight.js') throw new Error('Missing verify:preview-activation-preflight command');
+if (pkg.scripts['check:preview-activation-governance'] !== 'node preview-activation-governance-check.js') throw new Error('Missing check:preview-activation-governance command');
+if (!pkg.scripts.check.includes('node --check preview-activation-preflight.js')) throw new Error('Preview activation preflight syntax check missing from normal validation');
+if (!pkg.scripts.check.includes('node --check preview-activation-governance-check.js')) throw new Error('Preview activation governance syntax check missing from normal validation');
+if (!pkg.scripts.check.includes('node preview-activation-governance-check.js')) throw new Error('Preview activation governance execution missing from normal validation');
 
 console.log(JSON.stringify({
   ok: true,
@@ -137,6 +138,8 @@ console.log(JSON.stringify({
   protectedFileHardLinkRejectionRequired: true,
   protectedFileSizeLimitsRequired: true,
   ownershipConsistencyRequired: true,
+  packageCommandRegistered: true,
+  normalValidationRegistered: true,
   productionMutationEnabled: false,
   mergeExecutionEnabled: false,
   databaseBackedVerificationExecuted: false,
