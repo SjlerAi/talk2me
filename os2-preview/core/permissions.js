@@ -3,7 +3,7 @@
 const ROLE_PERMISSIONS = Object.freeze({
   owner: ['*'],
   manager: [
-    'customer.read','customer.create','customer.update','customer.assign','customer.transfer','customer.archive','customer.merge.review',
+    'customer.read','customer.create','customer.update','customer.assign','customer.transfer','customer.archive','customer.merge.review','customer.merge.plan',
     'account.read','account.create','account.update','service.read','service.create','service.update',
     'document.read','document.upload','document.archive','restriction.read','restriction.update',
     'work.read','work.create','work.update','work.assign','work.accept','work.return',
