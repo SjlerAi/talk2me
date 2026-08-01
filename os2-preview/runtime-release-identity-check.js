@@ -34,6 +34,8 @@ try {
 const expectedApplication = 'talk2me-os2-preview';
 const expectedVersion = '0.59.0';
 const expectedNodeMajor = 20;
+const expectedDatabase = 'kloka_talk2me';
+const configuredDatabase = String(process.env.DB_NAME || '').trim();
 const actualNodeMajor = Number.parseInt(process.versions.node.split('.')[0], 10);
 
 if (pkg.name !== expectedApplication) {
@@ -45,8 +47,11 @@ if (pkg.version !== expectedVersion) {
 if (!Number.isInteger(actualNodeMajor) || actualNodeMajor !== expectedNodeMajor) {
   fail(`Node.js ${expectedNodeMajor}.x is required; found ${process.versions.node}`);
 }
-if (process.env.DB_NAME && process.env.DB_NAME !== 'kloka_talk2me') {
-  fail(`Runtime identity check refuses non-preview database: ${process.env.DB_NAME}`);
+if (!configuredDatabase) {
+  fail('DB_NAME is required for runtime release identity verification');
+}
+if (configuredDatabase !== expectedDatabase) {
+  fail(`Runtime identity check refuses non-preview database: ${configuredDatabase}`);
 }
 
 console.log(JSON.stringify({
@@ -56,8 +61,8 @@ console.log(JSON.stringify({
   version: pkg.version,
   nodeVersion: process.versions.node,
   expectedNodeMajor,
-  database: process.env.DB_NAME || null,
-  previewDatabaseRequiredWhenConfigured: true,
+  database: configuredDatabase,
+  previewDatabaseRequired: true,
   productionMutationEnabled: false,
   mergeExecutionEnabled: false
 }, null, 2));
