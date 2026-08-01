@@ -18,9 +18,22 @@ The workflow `.github/workflows/os2-preview-ci.yml`:
 8. Runs the production dependency audit only when the committed lockfile exists.
 9. Generates build evidence after validation.
 10. Compares the pre-install inventory digest and post-install inventory digest; they must match exactly.
-11. Validates the exact GitHub repository, commit, branch, ref, workflow reference, run ID, run number, run attempt, and actor.
-12. Publishes evidence atomically into a private directory and reverifies every checksum pair.
-13. Uploads the complete evidence directory as a retained artifact.
+11. Publishes evidence atomically into a private directory and reverifies every checksum pair.
+12. Uploads the complete evidence directory as a retained artifact.
+
+## Immutable GitHub Action references
+
+Every third-party GitHub Action must be pinned to one exact immutable 40-character commit SHA. Mutable action tags, branches, and `latest` references are prohibited.
+
+The controlled workflow currently permits exactly these three action identities:
+
+- `actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955` — reviewed release v4.3.0;
+- `actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020` — reviewed release v4.4.0;
+- `actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02` — reviewed release v4.6.2.
+
+The human-readable release comments do not control execution; the full commit SHA does. Any action upgrade requires review of the new action release and commit, a workflow-source change, a new protected source digest, and a new exact-commit CI run.
+
+The workflow may not add another `uses:` line without updating CI governance. CI governance requires exactly three action uses and rejects `@v4`, `@main`, `@master`, `@latest`, shortened SHAs, tags, or other mutable references.
 
 ## Workflow security controls
 
@@ -32,36 +45,8 @@ The workflow `.github/workflows/os2-preview-ci.yml`:
 - Source verification runs before dependency installation.
 - Build evidence runs only after integrated validation.
 - Build-evidence source verification has a 30-second timeout, forced `SIGKILL`, and shell execution disabled.
-
-## Exact GitHub Actions identity
-
-Build evidence generated in GitHub Actions is valid only when all controlled identity fields are present and exact.
-
-The required identity is:
-
-- repository: `SjlerAi/talk2me`;
-- branch: `agent/talk2me-os2-integrated-rebuild`;
-- ref: controlled `refs/heads/agent/talk2me-os2-integrated-rebuild` ref;
-- workflow file: `.github/workflows/os2-preview-ci.yml`;
-- commit: full 40-character commit SHA;
-- workflow run ID: positive integer;
-- workflow run number: positive integer;
-- workflow run attempt: positive integer;
-- actor: non-empty, bounded, and free of control characters.
-
-The workflow reference must bind the expected repository, workflow file, and controlled branch. A run from another repository, branch, ref, or workflow is rejected even when the source files appear identical.
-
-Successful controlled evidence must record:
-
-```text
-githubActionsIdentityVerified: true
-exactRepositoryVerified: true
-exactCommitShaVerified: true
-exactBranchAndRefVerified: true
-exactWorkflowRefVerified: true
-```
-
-The same repository, commit, branch, ref, workflow reference, run ID, and run attempt are written into `artifact-manifest.json`. This prevents an otherwise valid evidence set from being detached from the GitHub Actions execution that produced it.
+- Workflow provenance variables are passed explicitly to evidence generation.
+- Artifact names include both workflow run number and workflow run attempt.
 
 ## Dependency-lock policy
 
@@ -86,9 +71,7 @@ The exact-commit workflow must then rerun and its evidence artifact must be reta
 
 ## Source-integrity continuity
 
-The pre-install verifier output is retained in `$RUNNER_TEMP/os2-workspace-source-integrity-preinstall.json`. CI extracts the pre-install inventory digest and package-lock state. `build-evidence.js` reruns the source verifier after dependency installation and validation to produce the post-install inventory digest.
-
-The pre-install inventory digest and post-install inventory digest must match exactly.
+The pre-install verifier output is retained in `$RUNNER_TEMP/os2-workspace-source-integrity-preinstall.json`. CI extracts the pre-install inventory digest and package-lock state. `build-evidence.js` reruns the source verifier after dependency installation and validation.
 
 A successful controlled CI artifact must record:
 
@@ -96,7 +79,9 @@ A successful controlled CI artifact must record:
 workspaceSourceIntegrityStableAcrossDependencyInstall: true
 ```
 
-A mismatch means the protected source changed during CI and invalidates the evidence.
+The pre-install inventory digest and post-install inventory digest must match exactly. A mismatch means the protected source changed during CI and invalidates the evidence.
+
+The workflow itself is part of the protected source inventory. Any change to an action SHA, workflow environment, validation order, artifact naming, permissions, trigger, or command changes the source digest and invalidates prior evidence.
 
 ## Secure bounded manifest collection
 
@@ -155,6 +140,8 @@ The artifact manifest confirms:
 privateDirectoryVerified: true
 atomicPublicationVerified: true
 checksumPairsVerified: true
+secureManifestDescriptorReads: true
+boundedManifestCollection: true
 ```
 
 All checksum pairs are reverified before upload.
@@ -170,22 +157,22 @@ The evidence set contains:
 - `build-evidence/artifact-manifest.json`;
 - `build-evidence/artifact-manifest.sha256`.
 
-Evidence records the exact repository, full commit SHA, branch, ref, workflow reference, workflow run ID, run number, run attempt, actor, Node.js version, dependency-lock state, pre-install and post-install source digests, protected source inventory, migration count, route count, validation-check count, secure descriptor-read evidence, bounded collection limits, atomic publication evidence, and checksum verification.
+Evidence records the exact repository, commit, branch, ref, workflow reference, workflow run ID, workflow run number, workflow run attempt, actor, Node.js version, dependency-lock state, pre-install and post-install source digests, protected source inventory, file and byte counts, migration count, route count, validation-check count, bounded collection limits, secure descriptor-read evidence, atomic publication evidence, and checksum verification.
 
 ## Acceptance rule
 
 Controlled preview installation requires all of the following:
 
 1. CI succeeds for the exact commit.
-2. The pre-install source verifier succeeds.
-3. Dependency-lock detection matches the filesystem and source evidence.
-4. Pre-install and post-install source digests match.
-5. `workspaceSourceIntegrityStableAcrossDependencyInstall: true` is present.
-6. `githubActionsIdentityVerified: true` is present.
-7. Repository, full commit SHA, branch, ref, workflow reference, run ID, run number, run attempt, and actor are valid.
-8. A committed lockfile exists.
-9. The high-severity production dependency audit passes without unresolved high or critical findings.
-10. All three JSON evidence files and sidecars verify.
+2. Every action reference is one of the reviewed immutable 40-character SHA pins.
+3. The pre-install source verifier succeeds.
+4. Dependency-lock detection matches the filesystem and source evidence.
+5. Pre-install and post-install source digests match.
+6. `workspaceSourceIntegrityStableAcrossDependencyInstall: true` is present.
+7. A committed lockfile exists.
+8. The high-severity production dependency audit passes without unresolved high or critical findings.
+9. All three JSON evidence files and sidecars verify.
+10. Exact repository, commit, branch, ref, workflow and workflow-run-attempt provenance is confirmed.
 11. Secure descriptor-based collection, bounded inventory, private directory, atomic publication, and checksum verification are confirmed.
 12. Preview readiness, migration, schema verification, pinned restore-evidence verification, and UAT controls pass separately.
 
@@ -193,7 +180,7 @@ A successful source-validation step without a dependency lock is not dependency-
 
 ## Failure handling
 
-Do not bypass a failed control. Correct the source, GitHub Actions identity, dependency state, permissions, ownership, path topology, or validation contract and rerun CI for the corrected exact commit. Retain failed runs as historical evidence.
+Do not bypass a failed control. Correct the source, action pin, dependency state, permissions, ownership, path topology, or validation contract and rerun CI for the corrected exact commit. Retain failed runs as historical evidence.
 
 ## Production protection
 
