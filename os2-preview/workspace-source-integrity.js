@@ -54,6 +54,7 @@ if (String(process.env.ENABLE_CUSTOMER_MERGE_EXECUTION || '').toLowerCase() === 
 const rootStat = fs.lstatSync(root);
 const owner = rootStat.uid;
 const protectedFiles = [
+  ['../.github/workflows/os2-preview-ci.yml', 1024 * 1024],
   ['server.js', 4 * 1024 * 1024],
   ['package.json', 1024 * 1024],
   ['MIGRATION_LEDGER_BOOTSTRAP.sql', 256 * 1024],
@@ -114,6 +115,7 @@ console.log(JSON.stringify({
   selfProtected: files.some(item => item.file === 'workspace-source-integrity.js'),
   governanceProtected: files.some(item => item.file === 'workspace-source-integrity-check.js'),
   activationGovernanceProtected: files.some(item => item.file === 'preview-activation-governance-check.js'),
+  ciWorkflowProtected: files.some(item => item.file === '../.github/workflows/os2-preview-ci.yml'),
   ciEvidenceControlsProtected: files.some(item => item.file === 'build-evidence.js') && files.some(item => item.file === 'ci-governance-check.js'),
   releaseGovernanceProtected: files.some(item => item.file === 'release-manifest-check.js'),
   secureDescriptorReads: true,
