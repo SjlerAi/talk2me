@@ -19,7 +19,7 @@ async function buildPlan(connection,survivorId,sourceId){
     (SELECT COUNT(*) FROM os2_fixed_accounts WHERE master_customer_id=:sourceId AND archived_at IS NULL) fixed_accounts,
     (SELECT COUNT(*) FROM os2_work_items WHERE master_customer_id=:sourceId AND archived_at IS NULL) work_items,
     (SELECT COUNT(*) FROM os2_customer_documents WHERE master_customer_id=:sourceId AND archived_at IS NULL) documents,
-    (SELECT COUNT(*) FROM os2_authorised_representatives WHERE master_customer_id=:sourceId AND is_active=1) representatives,
+    (SELECT COUNT(*) FROM os2_authorised_representatives WHERE master_customer_id=:sourceId AND status='active' AND (expires_at IS NULL OR expires_at>NOW())) representatives,
     (SELECT COUNT(*) FROM os2_customer_restrictions WHERE master_customer_id=:sourceId AND is_active=1) restrictions`,{sourceId});
   const [[conflicts]]=await connection.execute(`SELECT
     (SELECT COUNT(*) FROM os2_customer_accounts s JOIN os2_customer_accounts d ON d.master_customer_id=:survivorId AND d.archived_at IS NULL AND d.normalised_account_number=s.normalised_account_number WHERE s.master_customer_id=:sourceId AND s.archived_at IS NULL AND s.normalised_account_number IS NOT NULL) duplicate_accounts,
@@ -40,7 +40,7 @@ async function buildSnapshot(connection,survivorId,sourceId){
     (SELECT COUNT(*) FROM os2_fixed_accounts WHERE master_customer_id=:sourceId AND archived_at IS NULL) source_fixed_accounts,
     (SELECT COUNT(*) FROM os2_work_items WHERE master_customer_id=:sourceId AND archived_at IS NULL) source_work_items,
     (SELECT COUNT(*) FROM os2_customer_documents WHERE master_customer_id=:sourceId AND archived_at IS NULL) source_documents,
-    (SELECT COUNT(*) FROM os2_authorised_representatives WHERE master_customer_id=:sourceId AND is_active=1) source_representatives,
+    (SELECT COUNT(*) FROM os2_authorised_representatives WHERE master_customer_id=:sourceId AND status='active' AND (expires_at IS NULL OR expires_at>NOW())) source_representatives,
     (SELECT COUNT(*) FROM os2_customer_restrictions WHERE master_customer_id=:sourceId AND is_active=1) source_restrictions,
     (SELECT COUNT(*) FROM os2_customer_accounts s JOIN os2_customer_accounts d ON d.master_customer_id=:survivorId AND d.archived_at IS NULL AND d.normalised_account_number=s.normalised_account_number WHERE s.master_customer_id=:sourceId AND s.archived_at IS NULL AND s.normalised_account_number IS NOT NULL) duplicate_accounts,
     (SELECT COUNT(*) FROM os2_mobile_lines s JOIN os2_mobile_lines d ON d.master_customer_id=:survivorId AND d.archived_at IS NULL AND d.mobile_number=s.mobile_number WHERE s.master_customer_id=:sourceId AND s.archived_at IS NULL AND s.mobile_number IS NOT NULL) duplicate_mobile_numbers,
