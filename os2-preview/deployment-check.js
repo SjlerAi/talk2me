@@ -54,12 +54,26 @@ mustContain('merge-restore-pin-check.js', [
   'ORDER BY rt.completed_at DESC,rt.id DESC'
 ]);
 
+mustContain('PREVIEW_DEPLOYMENT_RUNBOOK.md', [
+  'talk2me.kloka.co.za',
+  'kloka_talk2me',
+  'talk2me.uent.co.za',
+  'ALLOW_PREVIEW_MIGRATIONS=true npm run migrate:preview',
+  'DB_NAME=kloka_talk2me npm run verify:preview-data',
+  'schema-verification.js',
+  'merge-restore-evidence-verification.js',
+  'Running only `npm run verify:schema` is not sufficient',
+  'mergeExecutionEnabled: false',
+  'Restart only the preview Node.js application'
+]);
+
 [
   'migrations/20260801_025_merge_authorisation_restore_pin.sql',
   'schema-verification.js',
   'preview-data-verification.js',
   'merge-restore-evidence-verification.js',
-  'merge-restore-pin-check.js'
+  'merge-restore-pin-check.js',
+  'PREVIEW_DEPLOYMENT_RUNBOOK.md'
 ].forEach(mustExist);
 
 const packageJson = require('./package.json');
@@ -81,6 +95,7 @@ console.log(JSON.stringify({
   database: 'kloka_talk2me',
   minimumMigrationCount: 25,
   previewDataVerificationRequired: true,
+  deploymentRunbookProtected: true,
   restoreEvidenceRequired: true,
   executionEnabled: false
 }, null, 2));
