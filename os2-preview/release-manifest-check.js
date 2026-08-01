@@ -8,8 +8,15 @@ const runbook=fs.readFileSync(path.join(root,'RELEASE_CANDIDATE_RUNBOOK.md'),'ut
 const pkg=JSON.parse(fs.readFileSync(path.join(root,'package.json'),'utf8'));
 const required=[
   'package-lock.json is required before release-candidate freeze',
-  'RELEASE_APPROVED_BY',
-  'RELEASE_CHANGE_REFERENCE',
+  'RELEASE_COMMIT_SHA or GITHUB_SHA is required',
+  'Release commit SHA must be a full 40-character hexadecimal SHA',
+  'RELEASE_APPROVED_BY is required',
+  'RELEASE_CHANGE_REFERENCE is required',
+  'RELEASE_MANIFEST_PATH is required',
+  'RELEASE_MANIFEST_PATH must be absolute',
+  'Release manifest directory does not exist',
+  'dependencyLockPresent',
+  'dependencyLockSha256',
   'migrationChecksums',
   'Runtime CREATE TABLE',
   '20260801_025_merge_authorisation_restore_pin.sql',
@@ -26,6 +33,7 @@ const required=[
   'mergeExecutionEnabled: false'
 ];
 for(const marker of required) if(!gate.includes(marker)) throw new Error(`Missing release gate marker: ${marker}`);
+if(gate.includes("warn('No release")) throw new Error('Release identity metadata must be blocking, not warning-only');
 
 const runbookMarkers=[
   '20260801_025_merge_authorisation_restore_pin.sql',
@@ -54,5 +62,7 @@ console.log(JSON.stringify({
   version:pkg.version,
   restorePinMigration:'20260801_025_merge_authorisation_restore_pin.sql',
   mergeExecutionEnabled:false,
+  releaseMetadataBlocking:true,
+  dependencyLockChecksumRequired:true,
   runbookMarkers:runbookMarkers.length
 },null,2));
