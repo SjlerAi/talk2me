@@ -8,10 +8,35 @@ function positiveId(value) {
   return Number.isInteger(id) && id > 0 ? id : null;
 }
 
-function customerIdFromRequest(req) {
-  const direct = positiveId(req.params?.id || req.params?.customerId || req.params?.masterCustomerId);
-  if (direct && /\/customers\//.test(req.path)) return direct;
-  return positiveId(req.body?.masterCustomerId || req.query?.masterCustomerId);
+function pathId(path, pattern) {
+  const match = String(path || '').match(pattern);
+  return match ? positiveId(match[1]) : null;
+}
+
+async function resolveCustomerIdFromRequest(pool, req) {
+  const explicit = positiveId(req.body?.masterCustomerId || req.query?.masterCustomerId);
+  if (explicit) return explicit;
+  const customerId = pathId(req.path, /\/customers\/(\d+)(?:\/|$)/);
+  if (customerId) return customerId;
+
+  const mobileLineId = pathId(req.path, /\/mobile-lines\/(\d+)(?:\/|$)/);
+  if (mobileLineId) {
+    const [[row]] = await pool.execute('SELECT master_customer_id FROM os2_mobile_lines WHERE id=:id LIMIT 1',{id:mobileLineId});
+    return row ? Number(row.master_customer_id) : null;
+  }
+
+  const fixedServiceId = pathId(req.path, /\/fixed-services\/(\d+)(?:\/|$)/);
+  if (fixedServiceId) {
+    const [[row]] = await pool.execute(`SELECT fa.master_customer_id FROM os2_fixed_services fs JOIN os2_fixed_accounts fa ON fa.id=fs.fixed_account_id WHERE fs.id=:id LIMIT 1`,{id:fixedServiceId});
+    return row ? Number(row.master_customer_id) : null;
+  }
+
+  const accountId = pathId(req.path, /\/accounts\/(\d+)(?:\/|$)/);
+  if (accountId) {
+    const [[row]] = await pool.execute('SELECT master_customer_id FROM os2_customer_accounts WHERE id=:id LIMIT 1',{id:accountId});
+    return row ? Number(row.master_customer_id) : null;
+  }
+  return null;
 }
 
 async function resolveCustomerAccess(pool, user, masterCustomerId) {
@@ -41,9 +66,9 @@ function createCustomerAccessGuard({ pool }) {
   return async function customerAccessGuard(req, res, next) {
     if (!req.path.startsWith('/api/os2/') || !req.user) return next();
     if (req.path === '/api/os2/customers/search' || req.path === '/api/os2/customers/quick-onboard') return next();
-    const customerId = customerIdFromRequest(req);
-    if (!customerId) return next();
     try {
+      const customerId = await resolveCustomerIdFromRequest(pool, req);
+      if (!customerId) return next();
       const access = await resolveCustomerAccess(pool, req.user, customerId);
       if (!access.allowed) return res.status(403).json({ ok:false,error:'CUSTOMER_ACCESS_DENIED' });
       if (!READ_METHODS.has(req.method) && access.level === 'read') {
@@ -57,4 +82,4 @@ function createCustomerAccessGuard({ pool }) {
   };
 }
 
-module.exports = { MANAGEMENT_ROLES, READ_METHODS, positiveId, customerIdFromRequest, resolveCustomerAccess, createCustomerAccessGuard };
+module.exports = { MANAGEMENT_ROLES, READ_METHODS, positiveId, pathId, resolveCustomerIdFromRequest, resolveCustomerAccess, createCustomerAccessGuard };
