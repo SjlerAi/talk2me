@@ -43,12 +43,18 @@ The migration runner must:
 - require at least 25 migrations and explicit migration 025 presence;
 - read and freeze the complete migration source inventory before connecting to the database;
 - acquire the MySQL advisory lock `talk2me_os2_preview_migrations` before ledger or migration activity;
-- stop when the advisory lock cannot be acquired;
-- record every migration checksum;
+- bind the advisory lock to the current MySQL `CONNECTION_ID()`;
+- verify advisory-lock ownership through `IS_USED_LOCK()` before migration work;
+- stop when lock ownership differs from the active migration connection;
+- load migration ledger rows in primary-key order;
+- require the applied ledger to be an exact strict prefix of the ordered source inventory;
+- reject unknown, duplicate, reordered, skipped, or future ledger entries;
+- validate every stored ledger checksum before applying any new migration;
 - stop when an already-applied migration checksum differs;
-- release the advisory lock during cleanup.
+- confirm advisory-lock ownership again before release;
+- require `RELEASE_LOCK()` to report successful release.
 
-Only one controlled migration process may operate against the preview database at a time.
+Only one controlled migration process may operate against the preview database at a time. Any ledger gap, order mismatch, checksum mismatch, or advisory-lock ownership mismatch is a hard stop and requires investigation before rerunning migrations.
 
 ## 3. Mandatory preview data verification
 
