@@ -78,7 +78,9 @@ need(packageSource,'"verify:release-manifest": "node release-manifest-verificati
 need(packageSource,'node --check merge-restore-evidence-verification.js','restore evidence verifier syntax registration');
 need(packageSource,'node --check preview-data-verification.js','preview data verifier syntax registration');
 need(packageSource,'node --check release-manifest-verification.js','release manifest verifier syntax registration');
-need(packageSource,'"version": "0.58.0"','release manifest verification release version');
+need(packageSource,'"version": "0.59.0"','preview release version');
+need(releaseManifestVerification,"const expectedPreviewVersion = '0.59.0'",'release manifest expected preview version');
+need(releaseManifestVerification,'manifest.version !== expectedPreviewVersion','release manifest version verification');
 need(releaseManifestVerification,'crypto.timingSafeEqual','timing-safe manifest checksum comparison');
 need(releaseManifestVerification,"manifest.branch !== 'agent/talk2me-os2-integrated-rebuild'",'release manifest branch identity verification');
 need(releaseManifestVerification,'manifest.previewDataVerificationRequired !== true','release manifest preview data verification requirement');
@@ -117,4 +119,4 @@ need(releaseManifestCheck,'mergeExecutionEnabled:false','release manifest output
 need(releaseManifestCheck,"pkg.scripts.check.includes('release-manifest-check.js')",'release manifest normal validation registration');
 forbid(releaseManifestCheck,"pkg.scripts.check.includes('release-candidate-gate.js') === false",'inverted release-candidate normal-chain assertion');
 
-console.log(JSON.stringify({ok:true,check:'schema-source-consistency',previewDataVerificationRequired:true,previewDataVerificationOrder:['schema-verification.js','merge-restore-evidence-verification.js'],mergeExecutionEnabled:false},null,2));
+console.log(JSON.stringify({ok:true,check:'schema-source-consistency',version:'0.59.0',previewDataVerificationRequired:true,previewDataVerificationOrder:['schema-verification.js','merge-restore-evidence-verification.js'],mergeExecutionEnabled:false},null,2));
