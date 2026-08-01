@@ -11,6 +11,7 @@ const expectedBranch = 'agent/talk2me-os2-integrated-rebuild';
 const expectedDatabase = 'kloka_talk2me';
 const bootstrapFile = 'MIGRATION_LEDGER_BOOTSTRAP.sql';
 const restorePinMigration = '20260801_025_merge_authorisation_restore_pin.sql';
+const verifierTimeoutMs = 30000;
 
 function fail(message) { failures.push(message); }
 function exists(file) { return fs.existsSync(path.join(root, file)); }
@@ -21,20 +22,24 @@ function requireValue(name) {
   if (!value) fail(`${name} is required`);
   return value;
 }
-function validatePrivateDirectory(directory) {
+function validateReleaseText(value, label, maxLength) {
+  if (!value) return;
+  if (value.length > maxLength) fail(`${label} must not exceed ${maxLength} characters`);
+  if(/[\u0000-\u001f\u007f]/.test(value)) fail(`${label} must not contain control characters`);
+}
+function validatePrivateDirectory(directory, label = 'Release manifest directory') {
   const stat = fs.lstatSync(directory);
-  if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error(`Release manifest directory must be a regular non-symlink directory: ${directory}`);
-  if (process.platform !== 'win32' && (stat.mode & 0o077) !== 0) throw new Error(`Release manifest directory permissions must not allow group or world access: ${directory}`);
-  if (fs.realpathSync.native(directory) !== directory) throw new Error(`Release manifest directory must resolve to its exact canonical path: ${directory}`);
+  if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error(`${label} must be a regular non-symlink directory: ${directory}`);
+  if (process.platform !== 'win32' && (stat.mode & 0o077) !== 0) throw new Error(`${label} permissions must not allow group or world access: ${directory}`);
+  if (process.platform !== 'win32' && typeof process.getuid === 'function' && stat.uid !== process.getuid()) throw new Error(`${label} must be owned by the executing user: ${directory}`);
+  if (fs.realpathSync.native(directory) !== directory) throw new Error(`${label} must resolve to its exact canonical path: ${directory}`);
 }
 function writePrivateTemp(file, value) {
   const descriptor = fs.openSync(file, 'wx', 0o600);
   try { fs.writeFileSync(descriptor, value, 'utf8'); fs.fsyncSync(descriptor); }
   finally { fs.closeSync(descriptor); }
 }
-function removeIfPresent(file) {
-  try { fs.unlinkSync(file); } catch (error) { if (error.code !== 'ENOENT') throw error; }
-}
+function removeIfPresent(file) { try { fs.unlinkSync(file); } catch (error) { if (error.code !== 'ENOENT') throw error; } }
 function syncDirectory(directory) {
   const descriptor = fs.openSync(directory, fs.constants.O_RDONLY);
   try { fs.fsyncSync(descriptor); } finally { fs.closeSync(descriptor); }
@@ -66,19 +71,15 @@ function publishEvidencePair(manifestPath, manifestText, checksumText) {
 function runVerifier(script, extraEnv, label) {
   const result = spawnSync(process.execPath, [path.join(root, script)], {
     cwd: root,
-    env: {
-      ...process.env,
-      DB_NAME: expectedDatabase,
-      PREVIEW_APP_ROOT: root,
-      RELEASE_BRANCH: expectedBranch,
-      ALLOW_PRODUCTION_MUTATION: 'false',
-      ENABLE_CUSTOMER_MERGE_EXECUTION: 'false',
-      ...extraEnv
-    },
+    env: { ...process.env, DB_NAME: expectedDatabase, PREVIEW_APP_ROOT: root, RELEASE_BRANCH: expectedBranch, ALLOW_PRODUCTION_MUTATION: 'false', ENABLE_CUSTOMER_MERGE_EXECUTION: 'false', ...extraEnv },
     encoding: 'utf8',
     maxBuffer: 16 * 1024 * 1024,
+    timeout: verifierTimeoutMs,
+    killSignal: 'SIGKILL',
+    shell: false,
     windowsHide: true
   });
+  if (result.error && result.error.code === 'ETIMEDOUT') throw new Error(`${label} exceeded ${verifierTimeoutMs}ms`);
   if (result.error) throw new Error(`${label} could not start: ${result.error.message}`);
   if (result.signal) throw new Error(`${label} was interrupted by signal ${result.signal}`);
   if (result.status !== 0) throw new Error(`${label} failed with status ${result.status}: ${String(result.stderr || '').trim()}`);
@@ -101,6 +102,8 @@ const output = requireValue('RELEASE_MANIFEST_PATH');
 const bootstrapEvidencePath = requireValue('MIGRATION_LEDGER_BOOTSTRAP_EVIDENCE_PATH');
 const approvedSourceInventorySha256 = requireValue('RELEASE_SOURCE_INVENTORY_SHA256').toLowerCase();
 
+validateReleaseText(approvedBy, 'RELEASE_APPROVED_BY', 160);
+validateReleaseText(changeReference, 'RELEASE_CHANGE_REFERENCE', 240);
 if (pkg.name !== 'talk2me-os2-preview') fail(`Unexpected preview package name: ${pkg.name}`);
 if (pkg.version !== '0.59.0') fail(`Unexpected preview package version: ${pkg.version}`);
 if (!exists('package-lock.json')) fail('package-lock.json is required before release-candidate freeze');
@@ -116,22 +119,11 @@ if (!path.isAbsolute(output)) fail('RELEASE_MANIFEST_PATH must be absolute');
 if (path.normalize(output) !== output) fail('RELEASE_MANIFEST_PATH must be normalized');
 if (!path.isAbsolute(bootstrapEvidencePath)) fail('MIGRATION_LEDGER_BOOTSTRAP_EVIDENCE_PATH must be absolute');
 if (path.normalize(bootstrapEvidencePath) !== bootstrapEvidencePath) fail('MIGRATION_LEDGER_BOOTSTRAP_EVIDENCE_PATH must be normalized');
+if (output === bootstrapEvidencePath) fail('Release manifest path must differ from bootstrap evidence path');
 
-const requiredFiles = [
-  bootstrapFile, 'migration-ledger-bootstrap-evidence-verification.js', 'migration-ledger-bootstrap-evidence-check.js',
-  'migration-runner-security-check.js', 'workspace-topology-governance-check.js', 'workspace-source-integrity.js',
-  'release-source-integrity-verification.js', 'release-source-integrity-check.js', 'preview-activation-governance-check.js',
-  'release-evidence-security-check.js', 'deployment-check.js', 'uat-gate-check.js', 'schema-verification.js',
-  'preview-data-verification.js', 'merge-restore-evidence-verification.js', `migrations/${restorePinMigration}`
-];
+const requiredFiles = [bootstrapFile,'migration-ledger-bootstrap-evidence-verification.js','migration-ledger-bootstrap-evidence-check.js','migration-runner-security-check.js','workspace-topology-governance-check.js','workspace-source-integrity.js','release-source-integrity-verification.js','release-source-integrity-check.js','preview-activation-governance-check.js','release-evidence-security-check.js','deployment-check.js','uat-gate-check.js','schema-verification.js','preview-data-verification.js','merge-restore-evidence-verification.js',`migrations/${restorePinMigration}`];
 for (const file of requiredFiles) if (!exists(file)) fail(`Missing release dependency: ${file}`);
-
-const requiredScripts = [
-  'verify:migration-ledger-bootstrap-evidence','migrate:preview','verify:preview-data',
-  'check:migration-ledger-bootstrap-evidence','check:migration-runner-security',
-  'check:workspace-topology-governance','check:preview-activation-governance','check:release-evidence-security',
-  'check:readiness','check:deployment','check:uat-gate'
-];
+const requiredScripts = ['verify:migration-ledger-bootstrap-evidence','migrate:preview','verify:preview-data','check:migration-ledger-bootstrap-evidence','check:migration-runner-security','check:workspace-topology-governance','check:preview-activation-governance','check:release-evidence-security','check:readiness','check:deployment','check:uat-gate'];
 for (const script of requiredScripts) if (!pkg.scripts || !pkg.scripts[script]) fail(`Missing package command: ${script}`);
 
 let bootstrapEvidenceSha256 = null;
@@ -139,34 +131,20 @@ let bootstrapEvidenceSidecarSha256 = null;
 let sourceIntegrityEvidence = null;
 if (failures.length === 0) {
   try {
-    sourceIntegrityEvidence = runVerifier(
-      'release-source-integrity-verification.js',
-      { RELEASE_SOURCE_INVENTORY_SHA256: approvedSourceInventorySha256 },
-      'Release source integrity verifier'
-    );
-    if (String(sourceIntegrityEvidence.inventorySha256 || '').toLowerCase() !== approvedSourceInventorySha256) {
-      throw new Error('Release source integrity verifier returned an unexpected inventory digest');
-    }
-    runVerifier(
-      'migration-ledger-bootstrap-evidence-verification.js',
-      { MIGRATION_LEDGER_BOOTSTRAP_EVIDENCE_PATH: bootstrapEvidencePath },
-      'Bootstrap evidence verifier'
-    );
+    validatePrivateDirectory(path.dirname(bootstrapEvidencePath), 'Bootstrap evidence directory');
+    sourceIntegrityEvidence = runVerifier('release-source-integrity-verification.js',{ RELEASE_SOURCE_INVENTORY_SHA256: approvedSourceInventorySha256 },'Release source integrity verifier');
+    if (String(sourceIntegrityEvidence.inventorySha256 || '').toLowerCase() !== approvedSourceInventorySha256) throw new Error('Release source integrity verifier returned an unexpected inventory digest');
+    runVerifier('migration-ledger-bootstrap-evidence-verification.js',{ MIGRATION_LEDGER_BOOTSTRAP_EVIDENCE_PATH: bootstrapEvidencePath },'Bootstrap evidence verifier');
     bootstrapEvidenceSha256 = sha256File(bootstrapEvidencePath);
     bootstrapEvidenceSidecarSha256 = sha256File(`${bootstrapEvidencePath}.sha256`);
-  } catch (error) {
-    fail(error.message);
-  }
+  } catch (error) { fail(error.message); }
 }
 
 const migrationsDirectory = path.join(root, 'migrations');
 const migrations = fs.readdirSync(migrationsDirectory).filter(name => /^\d+_.+\.sql$/.test(name)).sort();
 if (migrations.length < 25) fail(`Expected at least 25 migrations, found ${migrations.length}`);
 if (!migrations.includes(restorePinMigration)) fail(`Missing required migration: ${restorePinMigration}`);
-
-const forbiddenRuntimeCreate = fs.readdirSync(root)
-  .filter(name => name === 'server.js' || name.endsWith('-routes.js'))
-  .filter(name => /CREATE\s+TABLE/i.test(fs.readFileSync(path.join(root, name), 'utf8')));
+const forbiddenRuntimeCreate = fs.readdirSync(root).filter(name => name === 'server.js' || name.endsWith('-routes.js')).filter(name => /CREATE\s+TABLE/i.test(fs.readFileSync(path.join(root, name), 'utf8')));
 if (forbiddenRuntimeCreate.length) fail(`Runtime CREATE TABLE found in: ${forbiddenRuntimeCreate.join(', ')}`);
 
 if (output && path.isAbsolute(output) && path.normalize(output) === output) {
@@ -222,7 +200,6 @@ if (failures.length === 0) {
   try { publishEvidencePair(output, manifestText, `${digest}  ${path.basename(output)}\n`); }
   catch (error) { fail(`Release evidence publication failed: ${error.message}`); }
 }
-
 manifest.ok = failures.length === 0;
 console.log(JSON.stringify(manifest, null, 2));
 if (failures.length) process.exit(1);
