@@ -7,6 +7,7 @@ const root = __dirname;
 const verifier = fs.readFileSync(path.join(root, 'migration-ledger-bootstrap-evidence-verification.js'), 'utf8');
 const runner = fs.readFileSync(path.join(root, 'migration-ledger-bootstrap-runner.js'), 'utf8');
 const runbook = fs.readFileSync(path.join(root, 'PREVIEW_DEPLOYMENT_RUNBOOK.md'), 'utf8');
+const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 
 function requireMarkers(source, markers, label) {
   for (const marker of markers) {
@@ -56,6 +57,29 @@ requireMarkers(runbook, [
   'advisory lock lifecycle'
 ], 'Deployment runbook');
 
+if (pkg.scripts['bootstrap:migration-ledger'] !== 'node migration-ledger-bootstrap-runner.js') {
+  throw new Error('Missing bootstrap:migration-ledger command');
+}
+if (pkg.scripts['verify:migration-ledger-bootstrap-evidence'] !== 'node migration-ledger-bootstrap-evidence-verification.js') {
+  throw new Error('Missing verify:migration-ledger-bootstrap-evidence command');
+}
+if (pkg.scripts['check:migration-ledger-bootstrap-runner'] !== 'node migration-ledger-bootstrap-runner-check.js') {
+  throw new Error('Missing check:migration-ledger-bootstrap-runner command');
+}
+if (pkg.scripts['check:migration-ledger-bootstrap-evidence'] !== 'node migration-ledger-bootstrap-evidence-check.js') {
+  throw new Error('Missing check:migration-ledger-bootstrap-evidence command');
+}
+for (const marker of [
+  'node --check migration-ledger-bootstrap-runner.js',
+  'node --check migration-ledger-bootstrap-runner-check.js',
+  'node --check migration-ledger-bootstrap-evidence-verification.js',
+  'node --check migration-ledger-bootstrap-evidence-check.js',
+  'node migration-ledger-bootstrap-runner-check.js',
+  'node migration-ledger-bootstrap-evidence-check.js'
+]) {
+  if (!pkg.scripts.check.includes(marker)) throw new Error(`Normal validation missing bootstrap control: ${marker}`);
+}
+
 console.log(JSON.stringify({
   ok: true,
   check: 'migration-ledger-bootstrap-evidence-governance',
@@ -68,6 +92,8 @@ console.log(JSON.stringify({
   exactLedgerCreationRequired: true,
   schemaAndEmptyLedgerVerificationRequired: true,
   advisoryLockLifecycleRequired: true,
+  packageCommandsRegistered: true,
+  normalValidationRegistered: true,
   productionMutationEnabled: false,
   mergeExecutionEnabled: false
 }, null, 2));
