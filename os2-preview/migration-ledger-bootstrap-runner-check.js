@@ -6,6 +6,7 @@ const path = require('path');
 const root = __dirname;
 const runner = fs.readFileSync(path.join(root, 'migration-ledger-bootstrap-runner.js'), 'utf8');
 const runbook = fs.readFileSync(path.join(root, 'PREVIEW_DEPLOYMENT_RUNBOOK.md'), 'utf8');
+const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 
 const runnerMarkers = [
   "expectedDatabase = 'kloka_talk2me'",
@@ -65,6 +66,22 @@ for (const marker of runbookMarkers) {
   if (!runbook.includes(marker)) throw new Error(`Deployment runbook missing bootstrap runner marker: ${marker}`);
 }
 
+if (pkg.scripts['bootstrap:migration-ledger'] !== 'node migration-ledger-bootstrap-runner.js') {
+  throw new Error('Missing bootstrap:migration-ledger command');
+}
+if (pkg.scripts['check:migration-ledger-bootstrap-runner'] !== 'node migration-ledger-bootstrap-runner-check.js') {
+  throw new Error('Missing check:migration-ledger-bootstrap-runner command');
+}
+if (!pkg.scripts.check.includes('node --check migration-ledger-bootstrap-runner.js')) {
+  throw new Error('Bootstrap runner syntax check missing from normal validation');
+}
+if (!pkg.scripts.check.includes('node --check migration-ledger-bootstrap-runner-check.js')) {
+  throw new Error('Bootstrap runner governance syntax check missing from normal validation');
+}
+if (!pkg.scripts.check.includes('node migration-ledger-bootstrap-runner-check.js')) {
+  throw new Error('Bootstrap runner governance check missing from normal validation');
+}
+
 console.log(JSON.stringify({
   ok: true,
   check: 'migration-ledger-bootstrap-runner-governance',
@@ -76,6 +93,8 @@ console.log(JSON.stringify({
   existingLedgerRefused: true,
   postCreateSchemaVerificationRequired: true,
   emptyLedgerRequired: true,
+  packageCommandsRegistered: true,
+  normalValidationRegistered: true,
   productionMutationEnabled: false,
   mergeExecutionEnabled: false
 }, null, 2));
