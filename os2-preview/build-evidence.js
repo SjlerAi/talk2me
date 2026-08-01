@@ -39,6 +39,14 @@ function main() {
     sha256: checksum(item.absolute)
   }));
 
+  const lockExists = fs.existsSync(path.join(root, 'package-lock.json'));
+  const workflowLockState = String(process.env.DEPENDENCY_LOCK_PRESENT || '').toLowerCase();
+  const dependencyLockPresent = workflowLockState === 'true'
+    ? true
+    : workflowLockState === 'false'
+      ? false
+      : lockExists;
+
   const evidence = {
     application: 'Talk2Me OS2 integrated rebuild',
     version: packageJson.version,
@@ -50,6 +58,9 @@ function main() {
     nodeVersion: process.version,
     platform: process.platform,
     architecture: process.arch,
+    dependencyLockPresent,
+    dependencyAuditEligible: dependencyLockPresent,
+    releaseCandidateEligible: dependencyLockPresent,
     fileCount: manifest.length,
     migrationCount: manifest.filter(item => item.path.startsWith('migrations/') && item.path.endsWith('.sql')).length,
     routeFileCount: manifest.filter(item => item.path.endsWith('-routes.js')).length,
@@ -61,7 +72,14 @@ function main() {
   fs.writeFileSync(jsonPath, JSON.stringify(evidence, null, 2) + '\n', { mode: 0o600 });
   const digest = checksum(jsonPath);
   fs.writeFileSync(path.join(evidenceDir, 'build-evidence.sha256'), `${digest}  build-evidence.json\n`, { mode: 0o600 });
-  console.log(JSON.stringify({ ok: true, version: evidence.version, files: evidence.fileCount, migrations: evidence.migrationCount, sha256: digest }, null, 2));
+  console.log(JSON.stringify({
+    ok: true,
+    version: evidence.version,
+    files: evidence.fileCount,
+    migrations: evidence.migrationCount,
+    dependencyLockPresent: evidence.dependencyLockPresent,
+    sha256: digest
+  }, null, 2));
 }
 
 main();
