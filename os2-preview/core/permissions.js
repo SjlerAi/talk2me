@@ -28,18 +28,42 @@ const ROLE_PERMISSIONS = Object.freeze({
   ]
 });
 
+const PROTECTED_PERMISSION_ROLES = Object.freeze({
+  'customer.merge.approve': new Set(['owner']),
+  'customer.merge.execution.authorise': new Set(['owner']),
+  'customer.merge.execution.consume': new Set(['owner']),
+  'staff.delete': new Set(['owner']),
+  'security.role.manage': new Set(['owner']),
+  'privacy.retention': new Set(['owner','manager'])
+});
+
 function normaliseRole(role) {
   return String(role || '').trim().toLowerCase();
 }
 
+function normaliseConfiguredPermissions(configured) {
+  if (!Array.isArray(configured)) return [];
+  return configured.map(value => String(value || '').trim()).filter(Boolean);
+}
+
+function roleAllowsProtectedPermission(role, permission) {
+  const allowedRoles = PROTECTED_PERMISSION_ROLES[permission];
+  return !allowedRoles || allowedRoles.has(normaliseRole(role));
+}
+
 function permissionsFor(role, configured = []) {
-  const base = ROLE_PERMISSIONS[normaliseRole(role)] || [];
-  return new Set([...base, ...(Array.isArray(configured) ? configured : [])]);
+  const normalisedRole = normaliseRole(role);
+  const base = ROLE_PERMISSIONS[normalisedRole] || [];
+  const safeConfigured = normaliseConfiguredPermissions(configured)
+    .filter(permission => roleAllowsProtectedPermission(normalisedRole, permission));
+  return new Set([...base, ...safeConfigured]);
 }
 
 function hasPermission(user, permission, context = {}) {
   if (!user || !permission) return false;
-  const granted = permissionsFor(user.role, user.permissions);
+  const role = normaliseRole(user.role);
+  if (!roleAllowsProtectedPermission(role, permission)) return false;
+  const granted = permissionsFor(role, user.permissions);
   if (granted.has('*') || granted.has(permission)) return true;
 
   if (granted.has(`${permission}.own`) && Number(context.ownerStaffId) === Number(user.id)) return true;
@@ -75,4 +99,7 @@ function requireAnyPermission(...permissions) {
   };
 }
 
-module.exports = { ROLE_PERMISSIONS, normaliseRole, permissionsFor, hasPermission, requirePermission, requireAnyPermission };
+module.exports = {
+  ROLE_PERMISSIONS,PROTECTED_PERMISSION_ROLES,normaliseRole,normaliseConfiguredPermissions,
+  roleAllowsProtectedPermission,permissionsFor,hasPermission,requirePermission,requireAnyPermission
+};
