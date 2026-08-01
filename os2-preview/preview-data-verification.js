@@ -90,19 +90,33 @@ for (const verifier of checks) {
   try { parsed = JSON.parse(String(result.stdout || '').trim()); } catch { fail('VERIFIER_OUTPUT_INVALID_JSON', { completed, failedVerifier: verifier.file }); }
   if (!parsed || parsed.ok !== true) fail('VERIFIER_OUTPUT_NOT_SUCCESSFUL', { completed, failedVerifier: verifier.file });
   if (parsed.database !== expectedDatabase) fail('VERIFIER_DATABASE_MISMATCH', { completed, failedVerifier: verifier.file });
+  if (parsed.check !== verifier.check) fail('VERIFIER_IDENTITY_MISMATCH', { completed, failedVerifier: verifier.file });
+  if (parsed.databaseIdentityVerified !== true || parsed.autocommitVerified !== true || parsed.utcSessionVerified !== true) fail('VERIFIER_SESSION_EVIDENCE_INCOMPLETE', { completed, failedVerifier: verifier.file });
+  if (parsed.productionMutationEnabled !== false || parsed.mergeExecutionEnabled !== false) fail('VERIFIER_SAFETY_EVIDENCE_INVALID', { completed, failedVerifier: verifier.file });
+
   if (verifier.check === 'schema-verification') {
     if (!Number.isInteger(parsed.requiredTables) || parsed.requiredTables < 50) fail('SCHEMA_TABLE_EVIDENCE_INCOMPLETE', { completed, failedVerifier: verifier.file });
-    if (!Number.isInteger(parsed.verifiedColumnGroups) || parsed.verifiedColumnGroups < 25) fail('SCHEMA_COLUMN_EVIDENCE_INCOMPLETE', { completed, failedVerifier: verifier.file });
-    if (!Number.isInteger(parsed.appliedMigrations) || parsed.appliedMigrations < 25) fail('SCHEMA_MIGRATION_EVIDENCE_INCOMPLETE', { completed, failedVerifier: verifier.file });
-    for (const key of ['duplicateAccounts','multiplePrimaryAccounts','duplicateMobiles','duplicateAccessGrants','archivedWithActiveOwnership','invalidDuplicatePairs','invalidMergePlans','invalidAuthorisations','invalidRepresentativePermissions','activeExpiredRepresentatives','unsafeApprovals','invalidatedApprovalsStillOpen']) {
-      if (parsed[key] !== 0) fail(`SCHEMA_ZERO_DEFECT_EVIDENCE_MISSING:${key}`, { completed, failedVerifier: verifier.file });
+    if (!Number.isInteger(parsed.verifiedColumnGroups) || parsed.verifiedColumnGroups < 30) fail('SCHEMA_COLUMN_EVIDENCE_INCOMPLETE', { completed, failedVerifier: verifier.file });
+    if (parsed.tableEnginesVerified !== parsed.requiredTables || parsed.tableCollationsVerified !== parsed.requiredTables) fail('SCHEMA_TABLE_METADATA_EVIDENCE_INCOMPLETE', { completed, failedVerifier: verifier.file });
+    if (parsed.appliedMigrations !== 25 || parsed.exactMigrationCountVerified !== true) fail('SCHEMA_MIGRATION_COUNT_INVALID', { completed, failedVerifier: verifier.file });
+    for (const key of ['migrationLedgerColumnNamesCorrected','restorePinMigrationApplied','migrationLedgerSequenceVerified','migrationLedgerChecksumsVerified','migrationExecutionMetadataVerified']) {
+      if (parsed[key] !== true) fail(`SCHEMA_LEDGER_EVIDENCE_MISSING:${key}`, { completed, failedVerifier: verifier.file });
     }
+    if (!parsed.zeroDefectChecks || typeof parsed.zeroDefectChecks !== 'object' || Array.isArray(parsed.zeroDefectChecks)) fail('SCHEMA_ZERO_DEFECT_MAP_MISSING', { completed, failedVerifier: verifier.file });
+    const defectEntries = Object.entries(parsed.zeroDefectChecks);
+    if (parsed.zeroDefectCheckCount !== defectEntries.length || defectEntries.length < 18) fail('SCHEMA_ZERO_DEFECT_COUNT_INVALID', { completed, failedVerifier: verifier.file });
+    for (const [key, value] of defectEntries) if (value !== 0) fail(`SCHEMA_DEFECT_PRESENT:${key}`, { completed, failedVerifier: verifier.file });
   }
+
   if (verifier.check === 'merge-restore-evidence-verification') {
-    if (parsed.check !== verifier.check) fail('RESTORE_VERIFIER_IDENTITY_MISMATCH', { completed, failedVerifier: verifier.file });
-    if (parsed.invalidAuthorisations !== 0) fail('INVALID_RESTORE_AUTHORISATIONS_DETECTED', { completed, failedVerifier: verifier.file });
+    if (parsed.invalidAuthorisations !== 0 || parsed.authorisedWithoutPinnedRestore !== 0) fail('INVALID_RESTORE_AUTHORISATIONS_DETECTED', { completed, failedVerifier: verifier.file });
+    for (const key of ['backupIdentityVerified','backupChecksumPolicyVerified','backupTimestampsVerified','backupInventoryCountsVerified','restoreIdentityVerified','restoreTimestampsVerified','restoreEvidenceJsonRequired','restoreReviewerRequired','authorisationOrderingVerified']) {
+      if (parsed[key] !== true) fail(`RESTORE_EVIDENCE_MISSING:${key}`, { completed, failedVerifier: verifier.file });
+    }
+    if (!Number.isInteger(parsed.inspectedPinnedAuthorisations) || parsed.inspectedPinnedAuthorisations < 0) fail('RESTORE_INSPECTION_COUNT_INVALID', { completed, failedVerifier: verifier.file });
   }
-  evidence.push({ verifier: verifier.file, check: parsed.check || verifier.check, ok: true });
+
+  evidence.push({ verifier: verifier.file, check: parsed.check, ok: true });
   completed.push(verifier.file);
 }
 
@@ -135,9 +149,11 @@ console.log(JSON.stringify({
   verifierForcedKillSignal: 'SIGKILL',
   verifierWindowHidden: true,
   schemaEvidenceParsed: true,
+  exactMigrationLedgerVerified: true,
   schemaZeroDefectEvidenceVerified: true,
   restoreEvidenceParsed: true,
   restoreAuthorisationDefects: 0,
+  restoreEvidenceSemanticsVerified: true,
   databaseBackedVerificationExecuted: true,
   productionMutationEnabled: false,
   mergeExecutionEnabled: false
