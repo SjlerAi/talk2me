@@ -8,44 +8,20 @@ const expectedBranch = 'agent/talk2me-os2-integrated-rebuild';
 const root = __dirname;
 
 function fail(message) {
-  console.error(JSON.stringify({
-    ok: false,
-    check: 'workspace-topology-verification',
-    error: message,
-    productionMutationEnabled: false,
-    mergeExecutionEnabled: false
-  }, null, 2));
+  console.error(JSON.stringify({ ok: false, check: 'workspace-topology-verification', error: message, productionMutationEnabled: false, mergeExecutionEnabled: false }, null, 2));
   process.exit(1);
 }
 
 function validateDirectory(directory, label, expectedOwner) {
   let pathStat;
-  try {
-    pathStat = fs.lstatSync(directory);
-  } catch {
-    fail(`${label} is missing: ${directory}`);
-  }
+  try { pathStat = fs.lstatSync(directory); } catch { fail(`${label} is missing: ${directory}`); }
   if (!pathStat.isDirectory() || pathStat.isSymbolicLink()) fail(`${label} must be a real non-symlink directory: ${directory}`);
   if (process.platform !== 'win32' && (pathStat.mode & 0o022) !== 0) fail(`${label} must not be group or world writable: ${directory}`);
   if (Number.isInteger(expectedOwner) && pathStat.uid !== expectedOwner) fail(`${label} owner differs from the preview application root: ${directory}`);
-
-  let canonical;
-  try {
-    canonical = fs.realpathSync.native(directory);
-  } catch {
-    fail(`${label} cannot be resolved canonically: ${directory}`);
-  }
+  const canonical = fs.realpathSync.native(directory);
   if (canonical !== directory) fail(`${label} path is not canonical: ${directory}`);
-  if (typeof fs.constants.O_NOFOLLOW !== 'number' || typeof fs.constants.O_DIRECTORY !== 'number') {
-    fail('O_NOFOLLOW and O_DIRECTORY are required for workspace topology verification');
-  }
-
-  let descriptor;
-  try {
-    descriptor = fs.openSync(directory, fs.constants.O_RDONLY | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW);
-  } catch (error) {
-    fail(`Unable to securely open ${label.toLowerCase()}: ${directory}: ${error.message}`);
-  }
+  if (typeof fs.constants.O_NOFOLLOW !== 'number' || typeof fs.constants.O_DIRECTORY !== 'number') fail('O_NOFOLLOW and O_DIRECTORY are required for workspace topology verification');
+  const descriptor = fs.openSync(directory, fs.constants.O_RDONLY | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW);
   try {
     const descriptorStat = fs.fstatSync(descriptor);
     if (!descriptorStat.isDirectory()) fail(`${label} descriptor is not a directory: ${directory}`);
@@ -53,40 +29,20 @@ function validateDirectory(directory, label, expectedOwner) {
     if (process.platform !== 'win32' && (descriptorStat.mode & 0o022) !== 0) fail(`${label} descriptor is group or world writable: ${directory}`);
     if (Number.isInteger(expectedOwner) && descriptorStat.uid !== expectedOwner) fail(`${label} descriptor owner differs from the preview application root: ${directory}`);
     return { uid: descriptorStat.uid, dev: descriptorStat.dev, ino: descriptorStat.ino };
-  } finally {
-    fs.closeSync(descriptor);
-  }
+  } finally { fs.closeSync(descriptor); }
 }
 
 function validateProtectedFile(file, label, expectedOwner, required, maxBytes) {
   let pathStat;
-  try {
-    pathStat = fs.lstatSync(file);
-  } catch {
-    if (!required) return false;
-    fail(`${label} is missing: ${file}`);
-  }
+  try { pathStat = fs.lstatSync(file); } catch { if (!required) return false; fail(`${label} is missing: ${file}`); }
   if (!pathStat.isFile() || pathStat.isSymbolicLink()) fail(`${label} must be a regular non-symlink file: ${file}`);
   if (Number.isInteger(expectedOwner) && pathStat.uid !== expectedOwner) fail(`${label} owner differs from the preview application root: ${file}`);
   if (process.platform !== 'win32' && (pathStat.mode & 0o022) !== 0) fail(`${label} must not be group or world writable: ${file}`);
   if (pathStat.nlink !== 1) fail(`${label} must not have additional hard links: ${file}`);
   if (pathStat.size > maxBytes) fail(`${label} exceeds the maximum permitted size: ${file}`);
-
-  let canonical;
-  try {
-    canonical = fs.realpathSync.native(file);
-  } catch {
-    fail(`${label} cannot be resolved canonically: ${file}`);
-  }
-  if (canonical !== file) fail(`${label} path is not canonical: ${file}`);
+  if (fs.realpathSync.native(file) !== file) fail(`${label} path is not canonical: ${file}`);
   if (typeof fs.constants.O_NOFOLLOW !== 'number') fail('O_NOFOLLOW is required for protected workspace files');
-
-  let descriptor;
-  try {
-    descriptor = fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
-  } catch (error) {
-    fail(`Unable to securely open ${label}: ${file}: ${error.message}`);
-  }
+  const descriptor = fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
   try {
     const descriptorStat = fs.fstatSync(descriptor);
     if (!descriptorStat.isFile()) fail(`${label} descriptor is not a regular file: ${file}`);
@@ -95,9 +51,7 @@ function validateProtectedFile(file, label, expectedOwner, required, maxBytes) {
     if (descriptorStat.size > maxBytes) fail(`${label} descriptor exceeds the maximum permitted size: ${file}`);
     if (process.platform !== 'win32' && (descriptorStat.mode & 0o022) !== 0) fail(`${label} descriptor is group or world writable: ${file}`);
     if (Number.isInteger(expectedOwner) && descriptorStat.uid !== expectedOwner) fail(`${label} descriptor owner differs from the preview application root: ${file}`);
-  } finally {
-    fs.closeSync(descriptor);
-  }
+  } finally { fs.closeSync(descriptor); }
   return true;
 }
 
@@ -117,37 +71,16 @@ const migrationsDirectory = path.join(root, 'migrations');
 const migrationsIdentity = validateDirectory(migrationsDirectory, 'Migrations directory', rootIdentity.uid);
 validateProtectedFile(path.join(root, 'package.json'), 'package.json', rootIdentity.uid, true, 1024 * 1024);
 const packageLockPresent = validateProtectedFile(path.join(root, 'package-lock.json'), 'package-lock.json', rootIdentity.uid, false, 16 * 1024 * 1024);
+const migrationLedgerBootstrapPresent = validateProtectedFile(path.join(root, 'MIGRATION_LEDGER_BOOTSTRAP.sql'), 'Migration ledger bootstrap', rootIdentity.uid, true, 256 * 1024);
 
 const migrationNames = fs.readdirSync(migrationsDirectory).filter(name => /^\d+_.+\.sql$/.test(name)).sort();
 if (migrationNames.length < 25) fail(`Expected at least 25 migration files, found ${migrationNames.length}`);
 if (!migrationNames.includes('20260801_025_merge_authorisation_restore_pin.sql')) fail('Migration 025 is missing from the protected workspace');
-for (const name of migrationNames) {
-  if (path.basename(name) !== name) fail(`Invalid migration basename: ${name}`);
-  validateProtectedFile(path.join(migrationsDirectory, name), `Migration ${name}`, rootIdentity.uid, true, 4 * 1024 * 1024);
-}
+for (const name of migrationNames) validateProtectedFile(path.join(migrationsDirectory, name), `Migration ${name}`, rootIdentity.uid, true, 4 * 1024 * 1024);
 
 const rootAfter = fs.lstatSync(root);
 const migrationsAfter = fs.lstatSync(migrationsDirectory);
 if (rootAfter.dev !== rootIdentity.dev || rootAfter.ino !== rootIdentity.ino) fail('Preview application root changed during topology verification');
 if (migrationsAfter.dev !== migrationsIdentity.dev || migrationsAfter.ino !== migrationsIdentity.ino) fail('Migrations directory changed during topology verification');
 
-console.log(JSON.stringify({
-  ok: true,
-  check: 'workspace-topology-verification',
-  applicationRoot: root,
-  database: expectedDatabase,
-  branch: expectedBranch,
-  migrationCount: migrationNames.length,
-  packageLockPresent,
-  directoryNoFollowVerification: true,
-  directoryDescriptorIdentityVerified: true,
-  protectedFileNoFollowVerification: true,
-  protectedFileDescriptorIdentityVerified: true,
-  protectedFileSizeLimitsEnforced: true,
-  protectedFilesSymlinkFree: true,
-  protectedFilesHardLinkFree: true,
-  protectedPathsNotGroupWorldWritable: true,
-  ownershipConsistent: true,
-  productionMutationEnabled: false,
-  mergeExecutionEnabled: false
-}, null, 2));
+console.log(JSON.stringify({ ok: true, check: 'workspace-topology-verification', applicationRoot: root, database: expectedDatabase, branch: expectedBranch, migrationCount: migrationNames.length, packageLockPresent, migrationLedgerBootstrapPresent, directoryNoFollowVerification: true, directoryDescriptorIdentityVerified: true, protectedFileNoFollowVerification: true, protectedFileDescriptorIdentityVerified: true, protectedFileSizeLimitsEnforced: true, protectedFilesSymlinkFree: true, protectedFilesHardLinkFree: true, protectedPathsNotGroupWorldWritable: true, ownershipConsistent: true, productionMutationEnabled: false, mergeExecutionEnabled: false }, null, 2));
