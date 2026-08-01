@@ -10,6 +10,7 @@ const preflight = fs.readFileSync(path.join(root, 'preview-activation-preflight.
 const releaseGate = fs.readFileSync(path.join(root, 'release-candidate-gate.js'), 'utf8');
 const manifestVerifier = fs.readFileSync(path.join(root, 'release-manifest-verification.js'), 'utf8');
 const runbook = fs.readFileSync(path.join(root, 'RELEASE_CANDIDATE_RUNBOOK.md'), 'utf8');
+const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 
 function requireMarkers(source, markers, label) {
   for (const marker of markers) {
@@ -83,6 +84,23 @@ requireMarkers(runbook, [
   'shell execution disabled'
 ], 'Release candidate runbook');
 
+if (pkg.scripts?.['verify:release-source-integrity'] !== 'node release-source-integrity-verification.js') {
+  throw new Error('Missing exact verify:release-source-integrity package command');
+}
+if (pkg.scripts?.['check:release-source-integrity'] !== 'node release-source-integrity-check.js') {
+  throw new Error('Missing exact check:release-source-integrity package command');
+}
+const normalCheck = String(pkg.scripts?.check || '');
+for (const marker of [
+  'node --check release-source-integrity-verification.js',
+  'node --check release-source-integrity-check.js',
+  'node release-source-integrity-check.js'
+]) {
+  if (!normalCheck.includes(marker)) throw new Error(`Normal validation missing ${marker}`);
+}
+if (normalCheck.includes('node release-source-integrity-verification.js')) {
+  throw new Error('Environment-bound release source verifier must not execute in normal validation');
+}
 if (preflight.includes("'release-source-integrity-verification.js'")) {
   throw new Error('Environment-bound release source verification must not execute during source-only activation preflight');
 }
@@ -117,6 +135,10 @@ console.log(JSON.stringify({
   verificationBeforeReleasePublicationRequired: true,
   postFreezeVerificationBeforeIndividualFilesRequired: true,
   environmentBoundVerifierExcludedFromSourceOnlyPreflight: true,
+  packageCommandsRegistered: true,
+  normalSyntaxValidationRegistered: true,
+  normalGovernanceValidationRegistered: true,
+  environmentBoundVerifierExcludedFromNormalExecution: true,
   activationGovernanceRegistrationRequired: true,
   productionMutationEnabled: false,
   mergeExecutionEnabled: false
