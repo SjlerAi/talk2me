@@ -81,98 +81,37 @@ The migrations directory must be canonical, non-symlinked, owned by the executin
 
 The directory may contain regular migration files only. Hidden files and non-file directory entries are prohibited.
 
-The inventory must:
-
-- contain at least 25 and at most 250 files;
-- contain `20260801_025_merge_authorisation_restore_pin.sql`;
-- use the exact `YYYYMMDD_NNN_slug.sql` filename format;
-- use the date `20260801` for the current migration set;
-- use a contiguous migration sequence beginning at `001`;
-- contain no duplicate filenames;
-- remain unchanged before the database connection opens.
-
-A missing, duplicate, reordered, skipped, future, malformed or unexpected migration file is a hard stop.
+The inventory must contain at least 25 and at most 250 files, include `20260801_025_merge_authorisation_restore_pin.sql`, use the exact `YYYYMMDD_NNN_slug.sql` filename format, use the date `20260801`, use a contiguous sequence beginning at `001`, contain no duplicate filenames and remain unchanged before MySQL opens.
 
 ## 7. Secure migration-source reads
 
-Each migration must:
+Each migration must be canonical, regular, single-link, owner-consistent, safely permissioned, non-empty, no larger than 4 MiB, opened with `O_NOFOLLOW`, metadata-stable and byte-count stable. UTF-8 BOM, NUL bytes, CRLF and a missing final newline are prohibited.
 
-- be a canonical regular file;
-- have exactly one hard link;
-- share the migrations-directory owner;
-- reject group or world write permissions;
-- be larger than zero and no larger than 4 MiB;
-- open with `O_NOFOLLOW`;
-- preserve path and descriptor device, inode, owner, link count, size and modification identity;
-- return exactly the descriptor-reported byte count;
-- contain no UTF-8 BOM;
-- contain no NUL byte;
-- use LF rather than CRLF line endings;
-- end with a final newline.
-
-The runner rejects destructive database-level SQL and environment-changing SQL, including database creation or deletion, `USE`, grants, revocations, `LOAD DATA`, `OUTFILE`, `DUMPFILE`, global settings, master reset and shutdown operations.
-
-Migration-ledger self-mutation is prohibited. Migration files may not create, alter, drop, insert into, update or otherwise reference `os2_schema_migrations`; only the controlled migration runner records ledger completion.
+Destructive database-level SQL and migration-ledger self-mutation are prohibited.
 
 ## 8. Database connection and session controls
 
-The runner validates the database host, user and port before connecting. The port must be an integer from 1 through 65535.
+The runner validates the database host, user and port. It uses a 10-second connection timeout, database `kloka_talk2me`, UTF-8 handling, keepalive disabled, named placeholders disabled, positional placeholders and reviewed multiple-statement migration execution.
 
-The connection uses:
-
-- a 10-second connection timeout;
-- database `kloka_talk2me` only;
-- UTF-8 handling;
-- keepalive disabled;
-- named placeholders disabled;
-- positional placeholders for ledger writes;
-- date values returned as dates;
-- multiple statements enabled only because reviewed migration sources may contain ordered DDL statements.
-
-Before lock acquisition, the runner verifies `DATABASE()` equals `kloka_talk2me`, the connection ID is valid, autocommit is enabled, and the UTC session is established and re-read successfully.
+Before lock acquisition, it verifies `DATABASE()`, connection identity, autocommit and the UTC session.
 
 ## 9. Ledger validation before migration
 
-The migration advisory lock `talk2me_os2_preview_migrations` must be acquired within 10 seconds and owned by the active connection before ledger inspection.
-
-The ledger schema must retain the expected InnoDB engine, `utf8mb4_unicode_ci` collation, exact ordered columns, primary key and unique migration-name key.
-
-Existing ledger rows must form an exact strict prefix of the frozen source inventory. The runner validates:
-
-- strictly increasing positive unique row IDs;
-- unique trimmed migration names;
-- exact source order;
-- lowercase 64-character SHA-256 checksums;
-- exact checksum equality;
-- valid execution timestamps;
-- bounded execution-operator text;
-- non-negative integer execution time.
-
-Unknown, duplicate, reordered, skipped, malformed or checksum-mismatched ledger entries are hard stops.
+The advisory lock must be acquired and owned before ledger inspection. Existing rows must form an exact checksum-matching source prefix with increasing unique IDs, unique trimmed names, valid timestamps, bounded operator identity and non-negative execution duration.
 
 ## 10. Controlled application and ledger recording
 
-Already applied migrations are skipped only after strict-prefix verification. Every remaining source is applied in frozen order.
-
-After each migration, the ledger write uses positional placeholders and records the migration name, exact SHA-256, named operator and measured execution time. The insert must affect exactly one row and return a positive insert ID. A migration is not accepted as recorded when ledger insertion is unconfirmed.
-
-Individual `applied <migration>` console lines are progress output only and are not migration completion evidence.
+Every remaining source is applied in frozen order. Each ledger insert uses positional placeholders, must affect exactly one row and must return a positive insert ID. Individual `applied` lines are progress output only.
 
 ## 11. Final ledger reconciliation
 
-After all remaining sources run, the runner re-reads every ledger row and repeats the strict-prefix, checksum and execution-metadata validation.
-
-The final ledger inventory must equal the frozen migration inventory exactly. The final result records the original applied count, newly applied count, final ledger count and total source count.
-
-A source may not be considered complete merely because its SQL returned successfully. Complete migration evidence requires the final ledger inventory to match every frozen source exactly.
+After execution, the complete ledger is re-read and validated again. Its final count and exact ordered inventory must equal the frozen migration source inventory.
 
 ## 12. Lock release and connection closure
 
-During cleanup, advisory-lock ownership must still match the active migration connection. `RELEASE_LOCK()` must return successful release, and `IS_FREE_LOCK()` must then prove that the lock is free.
+`RELEASE_LOCK()` must succeed and `IS_FREE_LOCK()` must prove the lock is free. The database connection must close before final success.
 
-A lock release failure is a hard stop. The database connection must close even when release verification fails.
-
-Final success is reported only after the database connection closes before final success. It must include:
+Required completion evidence includes:
 
 ```text
 advisoryLockReleased: true
@@ -185,13 +124,70 @@ mergeExecutionEnabled: false
 
 ## 13. Mandatory preview data verification
 
-After migration and before restart:
+After migration and before restart, run the controlled command with the complete preview identity:
 
 ```bash
-DB_NAME=kloka_talk2me npm run verify:preview-data
+PREVIEW_APP_ROOT=/home/kloka/repositories/talk2me/os2-preview \
+RELEASE_BRANCH=agent/talk2me-os2-integrated-rebuild \
+DB_NAME=kloka_talk2me \
+DB_HOST=<approved-preview-database-host> \
+DB_PORT=3306 \
+DB_USER=<approved-preview-database-user> \
+DB_PASSWORD=<preview-database-password> \
+ALLOW_PRODUCTION_MUTATION=false \
+ENABLE_CUSTOMER_MERGE_EXECUTION=false \
+npm run verify:preview-data
 ```
 
-This must run `schema-verification.js` followed by `merge-restore-evidence-verification.js`. Running only `npm run verify:schema` is not sufficient. A passing result must retain `mergeExecutionEnabled: false`.
+### Preview data-verification orchestration
+
+The orchestrator validates the exact preview database, exact controlled branch, absolute canonical application root, Node.js 20, disabled production mutation, disabled merge execution, database host, database user and valid port before starting a verifier.
+
+Both database verifiers run in the same frozen sanitized allowlisted environment. The complete parent environment is not inherited. Node, shell, Git and npm startup overrides are excluded. Preview identity and safety flags are forced in every child.
+
+Each verifier has a 60-second timeout, forced `SIGKILL`, shell execution disabled, hidden-window execution and a 4 MiB output limit. Startup errors, timeout, signal termination, non-zero status, invalid JSON, an unsuccessful result or database mismatch are hard stops.
+
+The schema verification must complete first. `merge-restore-evidence-verification.js` may run only after successful schema evidence has been parsed and accepted.
+
+The schema output must prove:
+
+- at least 50 required tables;
+- at least 25 verified column groups;
+- at least 25 applied migrations;
+- zero duplicate active account numbers;
+- zero customers with multiple primary accounts;
+- zero duplicate active mobile numbers;
+- zero duplicate active access grants;
+- zero archived customers with active ownership;
+- zero invalid duplicate pairs;
+- zero invalid merge plans;
+- zero invalid or unpinned authorisations;
+- zero invalid representative permission documents;
+- zero expired active representatives;
+- zero unsafe approvals;
+- zero invalidated approvals still open.
+
+This zero-defect evidence is mandatory. A successful exit status without the complete zero-defect evidence is not accepted.
+
+The restore verifier must return its exact verifier identity and its restore-authorisation defect count must be zero. Any missing backup, invalid backup, missing restore test, failed restore, database mismatch, incomplete checksum or incorrectly ordered restore evidence blocks acceptance.
+
+Final preview-data evidence must report:
+
+```text
+schemaVerifiedBeforeRestoreEvidence: true
+verifierEnvironmentSanitized: true
+verifierEnvironmentFrozen: true
+fullParentEnvironmentInherited: false
+schemaEvidenceParsed: true
+schemaZeroDefectEvidenceVerified: true
+restoreEvidenceParsed: true
+restoreAuthorisationDefects: 0
+databaseBackedVerificationExecuted: true
+productionMutationEnabled: false
+mergeExecutionEnabled: false
+```
+
+Running only `npm run verify:schema`, only the restore verifier or manually reviewing console output is not sufficient preview-data verification.
 
 ## 14. Restart and smoke testing
 
