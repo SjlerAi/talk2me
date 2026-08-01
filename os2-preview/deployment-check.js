@@ -21,14 +21,27 @@ mustContain('migration-runner.js', [
   'os2_schema_migrations'
 ]);
 
+mustContain('runtime-release-identity-check.js', [
+  "expectedApplication = 'talk2me-os2-preview'",
+  "expectedVersion = '0.59.0'",
+  'expectedNodeMajor = 20',
+  "expectedDatabase = 'kloka_talk2me'",
+  'DB_NAME is required for runtime release identity verification',
+  'productionMutationEnabled: false',
+  'mergeExecutionEnabled: false'
+]);
+
 mustContain('readiness-check.js', [
   "process.env.DB_NAME !== 'kloka_talk2me'",
+  'Node.js 20.x is required',
   'EMAIL_WORKER_ENABLED',
   'migrations.length < 25',
   '20260801_025_merge_authorisation_restore_pin.sql',
+  'runtime-release-identity-check.js',
   'preview-data-verification.js',
   'merge-restore-evidence-verification.js',
   'merge-restore-pin-check.js',
+  "scripts['verify:runtime-release-identity']",
   "scripts['verify:preview-data']"
 ]);
 
@@ -69,6 +82,7 @@ mustContain('PREVIEW_DEPLOYMENT_RUNBOOK.md', [
 
 [
   'migrations/20260801_025_merge_authorisation_restore_pin.sql',
+  'runtime-release-identity-check.js',
   'schema-verification.js',
   'preview-data-verification.js',
   'merge-restore-evidence-verification.js',
@@ -79,6 +93,7 @@ mustContain('PREVIEW_DEPLOYMENT_RUNBOOK.md', [
 const packageJson = require('./package.json');
 for (const script of [
   'migrate:preview',
+  'verify:runtime-release-identity',
   'verify:schema',
   'verify:preview-data',
   'verify:merge-restore-evidence',
@@ -92,10 +107,15 @@ for (const script of [
 console.log(JSON.stringify({
   ok: true,
   check: 'deployment-controls',
+  application: 'talk2me-os2-preview',
+  version: packageJson.version,
+  nodeMajorRequired: 20,
   database: 'kloka_talk2me',
   minimumMigrationCount: 25,
+  runtimeReleaseIdentityRequired: true,
   previewDataVerificationRequired: true,
   deploymentRunbookProtected: true,
   restoreEvidenceRequired: true,
+  productionMutationEnabled: false,
   executionEnabled: false
 }, null, 2));
