@@ -48,40 +48,46 @@ if (!pkg.scripts.check.includes('ci-governance-check.js')) throw new Error('CI g
 
 const evidenceMarkers = [
   "const { spawnSync } = require('child_process')", 'runWorkspaceSourceIntegrity()', "'workspace-source-integrity.js'",
+  "expectedRepository = 'SjlerAi/talk2me'", "expectedBranch = 'agent/talk2me-os2-integrated-rebuild'", 'validateCiIdentity()',
+  'GITHUB_REPOSITORY', 'GITHUB_SHA', 'GITHUB_REF_NAME', 'GITHUB_REF', 'GITHUB_WORKFLOW', 'GITHUB_WORKFLOW_REF',
+  'GITHUB_RUN_ID', 'GITHUB_RUN_NUMBER', 'GITHUB_RUN_ATTEMPT', 'GITHUB_ACTOR',
+  'GITHUB_SHA must be a full 40-character hexadecimal commit SHA', 'refs/heads/${expectedBranch}',
+  '.github/workflows/os2-preview-ci.yml@refs/heads/${expectedBranch}',
+  'GITHUB_RUN_ID must be a positive integer', 'GITHUB_RUN_NUMBER must be a positive integer', 'GITHUB_RUN_ATTEMPT must be a positive integer',
   'verifierTimeoutMs = 30000', 'timeout: verifierTimeoutMs', "killSignal: 'SIGKILL'", 'shell: false', "result.error.code === 'ETIMEDOUT'",
   'EXPECTED_PREINSTALL_SOURCE_INVENTORY_SHA256', 'GITHUB_ACTIONS', 'equalHex(expectedPreinstallDigest, postinstallDigest)',
   'Protected source inventory changed between pre-install verification and build-evidence generation', 'parseBooleanEnvironment',
   'DEPENDENCY_LOCK_PRESENT does not match the filesystem', 'Workspace source-integrity lock evidence does not match the filesystem',
-  'maxManifestFiles = 2000', 'maxManifestFileBytes = 16 * 1024 * 1024', 'maxManifestTotalBytes = 256 * 1024 * 1024',
-  'assertCanonicalDirectory', 'O_DIRECTORY and O_NOFOLLOW are required for build-evidence directory validation',
-  'descriptorStat.dev !== stat.dev || descriptorStat.ino !== stat.ino', 'readSecureFile', 'fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW',
-  'descriptorStat.dev !== pathStat.dev || descriptorStat.ino !== pathStat.ino', 'bytes.length !== descriptorStat.size',
-  'Manifest source directory changed during traversal', 'Build evidence file count exceeds', 'Build evidence source bytes exceed',
-  'Existing build-evidence path must be a real directory', 'Existing build-evidence directory owner mismatch',
-  'assertPrivateDirectory', 'atomicWrite', 'fs.constants.O_EXCL', 'fs.fsyncSync', 'Evidence output permissions must be 0600',
-  'verifySidecar', 'artifact-manifest.json', 'artifact-manifest.sha256', 'privateDirectoryVerified: true',
-  'atomicPublicationVerified: true', 'checksumPairsVerified: true', 'secureManifestDescriptorReads: true',
-  'boundedManifestCollection: true', 'manifestDirectoryIdentityRechecked: true',
-  'workspaceSourceIntegrityVerified: true', 'workspaceSourceIntegrityStableAcrossDependencyInstall',
-  'dependencyLockStateVerifiedAgainstFilesystem: true', 'dependencyLockStateVerifiedAgainstSourceIntegrity: true',
+  'secureReadFile', 'O_DIRECTORY and O_NOFOLLOW are required for build evidence traversal',
+  'maxEvidenceFiles = 2000', 'maxEvidenceFileBytes = 16 * 1024 * 1024', 'maxEvidenceTotalBytes = 256 * 1024 * 1024',
+  'assertSafeExistingEvidencePath', 'assertPrivateDirectory', 'atomicWrite', 'fs.constants.O_EXCL', 'fs.fsyncSync',
+  'Evidence output permissions must be 0600', 'Evidence directory must not permit group or world access', 'verifySidecar',
+  'artifact-manifest.json', 'artifact-manifest.sha256', 'privateDirectoryVerified: true', 'atomicPublicationVerified: true',
+  'checksumPairsVerified: true', 'evidenceDirectoryPrivate: true', 'evidenceFilesAtomic: true', 'evidenceChecksumPairsVerified: true',
+  'githubActionsIdentityVerified', 'exactRepositoryVerified', 'exactCommitShaVerified', 'exactBranchAndRefVerified', 'exactWorkflowRefVerified',
+  'workflowRunAttempt', 'workflowActor', 'sourceInventorySha256: postinstallDigest',
+  'workspaceSourceIntegrityVerified: true', 'preinstallWorkspaceSourceInventorySha256', 'postinstallWorkspaceSourceInventorySha256',
+  'workspaceSourceIntegrityStableAcrossDependencyInstall', 'dependencyLockStateVerifiedAgainstFilesystem: true',
+  'dependencyLockStateVerifiedAgainstSourceIntegrity: true', 'workspaceSourceProtectedFileCount', 'workspaceSourceMigrationCount',
   'workspace-source-integrity.json', 'workspace-source-integrity.sha256', 'build-evidence.json', 'build-evidence.sha256',
-  'migrationCount', 'routeFileCount', 'checkFileCount', 'GITHUB_SHA', 'dependencyAuditEligible', 'releaseCandidateEligible'
+  'migrationCount', 'routeFileCount', 'checkFileCount', 'dependencyAuditEligible', 'releaseCandidateEligible'
 ];
 requireMarkers(evidence, evidenceMarkers, 'Build evidence');
 
 requireMarkers(sourceIntegrity, [
   "check: 'workspace-source-integrity'", 'inventorySha256', 'secureDescriptorReads: true', 'canonicalPathBinding: true',
-  'hardLinkRejection: true', 'ownershipConsistency: true', 'boundedReads: true', 'ciEvidenceControlsProtected: files.some'
+  'hardLinkRejection: true', 'ownershipConsistency: true', 'boundedReads: true', 'ciWorkflowProtected: true'
 ], 'Workspace source integrity');
 requireMarkers(sourceIntegrityGovernance, [
   "check: 'workspace-source-integrity-governance'", 'packageVerifierCommandRegistered: true',
-  'normalValidationRegistered: true', 'environmentBoundVerifierExcludedFromNormalExecution: true',
-  'ciBuildEvidenceProtectionRequired: true', 'ciGovernanceProtectionRequired: true'
+  'normalValidationRegistered: true', 'environmentBoundVerifierExcludedFromNormalExecution: true', 'ciWorkflowProtectionRequired: true'
 ], 'Workspace source integrity governance');
 
 const runbookMarkers = [
   'npm install --ignore-scripts --no-audit --no-fund --package-lock=false', 'pre-install inventory digest', 'post-install inventory digest',
   'must match exactly', 'dependency-lock detection must agree', 'workspaceSourceIntegrityStableAcrossDependencyInstall: true',
+  'exact GitHub repository, commit, branch, ref, workflow reference, run ID, run number, run attempt, and actor',
+  'githubActionsIdentityVerified: true', 'full 40-character commit SHA', 'controlled `refs/heads/agent/talk2me-os2-integrated-rebuild` ref',
   'secure descriptor-based reads', '`O_NOFOLLOW`', '`O_DIRECTORY`', '2,000 files', '16 MiB', '256 MiB',
   'directory identity is rechecked', 'atomic publication', 'private `0700` evidence directory', 'private `0600` evidence files',
   'artifact-manifest.json', 'checksum pairs are reverified before upload', 'dependencyLockPresent: false',
@@ -116,6 +122,13 @@ console.log(JSON.stringify({
   preinstallSourceDigestRetainedAsWorkflowOutput: true,
   postinstallSourceDigestComparedWithPreinstallDigest: true,
   sourceIntegrityStableAcrossDependencyInstallRequired: true,
+  exactGitHubRepositoryIdentityRequired: true,
+  exactGitHubCommitIdentityRequired: true,
+  exactGitHubBranchAndRefIdentityRequired: true,
+  exactGitHubWorkflowRefRequired: true,
+  positiveWorkflowRunIdentityRequired: true,
+  workflowActorIdentityRequired: true,
+  artifactManifestBoundToCiIdentity: true,
   dependencyLockDetectionConsistencyRequired: true,
   buildEvidenceLockStateConsistencyRequired: true,
   buildEvidenceVerifierExecutionBounded: true,
