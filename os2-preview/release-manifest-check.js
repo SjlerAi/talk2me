@@ -10,6 +10,7 @@ const sourceVerifier = fs.readFileSync(path.join(root, 'release-source-integrity
 const sourceGovernance = fs.readFileSync(path.join(root, 'release-source-integrity-check.js'), 'utf8');
 const releaseRunbook = fs.readFileSync(path.join(root, 'RELEASE_CANDIDATE_RUNBOOK.md'), 'utf8');
 const activationRunbook = fs.readFileSync(path.join(root, 'PREVIEW_ACTIVATION_RUNBOOK.md'), 'utf8');
+const uatRunbook = fs.readFileSync(path.join(root, 'PREVIEW_UAT_RUNBOOK.md'), 'utf8');
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 
 function requireMarkers(source, markers, label) {
@@ -126,6 +127,9 @@ requireMarkers(activationRunbook, [
   '30 seconds',
   'shell execution disabled',
   'package-lock.json` in the protected inventory',
+  'Re-run approved source-integrity verification immediately before formal UAT',
+  'Re-run approved source-integrity verification immediately before release freeze',
+  'Any source change after CI approval invalidates the candidate',
   'npm run bootstrap:migration-ledger',
   'npm run verify:migration-ledger-bootstrap-evidence',
   'evidence verification before MySQL',
@@ -136,6 +140,16 @@ requireMarkers(activationRunbook, [
   'productionMutationEnabled: false',
   'mergeExecutionEnabled: false'
 ], 'Preview activation runbook');
+
+requireMarkers(uatRunbook, [
+  'RELEASE_SOURCE_INVENTORY_SHA256',
+  'npm run verify:release-source-integrity',
+  'exactApprovedInventoryMatched: true',
+  'packageLockPresent: true',
+  'Re-run approved source-integrity verification immediately before UAT starts',
+  'Any source change after the retained CI evidence was produced invalidates that UAT attempt',
+  'successful release source-integrity verification output'
+], 'Preview UAT runbook');
 
 const exactScripts = {
   'check:release-candidate': 'node release-candidate-gate.js',
@@ -171,8 +185,10 @@ console.log(JSON.stringify({
   approvedSourceInventoryRequired: true,
   releaseSourceIntegrityVerificationRequired: true,
   releaseSourceIntegrityBoundedExecutionRequired: true,
+  releaseSourceIntegrityBeforeUatRequired: true,
   releaseSourceIntegrityBeforeFreezeRequired: true,
   releaseSourceIntegrityPostFreezeRequired: true,
+  sourceChangeInvalidatesCandidate: true,
   releaseSourceIntegrityCommandsRegistered: true,
   bootstrapExecutionEvidenceRequired: true,
   bootstrapEvidenceVerifiedBeforeReleaseFreeze: true,
@@ -180,6 +196,7 @@ console.log(JSON.stringify({
   migrationConnectionClosedBeforeSuccess: true,
   releaseEvidencePublicationRaceSafe: true,
   activationRunbookFullGovernanceOrderProtected: true,
+  uatRunbookSourceRevalidationProtected: true,
   runtimeLedgerCreationDisabled: true,
   productionMutationEnabled: false,
   mergeExecutionEnabled: false
