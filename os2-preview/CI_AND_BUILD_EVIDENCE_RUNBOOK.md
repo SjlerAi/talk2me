@@ -4,215 +4,164 @@
 
 This runbook governs automated validation for the integrated Talk2Me OS2 preview rebuild. It does not deploy the application and it must never modify production.
 
-## Workflow scope
+## Controlled workflow
 
-The workflow `.github/workflows/os2-preview-ci.yml` runs when relevant preview application, preview public UI, or workflow files change. It can also be started manually from GitHub Actions.
+The workflow `.github/workflows/os2-preview-ci.yml`:
 
-The workflow performs the following controlled steps:
+1. Checks out the exact commit and installs Node.js 20.
+2. Detects whether `os2-preview/package-lock.json` is committed.
+3. Runs `npm run --silent verify:workspace-source-integrity` before dependency installation.
+4. Retains the pre-install inventory digest and package-lock state.
+5. Confirms dependency-lock detection must agree with source-integrity evidence.
+6. Uses `npm install --ignore-scripts --no-audit --no-fund --package-lock=false` while the lockfile remains absent.
+7. Runs `npm run check`.
+8. Runs the production dependency audit only when the committed lockfile exists.
+9. Generates build evidence after validation.
+10. Compares the pre-install inventory digest and post-install inventory digest; they must match exactly.
+11. Publishes evidence atomically into a private directory and reverifies every checksum pair.
+12. Uploads the complete evidence directory as a retained artifact.
 
-1. Check out the exact commit being tested.
-2. Install Node.js 20.
-3. Detect whether `os2-preview/package-lock.json` is committed.
-4. Run `npm run verify:workspace-source-integrity` before dependency installation and retain its JSON in the runner temporary directory.
-5. Extract the pre-install inventory digest and package-lock state as protected workflow outputs.
-6. Confirm dependency-lock detection agrees with the source-integrity evidence.
-7. Install preview dependencies without lifecycle scripts and without creating or changing a lockfile.
-8. Run the complete `npm run check` validation suite.
-9. Run the high-severity production-dependency audit only when the committed lockfile exists.
-10. Record a visible dependency-audit blocker when the lockfile is absent.
-11. Generate build evidence that reruns the deterministic source-integrity verifier.
-12. Compare the post-install inventory digest with the retained pre-install inventory digest using constant-time comparison.
-13. Publish all evidence files atomically into a private directory and reverify their checksum pairs.
-14. Upload the complete evidence directory as a retained GitHub Actions artifact.
+## Workflow security controls
 
-## Security controls
-
-- Workflow permissions are read-only for repository content.
-- `pull_request_target` is prohibited.
-- Validation failures are not ignored.
-- No database credentials, SMTP credentials or server secrets are required.
-- The fixed `DB_NAME=kloka_talk2me` value is used only as a source-verifier identity guard; CI does not connect to MySQL.
-- No migration, backup, export worker or application deployment command is executed.
-- The workflow does not connect to the preview or production database.
-- CI must not generate an uncommitted `package-lock.json`.
-- Source-integrity verification must run before dependency installation.
-- The pre-install inventory digest and post-install inventory digest must match exactly.
-- Dependency-lock detection must agree with both the filesystem and source-integrity evidence.
-- Build evidence must be generated only after the integrated validation suite completes.
-- Build-evidence source verification has a 30-second timeout, forced `SIGKILL` termination and shell execution disabled.
-- Broad evidence collection rejects symbolic links, unsupported filesystem entries and files with additional hard links.
-- Evidence is created in a private `0700` evidence directory.
-- Every evidence file is published with atomic publication and private `0600` permissions.
-- JSON evidence and sidecar checksum pairs are reverified before upload.
-- An `artifact-manifest.json` and `artifact-manifest.sha256` pair binds the final evidence set.
-- Dependency audit and release-candidate eligibility must not be claimed while the lockfile is absent.
-- `ALLOW_PRODUCTION_MUTATION=false` and `ENABLE_CUSTOMER_MERGE_EXECUTION=false` are forced for source-integrity evidence generation.
+- Repository permission is read-only.
+- `pull_request_target` and ignored validation failures are prohibited.
+- CI does not connect to preview or production databases.
+- CI does not run migrations, backups, workers, deployment, or restart commands.
+- `ALLOW_PRODUCTION_MUTATION=false` and `ENABLE_CUSTOMER_MERGE_EXECUTION=false` are forced.
+- Source verification runs before dependency installation.
+- Build evidence runs only after integrated validation.
+- Build-evidence source verification has a 30-second timeout, forced `SIGKILL`, and shell execution disabled.
 
 ## Dependency-lock policy
 
 The current preview package has no committed `package-lock.json`.
 
-Until dependency locking is completed, CI uses:
+While absent:
+
+- source validation may continue;
+- dependency audit remains blocked;
+- `dependencyLockPresent: false`;
+- `dependencyAuditEligible: false`;
+- `releaseCandidateEligible: false`;
+- the release-candidate gate must continue to fail.
+
+After a reviewed Node.js 20 lockfile is committed, CI must change to:
 
 ```bash
-npm install --ignore-scripts --no-audit --no-fund --package-lock=false
+npm ci --ignore-scripts --no-audit --no-fund
 ```
 
-This allows source validation to continue without silently changing the repository dependency state.
+The exact-commit workflow must then rerun and its evidence artifact must be retained.
 
-When the lockfile is absent:
+## Source-integrity continuity
 
-- `npm run verify:workspace-source-integrity` and `npm run check` may still run;
-- dependency audit is blocked rather than reported as passed;
-- the GitHub workflow summary records the blocker;
-- build evidence records `dependencyLockPresent: false`;
-- build evidence records `dependencyAuditEligible: false`;
-- build evidence records `releaseCandidateEligible: false`;
-- source integrity records `packageLockPresent: false`;
-- release-candidate freeze remains prohibited.
+The pre-install verifier output is retained in `$RUNNER_TEMP/os2-workspace-source-integrity-preinstall.json`. CI extracts the inventory digest and package-lock state. `build-evidence.js` reruns the source verifier after dependency installation and validation.
 
-When dependency locking is completed:
-
-1. Generate the lockfile using the supported Node.js 20 and npm environment.
-2. Review dependency versions and integrity metadata.
-3. Run the high-severity production dependency audit.
-4. Commit `os2-preview/package-lock.json` on the rebuild branch.
-5. Replace the temporary install command with `npm ci --ignore-scripts --no-audit --no-fund`.
-6. Enable npm caching against the committed lockfile.
-7. Re-run the exact-commit CI workflow and retain its artifact.
-
-The release-candidate gate must continue to fail when the committed lockfile is missing.
-
-## Deterministic source-integrity continuity
-
-Before dependency installation, CI runs:
-
-```bash
-npm run --silent verify:workspace-source-integrity
-```
-
-The verifier securely reads the protected source set with `O_NOFOLLOW`, canonical path validation, pathname/descriptor device and inode binding, hard-link rejection, ownership checks, permission checks and bounded reads.
-
-It creates a deterministic inventory from the sorted tuple:
-
-```text
-relative filename + byte length + SHA-256
-```
-
-The final `inventorySha256` represents the complete protected source state. A different digest means the evidence belongs to a different source state.
-
-The pre-install JSON is retained in `$RUNNER_TEMP/os2-workspace-source-integrity-preinstall.json`. CI extracts:
-
-- `inventory_sha256`;
-- `package_lock_present`.
-
-The dependency-lock output from direct filesystem detection must match `package_lock_present` before dependency installation begins.
-
-`build-evidence.js` reruns the verifier after dependency installation and integrated validation. In GitHub Actions, `EXPECTED_PREINSTALL_SOURCE_INVENTORY_SHA256` is mandatory. Evidence generation fails when:
-
-- the expected digest is missing or malformed;
-- the verifier cannot start, times out, is interrupted or fails;
-- verifier output is invalid or incomplete;
-- the post-install digest differs from the pre-install digest;
-- source-integrity lock evidence differs from the filesystem;
-- `DEPENDENCY_LOCK_PRESENT` differs from the filesystem;
-- broad evidence traversal encounters a symbolic link, unsupported entry or multi-link file.
-
-A successful CI artifact must record:
+A successful controlled CI artifact must record:
 
 ```text
 workspaceSourceIntegrityStableAcrossDependencyInstall: true
 ```
 
-This proves dependency installation and validation did not alter the protected source set.
+A mismatch means the protected source changed during CI and invalidates the evidence.
+
+## Secure bounded manifest collection
+
+Broad source evidence is collected only through secure descriptor-based reads.
+
+Every traversed directory must:
+
+- be a real non-symlink canonical directory;
+- be opened with `O_DIRECTORY | O_NOFOLLOW`;
+- match its path device and inode after secure open;
+- not be writable by group or world;
+- have the expected owner;
+- retain the same device and inode when directory identity is rechecked after traversal.
+
+Every included source file must:
+
+- be a regular non-symlink file;
+- be opened with `O_NOFOLLOW`;
+- have exactly one hard link;
+- match path and descriptor device and inode identities;
+- have the expected owner;
+- not be writable by group or world;
+- retain the same byte count during the descriptor read.
+
+Collection is fail-closed and bounded to:
+
+- at most 2,000 files;
+- at most 16 MiB per file;
+- at most 256 MiB total source bytes.
+
+Symbolic links, unsupported filesystem entries, ownership changes, directory swaps, hard links, oversized files, excessive file counts, and excessive total bytes stop evidence generation.
+
+Before deleting prior disposable output, an existing `build-evidence` path must be a real directory owned by the executing user. A symlink, regular file, or foreign-owned directory is rejected.
 
 ## Atomic evidence publication
 
-The build-evidence command removes any prior disposable evidence directory and creates a fresh private `0700` evidence directory owned by the executing user.
+The command creates a fresh private `0700` evidence directory. Every evidence file is written to an exclusively created temporary file with `0600`, flushed with `fsync`, and atomically renamed.
 
-Each evidence file is written to a unique, exclusively created temporary file with mode `0600`, flushed with `fsync`, and then atomically renamed into its final path. The command rejects non-regular outputs, symbolic links, additional hard links, incorrect ownership, and permissions other than `0600`.
+It rejects:
 
-After publication, the command reverifies:
+- non-regular outputs;
+- symbolic links;
+- additional hard links;
+- ownership mismatches;
+- permissions other than `0600`.
 
-- `build-evidence.json` against `build-evidence.sha256`;
-- `workspace-source-integrity.json` against `workspace-source-integrity.sha256`;
-- `artifact-manifest.json` against `artifact-manifest.sha256`.
+The command reverifies:
 
-The final artifact manifest records the checksums of the two primary JSON evidence documents and confirms:
+- `build-evidence.json` with `build-evidence.sha256`;
+- `workspace-source-integrity.json` with `workspace-source-integrity.sha256`;
+- `artifact-manifest.json` with `artifact-manifest.sha256`.
+
+The artifact manifest confirms:
 
 ```text
 privateDirectoryVerified: true
 atomicPublicationVerified: true
 checksumPairsVerified: true
+secureManifestDescriptorReads: true
+boundedManifestCollection: true
 ```
 
-Any failed write, rename, permission check, ownership check, or checksum verification fails the evidence command before the upload step can run.
+All checksum pairs are reverified before upload.
 
-## Build evidence
+## Evidence contents
 
-The command `npm run evidence:build` creates:
+The evidence set contains:
 
-- `build-evidence/build-evidence.json`
-- `build-evidence/build-evidence.sha256`
-- `build-evidence/workspace-source-integrity.json`
-- `build-evidence/workspace-source-integrity.sha256`
-- `build-evidence/artifact-manifest.json`
-- `build-evidence/artifact-manifest.sha256`
+- `build-evidence/build-evidence.json`;
+- `build-evidence/build-evidence.sha256`;
+- `build-evidence/workspace-source-integrity.json`;
+- `build-evidence/workspace-source-integrity.sha256`;
+- `build-evidence/artifact-manifest.json`;
+- `build-evidence/artifact-manifest.sha256`.
 
-The evidence records:
-
-- application version;
-- commit SHA and branch when run in GitHub Actions;
-- workflow run identifiers;
-- Node.js and operating-system information;
-- dependency-lock presence;
-- dependency-audit eligibility;
-- release-candidate eligibility;
-- lock-state verification against the filesystem and source-integrity evidence;
-- `workspaceSourceIntegrityVerified: true`;
-- the pre-install and post-install protected source inventory digests;
-- `workspaceSourceIntegrityStableAcrossDependencyInstall: true` in controlled CI;
-- protected-source and migration counts from the source verifier;
-- the complete source-integrity inventory;
-- a SHA-256 checksum for each relevant source file;
-- migration count;
-- route-file count;
-- validation-check count;
-- private-directory, atomic-publication, and checksum-reverification evidence.
-
-The generated evidence directory is disposable build output and is not a deployment package.
+Evidence records the exact commit, branch, workflow identifiers, Node.js version, dependency-lock state, pre-install and post-install source digests, protected source inventory, file and byte counts, migration count, route count, validation-check count, bounded collection limits, secure descriptor-read evidence, atomic publication evidence, and checksum verification.
 
 ## Acceptance rule
 
-A commit may proceed to controlled preview installation only when all of the following are true:
+Controlled preview installation requires all of the following:
 
-1. The OS2 Preview CI workflow completes successfully for the exact commit.
-2. The pre-install source-integrity step succeeds.
-3. Dependency-lock detection matches source-integrity lock evidence.
-4. The pre-install and post-install source inventory digests match exactly.
-5. Build evidence records `workspaceSourceIntegrityStableAcrossDependencyInstall: true`.
-6. A committed lockfile exists and the dependency audit has no unresolved high or critical production vulnerabilities.
-7. All three JSON evidence files exist and all three SHA-256 sidecars match.
-8. The artifact manifest confirms private-directory, atomic-publication, and checksum-pair verification.
-9. Build evidence records `workspaceSourceIntegrityVerified: true` and a valid 64-character `workspaceSourceInventorySha256`.
-10. The evidence records `dependencyLockPresent: true`, `dependencyAuditEligible: true` and `releaseCandidateEligible: true`.
-11. Preview deployment readiness, migration, schema verification, pinned restore-evidence verification and UAT controls are followed separately.
+1. CI succeeds for the exact commit.
+2. The pre-install source verifier succeeds.
+3. Dependency-lock detection matches the filesystem and source evidence.
+4. Pre-install and post-install source digests match.
+5. `workspaceSourceIntegrityStableAcrossDependencyInstall: true` is present.
+6. A committed lockfile exists.
+7. The high-severity production dependency audit passes without unresolved high or critical findings.
+8. All three JSON evidence files and sidecars verify.
+9. Secure descriptor-based collection, bounded inventory, private directory, atomic publication, and checksum verification are confirmed.
+10. Preview readiness, migration, schema verification, pinned restore-evidence verification, and UAT controls pass separately.
 
-A successful source-validation step without a dependency lock is not a dependency-audit pass and is not release-candidate approval.
+A successful source-validation step without a dependency lock is not dependency-audit approval or release approval.
 
 ## Failure handling
 
-When CI fails or reports a blocker:
-
-1. Open the workflow run and identify the first failing validation or recorded blocker.
-2. Compare the pre-install and post-install source-integrity inventory digests.
-3. Compare dependency-lock detection with filesystem and source-integrity evidence.
-4. Verify the evidence directory permissions and all three checksum pairs.
-5. Do not bypass or weaken the check.
-6. Correct the code, dependency state or validation contract on the rebuild branch.
-7. Re-run the workflow on the corrected exact commit.
-8. Retain the failed or blocked run as historical evidence.
+Do not bypass a failed control. Correct the source, dependency state, permissions, ownership, path topology, or validation contract and rerun CI for the corrected exact commit. Retain failed runs as historical evidence.
 
 ## Production protection
 
-This workflow contains no deployment credentials and no production commands. Production at `talk2me.uent.co.za` remains outside this workflow and must not be changed by preview validation activity.
+Production at `talk2me.uent.co.za` remains outside this workflow. The workflow has no production deployment authority and must not change production.
