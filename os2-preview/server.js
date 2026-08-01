@@ -23,6 +23,8 @@ const createCollaborationRouter = require('./collaboration-routes');
 const createServiceLifecycleRouter = require('./service-lifecycle-routes');
 const createCommunicationsRouter = require('./communications-routes');
 const createSecurityRouter = require('./security-routes');
+const createCustomerAccessRouter = require('./customer-access-routes');
+const { createCustomerAccessGuard } = require('./customer-access-control');
 const { permissionsFor } = require('./core/permissions');
 const { requestId, securityHeaders, sameOrigin, rateLimit, hashIdentity, recordSecurityEvent } = require('./security-controls');
 
@@ -220,6 +222,8 @@ app.get('/api/dashboard', requireAuth, async (req, res) => {
   }
 });
 
+app.use(createCustomerAccessGuard({ pool }));
+app.use(createCustomerAccessRouter({ pool, requireAuth }));
 app.use(createIntegratedRouter({ pool, requireAuth }));
 app.use(createDocumentRouter({ pool, requireAuth }));
 app.use(createOperationalRouter({ pool, requireAuth }));
