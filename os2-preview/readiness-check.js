@@ -39,6 +39,7 @@ const requiredFiles = [
   'migration-ledger-bootstrap-runner-check.js','migration-ledger-bootstrap-evidence-verification.js',
   'migration-ledger-bootstrap-evidence-check.js','migration-runner.js','migration-runner-security-check.js',
   'workspace-topology-verification.js','workspace-topology-governance-check.js',
+  'workspace-source-integrity.js','workspace-source-integrity-check.js',
   'preview-activation-preflight.js','preview-activation-governance-check.js',
   'release-evidence-security-check.js','release-manifest-check.js',
   'runtime-release-identity-check.js','deployment-check.js','uat-gate-check.js',
@@ -47,8 +48,19 @@ const requiredFiles = [
 ];
 requiredFiles.forEach(read);
 
+requireMarkers('workspace-source-integrity.js', [
+  'canonicalInventory','inventorySha256','secureDescriptorReads: true',
+  'canonicalPathBinding: true','hardLinkRejection: true','boundedReads: true'
+]);
+requireMarkers('workspace-source-integrity-check.js', [
+  "check: 'workspace-source-integrity-governance'",
+  'packageCommandRegistered: true','normalSyntaxValidationRegistered: true',
+  'normalGovernanceValidationRegistered: true','environmentBoundVerifierExcludedFromNormalExecution: true'
+]);
 requireMarkers('preview-activation-preflight.js', [
   "'workspace-topology-verification.js'",
+  "'workspace-source-integrity.js'",
+  "'workspace-source-integrity-check.js'",
   "'workspace-topology-governance-check.js'",
   "'migration-ledger-bootstrap-governance-check.js'",
   "'migration-ledger-bootstrap-runner-check.js'",
@@ -60,6 +72,8 @@ requireMarkers('preview-activation-preflight.js', [
   "'uat-gate-check.js'",
   "'release-evidence-security-check.js'",
   "'release-manifest-check.js'",
+  'workspaceSourceIntegrityVerified: true',
+  'workspaceSourceIntegrityGovernanceVerified: true',
   'orderedGovernanceChecksCompleted: completed.length',
   'databaseBackedVerificationExecuted: false',
   'migrationsExecuted: false',
@@ -68,6 +82,8 @@ requireMarkers('preview-activation-preflight.js', [
 requireMarkers('preview-activation-governance-check.js', [
   "check: 'preview-activation-governance'",
   'orderedSourceChecks: orderedScripts.length',
+  'workspaceSourceIntegrityRequired: true',
+  'workspaceSourceIntegrityGovernanceRequired: true',
   'migrationLedgerBootstrapGovernanceRequired: true',
   'migrationLedgerBootstrapRunnerGovernanceRequired: true',
   'migrationLedgerBootstrapEvidenceGovernanceRequired: true',
@@ -121,6 +137,8 @@ if (!fs.existsSync(migrationDir)) {
 
 const pkg = JSON.parse(read('package.json') || '{}');
 const exactScripts = {
+  'verify:workspace-source-integrity': 'node workspace-source-integrity.js',
+  'check:workspace-source-integrity': 'node workspace-source-integrity-check.js',
   'verify:preview-activation-preflight': 'node preview-activation-preflight.js',
   'check:preview-activation-governance': 'node preview-activation-governance-check.js',
   'check:workspace-topology-governance': 'node workspace-topology-governance-check.js',
@@ -134,6 +152,9 @@ const exactScripts = {
 for (const [name, command] of Object.entries(exactScripts)) {
   if (!pkg.scripts || pkg.scripts[name] !== command) failures.push(`Missing exact package command ${name}`);
 }
+if (!pkg.scripts || !pkg.scripts.check.includes('node --check workspace-source-integrity.js')) failures.push('Normal validation missing workspace source integrity syntax check');
+if (!pkg.scripts || !pkg.scripts.check.includes('node --check workspace-source-integrity-check.js')) failures.push('Normal validation missing workspace source integrity governance syntax check');
+if (!pkg.scripts || !pkg.scripts.check.includes('node workspace-source-integrity-check.js')) failures.push('Normal validation missing workspace source integrity governance execution');
 
 const summary = {
   ok: failures.length === 0,
@@ -143,7 +164,9 @@ const summary = {
   applicationRoot: process.env.PREVIEW_APP_ROOT || null,
   database: process.env.DB_NAME || null,
   migrationCount,
-  orderedActivationGovernanceChecksRequired: 12,
+  orderedActivationGovernanceChecksRequired: 14,
+  deterministicWorkspaceSourceIntegrityRequired: true,
+  workspaceSourceIntegrityPackageCommandsRequired: true,
   migrationLedgerBootstrapEvidenceRequired: true,
   migrationEvidenceVerifiedBeforeDatabaseConnection: true,
   migrationCompletionRequiresConfirmedLockRelease: true,
