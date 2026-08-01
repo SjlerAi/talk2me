@@ -5,11 +5,8 @@ const path = require('path');
 
 const mustContain = (file, tokens) => {
   const content = fs.readFileSync(path.join(__dirname, file), 'utf8');
-  for (const token of tokens) {
-    if (!content.includes(token)) throw new Error(`${file} missing ${token}`);
-  }
+  for (const token of tokens) if (!content.includes(token)) throw new Error(`${file} missing ${token}`);
 };
-
 const mustExist = (file) => {
   if (!fs.existsSync(path.join(__dirname, file))) throw new Error(`Missing deployment dependency ${file}`);
 };
@@ -61,12 +58,40 @@ mustContain('preview-activation-governance-check.js', [
   'mergeExecutionEnabled: false'
 ]);
 
+mustContain('release-manifest-verification.js', [
+  'function readSecureRegularFile(file, options = {})',
+  'fs.constants.O_NOFOLLOW',
+  'fs.fstatSync(descriptor)',
+  'descriptorStat.dev !== pathStat.dev || descriptorStat.ino !== pathStat.ino',
+  'descriptorStat.size > maxBytes',
+  'fs.readFileSync(descriptor)',
+  'evidenceReadsUseNoFollow: true',
+  'evidenceDescriptorIdentityVerified: true',
+  'protectedFileSizeLimitsEnforced: true'
+]);
+
+mustContain('release-evidence-security-check.js', [
+  'Release verifier',
+  'Protected read coverage',
+  'Release governance',
+  'Activation runbook',
+  'noFollowRequired: true',
+  'descriptorIdentityRequired: true',
+  'descriptorBasedReadRequired: true',
+  'boundedReadsRequired: true',
+  'independentlyExecutable: true'
+]);
+
 mustContain('PREVIEW_ACTIVATION_RUNBOOK.md', [
   'npm run verify:preview-activation-preflight',
   'npm ci',
   'npm run check',
   'ALLOW_PREVIEW_MIGRATIONS=true',
   'DB_NAME=kloka_talk2me npm run verify:preview-data',
+  'open protected files with `O_NOFOLLOW`',
+  'compare the validated path device/inode identity with the opened descriptor',
+  'read through the validated descriptor rather than reopening by path',
+  'enforce bounded file sizes before reading',
   'Restart only the preview Node.js application',
   'Migration 025, preview data verification, deployment, restart and formal UAT have not yet been executed.'
 ]);
@@ -104,10 +129,7 @@ mustContain('merge-restore-evidence-verification.js', [
   'INVALID_PINNED_RESTORE_EVIDENCE'
 ]);
 
-mustContain('merge-restore-pin-check.js', [
-  'restore_test_id',
-  'ORDER BY rt.completed_at DESC,rt.id DESC'
-]);
+mustContain('merge-restore-pin-check.js', ['restore_test_id','ORDER BY rt.completed_at DESC,rt.id DESC']);
 
 mustContain('PREVIEW_DEPLOYMENT_RUNBOOK.md', [
   'talk2me.kloka.co.za',
@@ -127,6 +149,8 @@ mustContain('PREVIEW_DEPLOYMENT_RUNBOOK.md', [
   'runtime-release-identity-check.js',
   'preview-activation-preflight.js',
   'preview-activation-governance-check.js',
+  'release-manifest-verification.js',
+  'release-evidence-security-check.js',
   'PREVIEW_ACTIVATION_RUNBOOK.md',
   'schema-verification.js',
   'preview-data-verification.js',
@@ -137,15 +161,8 @@ mustContain('PREVIEW_DEPLOYMENT_RUNBOOK.md', [
 
 const packageJson = require('./package.json');
 for (const script of [
-  'migrate:preview',
-  'verify:runtime-release-identity',
-  'verify:preview-activation-preflight',
-  'verify:schema',
-  'verify:preview-data',
-  'verify:merge-restore-evidence',
-  'check:merge-restore-pin',
-  'check:readiness',
-  'check:deployment'
+  'migrate:preview','verify:runtime-release-identity','verify:preview-activation-preflight','verify:schema',
+  'verify:preview-data','verify:merge-restore-evidence','check:merge-restore-pin','check:readiness','check:deployment'
 ]) {
   if (!packageJson.scripts[script]) throw new Error(`package.json missing ${script}`);
 }
@@ -161,6 +178,10 @@ console.log(JSON.stringify({
   runtimeReleaseIdentityRequired: true,
   previewActivationPreflightRequired: true,
   previewActivationGovernanceRequired: true,
+  secureReleaseEvidenceVerificationRequired: true,
+  noFollowEvidenceReadsRequired: true,
+  descriptorIdentityRequired: true,
+  boundedProtectedReadsRequired: true,
   previewDataVerificationRequired: true,
   deploymentRunbookProtected: true,
   activationRunbookProtected: true,
