@@ -6,9 +6,9 @@ const path = require('path');
 const root = __dirname;
 const verifier = fs.readFileSync(path.join(root, 'release-source-integrity-verification.js'), 'utf8');
 const workspaceVerifier = fs.readFileSync(path.join(root, 'workspace-source-integrity.js'), 'utf8');
+const preflight = fs.readFileSync(path.join(root, 'preview-activation-preflight.js'), 'utf8');
 const releaseGate = fs.readFileSync(path.join(root, 'release-candidate-gate.js'), 'utf8');
 const manifestVerifier = fs.readFileSync(path.join(root, 'release-manifest-verification.js'), 'utf8');
-const preflight = fs.readFileSync(path.join(root, 'preview-activation-preflight.js'), 'utf8');
 const runbook = fs.readFileSync(path.join(root, 'RELEASE_CANDIDATE_RUNBOOK.md'), 'utf8');
 
 function requireMarkers(source, markers, label) {
@@ -23,17 +23,25 @@ requireMarkers(verifier, [
   "expectedDatabase = 'kloka_talk2me'",
   "expectedBranch = 'agent/talk2me-os2-integrated-rebuild'",
   'expectedNodeMajor = 20',
+  'verifierTimeoutMs = 30000',
   "'workspace-source-integrity.js'",
   "encoding: 'utf8'",
   'maxBuffer: 16 * 1024 * 1024',
-  'result.error',
+  'timeout: verifierTimeoutMs',
+  "killSignal: 'SIGKILL'",
+  'shell: false',
+  "result.error.code === 'ETIMEDOUT'",
   'result.signal',
   'result.status !== 0',
   'JSON.parse',
-  'inventorySha256',
-  'Workspace source inventory digest does not match the approved release digest',
+  'evidence.applicationRoot !== root',
+  'evidence.protectedFileCount !== evidence.files.length',
+  'evidence.migrationCount < 25',
   'evidence.packageLockPresent !== true',
+  'evidence.secureDescriptorReads !== true',
+  'Workspace source inventory digest does not match the approved release digest',
   'exactApprovedInventoryMatched: true',
+  'verifierShellDisabled: true',
   'productionMutationEnabled: false',
   'mergeExecutionEnabled: false'
 ], 'Release source integrity verifier');
@@ -48,54 +56,47 @@ requireMarkers(workspaceVerifier, [
   'boundedReads: true'
 ], 'Workspace source integrity verifier');
 
-requireMarkers(releaseGate, [
-  "requireValue('RELEASE_SOURCE_INVENTORY_SHA256').toLowerCase()",
-  "'release-source-integrity-verification.js'",
-  "{ RELEASE_SOURCE_INVENTORY_SHA256: approvedSourceInventorySha256 }",
-  'Release source integrity verifier returned an unexpected inventory digest',
-  'approvedSourceInventorySha256: approvedSourceInventorySha256',
-  'releaseSourceIntegrityVerified: Boolean(sourceIntegrityEvidence && sourceIntegrityEvidence.exactApprovedInventoryMatched === true)',
-  'releaseSourcePackageLockPresent: sourceIntegrityEvidence ? sourceIntegrityEvidence.packageLockPresent : false',
-  'productionMutationEnabled: false',
-  'mergeExecutionEnabled: false'
-], 'Release candidate gate');
-
-requireMarkers(manifestVerifier, [
-  "check: 'release-manifest-verification'",
-  'function verifyFrozenSource(root, inventorySha256)',
-  "'release-source-integrity-verification.js'",
-  'RELEASE_SOURCE_INVENTORY_SHA256: inventorySha256',
-  'manifest.releaseSourceIntegrityVerified !== true',
-  'manifest.releaseSourcePackageLockPresent !== true',
-  'verifyFrozenSource(root, manifest.approvedSourceInventorySha256)',
-  'releaseSourceIntegrityReverifiedAfterFreeze: true',
-  'approvedSourceInventorySha256: manifest.approvedSourceInventorySha256',
-  'productionMutationEnabled: false',
-  'mergeExecutionEnabled: false'
-], 'Release manifest verifier');
-
 requireMarkers(preflight, [
   "'release-source-integrity-check.js'",
   'releaseSourceIntegrityGovernanceVerified: true'
 ], 'Preview activation preflight');
 
+requireMarkers(releaseGate, [
+  'RELEASE_SOURCE_INVENTORY_SHA256',
+  'verifyReleaseSourceIntegrity(approvedSourceInventorySha256)',
+  'approvedSourceInventorySha256',
+  'releaseSourceIntegrityVerified: Boolean(releaseSourceIntegrityEvidence)'
+], 'Release candidate gate');
+
+requireMarkers(manifestVerifier, [
+  'manifest.approvedSourceInventorySha256',
+  'verifyReleaseSourceIntegrity(manifest.approvedSourceInventorySha256)',
+  'releaseSourceIntegrityMatchesApprovedDigest: true'
+], 'Release manifest verifier');
+
 requireMarkers(runbook, [
   'RELEASE_SOURCE_INVENTORY_SHA256',
   'node release-source-integrity-verification.js',
   'exact approved workspace source digest',
-  'package-lock.json` to be included in the protected inventory',
-  'approvedSourceInventorySha256',
-  'releaseSourceIntegrityVerified'
+  'package-lock.json to be included in the protected inventory',
+  '30-second execution limit',
+  'shell execution disabled'
 ], 'Release candidate runbook');
 
 if (preflight.includes("'release-source-integrity-verification.js'")) {
   throw new Error('Environment-bound release source verification must not execute during source-only activation preflight');
 }
-if (releaseGate.indexOf("'release-source-integrity-verification.js'") > releaseGate.indexOf('publishEvidencePair(output')) {
-  throw new Error('Release source integrity must be verified before release-manifest publication');
+
+const gateVerifyPosition = releaseGate.indexOf('verifyReleaseSourceIntegrity(approvedSourceInventorySha256)');
+const gatePublishPosition = releaseGate.indexOf('publishEvidencePair(output');
+if (gateVerifyPosition === -1 || gatePublishPosition === -1 || gateVerifyPosition >= gatePublishPosition) {
+  throw new Error('Release source integrity must be verified before release evidence publication');
 }
-if (manifestVerifier.indexOf('verifyFrozenSource(root, manifest.approvedSourceInventorySha256)') > manifestVerifier.indexOf("readSecureRegularFile(path.join(root, 'package.json')")) {
-  throw new Error('Post-freeze source verification must precede individual checked-out source verification');
+
+const manifestVerifyPosition = manifestVerifier.indexOf('verifyReleaseSourceIntegrity(manifest.approvedSourceInventorySha256)');
+const packageVerifyPosition = manifestVerifier.indexOf("readSecureRegularFile(path.join(root, 'package.json')");
+if (manifestVerifyPosition === -1 || packageVerifyPosition === -1 || manifestVerifyPosition >= packageVerifyPosition) {
+  throw new Error('Post-freeze source integrity must be verified before individual package checks');
 }
 
 console.log(JSON.stringify({
@@ -104,14 +105,17 @@ console.log(JSON.stringify({
   approvedDigestRequired: true,
   exactDigestComparisonRequired: true,
   workspaceVerifierReexecuted: true,
+  boundedExecutionRequired: true,
+  forcedKillSignalRequired: true,
+  shellExecutionDisabled: true,
+  verifierOutputBounded: true,
+  applicationRootEvidenceRequired: true,
+  protectedFileCountConsistencyRequired: true,
+  migrationInventoryMinimumRequired: true,
   packageLockInProtectedInventoryRequired: true,
-  releaseFreezeRunsSourceVerifier: true,
-  releaseManifestFreezesApprovedDigest: true,
-  releaseManifestRecordsSourceVerification: true,
-  sourceVerificationPrecedesManifestPublication: true,
-  postFreezeSourceReverificationRequired: true,
-  postFreezeSourceReverificationPrecedesIndividualSourceChecks: true,
   secureDescriptorEvidenceRequired: true,
+  verificationBeforeReleasePublicationRequired: true,
+  postFreezeVerificationBeforeIndividualFilesRequired: true,
   environmentBoundVerifierExcludedFromSourceOnlyPreflight: true,
   activationGovernanceRegistrationRequired: true,
   productionMutationEnabled: false,
