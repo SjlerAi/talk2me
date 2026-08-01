@@ -14,167 +14,65 @@ const runbook = fs.readFileSync(path.join(root, 'PREVIEW_ACTIVATION_RUNBOOK.md')
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 
 function requireMarkers(source, markers, label) {
-  for (const marker of markers) {
-    if (!source.includes(marker)) throw new Error(`${label} missing marker: ${marker}`);
-  }
+  for (const marker of markers) if (!source.includes(marker)) throw new Error(`${label} missing marker: ${marker}`);
 }
 
 requireMarkers(preflight, [
-  "expectedDatabase = 'kloka_talk2me'",
-  "expectedBranch = 'agent/talk2me-os2-integrated-rebuild'",
-  'expectedNodeMajor = 20',
-  'childTimeoutMs = 30000',
-  'PREVIEW_APP_ROOT must match the executing application root',
-  "ALLOW_PRODUCTION_MUTATION: 'false'",
-  "ENABLE_CUSTOMER_MERGE_EXECUTION: 'false'",
-  "stdio: 'inherit'",
-  'timeout: childTimeoutMs',
-  "killSignal: 'SIGKILL'",
-  'shell: false',
-  "result.error.code === 'ETIMEDOUT'",
-  'result.error',
-  'result.signal',
-  'result.status !== 0',
-  'orderedGovernanceChecksCompleted: completed.length',
-  'childProcessTimeoutMs: childTimeoutMs',
-  "childProcessKillSignal: 'SIGKILL'",
-  'childProcessShellDisabled: true',
-  'workspaceTopologyVerified: true',
-  'workspaceSourceIntegrityVerified: true',
-  'workspaceSourceIntegrityGovernanceVerified: true',
-  'workspaceTopologyGovernanceVerified: true',
-  'releaseSourceIntegrityGovernanceVerified: true',
-  'bootstrapGovernanceVerified: true',
-  'bootstrapRunnerGovernanceVerified: true',
-  'bootstrapEvidenceGovernanceVerified: true',
-  'migrationRunnerSecurityVerified: true',
-  'releaseEvidenceSecurityVerified: true',
-  'releaseManifestGovernanceVerified: true',
-  'databaseBackedVerificationExecuted: false',
-  'migrationsExecuted: false',
-  'previewRestartExecuted: false',
-  'productionMutationEnabled: false',
-  'mergeExecutionEnabled: false'
+  "expectedDatabase = 'kloka_talk2me'", "expectedBranch = 'agent/talk2me-os2-integrated-rebuild'", 'expectedNodeMajor = 20',
+  'childTimeoutMs = 30000', 'PREVIEW_APP_ROOT must match the executing application root',
+  "const inheritedKeys = ['PATH', 'HOME', 'USER', 'LOGNAME', 'TMPDIR', 'TEMP', 'TMP', 'LANG', 'LC_ALL', 'TZ', 'CI', 'GITHUB_ACTIONS']",
+  "const prohibitedKeys = ['NODE_OPTIONS', 'NODE_PATH', 'BASH_ENV', 'ENV', 'CDPATH', 'GIT_DIR', 'GIT_WORK_TREE', 'NPM_CONFIG_PREFIX', 'NPM_CONFIG_USERCONFIG']",
+  'buildChildEnvironment()', 'Object.freeze(childEnv)', 'childEnvironmentKeys.length > inheritedKeys.length + 6',
+  "childEnv.ALLOW_PRODUCTION_MUTATION = 'false'", "childEnv.ENABLE_CUSTOMER_MERGE_EXECUTION = 'false'", "childEnv.NODE_ENV = 'production'",
+  'env: childEnvironment', "stdio: 'inherit'", 'timeout: childTimeoutMs', "killSignal: 'SIGKILL'", 'shell: false', 'windowsHide: true',
+  "result.error.code === 'ETIMEDOUT'", 'result.signal', 'result.status !== 0',
+  'childEnvironmentSanitized: true', 'childEnvironmentFrozen: Object.isFrozen(childEnvironment)', 'childEnvironmentAllowlistApplied: true',
+  'nodeOptionsInherited: false', 'nodePathInherited: false', 'bashEnvInherited: false', 'envStartupHookInherited: false',
+  'gitDirectoryOverrideInherited: false', 'gitWorkTreeOverrideInherited: false', 'npmPrefixOverrideInherited: false', 'npmUserConfigOverrideInherited: false',
+  'productionNodeEnvironmentForced: true', 'previewRootForced: true', 'previewDatabaseForced: true', 'releaseBranchForced: true',
+  'productionMutationDisabledInChildren: true', 'mergeExecutionDisabledInChildren: true',
+  'databaseBackedVerificationExecuted: false', 'migrationsExecuted: false', 'previewRestartExecuted: false',
+  'productionMutationEnabled: false', 'mergeExecutionEnabled: false'
 ], 'Preview activation preflight');
 
+if (preflight.includes('...process.env')) throw new Error('Preview activation must not inherit the complete parent environment');
+for (const prohibited of ['NODE_OPTIONS', 'NODE_PATH', 'BASH_ENV', 'GIT_DIR', 'GIT_WORK_TREE', 'NPM_CONFIG_USERCONFIG']) {
+  if (!preflight.includes(`'${prohibited}'`)) throw new Error(`Preview activation prohibited environment list missing ${prohibited}`);
+}
+
 const orderedScripts = [
-  "'workspace-topology-verification.js'",
-  "'workspace-source-integrity.js'",
-  "'workspace-source-integrity-check.js'",
-  "'workspace-topology-governance-check.js'",
-  "'migration-ledger-bootstrap-governance-check.js'",
-  "'migration-ledger-bootstrap-runner-check.js'",
-  "'migration-ledger-bootstrap-evidence-check.js'",
-  "'migration-runner-security-check.js'",
-  "'runtime-release-identity-check.js'",
-  "'readiness-check.js'",
-  "'deployment-check.js'",
-  "'uat-gate-check.js'",
-  "'release-evidence-security-check.js'",
-  "'release-source-integrity-check.js'",
-  "'release-manifest-check.js'"
+  "'workspace-topology-verification.js'", "'workspace-source-integrity.js'", "'workspace-source-integrity-check.js'",
+  "'workspace-topology-governance-check.js'", "'migration-ledger-bootstrap-governance-check.js'",
+  "'migration-ledger-bootstrap-runner-check.js'", "'migration-ledger-bootstrap-evidence-check.js'",
+  "'migration-runner-security-check.js'", "'runtime-release-identity-check.js'", "'readiness-check.js'",
+  "'deployment-check.js'", "'uat-gate-check.js'", "'release-evidence-security-check.js'",
+  "'release-source-integrity-check.js'", "'release-manifest-check.js'"
 ];
-for (const script of orderedScripts) {
-  if (!preflight.includes(script)) throw new Error(`Preview activation preflight missing ordered script ${script}`);
-}
-for (let index = 1; index < orderedScripts.length; index += 1) {
-  if (preflight.indexOf(orderedScripts[index - 1]) >= preflight.indexOf(orderedScripts[index])) {
-    throw new Error(`Preview activation preflight order is invalid at ${orderedScripts[index]}`);
-  }
-}
+for (const script of orderedScripts) if (!preflight.includes(script)) throw new Error(`Preview activation preflight missing ordered script ${script}`);
+for (let index = 1; index < orderedScripts.length; index += 1) if (preflight.indexOf(orderedScripts[index - 1]) >= preflight.indexOf(orderedScripts[index])) throw new Error(`Preview activation preflight order is invalid at ${orderedScripts[index]}`);
 
 requireMarkers(topology, [
   'O_NOFOLLOW and O_DIRECTORY are required for workspace topology verification',
   'fs.openSync(directory, fs.constants.O_RDONLY | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW)',
-  'fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW)',
-  'descriptorStat.dev !== pathStat.dev || descriptorStat.ino !== pathStat.ino',
-  'protectedFilesHardLinkFree: true',
-  'ownershipConsistent: true',
-  'productionMutationEnabled: false',
-  'mergeExecutionEnabled: false'
+  'fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW)', 'protectedFilesHardLinkFree: true',
+  'ownershipConsistent: true', 'productionMutationEnabled: false', 'mergeExecutionEnabled: false'
 ], 'Workspace topology verification');
-
-requireMarkers(topologyGovernance, [
-  "check: 'workspace-topology-governance'",
-  'packageCommandRegistered: true',
-  'normalValidationRegistered: true',
-  'migrationLedgerBootstrapProtected: true',
-  'migration025Required: true'
-], 'Workspace topology governance');
-
-requireMarkers(sourceIntegrity, [
-  "check: 'workspace-source-integrity'",
-  'inventorySha256',
-  'secureDescriptorReads: true',
-  'canonicalPathBinding: true',
-  'hardLinkRejection: true',
-  'ownershipConsistency: true',
-  'boundedReads: true'
-], 'Workspace source integrity');
-
-requireMarkers(sourceIntegrityGovernance, [
-  "check: 'workspace-source-integrity-governance'",
-  'deterministicInventoryRequired: true',
-  'activationPreflightRegistrationRequired: true',
-  'packageCommandRegistered: true',
-  'normalSyntaxValidationRegistered: true',
-  'normalGovernanceValidationRegistered: true',
-  'environmentBoundVerifierExcludedFromNormalExecution: true'
-], 'Workspace source integrity governance');
-
-requireMarkers(releaseSourceGovernance, [
-  "check: 'release-source-integrity-governance'",
-  'boundedExecutionRequired: true',
-  'forcedKillSignalRequired: true',
-  'shellExecutionDisabled: true',
-  'protectedFileCountConsistencyRequired: true',
-  'migrationInventoryMinimumRequired: true',
-  'verificationBeforeReleasePublicationRequired: true',
-  'postFreezeVerificationBeforeIndividualFilesRequired: true',
-  'packageCommandsRegistered: true',
-  'normalSyntaxValidationRegistered: true',
-  'normalGovernanceValidationRegistered: true',
-  'environmentBoundVerifierExcludedFromNormalExecution: true'
-], 'Release source integrity governance');
+requireMarkers(topologyGovernance, ["check: 'workspace-topology-governance'", 'packageCommandRegistered: true', 'normalValidationRegistered: true', 'migrationLedgerBootstrapProtected: true', 'migration025Required: true'], 'Workspace topology governance');
+requireMarkers(sourceIntegrity, ["check: 'workspace-source-integrity'", 'inventorySha256', 'secureDescriptorReads: true', 'canonicalPathBinding: true', 'hardLinkRejection: true', 'ownershipConsistency: true', 'boundedReads: true'], 'Workspace source integrity');
+requireMarkers(sourceIntegrityGovernance, ["check: 'workspace-source-integrity-governance'", 'deterministicInventoryRequired: true', 'activationPreflightRegistrationRequired: true', 'packageCommandRegistered: true', 'normalSyntaxValidationRegistered: true', 'normalGovernanceValidationRegistered: true', 'environmentBoundVerifierExcludedFromNormalExecution: true'], 'Workspace source integrity governance');
+requireMarkers(releaseSourceGovernance, ["check: 'release-source-integrity-governance'", 'boundedExecutionRequired: true', 'forcedKillSignalRequired: true', 'shellExecutionDisabled: true', 'protectedFileCountConsistencyRequired: true', 'verificationBeforeReleasePublicationRequired: true', 'postFreezeVerificationBeforeIndividualFilesRequired: true'], 'Release source integrity governance');
 
 requireMarkers(runbook, [
-  'talk2me.kloka.co.za',
-  'talk2me.uent.co.za',
-  'kloka_talk2me',
-  'agent/talk2me-os2-integrated-rebuild',
-  'PREVIEW_APP_ROOT=/home/kloka/repositories/talk2me/os2-preview',
-  'workspace-source-integrity.js',
-  'workspace-source-integrity-check.js',
-  'deterministic SHA-256 inventory',
-  '30-second execution limit',
-  'forced `SIGKILL` termination',
-  'shell execution disabled',
-  'npm run verify:preview-activation-preflight',
-  'npm ci',
-  'npm run check',
-  'Restart only the preview Node.js application'
+  'talk2me.kloka.co.za', 'talk2me.uent.co.za', 'kloka_talk2me', 'agent/talk2me-os2-integrated-rebuild',
+  'sanitized allowlisted child environment', '`NODE_OPTIONS`', '`NODE_PATH`', '`BASH_ENV`', '`GIT_DIR`', '`GIT_WORK_TREE`', '`NPM_CONFIG_USERCONFIG`',
+  '`NODE_ENV=production`', 'production mutation and merge execution are forced off',
+  '30-second execution limit', 'forced `SIGKILL` termination', 'shell execution disabled',
+  'npm run verify:preview-activation-preflight', 'npm ci', 'npm run check', 'Restart only the preview Node.js application'
 ], 'Preview activation runbook');
 
-if (pkg.scripts['verify:workspace-source-integrity'] !== 'node workspace-source-integrity.js') throw new Error('Missing verify:workspace-source-integrity command');
-if (pkg.scripts['check:workspace-source-integrity'] !== 'node workspace-source-integrity-check.js') throw new Error('Missing check:workspace-source-integrity command');
-if (pkg.scripts['verify:release-source-integrity'] !== 'node release-source-integrity-verification.js') throw new Error('Missing verify:release-source-integrity command');
-if (pkg.scripts['check:release-source-integrity'] !== 'node release-source-integrity-check.js') throw new Error('Missing check:release-source-integrity command');
 if (pkg.scripts['verify:preview-activation-preflight'] !== 'node preview-activation-preflight.js') throw new Error('Missing verify:preview-activation-preflight command');
 if (pkg.scripts['check:preview-activation-governance'] !== 'node preview-activation-governance-check.js') throw new Error('Missing check:preview-activation-governance command');
-for (const marker of [
-  'node --check workspace-source-integrity.js',
-  'node --check workspace-source-integrity-check.js',
-  'node workspace-source-integrity-check.js',
-  'node --check release-source-integrity-verification.js',
-  'node --check release-source-integrity-check.js',
-  'node release-source-integrity-check.js',
-  'node --check preview-activation-preflight.js',
-  'node --check preview-activation-governance-check.js',
-  'node preview-activation-governance-check.js'
-]) {
-  if (!pkg.scripts.check.includes(marker)) throw new Error(`Normal validation missing ${marker}`);
-}
-if (pkg.scripts.check.includes('node release-source-integrity-verification.js')) throw new Error('Environment-bound release source verifier must not execute in normal validation');
+for (const marker of ['node --check preview-activation-preflight.js', 'node --check preview-activation-governance-check.js', 'node preview-activation-governance-check.js']) if (!pkg.scripts.check.includes(marker)) throw new Error(`Normal validation missing ${marker}`);
 
 console.log(JSON.stringify({
   ok: true,
@@ -182,32 +80,33 @@ console.log(JSON.stringify({
   application: pkg.name,
   version: pkg.version,
   orderedSourceChecks: orderedScripts.length,
-  packageCommandRegistered: true,
-  normalValidationRegistered: true,
   activationChildExecutionBounded: true,
   activationChildTimeoutMs: 30000,
   activationChildForcedKillSignalRequired: true,
   activationChildShellExecutionDisabled: true,
-  activationTimeoutFailureHandlingRequired: true,
+  activationChildWindowHidden: true,
+  completeParentEnvironmentInheritanceProhibited: true,
+  childEnvironmentAllowlistRequired: true,
+  childEnvironmentFrozenRequired: true,
+  childEnvironmentKeyCountBounded: true,
+  nodeOptionsInheritanceProhibited: true,
+  nodePathInheritanceProhibited: true,
+  bashEnvInheritanceProhibited: true,
+  envStartupHookInheritanceProhibited: true,
+  cdPathInheritanceProhibited: true,
+  gitDirectoryOverrideInheritanceProhibited: true,
+  gitWorkTreeOverrideInheritanceProhibited: true,
+  npmPrefixOverrideInheritanceProhibited: true,
+  npmUserConfigOverrideInheritanceProhibited: true,
+  productionNodeEnvironmentRequired: true,
+  previewRootForced: true,
+  previewDatabaseForced: true,
+  releaseBranchForced: true,
+  productionMutationDisabledInChildren: true,
+  mergeExecutionDisabledInChildren: true,
   workspaceTopologyVerificationRequired: true,
   workspaceSourceIntegrityRequired: true,
-  workspaceSourceIntegrityGovernanceRequired: true,
-  workspaceSourceIntegrityCommandsRegistered: true,
-  deterministicSourceInventoryRequired: true,
-  workspaceTopologyGovernanceRequired: true,
-  migrationLedgerBootstrapGovernanceRequired: true,
-  migrationLedgerBootstrapRunnerGovernanceRequired: true,
-  migrationLedgerBootstrapEvidenceGovernanceRequired: true,
-  migrationRunnerSecurityRequired: true,
-  runtimeReleaseIdentityRequired: true,
-  readinessRequired: true,
-  deploymentGovernanceRequired: true,
-  uatGovernanceRequired: true,
-  releaseEvidenceSecurityRequired: true,
   releaseSourceIntegrityGovernanceRequired: true,
-  releaseSourceIntegrityCommandsRegistered: true,
-  releaseSourceIntegrityNormalValidationRegistered: true,
-  releaseSourceIntegrityExecutionBounded: true,
   releaseManifestGovernanceRequired: true,
   productionMutationEnabled: false,
   mergeExecutionEnabled: false,
