@@ -52,18 +52,41 @@ const checks = [
   'release-manifest-check.js'
 ];
 
+const inheritedKeys = ['PATH', 'HOME', 'USER', 'LOGNAME', 'TMPDIR', 'TEMP', 'TMP', 'LANG', 'LC_ALL', 'TZ', 'CI', 'GITHUB_ACTIONS'];
+const prohibitedKeys = ['NODE_OPTIONS', 'NODE_PATH', 'BASH_ENV', 'ENV', 'CDPATH', 'GIT_DIR', 'GIT_WORK_TREE', 'NPM_CONFIG_PREFIX', 'NPM_CONFIG_USERCONFIG'];
+
+function buildChildEnvironment() {
+  const childEnv = {};
+  for (const key of inheritedKeys) {
+    if (typeof process.env[key] === 'string' && process.env[key].length > 0) childEnv[key] = process.env[key];
+  }
+  for (const key of prohibitedKeys) {
+    if (Object.prototype.hasOwnProperty.call(childEnv, key)) fail(`Prohibited child environment variable retained: ${key}`);
+  }
+  childEnv.PREVIEW_APP_ROOT = root;
+  childEnv.DB_NAME = expectedDatabase;
+  childEnv.RELEASE_BRANCH = expectedBranch;
+  childEnv.ALLOW_PRODUCTION_MUTATION = 'false';
+  childEnv.ENABLE_CUSTOMER_MERGE_EXECUTION = 'false';
+  childEnv.NODE_ENV = 'production';
+  return Object.freeze(childEnv);
+}
+
+const childEnvironment = buildChildEnvironment();
+const childEnvironmentKeys = Object.keys(childEnvironment).sort();
+if (childEnvironmentKeys.length > inheritedKeys.length + 6) fail('Preview activation child environment exceeds the approved key limit');
+if (childEnvironment.ALLOW_PRODUCTION_MUTATION !== 'false') fail('Child environment must force production mutation disabled');
+if (childEnvironment.ENABLE_CUSTOMER_MERGE_EXECUTION !== 'false') fail('Child environment must force customer merge execution disabled');
+if (childEnvironment.NODE_ENV !== 'production') fail('Child environment must force NODE_ENV=production');
+if (childEnvironment.PREVIEW_APP_ROOT !== root) fail('Child environment application root mismatch');
+if (childEnvironment.DB_NAME !== expectedDatabase) fail('Child environment database mismatch');
+if (childEnvironment.RELEASE_BRANCH !== expectedBranch) fail('Child environment branch mismatch');
+
 const completed = [];
 for (const script of checks) {
   const result = spawnSync(process.execPath, [path.join(root, script)], {
     cwd: root,
-    env: {
-      ...process.env,
-      PREVIEW_APP_ROOT: root,
-      DB_NAME: expectedDatabase,
-      RELEASE_BRANCH: expectedBranch,
-      ALLOW_PRODUCTION_MUTATION: 'false',
-      ENABLE_CUSTOMER_MERGE_EXECUTION: 'false'
-    },
+    env: childEnvironment,
     stdio: 'inherit',
     timeout: childTimeoutMs,
     killSignal: 'SIGKILL',
@@ -91,6 +114,27 @@ console.log(JSON.stringify({
   childProcessTimeoutMs: childTimeoutMs,
   childProcessKillSignal: 'SIGKILL',
   childProcessShellDisabled: true,
+  childProcessWindowHidden: true,
+  childEnvironmentSanitized: true,
+  childEnvironmentFrozen: Object.isFrozen(childEnvironment),
+  childEnvironmentAllowlistApplied: true,
+  childEnvironmentKeyCount: childEnvironmentKeys.length,
+  inheritedEnvironmentKeys: inheritedKeys,
+  prohibitedEnvironmentKeys: prohibitedKeys,
+  nodeOptionsInherited: false,
+  nodePathInherited: false,
+  bashEnvInherited: false,
+  envStartupHookInherited: false,
+  gitDirectoryOverrideInherited: false,
+  gitWorkTreeOverrideInherited: false,
+  npmPrefixOverrideInherited: false,
+  npmUserConfigOverrideInherited: false,
+  productionNodeEnvironmentForced: true,
+  previewRootForced: true,
+  previewDatabaseForced: true,
+  releaseBranchForced: true,
+  productionMutationDisabledInChildren: true,
+  mergeExecutionDisabledInChildren: true,
   workspaceTopologyVerified: true,
   workspaceSourceIntegrityVerified: true,
   workspaceSourceIntegrityGovernanceVerified: true,
