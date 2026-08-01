@@ -35,6 +35,8 @@ if (String(process.env.ENABLE_CUSTOMER_MERGE_EXECUTION || '').toLowerCase() === 
 
 const checks = [
   'workspace-topology-verification.js',
+  'workspace-source-integrity.js',
+  'workspace-source-integrity-check.js',
   'workspace-topology-governance-check.js',
   'migration-ledger-bootstrap-governance-check.js',
   'migration-ledger-bootstrap-runner-check.js',
@@ -80,6 +82,8 @@ console.log(JSON.stringify({
   completed,
   orderedGovernanceChecksCompleted: completed.length,
   workspaceTopologyVerified: true,
+  workspaceSourceIntegrityVerified: true,
+  workspaceSourceIntegrityGovernanceVerified: true,
   bootstrapGovernanceVerified: true,
   bootstrapRunnerGovernanceVerified: true,
   bootstrapEvidenceGovernanceVerified: true,
