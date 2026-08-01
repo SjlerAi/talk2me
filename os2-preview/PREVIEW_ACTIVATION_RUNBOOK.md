@@ -46,7 +46,7 @@ The preflight must execute these controls in this exact order:
 14. `release-source-integrity-check.js`
 15. `release-manifest-check.js`
 
-Stop immediately if any control cannot start, is interrupted, or returns a non-zero status. Every child process must inherit output and receive `ALLOW_PRODUCTION_MUTATION=false` and `ENABLE_CUSTOMER_MERGE_EXECUTION=false`.
+Every child control has a 30-second execution limit, forced `SIGKILL` termination on timeout, shell execution disabled, inherited output, and fixed preview-only safety flags. The preflight must stop immediately when a child cannot start, times out, is interrupted, or returns a non-zero status. A timeout is a failed activation preflight, not a warning and not permission to continue manually.
 
 ## Workspace topology verification
 
@@ -143,6 +143,6 @@ Protected reads must reject symbolic links, additional hard links, non-canonical
 
 ## Hard-stop conditions
 
-Do not proceed when the preview root identity differs, protected paths are unsafe, the source inventory differs from the approved CI digest, any protected source changed after CI approval, the database or branch identity is wrong, Node.js is not 20.x, production mutation or merge execution is enabled, `package-lock.json` is absent, approved source-integrity verification has not passed at the required point, verified backup or bootstrap evidence is missing, migration completion cannot prove lock release and connection closure, preview data verification fails, UAT evidence is incomplete, secure release-manifest verification fails, or the exact deployed commit cannot be proven.
+Do not proceed when the preview root identity differs, protected paths are unsafe, any source-only child exceeds the 30-second limit, the source inventory differs from the approved CI digest, any protected source changed after CI approval, the database or branch identity is wrong, Node.js is not 20.x, production mutation or merge execution is enabled, `package-lock.json` is absent, approved source-integrity verification has not passed at the required point, verified backup or bootstrap evidence is missing, migration completion cannot prove lock release and connection closure, preview data verification fails, UAT evidence is incomplete, secure release-manifest verification fails, or the exact deployed commit cannot be proven.
 
 The migration-ledger bootstrap, migration 025, preview data verification, deployment, restart and formal UAT have not yet been executed.
