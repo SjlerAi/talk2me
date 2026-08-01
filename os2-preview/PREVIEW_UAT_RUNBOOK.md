@@ -8,22 +8,24 @@ This runbook applies only to `https://talk2me.kloka.co.za` and database `kloka_t
 2. Confirm production `talk2me.uent.co.za` has not been changed.
 3. Confirm a reviewed `package-lock.json` is committed and dependencies were installed with `npm ci`.
 4. Retain the exact CI workspace source-integrity evidence and approved `RELEASE_SOURCE_INVENTORY_SHA256`.
-5. Run `npm run verify:release-source-integrity` against the exact candidate checkout with `PREVIEW_APP_ROOT=/home/kloka/repositories/talk2me/os2-preview`, `DB_NAME=kloka_talk2me`, the controlled branch, production mutation disabled, and customer-merge execution disabled.
-6. Confirm release source verification completes within the 30-second limit, reports `exactApprovedInventoryMatched: true`, and confirms `packageLockPresent: true`.
-7. Confirm a current verified preview backup exists and retain its reference and SHA-256.
-8. Confirm the one-time migration ledger bootstrap was executed only through `npm run bootstrap:migration-ledger`.
-9. Verify the private bootstrap evidence pair with `npm run verify:migration-ledger-bootstrap-evidence`.
-10. Confirm the migration command used the same absolute `MIGRATION_LEDGER_BOOTSTRAP_EVIDENCE_PATH` and re-ran the evidence verifier before opening MySQL.
-11. Confirm the final migration result reports `bootstrapEvidenceVerifiedBeforeDatabaseConnection: true`, `advisoryLockReleased: true`, and `databaseConnectionClosedBeforeSuccess: true`.
-12. Run `npm run check`.
-13. Run `npm run check:readiness`.
-14. Run `npm run check:deployment`.
-15. Run `npm run check:uat-gate`.
-16. Run `DB_NAME=kloka_talk2me npm run verify:preview-data` after migrations.
-17. Confirm the orchestrator completed `schema-verification.js` first and `merge-restore-evidence-verification.js` second.
-18. Confirm the successful result identifies `kloka_talk2me` and reports `mergeExecutionEnabled: false`.
+5. Confirm a current verified preview backup exists and retain its reference and SHA-256.
+6. Confirm the one-time migration ledger bootstrap was executed only through `npm run bootstrap:migration-ledger`.
+7. Verify the private bootstrap evidence pair with `npm run verify:migration-ledger-bootstrap-evidence`.
+8. Confirm the migration command used the same absolute `MIGRATION_LEDGER_BOOTSTRAP_EVIDENCE_PATH` and re-ran the evidence verifier before opening MySQL.
+9. Confirm the final migration result reports `bootstrapEvidenceVerifiedBeforeDatabaseConnection: true`, `advisoryLockReleased: true`, and `databaseConnectionClosedBeforeSuccess: true`.
+10. Run `npm run check`.
+11. Run `npm run check:readiness`.
+12. Run `npm run check:deployment`.
+13. Run `npm run check:uat-gate`.
+14. Run `DB_NAME=kloka_talk2me npm run verify:preview-data` after migrations.
+15. Confirm the orchestrator completed `schema-verification.js` first and `merge-restore-evidence-verification.js` second.
+16. Confirm the successful result identifies `kloka_talk2me` and reports `mergeExecutionEnabled: false`.
+17. Re-run approved source-integrity verification immediately before UAT starts.
+18. Confirm that immediate verification completes within 30 seconds and reports `exactApprovedInventoryMatched: true` and `packageLockPresent: true`.
 19. Restart only the preview Node.js application.
 20. Confirm `/health` returns the expected OS2 version and connected preview database.
+
+Any source change after the retained CI evidence was produced invalidates that UAT attempt. This includes changes to application code, governance checks, runbooks, package metadata, the dependency lock, bootstrap source, migrations, or any other protected file. Stop and produce a new CI source inventory and approved digest before continuing.
 
 Do not begin automated or manual UAT when the approved source digest is absent, malformed, belongs to a different CI build, or does not exactly match the current protected source inventory.
 
@@ -45,7 +47,7 @@ ENABLE_CUSTOMER_MERGE_EXECUTION=false \
 npm run verify:release-source-integrity
 ```
 
-Retain the complete output. A source digest mismatch requires a new CI validation and evidence cycle before UAT can continue.
+Retain the complete output as a separate immediate pre-UAT evidence item. An earlier successful result is not sufficient after migration, preview-data verification, manual intervention, dependency work, or any other step that could affect protected source state.
 
 ## Read-only automated UAT
 
@@ -123,7 +125,8 @@ Record for every scenario:
 - exact commit SHA and preview version;
 - approved `RELEASE_SOURCE_INVENTORY_SHA256`;
 - retained CI source-integrity JSON and checksum sidecar;
-- successful release source-integrity verification output;
+- successful release source-integrity verification output from immediately before UAT;
+- verification output showing `exactApprovedInventoryMatched: true` and `packageLockPresent: true`;
 - verified backup reference and SHA-256;
 - bootstrap evidence path and bootstrap source SHA-256;
 - final migration completion result showing evidence verification, lock release and connection closure;
@@ -134,4 +137,4 @@ Record for every scenario:
 - screenshot or error detail;
 - pass, fail or deferred status.
 
-Do not declare the rebuild ready until dependency freeze, approved source-integrity verification, bootstrap evidence verification, controlled migration completion, preview data verification, automated UAT, role-based UAT, import UAT and controlled email testing all pass on the preview environment.
+Do not declare the rebuild ready until dependency freeze, immediate approved source-integrity verification, bootstrap evidence verification, controlled migration completion, preview data verification, automated UAT, role-based UAT, import UAT and controlled email testing all pass on the preview environment.
