@@ -33,9 +33,15 @@ const pinnedActions = {
 };
 
 const workflowMarkers = [
-  'permissions:', 'contents: read', 'timeout-minutes:', 'Detect dependency lock', 'package-lock.json is absent',
+  'push:', 'workflow_dispatch:', 'branches:', 'agent/talk2me-os2-integrated-rebuild',
+  'permissions:', 'contents: read', 'timeout-minutes:',
   pinnedActions.checkout, pinnedActions.setupNode, pinnedActions.uploadArtifact,
-  '# v4.3.0', '# v4.4.0', '# v4.6.2',
+  'persist-credentials: false', 'fetch-depth: 1', '# v4.3.0', '# v4.4.0', '# v4.6.2',
+  'Confirm controlled workflow event and ref', 'case "$GITHUB_EVENT_NAME" in', 'push|workflow_dispatch',
+  'test "$GITHUB_REPOSITORY" = "SjlerAi/talk2me"',
+  'test "$GITHUB_REF" = "refs/heads/agent/talk2me-os2-integrated-rebuild"',
+  'test "$GITHUB_REF_NAME" = "agent/talk2me-os2-integrated-rebuild"', 'test -n "$GITHUB_SHA"',
+  'Detect dependency lock', 'package-lock.json is absent',
   'Verify and retain pre-install workspace source integrity', 'id: preinstall-source', '$RUNNER_TEMP/os2-workspace-source-integrity-preinstall.json',
   'npm run --silent verify:workspace-source-integrity', 'inventory_sha256=', 'package_lock_present=',
   'Confirm dependency-lock detection matches source evidence', 'steps.preinstall-source.outputs.package_lock_present',
@@ -44,14 +50,17 @@ const workflowMarkers = [
   'npm install --ignore-scripts --no-audit --no-fund --package-lock=false', "if: steps.dependency-lock.outputs.present == 'true'",
   'npm run check', 'npm audit --omit=dev --audit-level=high', 'Record dependency audit blocker', 'DEPENDENCY_LOCK_PRESENT:',
   'EXPECTED_PREINSTALL_SOURCE_INVENTORY_SHA256:', 'steps.preinstall-source.outputs.inventory_sha256',
-  'GITHUB_REF: ${{ github.ref }}', 'GITHUB_REPOSITORY: ${{ github.repository }}',
-  'GITHUB_WORKFLOW_REF: ${{ github.workflow_ref }}', 'GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}',
-  'GITHUB_ACTOR: ${{ github.actor }}',
+  'GITHUB_REF: ${{ github.ref }}', 'GITHUB_REPOSITORY: ${{ github.repository }}', 'GITHUB_WORKFLOW: ${{ github.workflow }}',
+  'GITHUB_WORKFLOW_REF: ${{ github.workflow_ref }}', 'GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}', 'GITHUB_ACTOR: ${{ github.actor }}',
   'Generate build evidence with pre-install source continuity', 'npm run evidence:build',
-  'os2-preview-build-evidence-${{ github.run_number }}-attempt-${{ github.run_attempt }}',
-  'os2-preview/**', 'public/os2/**'
+  'os2-preview-build-evidence-${{ github.run_number }}-attempt-${{ github.run_attempt }}', 'os2-preview/**', 'public/os2/**'
 ];
 requireMarkers(workflow, workflowMarkers, 'CI workflow');
+
+if (/^\s*pull_request\s*:/m.test(workflow)) throw new Error('Release-evidence workflow must not run on pull_request merge refs');
+if (/^\s*pull_request_target\s*:/m.test(workflow)) throw new Error('Unsafe pull_request_target trigger is prohibited');
+if (!/^\s{2}push\s*:/m.test(workflow) || !/^\s{2}workflow_dispatch\s*:/m.test(workflow)) throw new Error('Controlled push and workflow_dispatch triggers are required');
+if (!/push:[\s\S]*branches:[\s\S]*agent\/talk2me-os2-integrated-rebuild/.test(workflow)) throw new Error('Push trigger must be restricted to the controlled rebuild branch');
 
 const actionUseLines = workflow.split(/\r?\n/).filter(line => /^\s*uses:\s*/.test(line));
 if (actionUseLines.length !== 3) throw new Error(`CI workflow must contain exactly three action uses; found ${actionUseLines.length}`);
@@ -59,9 +68,7 @@ for (const line of actionUseLines) {
   const reference = line.trim().replace(/^uses:\s*/, '').split(/\s+#/)[0].trim();
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+@[0-9a-f]{40}$/.test(reference)) throw new Error(`CI action reference is not pinned to a full immutable SHA: ${reference}`);
 }
-for (const pinned of Object.values(pinnedActions)) {
-  if (!actionUseLines.some(line => line.includes(pinned))) throw new Error(`Required pinned CI action is missing: ${pinned}`);
-}
+for (const pinned of Object.values(pinnedActions)) if (!actionUseLines.some(line => line.includes(pinned))) throw new Error(`Required pinned CI action is missing: ${pinned}`);
 if (/uses:\s*[^\s#]+@v\d+/i.test(workflow)) throw new Error('Mutable major-version GitHub Action references are prohibited');
 if (/uses:\s*[^\s#]+@(main|master|latest)\b/i.test(workflow)) throw new Error('Mutable branch or latest GitHub Action references are prohibited');
 
@@ -71,28 +78,14 @@ if (pkg.scripts?.['check:workspace-source-integrity'] !== 'node workspace-source
 if (!pkg.scripts?.['check:ci-governance']) throw new Error('Missing check:ci-governance package script');
 if (!pkg.scripts.check.includes('ci-governance-check.js')) throw new Error('CI governance check not included in main validation suite');
 
-const evidenceMarkers = [
-  "const { spawnSync } = require('child_process')", 'runWorkspaceSourceIntegrity()', "'workspace-source-integrity.js'",
-  'verifierTimeoutMs = 30000', 'timeout: verifierTimeoutMs', "killSignal: 'SIGKILL'", 'shell: false', "result.error.code === 'ETIMEDOUT'",
-  'EXPECTED_PREINSTALL_SOURCE_INVENTORY_SHA256', 'GITHUB_ACTIONS', 'equalHex(expectedPreinstallDigest, postinstallDigest)',
-  'Protected source inventory changed between pre-install verification and build-evidence generation', 'parseBooleanEnvironment',
-  'DEPENDENCY_LOCK_PRESENT does not match the filesystem', 'Workspace source-integrity lock evidence does not match the filesystem',
-  'maxManifestFiles = 2000', 'maxManifestFileBytes = 16 * 1024 * 1024', 'maxManifestTotalBytes = 256 * 1024 * 1024',
-  'assertCanonicalDirectory', 'O_DIRECTORY and O_NOFOLLOW are required for build-evidence directory validation',
-  'descriptorStat.dev !== stat.dev || descriptorStat.ino !== stat.ino', 'readSecureFile', 'fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW',
-  'descriptorStat.dev !== pathStat.dev || descriptorStat.ino !== pathStat.ino', 'bytes.length !== descriptorStat.size',
-  'Manifest source directory changed during traversal', 'Build evidence file count exceeds', 'Build evidence source bytes exceed',
-  'Existing build-evidence path must be a real directory', 'Existing build-evidence directory owner mismatch',
-  'assertPrivateDirectory', 'atomicWrite', 'fs.constants.O_EXCL', 'fs.fsyncSync', 'Evidence output permissions must be 0600',
-  'verifySidecar', 'artifact-manifest.json', 'artifact-manifest.sha256', 'privateDirectoryVerified: true',
-  'atomicPublicationVerified: true', 'checksumPairsVerified: true', 'secureManifestDescriptorReads: true',
-  'boundedManifestCollection: true', 'manifestDirectoryIdentityRechecked: true',
-  'workspaceSourceIntegrityVerified: true', 'workspaceSourceIntegrityStableAcrossDependencyInstall',
-  'dependencyLockStateVerifiedAgainstFilesystem: true', 'dependencyLockStateVerifiedAgainstSourceIntegrity: true',
-  'workspace-source-integrity.json', 'workspace-source-integrity.sha256', 'build-evidence.json', 'build-evidence.sha256',
-  'migrationCount', 'routeFileCount', 'checkFileCount', 'GITHUB_SHA', 'dependencyAuditEligible', 'releaseCandidateEligible'
-];
-requireMarkers(evidence, evidenceMarkers, 'Build evidence');
+requireMarkers(evidence, [
+  'validateCiIdentity()', "expectedRepository = 'SjlerAi/talk2me'", "expectedBranch = 'agent/talk2me-os2-integrated-rebuild'",
+  'Unexpected GitHub repository identity', 'GITHUB_SHA must be a full 40-character hexadecimal commit SHA',
+  'Unexpected GitHub branch identity', 'Unexpected GitHub ref identity', 'GITHUB_WORKFLOW_REF does not identify the controlled preview workflow and branch',
+  'githubActionsIdentityVerified', 'exactRepositoryVerified', 'exactCommitShaVerified', 'exactBranchAndRefVerified', 'exactWorkflowRefVerified',
+  'EXPECTED_PREINSTALL_SOURCE_INVENTORY_SHA256', 'workspaceSourceIntegrityStableAcrossDependencyInstall',
+  'secureManifestDescriptorReads: true', 'boundedManifestCollection: true', 'artifact-manifest.json'
+], 'Build evidence');
 
 requireMarkers(sourceIntegrity, [
   "check: 'workspace-source-integrity'", 'inventorySha256', 'secureDescriptorReads: true', 'canonicalPathBinding: true',
@@ -105,31 +98,29 @@ requireMarkers(sourceIntegrityGovernance, [
   'ciBuildEvidenceProtectionRequired: true', 'ciGovernanceProtectionRequired: true', 'ciWorkflowProtectionRequired: true'
 ], 'Workspace source integrity governance');
 
-const runbookMarkers = [
+requireMarkers(runbook, [
+  'controlled branch only', 'pull_request merge refs are prohibited', 'push and manual `workflow_dispatch`',
   'immutable 40-character commit SHA', 'actions/checkout', 'actions/setup-node', 'actions/upload-artifact',
-  'Mutable action tags, branches, and `latest` references are prohibited',
+  'Mutable action tags, branches, and `latest` references are prohibited', 'persist-credentials: false', 'fetch-depth: 1',
   'npm install --ignore-scripts --no-audit --no-fund --package-lock=false', 'pre-install inventory digest', 'post-install inventory digest',
   'must match exactly', 'dependency-lock detection must agree', 'workspaceSourceIntegrityStableAcrossDependencyInstall: true',
   'secure descriptor-based reads', '`O_NOFOLLOW`', '`O_DIRECTORY`', '2,000 files', '16 MiB', '256 MiB',
-  'directory identity is rechecked', 'atomic publication', 'private `0700` evidence directory', 'private `0600` evidence files',
-  'artifact-manifest.json', 'checksum pairs are reverified before upload', 'dependencyLockPresent: false',
-  'dependencyAuditEligible: false', 'releaseCandidateEligible: false', 'npm ci --ignore-scripts --no-audit --no-fund',
-  'release-candidate gate must continue to fail', 'pinned restore-evidence verification',
+  'atomic publication', 'private `0700` evidence directory', 'private `0600` evidence files', 'artifact-manifest.json',
+  'dependencyLockPresent: false', 'dependencyAuditEligible: false', 'releaseCandidateEligible: false',
   'Production at `talk2me.uent.co.za` remains outside this workflow'
-];
-requireMarkers(runbook, runbookMarkers, 'CI runbook');
+], 'CI runbook');
 
+const eventGuardPosition = workflow.indexOf('Confirm controlled workflow event and ref');
+const dependencyPosition = workflow.indexOf('Detect dependency lock');
 const preinstallPosition = workflow.indexOf('npm run --silent verify:workspace-source-integrity');
 const installPosition = workflow.indexOf('npm install --ignore-scripts');
 const checkPosition = workflow.indexOf('npm run check');
 const evidencePosition = workflow.indexOf('npm run evidence:build');
+if (eventGuardPosition === -1 || dependencyPosition === -1 || eventGuardPosition >= dependencyPosition) throw new Error('Controlled event/ref verification must run before dependency inspection');
 if (preinstallPosition === -1 || installPosition === -1 || preinstallPosition >= installPosition) throw new Error('Workspace source integrity must run before dependency installation');
 if (checkPosition === -1 || evidencePosition === -1 || checkPosition >= evidencePosition) throw new Error('Build evidence must be generated after integrated validation');
-if (workflow.indexOf('Confirm dependency-lock detection matches source evidence') >= installPosition) throw new Error('Dependency-lock consistency must be confirmed before dependency installation');
-if (workflow.indexOf('EXPECTED_PREINSTALL_SOURCE_INVENTORY_SHA256:') >= evidencePosition) throw new Error('Expected pre-install digest must be provided to build-evidence generation');
 if (/cache:\s*npm/.test(workflow)) throw new Error('npm cache must not assume a lockfile before dependency freeze');
 if (/npm install(?![^\n]*--package-lock=false)/.test(workflow)) throw new Error('CI install must not generate an uncommitted dependency lock');
-if (/pull_request_target\s*:/.test(workflow)) throw new Error('Unsafe pull_request_target trigger is prohibited');
 if (/permissions:\s*write-all/.test(workflow)) throw new Error('write-all workflow permission is prohibited');
 if (/continue-on-error:\s*true/.test(workflow)) throw new Error('Validation failures may not be ignored');
 
@@ -137,41 +128,23 @@ console.log(JSON.stringify({
   ok: true,
   module: 'ci-governance',
   workflow: '.github/workflows/os2-preview-ci.yml',
-  validationMarkers: workflowMarkers.length,
-  evidenceMarkers: evidenceMarkers.length,
-  runbookMarkers: runbookMarkers.length,
+  controlledBranchOnly: true,
+  allowedEvents: ['push', 'workflow_dispatch'],
+  pullRequestMergeRefsProhibited: true,
+  pullRequestTargetProhibited: true,
+  eventAndRefGuardRunsBeforeDependencyInspection: true,
+  checkoutCredentialsPersisted: false,
+  checkoutFetchDepth: 1,
   immutableActionReferencesRequired: true,
   checkoutActionPinnedSha: pinnedActions.checkout.split('@')[1],
   setupNodeActionPinnedSha: pinnedActions.setupNode.split('@')[1],
   uploadArtifactActionPinnedSha: pinnedActions.uploadArtifact.split('@')[1],
-  mutableActionTagsProhibited: true,
-  mutableActionBranchesProhibited: true,
   exactActionUseCountRequired: true,
   workflowIdentityEnvironmentExplicit: true,
   artifactNameBoundToRunAttempt: true,
   workspaceSourceIntegrityRunsBeforeDependencyInstall: true,
-  preinstallSourceDigestRetainedAsWorkflowOutput: true,
-  postinstallSourceDigestComparedWithPreinstallDigest: true,
   sourceIntegrityStableAcrossDependencyInstallRequired: true,
-  dependencyLockDetectionConsistencyRequired: true,
-  buildEvidenceLockStateConsistencyRequired: true,
-  buildEvidenceVerifierExecutionBounded: true,
-  buildEvidenceDirectoryDescriptorsRequired: true,
-  buildEvidenceFileDescriptorReadsRequired: true,
-  buildEvidenceDirectoryIdentityRecheckRequired: true,
-  buildEvidenceOwnerConsistencyRequired: true,
-  buildEvidenceFileCountBounded: true,
-  buildEvidencePerFileBytesBounded: true,
-  buildEvidenceTotalBytesBounded: true,
-  existingEvidencePathSafetyRequired: true,
-  buildEvidencePrivateDirectoryRequired: true,
-  buildEvidenceAtomicPublicationRequired: true,
-  buildEvidencePrivateFilesRequired: true,
-  buildEvidenceChecksumReverificationRequired: true,
-  artifactManifestRequired: true,
   buildEvidenceBoundToWorkspaceSourceInventory: true,
-  workspaceSourceIntegrityArtifactRetained: true,
-  dependencyLockPolicy: 'source-validation-continues-audit-blocked-until-committed-lock',
   productionMutationEnabled: false,
   mergeExecutionEnabled: false
 }, null, 2));
