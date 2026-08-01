@@ -88,9 +88,16 @@ if(previewData.indexOf("'schema-verification.js'") > previewData.indexOf("'merge
 const verifierMarkers=[
   'RELEASE_MANIFEST_PATH is required',
   'RELEASE_MANIFEST_PATH must be absolute',
+  'Release evidence directory is missing:',
+  'Release evidence directory must be a real non-symlink directory:',
+  'Release evidence directory must not permit group or world access:',
+  'Release evidence directory cannot be resolved canonically:',
+  'Release evidence directory path is not canonical:',
   'Required release evidence file is missing',
   'regular non-symlink file',
   'permissions must be 0600',
+  'Release evidence file cannot be resolved canonically:',
+  'Release evidence file path is not canonical:',
   'timingSafeEqual',
   'checksum verification failed',
   'commitIdentityVerified',
@@ -103,6 +110,8 @@ const verifierMarkers=[
   "'preview-data-verification.js'",
   'mergeExecutionEnabled !== false',
   'migrationChecksums.length < 25',
+  'evidenceDirectoryCanonical: true',
+  'evidenceDirectoryPrivate: true',
   'release-manifest-verification'
 ];
 for(const marker of verifierMarkers) if(!verifier.includes(marker)) throw new Error(`Missing release verifier marker: ${marker}`);
@@ -155,6 +164,8 @@ console.log(JSON.stringify({
   releaseEvidenceDirectoryPrivate:true,
   releaseEvidenceDirectorySymlinkProhibited:true,
   releaseEvidenceDirectoryDurabilitySync:true,
+  releaseEvidenceVerifierDirectoryProtection:true,
+  releaseEvidenceVerifierCanonicalPaths:true,
   postFreezeManifestVerificationRequired:true,
   releaseRunbookPreviewDataProtected:true,
   previewDataMarkers:previewDataMarkers.length,
