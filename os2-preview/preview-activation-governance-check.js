@@ -6,6 +6,7 @@ const path = require('path');
 const root = __dirname;
 const preflight = fs.readFileSync(path.join(root, 'preview-activation-preflight.js'), 'utf8');
 const topology = fs.readFileSync(path.join(root, 'workspace-topology-verification.js'), 'utf8');
+const topologyGovernance = fs.readFileSync(path.join(root, 'workspace-topology-governance-check.js'), 'utf8');
 const runbook = fs.readFileSync(path.join(root, 'PREVIEW_ACTIVATION_RUNBOOK.md'), 'utf8');
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 
@@ -41,13 +42,19 @@ for (const marker of requiredPreflightMarkers) {
 const topologyMarkers = [
   'O_NOFOLLOW and O_DIRECTORY are required for workspace topology verification',
   'fs.openSync(directory, fs.constants.O_RDONLY | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW)',
+  'fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW)',
   'descriptorStat.dev !== pathStat.dev || descriptorStat.ino !== pathStat.ino',
+  'descriptorStat.nlink !== 1',
+  'descriptorStat.size > maxBytes',
   'must not be group or world writable',
   'must not have additional hard links',
   'owner differs from the preview application root',
   'Migration 025 is missing from the protected workspace',
   'directoryNoFollowVerification: true',
   'directoryDescriptorIdentityVerified: true',
+  'protectedFileNoFollowVerification: true',
+  'protectedFileDescriptorIdentityVerified: true',
+  'protectedFileSizeLimitsEnforced: true',
   'protectedFilesSymlinkFree: true',
   'protectedFilesHardLinkFree: true',
   'ownershipConsistent: true',
@@ -56,6 +63,18 @@ const topologyMarkers = [
 ];
 for (const marker of topologyMarkers) {
   if (!topology.includes(marker)) throw new Error(`Workspace topology verification missing marker: ${marker}`);
+}
+
+for (const marker of [
+  'workspace-topology-governance',
+  'directoryNoFollowRequired: true',
+  'fileNoFollowRequired: true',
+  'descriptorIdentityRequired: true',
+  'hardLinkRejectionRequired: true',
+  'boundedProtectedFilesRequired: true',
+  'migration025Required: true'
+]) {
+  if (!topologyGovernance.includes(marker)) throw new Error(`Workspace topology governance missing marker: ${marker}`);
 }
 
 const orderedScripts = [
@@ -81,7 +100,10 @@ const requiredRunbookMarkers = [
   'PREVIEW_APP_ROOT=/home/kloka/repositories/talk2me/os2-preview',
   'workspace-topology-verification.js',
   'directory descriptors with `O_DIRECTORY | O_NOFOLLOW`',
+  'protected workspace files with `O_NOFOLLOW`',
+  'device/inode identity',
   'additional hard links',
+  'bounded file sizes',
   'npm run verify:preview-activation-preflight',
   'npm ci',
   'npm run check',
@@ -108,8 +130,12 @@ console.log(JSON.stringify({
   version: pkg.version,
   orderedSourceChecks: orderedScripts.length,
   workspaceTopologyVerificationRequired: true,
+  workspaceTopologyGovernanceRequired: true,
   directoryNoFollowVerificationRequired: true,
+  protectedFileNoFollowVerificationRequired: true,
+  protectedFileDescriptorIdentityRequired: true,
   protectedFileHardLinkRejectionRequired: true,
+  protectedFileSizeLimitsRequired: true,
   ownershipConsistencyRequired: true,
   productionMutationEnabled: false,
   mergeExecutionEnabled: false,
