@@ -5,6 +5,7 @@ const path = require('path');
 
 const root = __dirname;
 const preflight = fs.readFileSync(path.join(root, 'preview-activation-preflight.js'), 'utf8');
+const topology = fs.readFileSync(path.join(root, 'workspace-topology-verification.js'), 'utf8');
 const runbook = fs.readFileSync(path.join(root, 'PREVIEW_ACTIVATION_RUNBOOK.md'), 'utf8');
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 
@@ -12,8 +13,11 @@ const requiredPreflightMarkers = [
   "expectedDatabase = 'kloka_talk2me'",
   "expectedBranch = 'agent/talk2me-os2-integrated-rebuild'",
   'expectedNodeMajor = 20',
+  'PREVIEW_APP_ROOT',
+  'PREVIEW_APP_ROOT must match the executing application root',
   'ALLOW_PRODUCTION_MUTATION=true',
   'ENABLE_CUSTOMER_MERGE_EXECUTION=true',
+  "'workspace-topology-verification.js'",
   "'runtime-release-identity-check.js'",
   "'readiness-check.js'",
   "'deployment-check.js'",
@@ -23,6 +27,7 @@ const requiredPreflightMarkers = [
   'result.error',
   'result.signal',
   'result.status !== 0',
+  'workspaceTopologyVerified: true',
   'databaseBackedVerificationExecuted: false',
   'migrationsExecuted: false',
   'previewRestartExecuted: false',
@@ -33,7 +38,28 @@ for (const marker of requiredPreflightMarkers) {
   if (!preflight.includes(marker)) throw new Error(`Preview activation preflight missing marker: ${marker}`);
 }
 
+const topologyMarkers = [
+  'O_NOFOLLOW and O_DIRECTORY are required for workspace topology verification',
+  'fs.openSync(directory, fs.constants.O_RDONLY | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW)',
+  'descriptorStat.dev !== pathStat.dev || descriptorStat.ino !== pathStat.ino',
+  'must not be group or world writable',
+  'must not have additional hard links',
+  'owner differs from the preview application root',
+  'Migration 025 is missing from the protected workspace',
+  'directoryNoFollowVerification: true',
+  'directoryDescriptorIdentityVerified: true',
+  'protectedFilesSymlinkFree: true',
+  'protectedFilesHardLinkFree: true',
+  'ownershipConsistent: true',
+  'productionMutationEnabled: false',
+  'mergeExecutionEnabled: false'
+];
+for (const marker of topologyMarkers) {
+  if (!topology.includes(marker)) throw new Error(`Workspace topology verification missing marker: ${marker}`);
+}
+
 const orderedScripts = [
+  "'workspace-topology-verification.js'",
   "'runtime-release-identity-check.js'",
   "'readiness-check.js'",
   "'deployment-check.js'",
@@ -52,6 +78,10 @@ const requiredRunbookMarkers = [
   'kloka_talk2me',
   'agent/talk2me-os2-integrated-rebuild',
   'Node.js: 20.x',
+  'PREVIEW_APP_ROOT=/home/kloka/repositories/talk2me/os2-preview',
+  'workspace-topology-verification.js',
+  'directory descriptors with `O_DIRECTORY | O_NOFOLLOW`',
+  'additional hard links',
   'npm run verify:preview-activation-preflight',
   'npm ci',
   'npm run check',
@@ -77,6 +107,10 @@ console.log(JSON.stringify({
   application: pkg.name,
   version: pkg.version,
   orderedSourceChecks: orderedScripts.length,
+  workspaceTopologyVerificationRequired: true,
+  directoryNoFollowVerificationRequired: true,
+  protectedFileHardLinkRejectionRequired: true,
+  ownershipConsistencyRequired: true,
   productionMutationEnabled: false,
   mergeExecutionEnabled: false,
   databaseBackedVerificationExecuted: false,
