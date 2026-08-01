@@ -7,7 +7,7 @@ const ROLE_PERMISSIONS = Object.freeze({
     'account.read','account.create','account.update','service.read','service.create','service.update',
     'document.read','document.upload','document.archive','restriction.read','restriction.update',
     'work.read','work.create','work.update','work.assign','work.accept','work.return',
-    'approval.read','approval.decide','claim.request','claim.approve','report.read','report.export',
+    'approval.read','approval.create','approval.decide','claim.request','claim.approve','report.read','report.export',
     'import.read','import.upload','import.review','import.finalise','staff.read','attendance.read','attendance.correct',
     'audit.read','launcher.read','launcher.update','notification.broadcast','notification.queue.read','digest.generate',
     'security.event.read','security.session.revoke','privacy.read','privacy.manage','privacy.decide','privacy.export','privacy.retention'
@@ -16,13 +16,13 @@ const ROLE_PERMISSIONS = Object.freeze({
     'customer.read','customer.create','customer.update','customer.merge.review','account.read','account.create','account.update',
     'service.read','service.create','service.update','document.read','document.upload',
     'restriction.read','work.read','work.create','work.update','work.assign',
-    'approval.read','claim.request','report.read','import.read','import.upload','staff.read',
+    'approval.read','approval.create','claim.request','report.read','import.read','import.upload','staff.read',
     'attendance.read','launcher.read','notification.queue.read','security.event.read','privacy.read','privacy.manage'
   ],
   staff: [
     'customer.read','customer.create','customer.update.assigned','account.read','service.read',
     'document.read.assigned','document.upload.assigned','restriction.read.assigned',
-    'work.read.own','work.create','work.update.own','work.complete.own','claim.request',
+    'work.read.own','work.create','work.update.own','work.complete.own','claim.request','approval.create',
     'inquiry.create','inquiry.update.assigned','calendar.read.own','calendar.update.own',
     'note.read.own','note.create','note.update.own','attendance.read.own'
   ]
