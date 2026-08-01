@@ -6,7 +6,8 @@ const crypto = require('crypto');
 const mysql = require('mysql2/promise');
 
 const root = __dirname;
-const bootstrapPath = path.join(root, 'MIGRATION_LEDGER_BOOTSTRAP.sql');
+const bootstrapFile = 'MIGRATION_LEDGER_BOOTSTRAP.sql';
+const bootstrapPath = path.join(root, bootstrapFile);
 const expectedDatabase = 'kloka_talk2me';
 const lockName = 'talk2me_os2_preview_migrations';
 const maxBootstrapBytes = 1024 * 1024;
@@ -53,6 +54,68 @@ function validateBootstrapSql(sql) {
   if ((upper.match(/CREATE TABLE/g) || []).length !== 1) throw new Error('BOOTSTRAP_SQL_MUST_CREATE_EXACTLY_ONE_TABLE');
 }
 
+function validateEvidenceTarget(evidencePath) {
+  if (!path.isAbsolute(evidencePath)) throw new Error('BOOTSTRAP_EVIDENCE_PATH_MUST_BE_ABSOLUTE');
+  if (path.normalize(evidencePath) !== evidencePath) throw new Error('BOOTSTRAP_EVIDENCE_PATH_MUST_BE_NORMALIZED');
+  const directory = path.dirname(evidencePath);
+  const directoryStat = fs.lstatSync(directory);
+  if (!directoryStat.isDirectory() || directoryStat.isSymbolicLink()) throw new Error('BOOTSTRAP_EVIDENCE_DIRECTORY_NOT_SECURE');
+  if (process.platform !== 'win32' && (directoryStat.mode & 0o077) !== 0) throw new Error('BOOTSTRAP_EVIDENCE_DIRECTORY_NOT_PRIVATE');
+  if (fs.realpathSync.native(directory) !== directory) throw new Error('BOOTSTRAP_EVIDENCE_DIRECTORY_NOT_CANONICAL');
+  if (fs.existsSync(evidencePath) || fs.existsSync(`${evidencePath}.sha256`)) throw new Error('BOOTSTRAP_EVIDENCE_ALREADY_EXISTS');
+  return directory;
+}
+
+function syncDirectory(directory) {
+  const descriptor = fs.openSync(directory, fs.constants.O_RDONLY);
+  try { fs.fsyncSync(descriptor); } finally { fs.closeSync(descriptor); }
+}
+
+function writePrivateTemp(file, content) {
+  const descriptor = fs.openSync(file, 'wx', 0o600);
+  try {
+    fs.writeFileSync(descriptor, content, 'utf8');
+    fs.fsyncSync(descriptor);
+  } finally {
+    fs.closeSync(descriptor);
+  }
+}
+
+function removeIfPresent(file) {
+  try { fs.unlinkSync(file); } catch (error) { if (error.code !== 'ENOENT') throw error; }
+}
+
+function publishEvidencePair(evidencePath, evidence) {
+  const directory = validateEvidenceTarget(evidencePath);
+  const checksumPath = `${evidencePath}.sha256`;
+  const evidenceText = `${JSON.stringify(evidence, null, 2)}\n`;
+  const digest = crypto.createHash('sha256').update(evidenceText).digest('hex');
+  const checksumText = `${digest}  ${path.basename(evidencePath)}\n`;
+  const nonce = `${process.pid}-${crypto.randomBytes(12).toString('hex')}`;
+  const evidenceTemp = `${evidencePath}.${nonce}.tmp`;
+  const checksumTemp = `${checksumPath}.${nonce}.tmp`;
+  let evidencePublished = false;
+  let checksumPublished = false;
+  try {
+    writePrivateTemp(evidenceTemp, evidenceText);
+    writePrivateTemp(checksumTemp, checksumText);
+    fs.linkSync(checksumTemp, checksumPath);
+    checksumPublished = true;
+    fs.linkSync(evidenceTemp, evidencePath);
+    evidencePublished = true;
+    syncDirectory(directory);
+  } catch (error) {
+    if (evidencePublished) removeIfPresent(evidencePath);
+    if (checksumPublished) removeIfPresent(checksumPath);
+    syncDirectory(directory);
+    throw error;
+  } finally {
+    removeIfPresent(evidenceTemp);
+    removeIfPresent(checksumTemp);
+  }
+  return digest;
+}
+
 async function verifyLedgerSchema(connection) {
   const [tables] = await connection.execute(`SELECT ENGINE, TABLE_COLLATION FROM information_schema.TABLES WHERE TABLE_SCHEMA=? AND TABLE_NAME='os2_schema_migrations'`, [expectedDatabase]);
   if (tables.length !== 1) throw new Error('BOOTSTRAP_POSTCHECK_TABLE_MISSING');
@@ -68,19 +131,22 @@ async function verifyLedgerSchema(connection) {
 }
 
 async function run() {
+  const startedAt = new Date().toISOString();
   if (required('DB_NAME') !== expectedDatabase) throw new Error('REFUSING_NON_PREVIEW_DATABASE');
   if (String(process.env.ALLOW_MIGRATION_LEDGER_BOOTSTRAP || '').toLowerCase() !== 'true') throw new Error('ALLOW_MIGRATION_LEDGER_BOOTSTRAP_NOT_ENABLED');
   if (String(process.env.ALLOW_PRODUCTION_MUTATION || '').toLowerCase() === 'true') throw new Error('PRODUCTION_MUTATION_FLAG_PROHIBITED');
   if (String(process.env.ENABLE_CUSTOMER_MERGE_EXECUTION || '').toLowerCase() === 'true') throw new Error('MERGE_EXECUTION_FLAG_PROHIBITED');
-  const backupReference = required('VERIFIED_BACKUP_REFERENCE');
-  const backupSha256 = required('VERIFIED_BACKUP_SHA256');
-  if (!/^[0-9a-f]{64}$/i.test(backupSha256)) throw new Error('VERIFIED_BACKUP_SHA256_INVALID');
+  const verifiedBackupReference = required('VERIFIED_BACKUP_REFERENCE');
+  const verifiedBackupSha256 = required('VERIFIED_BACKUP_SHA256');
+  if (!/^[0-9a-f]{64}$/i.test(verifiedBackupSha256)) throw new Error('VERIFIED_BACKUP_SHA256_INVALID');
   const operator = required('BOOTSTRAP_OPERATOR');
   const changeReference = required('BOOTSTRAP_CHANGE_REFERENCE');
+  const evidencePath = required('MIGRATION_LEDGER_BOOTSTRAP_EVIDENCE_PATH');
+  validateEvidenceTarget(evidencePath);
 
   const sql = secureReadBootstrap();
   validateBootstrapSql(sql);
-  const sourceSha256 = crypto.createHash('sha256').update(sql).digest('hex');
+  const bootstrapSha256 = crypto.createHash('sha256').update(sql).digest('hex');
   const connection = await mysql.createConnection({
     host: required('DB_HOST'),
     port: Number(process.env.DB_PORT || 3306),
@@ -93,6 +159,10 @@ async function run() {
 
   let connectionId = null;
   let lockAcquired = false;
+  let advisoryLockOwnerVerified = false;
+  let advisoryLockReleased = false;
+  let ledgerSchemaVerified = false;
+  let ledgerRowCount = null;
   try {
     const [identityRows] = await connection.execute('SELECT CONNECTION_ID() AS connection_id');
     connectionId = Number(identityRows[0] && identityRows[0].connection_id);
@@ -102,40 +172,60 @@ async function run() {
     lockAcquired = true;
     const [ownerRows] = await connection.execute('SELECT IS_USED_LOCK(?) AS owner_connection_id', [lockName]);
     if (!ownerRows[0] || Number(ownerRows[0].owner_connection_id) !== connectionId) throw new Error('BOOTSTRAP_ADVISORY_LOCK_OWNER_MISMATCH');
+    advisoryLockOwnerVerified = true;
     const [existing] = await connection.execute(`SELECT COUNT(*) AS table_count FROM information_schema.TABLES WHERE TABLE_SCHEMA=? AND TABLE_NAME='os2_schema_migrations'`, [expectedDatabase]);
     if (Number(existing[0].table_count) !== 0) throw new Error('BOOTSTRAP_REFUSES_EXISTING_LEDGER_TABLE');
     await connection.query(sql);
     await verifyLedgerSchema(connection);
+    ledgerSchemaVerified = true;
     const [ledgerRows] = await connection.execute('SELECT COUNT(*) AS ledger_rows FROM os2_schema_migrations');
-    if (Number(ledgerRows[0].ledger_rows) !== 0) throw new Error('BOOTSTRAP_LEDGER_NOT_EMPTY');
-    console.log(JSON.stringify({
-      ok: true,
-      check: 'migration-ledger-bootstrap-runner',
-      database: expectedDatabase,
-      sourceSha256,
-      backupReference,
-      backupSha256: backupSha256.toLowerCase(),
-      operator,
-      changeReference,
-      ledgerSchemaVerified: true,
-      ledgerEmpty: true,
-      advisoryLockOwnerVerified: true,
-      productionMutationEnabled: false,
-      mergeExecutionEnabled: false
-    }, null, 2));
+    ledgerRowCount = Number(ledgerRows[0].ledger_rows);
+    if (ledgerRowCount !== 0) throw new Error('BOOTSTRAP_LEDGER_NOT_EMPTY');
   } finally {
     if (lockAcquired) {
-      try {
-        const [ownerRows] = await connection.execute('SELECT IS_USED_LOCK(?) AS owner_connection_id', [lockName]);
-        if (Number(ownerRows[0] && ownerRows[0].owner_connection_id) !== connectionId) throw new Error('BOOTSTRAP_ADVISORY_LOCK_OWNERSHIP_LOST');
-        const [releaseRows] = await connection.execute('SELECT RELEASE_LOCK(?) AS released', [lockName]);
-        if (!releaseRows[0] || Number(releaseRows[0].released) !== 1) throw new Error('BOOTSTRAP_ADVISORY_LOCK_RELEASE_NOT_CONFIRMED');
-      } catch (error) {
-        console.error(error.message);
-      }
+      const [ownerRows] = await connection.execute('SELECT IS_USED_LOCK(?) AS owner_connection_id', [lockName]);
+      if (Number(ownerRows[0] && ownerRows[0].owner_connection_id) !== connectionId) throw new Error('BOOTSTRAP_ADVISORY_LOCK_OWNERSHIP_LOST');
+      const [releaseRows] = await connection.execute('SELECT RELEASE_LOCK(?) AS released', [lockName]);
+      if (!releaseRows[0] || Number(releaseRows[0].released) !== 1) throw new Error('BOOTSTRAP_ADVISORY_LOCK_RELEASE_NOT_CONFIRMED');
+      advisoryLockReleased = true;
     }
     await connection.end();
   }
+
+  const completedAt = new Date().toISOString();
+  const evidence = {
+    ok: true,
+    check: 'migration-ledger-bootstrap-runner',
+    database: expectedDatabase,
+    bootstrapFile,
+    bootstrapSha256,
+    verifiedBackupReference,
+    verifiedBackupSha256: verifiedBackupSha256.toLowerCase(),
+    operator,
+    changeReference,
+    preexistingLedgerTableCount: 0,
+    createdLedgerTableCount: 1,
+    ledgerSchemaVerified,
+    ledgerRowCount,
+    ledgerEmpty: ledgerRowCount === 0,
+    advisoryLockUsed: lockAcquired,
+    advisoryLockOwnerVerified,
+    advisoryLockReleased,
+    startedAt,
+    completedAt,
+    productionMutationEnabled: false,
+    mergeExecutionEnabled: false
+  };
+  if (!ledgerSchemaVerified || ledgerRowCount !== 0 || !advisoryLockOwnerVerified || !advisoryLockReleased) {
+    throw new Error('BOOTSTRAP_EVIDENCE_INCOMPLETE');
+  }
+  const evidenceSha256 = publishEvidencePair(evidencePath, evidence);
+  console.log(JSON.stringify({
+    ...evidence,
+    evidencePath,
+    evidenceSha256,
+    privateAtomicEvidencePublished: true
+  }, null, 2));
 }
 
 run().catch(error => {
