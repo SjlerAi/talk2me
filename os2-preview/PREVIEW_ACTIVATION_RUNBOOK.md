@@ -48,6 +48,29 @@ The preflight must execute these controls in this exact order:
 
 Every child control has a 30-second execution limit, forced `SIGKILL` termination on timeout, shell execution disabled, inherited output, and fixed preview-only safety flags. The preflight must stop immediately when a child cannot start, times out, is interrupted, or returns a non-zero status. A timeout is a failed activation preflight, not a warning and not permission to continue manually.
 
+## Sanitized child environment
+
+Each preflight child runs in a sanitized allowlisted child environment. The complete parent environment is never copied into a child process.
+
+Only these operational variables may be inherited when present: `PATH`, `HOME`, `USER`, `LOGNAME`, `TMPDIR`, `TEMP`, `TMP`, `LANG`, `LC_ALL`, `TZ`, `CI`, and `GITHUB_ACTIONS`.
+
+These startup hooks and path overrides are explicitly prohibited from inheritance: `NODE_OPTIONS`, `NODE_PATH`, `BASH_ENV`, `ENV`, `CDPATH`, `GIT_DIR`, `GIT_WORK_TREE`, `NPM_CONFIG_PREFIX`, and `NPM_CONFIG_USERCONFIG`.
+
+The preflight always forces:
+
+```text
+PREVIEW_APP_ROOT=/home/kloka/repositories/talk2me/os2-preview
+DB_NAME=kloka_talk2me
+RELEASE_BRANCH=agent/talk2me-os2-integrated-rebuild
+NODE_ENV=production
+ALLOW_PRODUCTION_MUTATION=false
+ENABLE_CUSTOMER_MERGE_EXECUTION=false
+```
+
+The resulting environment object is frozen before the first child starts, its key count is bounded, and the same immutable environment is supplied to all 15 ordered controls. This prevents a parent shell, local npm configuration, Node startup option, Git work-tree override, or child control from silently changing the execution context. Production mutation and merge execution are forced off in every child.
+
+Successful preflight evidence must report `childEnvironmentSanitized: true`, `childEnvironmentAllowlistApplied: true`, `childEnvironmentFrozen: true`, and false inheritance markers for all prohibited variables.
+
 ## Workspace topology verification
 
 Before any other activation control, the workspace verifier must prove that the executing directory is the configured preview application root.
