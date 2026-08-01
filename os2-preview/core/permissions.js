@@ -51,12 +51,27 @@ function roleAllowsProtectedPermission(role, permission) {
   return !allowedRoles || allowedRoles.has(normaliseRole(role));
 }
 
+function safePermissionsForRole(role, permissions) {
+  const normalisedRole = normaliseRole(role);
+  return normaliseConfiguredPermissions(permissions)
+    .filter(permission => roleAllowsProtectedPermission(normalisedRole, permission));
+}
+
 function permissionsFor(role, configured = []) {
   const normalisedRole = normaliseRole(role);
-  const base = ROLE_PERMISSIONS[normalisedRole] || [];
-  const safeConfigured = normaliseConfiguredPermissions(configured)
-    .filter(permission => roleAllowsProtectedPermission(normalisedRole, permission));
-  return new Set([...base, ...safeConfigured]);
+  const safeBase = safePermissionsForRole(normalisedRole, ROLE_PERMISSIONS[normalisedRole] || []);
+  const safeConfigured = safePermissionsForRole(normalisedRole, configured);
+  return new Set([...safeBase, ...safeConfigured]);
+}
+
+function validateRolePermissionCeilings(rolePermissions = ROLE_PERMISSIONS) {
+  const violations = [];
+  for (const [role, permissions] of Object.entries(rolePermissions || {})) {
+    for (const permission of normaliseConfiguredPermissions(permissions)) {
+      if (!roleAllowsProtectedPermission(role, permission)) violations.push({ role:normaliseRole(role), permission });
+    }
+  }
+  return violations;
 }
 
 function hasPermission(user, permission, context = {}) {
@@ -101,5 +116,6 @@ function requireAnyPermission(...permissions) {
 
 module.exports = {
   ROLE_PERMISSIONS,PROTECTED_PERMISSION_ROLES,normaliseRole,normaliseConfiguredPermissions,
-  roleAllowsProtectedPermission,permissionsFor,hasPermission,requirePermission,requireAnyPermission
+  roleAllowsProtectedPermission,safePermissionsForRole,validateRolePermissionCeilings,
+  permissionsFor,hasPermission,requirePermission,requireAnyPermission
 };
