@@ -58,18 +58,46 @@ function validateDirectory(directory, label, expectedOwner) {
   }
 }
 
-function validateProtectedFile(file, label, expectedOwner, required) {
-  let stat;
+function validateProtectedFile(file, label, expectedOwner, required, maxBytes) {
+  let pathStat;
   try {
-    stat = fs.lstatSync(file);
+    pathStat = fs.lstatSync(file);
   } catch {
     if (!required) return false;
     fail(`${label} is missing: ${file}`);
   }
-  if (!stat.isFile() || stat.isSymbolicLink()) fail(`${label} must be a regular non-symlink file: ${file}`);
-  if (Number.isInteger(expectedOwner) && stat.uid !== expectedOwner) fail(`${label} owner differs from the preview application root: ${file}`);
-  if (process.platform !== 'win32' && (stat.mode & 0o022) !== 0) fail(`${label} must not be group or world writable: ${file}`);
-  if (stat.nlink !== 1) fail(`${label} must not have additional hard links: ${file}`);
+  if (!pathStat.isFile() || pathStat.isSymbolicLink()) fail(`${label} must be a regular non-symlink file: ${file}`);
+  if (Number.isInteger(expectedOwner) && pathStat.uid !== expectedOwner) fail(`${label} owner differs from the preview application root: ${file}`);
+  if (process.platform !== 'win32' && (pathStat.mode & 0o022) !== 0) fail(`${label} must not be group or world writable: ${file}`);
+  if (pathStat.nlink !== 1) fail(`${label} must not have additional hard links: ${file}`);
+  if (pathStat.size > maxBytes) fail(`${label} exceeds the maximum permitted size: ${file}`);
+
+  let canonical;
+  try {
+    canonical = fs.realpathSync.native(file);
+  } catch {
+    fail(`${label} cannot be resolved canonically: ${file}`);
+  }
+  if (canonical !== file) fail(`${label} path is not canonical: ${file}`);
+  if (typeof fs.constants.O_NOFOLLOW !== 'number') fail('O_NOFOLLOW is required for protected workspace files');
+
+  let descriptor;
+  try {
+    descriptor = fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+  } catch (error) {
+    fail(`Unable to securely open ${label}: ${file}: ${error.message}`);
+  }
+  try {
+    const descriptorStat = fs.fstatSync(descriptor);
+    if (!descriptorStat.isFile()) fail(`${label} descriptor is not a regular file: ${file}`);
+    if (descriptorStat.dev !== pathStat.dev || descriptorStat.ino !== pathStat.ino) fail(`${label} changed during secure open: ${file}`);
+    if (descriptorStat.nlink !== 1) fail(`${label} descriptor has additional hard links: ${file}`);
+    if (descriptorStat.size > maxBytes) fail(`${label} descriptor exceeds the maximum permitted size: ${file}`);
+    if (process.platform !== 'win32' && (descriptorStat.mode & 0o022) !== 0) fail(`${label} descriptor is group or world writable: ${file}`);
+    if (Number.isInteger(expectedOwner) && descriptorStat.uid !== expectedOwner) fail(`${label} descriptor owner differs from the preview application root: ${file}`);
+  } finally {
+    fs.closeSync(descriptor);
+  }
   return true;
 }
 
@@ -87,15 +115,15 @@ if (String(process.env.ENABLE_CUSTOMER_MERGE_EXECUTION || '').toLowerCase() === 
 const rootIdentity = validateDirectory(root, 'Preview application root');
 const migrationsDirectory = path.join(root, 'migrations');
 const migrationsIdentity = validateDirectory(migrationsDirectory, 'Migrations directory', rootIdentity.uid);
-validateProtectedFile(path.join(root, 'package.json'), 'package.json', rootIdentity.uid, true);
-const packageLockPresent = validateProtectedFile(path.join(root, 'package-lock.json'), 'package-lock.json', rootIdentity.uid, false);
+validateProtectedFile(path.join(root, 'package.json'), 'package.json', rootIdentity.uid, true, 1024 * 1024);
+const packageLockPresent = validateProtectedFile(path.join(root, 'package-lock.json'), 'package-lock.json', rootIdentity.uid, false, 16 * 1024 * 1024);
 
 const migrationNames = fs.readdirSync(migrationsDirectory).filter(name => /^\d+_.+\.sql$/.test(name)).sort();
 if (migrationNames.length < 25) fail(`Expected at least 25 migration files, found ${migrationNames.length}`);
 if (!migrationNames.includes('20260801_025_merge_authorisation_restore_pin.sql')) fail('Migration 025 is missing from the protected workspace');
 for (const name of migrationNames) {
   if (path.basename(name) !== name) fail(`Invalid migration basename: ${name}`);
-  validateProtectedFile(path.join(migrationsDirectory, name), `Migration ${name}`, rootIdentity.uid, true);
+  validateProtectedFile(path.join(migrationsDirectory, name), `Migration ${name}`, rootIdentity.uid, true, 4 * 1024 * 1024);
 }
 
 const rootAfter = fs.lstatSync(root);
@@ -113,6 +141,9 @@ console.log(JSON.stringify({
   packageLockPresent,
   directoryNoFollowVerification: true,
   directoryDescriptorIdentityVerified: true,
+  protectedFileNoFollowVerification: true,
+  protectedFileDescriptorIdentityVerified: true,
+  protectedFileSizeLimitsEnforced: true,
   protectedFilesSymlinkFree: true,
   protectedFilesHardLinkFree: true,
   protectedPathsNotGroupWorldWritable: true,
