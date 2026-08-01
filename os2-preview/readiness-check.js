@@ -24,7 +24,7 @@ if (String(process.env.EMAIL_WORKER_ENABLED || '').toLowerCase() === 'true') {
 }
 
 [
-  'server.js','package.json','migration-runner.js','schema-verification.js',
+  'server.js','package.json','migration-runner.js','schema-verification.js','preview-data-verification.js',
   'merge-restore-evidence-verification.js','merge-restore-pin-check.js',
   'customer-merge-plan-routes.js','customer-merge-freshness-routes.js',
   'customer-merge-execution-authorisation-routes.js','customer-merge-execution-readiness-routes.js',
@@ -48,6 +48,9 @@ const scripts = packageJson.scripts || {};
 if (scripts['verify:merge-restore-evidence'] !== 'node merge-restore-evidence-verification.js') {
   failures.push('Missing verify:merge-restore-evidence command');
 }
+if (scripts['verify:preview-data'] !== 'node preview-data-verification.js') {
+  failures.push('Missing verify:preview-data command');
+}
 if (scripts['check:merge-restore-pin'] !== 'node merge-restore-pin-check.js') {
   failures.push('Missing check:merge-restore-pin command');
 }
@@ -61,8 +64,10 @@ const summary = {
   version: packageJson.version,
   database: process.env.DB_NAME || null,
   migrationCount,
+  previewDataVerificationCommandRegistered: scripts['verify:preview-data'] === 'node preview-data-verification.js',
   mergeRestoreEvidenceCommandRegistered: scripts['verify:merge-restore-evidence'] === 'node merge-restore-evidence-verification.js',
   mergeRestorePinCheckRegistered: scripts['check:merge-restore-pin'] === 'node merge-restore-pin-check.js',
+  mergeExecutionEnabled: false,
   failures,
   warnings
 };
