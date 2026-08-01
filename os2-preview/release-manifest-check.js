@@ -21,6 +21,10 @@ const required=[
   'RELEASE_MANIFEST_PATH is required',
   'RELEASE_MANIFEST_PATH must be absolute',
   'Release manifest directory does not exist',
+  'Release manifest already exists:',
+  'Release manifest checksum already exists:',
+  "const checksumOutput = output ? `${output}.sha256` : ''",
+  'sha256Text',
   'dependencyLockPresent',
   'dependencyLockSha256',
   'migrationChecksums',
@@ -41,6 +45,8 @@ const required=[
 for(const marker of required) if(!gate.includes(marker)) throw new Error(`Missing release gate marker: ${marker}`);
 if(gate.includes("warn('No release")) throw new Error('Release identity metadata must be blocking, not warning-only');
 if(!gate.includes('else if (failures.length === 0)')) throw new Error('Release manifest must not be written while blockers exist');
+if(!gate.includes('fs.writeFileSync(checksumOutput')) throw new Error('Release manifest checksum sidecar is required');
+if(!gate.includes("mode:0o600, flag:'wx'")) throw new Error('Release evidence files must be private and non-overwriting');
 
 const runbookMarkers=[
   '20260801_025_merge_authorisation_restore_pin.sql',
@@ -74,5 +80,7 @@ console.log(JSON.stringify({
   exactCommitIdentityRequired:true,
   releaseBranchLocked:true,
   failedManifestWriteProhibited:true,
+  manifestChecksumSidecarRequired:true,
+  releaseEvidenceOverwriteProhibited:true,
   runbookMarkers:runbookMarkers.length
 },null,2));
