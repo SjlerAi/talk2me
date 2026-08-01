@@ -1,5 +1,6 @@
 'use strict';
 
+const legacyRouteCompatibility = require('./legacy-route-compatibility');
 const createScopedCustomerSearch = require('./scoped-customer-search');
 const MANAGEMENT_ROLES = new Set(['owner','manager','admin']);
 const READ_METHODS = new Set(['GET','HEAD','OPTIONS']);
@@ -62,6 +63,9 @@ function eventParams(req,customerId,eventType,access,details={}) {
 function createCustomerAccessGuard({ pool }) {
   const scopedSearch = createScopedCustomerSearch({ pool });
   return async function customerAccessGuard(req, res, next) {
+    let compatibilityHandled = false;
+    legacyRouteCompatibility(req,res,()=>{compatibilityHandled=true;});
+    if (!compatibilityHandled || res.headersSent) return;
     if (!req.path.startsWith('/api/os2/') || !req.user) return next();
     if (req.path === '/api/os2/customers/search') return scopedSearch(req,res,next);
     if (req.path === '/api/os2/customers/quick-onboard') return next();
