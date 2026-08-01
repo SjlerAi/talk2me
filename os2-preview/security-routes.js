@@ -8,6 +8,7 @@ const createRestrictionGovernanceRouter=require('./restriction-governance-routes
 const createAccountGovernanceRouter=require('./account-governance-routes');
 const createCustomerLifecycleRouter=require('./customer-lifecycle-routes');
 const createDuplicateCustomerRouter=require('./duplicate-customer-routes');
+const createCustomerMergePlanRouter=require('./customer-merge-plan-routes');
 
 function positiveId(v){const n=Number(v);return Number.isInteger(n)&&n>0?n:null;}
 function management(user){return ['owner','manager'].includes(String(user?.role||'').toLowerCase());}
@@ -20,6 +21,7 @@ module.exports=function createSecurityRouter({pool,requireAuth}){
   router.use(createAccountGovernanceRouter({pool,requireAuth}));
   router.use(createCustomerLifecycleRouter({pool,requireAuth}));
   router.use(createDuplicateCustomerRouter({pool,requireAuth}));
+  router.use(createCustomerMergePlanRouter({pool,requireAuth}));
 
   router.get('/api/os2/security/sessions',async(req,res)=>{
     try{
