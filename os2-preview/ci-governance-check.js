@@ -28,8 +28,14 @@ const workflowMarkers = [
   'timeout-minutes:',
   'Detect dependency lock',
   'package-lock.json is absent',
-  'Verify deterministic workspace source integrity',
-  'npm run verify:workspace-source-integrity',
+  'Verify and retain pre-install workspace source integrity',
+  'id: preinstall-source',
+  '$RUNNER_TEMP/os2-workspace-source-integrity-preinstall.json',
+  'npm run --silent verify:workspace-source-integrity',
+  'inventory_sha256=',
+  'package_lock_present=',
+  'Confirm dependency-lock detection matches source evidence',
+  'steps.preinstall-source.outputs.package_lock_present',
   'PREVIEW_APP_ROOT: ${{ github.workspace }}/os2-preview',
   'DB_NAME: kloka_talk2me',
   'RELEASE_BRANCH: agent/talk2me-os2-integrated-rebuild',
@@ -41,7 +47,9 @@ const workflowMarkers = [
   'npm audit --omit=dev --audit-level=high',
   'Record dependency audit blocker',
   'DEPENDENCY_LOCK_PRESENT:',
-  'Generate build evidence with source-integrity binding',
+  'EXPECTED_PREINSTALL_SOURCE_INVENTORY_SHA256:',
+  'steps.preinstall-source.outputs.inventory_sha256',
+  'Generate build evidence with pre-install source continuity',
   'npm run evidence:build',
   'actions/upload-artifact@v4',
   'os2-preview/**',
@@ -61,11 +69,29 @@ const evidenceMarkers = [
   "const { spawnSync } = require('child_process')",
   'runWorkspaceSourceIntegrity()',
   "'workspace-source-integrity.js'",
+  'verifierTimeoutMs = 30000',
+  'timeout: verifierTimeoutMs',
+  "killSignal: 'SIGKILL'",
+  'shell: false',
+  "result.error.code === 'ETIMEDOUT'",
   'result.error',
   'result.signal',
   'result.status !== 0',
+  'EXPECTED_PREINSTALL_SOURCE_INVENTORY_SHA256',
+  'GITHUB_ACTIONS',
+  'equalHex(expectedPreinstallDigest, postinstallDigest)',
+  'Protected source inventory changed between pre-install verification and build-evidence generation',
+  'parseBooleanEnvironment',
+  'DEPENDENCY_LOCK_PRESENT does not match the filesystem',
+  'Workspace source-integrity lock evidence does not match the filesystem',
+  'entry.isSymbolicLink()',
+  'stat.nlink !== 1',
   'workspaceSourceIntegrityVerified: true',
-  'workspaceSourceInventorySha256',
+  'preinstallWorkspaceSourceInventorySha256',
+  'postinstallWorkspaceSourceInventorySha256',
+  'workspaceSourceIntegrityStableAcrossDependencyInstall',
+  'dependencyLockStateVerifiedAgainstFilesystem: true',
+  'dependencyLockStateVerifiedAgainstSourceIntegrity: true',
   'workspaceSourceProtectedFileCount',
   'workspaceSourceMigrationCount',
   'workspace-source-integrity.json',
@@ -75,8 +101,6 @@ const evidenceMarkers = [
   'routeFileCount',
   'checkFileCount',
   'GITHUB_SHA',
-  'DEPENDENCY_LOCK_PRESENT',
-  'dependencyLockPresent',
   'dependencyAuditEligible',
   'releaseCandidateEligible'
 ];
@@ -106,6 +130,11 @@ for (const marker of [
 
 const runbookMarkers = [
   'npm install --ignore-scripts --no-audit --no-fund --package-lock=false',
+  'pre-install inventory digest',
+  'post-install inventory digest',
+  'must match exactly',
+  'dependency-lock detection must agree',
+  'workspaceSourceIntegrityStableAcrossDependencyInstall: true',
   'dependencyLockPresent: false',
   'dependencyAuditEligible: false',
   'releaseCandidateEligible: false',
@@ -118,8 +147,14 @@ for (const marker of runbookMarkers) {
   if (!runbook.includes(marker)) throw new Error(`Missing CI runbook control: ${marker}`);
 }
 
-if (workflow.indexOf('npm run verify:workspace-source-integrity') > workflow.indexOf('npm install --ignore-scripts')) throw new Error('Workspace source integrity must run before dependency installation');
-if (workflow.indexOf('npm run check') > workflow.indexOf('npm run evidence:build')) throw new Error('Build evidence must be generated after integrated validation');
+const preinstallPosition = workflow.indexOf('npm run --silent verify:workspace-source-integrity');
+const installPosition = workflow.indexOf('npm install --ignore-scripts');
+const checkPosition = workflow.indexOf('npm run check');
+const evidencePosition = workflow.indexOf('npm run evidence:build');
+if (preinstallPosition === -1 || installPosition === -1 || preinstallPosition >= installPosition) throw new Error('Workspace source integrity must run before dependency installation');
+if (checkPosition === -1 || evidencePosition === -1 || checkPosition >= evidencePosition) throw new Error('Build evidence must be generated after integrated validation');
+if (workflow.indexOf('Confirm dependency-lock detection matches source evidence') >= installPosition) throw new Error('Dependency-lock consistency must be confirmed before dependency installation');
+if (workflow.indexOf('EXPECTED_PREINSTALL_SOURCE_INVENTORY_SHA256:') >= evidencePosition) throw new Error('Expected pre-install digest must be provided to build-evidence generation');
 if (/cache:\s*npm/.test(workflow)) throw new Error('npm cache must not assume a lockfile before dependency freeze');
 if (/npm install(?![^\n]*--package-lock=false)/.test(workflow)) throw new Error('CI install must not generate an uncommitted dependency lock');
 if (/pull_request_target\s*:/.test(workflow)) throw new Error('Unsafe pull_request_target trigger is prohibited');
@@ -134,6 +169,14 @@ console.log(JSON.stringify({
   evidenceMarkers: evidenceMarkers.length,
   runbookMarkers: runbookMarkers.length,
   workspaceSourceIntegrityRunsBeforeDependencyInstall: true,
+  preinstallSourceDigestRetainedAsWorkflowOutput: true,
+  postinstallSourceDigestComparedWithPreinstallDigest: true,
+  sourceIntegrityStableAcrossDependencyInstallRequired: true,
+  dependencyLockDetectionConsistencyRequired: true,
+  buildEvidenceLockStateConsistencyRequired: true,
+  buildEvidenceVerifierExecutionBounded: true,
+  broadEvidenceSymlinkRejectionRequired: true,
+  broadEvidenceHardLinkRejectionRequired: true,
   buildEvidenceBoundToWorkspaceSourceInventory: true,
   workspaceSourceIntegrityArtifactRetained: true,
   dependencyLockPolicy: 'source-validation-continues-audit-blocked-until-committed-lock',
