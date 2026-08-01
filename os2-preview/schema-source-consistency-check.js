@@ -11,6 +11,7 @@ const plan=read('customer-merge-plan-routes.js');
 const freshness=read('customer-merge-freshness-routes.js');
 const authorisation=read('customer-merge-execution-authorisation-routes.js');
 const readiness=read('customer-merge-execution-readiness-routes.js');
+const schemaVerification=read('schema-verification.js');
 const migration001=read('migrations/20260801_001_integrated_core.sql');
 const migration011=read('migrations/20260801_011_backup_recovery_and_operations.sql');
 const migration021=read('migrations/20260801_021_merge_plan_freshness.sql');
@@ -42,5 +43,8 @@ need(readiness,"target_environment='isolated_preview_restore'",'isolated restore
 need(readiness,"actual_database_name='kloka_talk2me'",'preview restore database requirement');
 need(readiness,'failed_checks=0','zero failed restore checks');
 need(readiness,'executionAvailable:false','execution lock');
+need(schemaVerification,"'restore_test_id'",'schema verification requires restore-test pin column');
+need(schemaVerification,'migrations.length < 25','schema verification requires migration 025');
+need(schemaVerification,'restore_test_id IS NULL','schema verification rejects unpinned authorisations');
 
 console.log(JSON.stringify({ok:true,check:'schema-source-consistency'},null,2));
