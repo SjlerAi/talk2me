@@ -9,6 +9,7 @@ This runbook controls source validation before any deployment, migration, restar
 - Application: `talk2me-os2-preview`
 - Version: `0.59.0`
 - Branch: `agent/talk2me-os2-integrated-rebuild`
+- Application root: `/home/kloka/repositories/talk2me/os2-preview`
 - Database: `kloka_talk2me`
 - Node.js: 20.x
 - Production: `talk2me.uent.co.za` must remain untouched
@@ -19,22 +20,42 @@ This runbook controls source validation before any deployment, migration, restar
 Run from `/home/kloka/repositories/talk2me/os2-preview`:
 
 ```bash
+PREVIEW_APP_ROOT=/home/kloka/repositories/talk2me/os2-preview \
 DB_NAME=kloka_talk2me \
 RELEASE_BRANCH=agent/talk2me-os2-integrated-rebuild \
 ALLOW_PRODUCTION_MUTATION=false \
 ENABLE_CUSTOMER_MERGE_EXECUTION=false \
-npm run preflight:preview-activation
+npm run verify:preview-activation-preflight
 ```
 
 The preflight must run these source-only controls in this exact order:
 
-1. `runtime-release-identity-check.js`
-2. `readiness-check.js`
-3. `deployment-check.js`
-4. `uat-gate-check.js`
-5. `release-manifest-check.js`
+1. `workspace-topology-verification.js`
+2. `runtime-release-identity-check.js`
+3. `readiness-check.js`
+4. `deployment-check.js`
+5. `uat-gate-check.js`
+6. `release-manifest-check.js`
 
 Stop immediately if any control cannot start, is interrupted, or returns a non-zero status.
+
+## Workspace topology verification
+
+Before any other activation control, the workspace verifier must prove that the executing directory is the configured preview application root.
+
+It must:
+
+- reject a missing, relative, non-normalized, or mismatched `PREVIEW_APP_ROOT`;
+- validate the application root and migrations directory as real non-symlink directories;
+- open directory descriptors with `O_DIRECTORY | O_NOFOLLOW`;
+- compare path and descriptor device/inode identities;
+- reject group-writable or world-writable protected paths;
+- require protected source files to share the preview root owner;
+- reject symbolic links and additional hard links for `package.json`, an existing `package-lock.json`, and all migration files;
+- require at least 25 ordered migration files and explicit migration 025 presence;
+- re-check directory identity after migration inventory validation.
+
+A missing `package-lock.json` is reported during this source-preparation stage but remains a release-freeze blocker. Once the lockfile exists, it must pass the same ownership, permissions, symlink, and hard-link controls.
 
 ## Preflight limitations
 
@@ -70,20 +91,24 @@ Stop when `O_NOFOLLOW` is unavailable, the path identity changes during secure o
 
 1. Confirm the checkout is on the controlled branch and intended commit.
 2. Generate and commit `package-lock.json` using a trusted Node.js 20 environment.
-3. Run `npm ci` from the committed lockfile.
-4. Run `npm run check` and retain the complete output.
-5. Back up and verify `kloka_talk2me`.
-6. Apply migrations only with `ALLOW_PREVIEW_MIGRATIONS=true` and `DB_NAME=kloka_talk2me`.
-7. Run `DB_NAME=kloka_talk2me npm run verify:preview-data`.
-8. Freeze and securely verify the release manifest against the exact checkout.
-9. Restart only the preview Node.js application.
-10. Run technical smoke testing.
-11. Start formal UAT only after all previous stages pass.
+3. Repeat workspace topology verification so the committed lockfile is included.
+4. Run `npm ci` from the committed lockfile.
+5. Run `npm run check` and retain the complete output.
+6. Back up and verify `kloka_talk2me`.
+7. Apply migrations only with `ALLOW_PREVIEW_MIGRATIONS=true` and `DB_NAME=kloka_talk2me`.
+8. Run `DB_NAME=kloka_talk2me npm run verify:preview-data`.
+9. Freeze and securely verify the release manifest against the exact checkout.
+10. Restart only the preview Node.js application.
+11. Run technical smoke testing.
+12. Start formal UAT only after all previous stages pass.
 
 ## Hard stop conditions
 
 Do not proceed when:
 
+- `PREVIEW_APP_ROOT` is missing or differs from `/home/kloka/repositories/talk2me/os2-preview`;
+- the preview root or migrations directory is a symbolic link, changes identity, or is group/world writable;
+- protected source files have inconsistent ownership, symbolic links, or additional hard links;
 - `DB_NAME` is not exactly `kloka_talk2me`;
 - Node.js is not 20.x;
 - the branch is not `agent/talk2me-os2-integrated-rebuild`;
