@@ -4,6 +4,7 @@ const express = require('express');
 const { withTransaction } = require('./core/transaction');
 const { requirePermission } = require('./core/permissions');
 const { appendAudit } = require('./core/audit');
+const createRepresentativeGovernanceRouter=require('./representative-governance-routes');
 
 function positiveId(value){const id=Number(value);return Number.isInteger(id)&&id>0?id:null;}
 function text(value,max=500){const result=String(value==null?'':value).trim();return result?result.slice(0,max):null;}
@@ -12,6 +13,7 @@ function context(req){return {ip:String(req.headers['x-forwarded-for']||req.sock
 module.exports=function createCustomerAccessRouter({pool,requireAuth}){
   const router=express.Router();
   router.use('/api/os2/customer-access',requireAuth);
+  router.use(createRepresentativeGovernanceRouter({pool,requireAuth}));
 
   router.get('/api/os2/customer-access/:customerId',requirePermission('customer.assign'),async(req,res)=>{
     const customerId=positiveId(req.params.customerId);if(!customerId)return res.status(400).json({ok:false,error:'INVALID_CUSTOMER_ID'});
