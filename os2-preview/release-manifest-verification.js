@@ -5,11 +5,22 @@ const path = require('path');
 const crypto = require('crypto');
 const { spawnSync } = require('child_process');
 
-function fail(message) {
-  console.error(JSON.stringify({ ok: false, check: 'release-manifest-verification', error: message }, null, 2));
-  process.exit(1);
-}
+function fail(message) { console.error(JSON.stringify({ ok: false, check: 'release-manifest-verification', error: message }, null, 2)); process.exit(1); }
 function sha256(buffer) { return crypto.createHash('sha256').update(buffer).digest('hex'); }
+function validateReleaseText(value, label, maxLength) {
+  if (typeof value !== 'string' || !value.trim()) fail(`${label} is missing`);
+  if (value !== value.trim()) fail(`${label} must not contain leading or trailing whitespace`);
+  if (value.length > maxLength) fail(`${label} must not exceed ${maxLength} characters`);
+  if (/[\u0000-\u001f\u007f]/.test(value)) fail(`${label} must not contain control characters`);
+}
+function validatePrivateDirectory(directory, label) {
+  let stat;
+  try { stat = fs.lstatSync(directory); } catch { fail(`${label} is missing: ${directory}`); }
+  if (!stat.isDirectory() || stat.isSymbolicLink()) fail(`${label} must be a real non-symlink directory: ${directory}`);
+  if (process.platform !== 'win32' && (stat.mode & 0o077) !== 0) fail(`${label} must not permit group or world access: ${directory}`);
+  if (process.platform !== 'win32' && typeof process.getuid === 'function' && stat.uid !== process.getuid()) fail(`${label} must be owned by the executing user: ${directory}`);
+  if (fs.realpathSync.native(directory) !== directory) fail(`${label} path is not canonical: ${directory}`);
+}
 function readSecureRegularFile(file, options = {}) {
   const label = options.label || 'Protected file';
   const expectedMode = options.expectedMode;
@@ -19,6 +30,7 @@ function readSecureRegularFile(file, options = {}) {
   if (!pathStat.isFile() || pathStat.isSymbolicLink()) fail(`${label} must be a regular non-symlink file: ${file}`);
   if (pathStat.nlink !== 1) fail(`${label} must not have additional hard links: ${file}`);
   if (process.platform !== 'win32' && Number.isInteger(expectedMode) && (pathStat.mode & 0o777) !== expectedMode) fail(`${label} permissions must be ${expectedMode.toString(8).padStart(4, '0')}: ${file}`);
+  if (process.platform !== 'win32' && typeof process.getuid === 'function' && pathStat.uid !== process.getuid()) fail(`${label} must be owned by the executing user: ${file}`);
   if (fs.realpathSync.native(file) !== file) fail(`${label} path is not canonical: ${file}`);
   if (typeof fs.constants.O_NOFOLLOW !== 'number') fail('O_NOFOLLOW is required for secure release evidence verification');
   let descriptor;
@@ -43,21 +55,13 @@ function verifyChecksumPair(file, label, maxBytes) {
   return { data, dataSha256: actual, sidecarSha256: sha256(sidecar) };
 }
 function verifyFrozenSource(root, inventorySha256) {
+  const verifierTimeoutMs = 30000;
   const result = spawnSync(process.execPath, [path.join(root, 'release-source-integrity-verification.js')], {
     cwd: root,
-    env: {
-      ...process.env,
-      PREVIEW_APP_ROOT: root,
-      DB_NAME: 'kloka_talk2me',
-      RELEASE_BRANCH: 'agent/talk2me-os2-integrated-rebuild',
-      RELEASE_SOURCE_INVENTORY_SHA256: inventorySha256,
-      ALLOW_PRODUCTION_MUTATION: 'false',
-      ENABLE_CUSTOMER_MERGE_EXECUTION: 'false'
-    },
-    encoding: 'utf8',
-    maxBuffer: 16 * 1024 * 1024,
-    windowsHide: true
+    env: { ...process.env, PREVIEW_APP_ROOT: root, DB_NAME: 'kloka_talk2me', RELEASE_BRANCH: 'agent/talk2me-os2-integrated-rebuild', RELEASE_SOURCE_INVENTORY_SHA256: inventorySha256, ALLOW_PRODUCTION_MUTATION: 'false', ENABLE_CUSTOMER_MERGE_EXECUTION: 'false' },
+    encoding: 'utf8', maxBuffer: 16 * 1024 * 1024, timeout: verifierTimeoutMs, killSignal: 'SIGKILL', shell: false, windowsHide: true
   });
+  if (result.error && result.error.code === 'ETIMEDOUT') fail(`Post-freeze source verifier exceeded ${verifierTimeoutMs}ms`);
   if (result.error) fail(`Post-freeze source verifier could not start: ${result.error.message}`);
   if (result.signal) fail(`Post-freeze source verifier was interrupted by signal ${result.signal}`);
   if (result.status !== 0) fail(`Post-freeze source verifier failed with status ${result.status}: ${String(result.stderr || '').trim()}`);
@@ -75,19 +79,12 @@ const expectedBootstrapFile = 'MIGRATION_LEDGER_BOOTSTRAP.sql';
 const verifiedCommitSha = String(process.env.RELEASE_COMMIT_SHA || process.env.GITHUB_SHA || '').trim();
 const verifiedBranch = String(process.env.RELEASE_BRANCH || process.env.GITHUB_REF_NAME || '').trim();
 const manifestPath = String(process.env.RELEASE_MANIFEST_PATH || '').trim();
-
 if (!/^[0-9a-f]{40}$/i.test(verifiedCommitSha)) fail('Post-freeze verified commit SHA must be a full 40-character hexadecimal SHA');
 if (verifiedBranch !== expectedReleaseBranch) fail(`Unexpected post-freeze release branch: ${verifiedBranch || 'missing'}`);
-if (!manifestPath) fail('RELEASE_MANIFEST_PATH is required');
-if (!path.isAbsolute(manifestPath)) fail('RELEASE_MANIFEST_PATH must be absolute');
-if (path.normalize(manifestPath) !== manifestPath) fail('RELEASE_MANIFEST_PATH must be normalized');
+if (!manifestPath || !path.isAbsolute(manifestPath) || path.normalize(manifestPath) !== manifestPath) fail('RELEASE_MANIFEST_PATH must be an absolute normalized path');
 
 const directory = path.dirname(manifestPath);
-const directoryStat = fs.lstatSync(directory);
-if (!directoryStat.isDirectory() || directoryStat.isSymbolicLink()) fail(`Release evidence directory must be a real non-symlink directory: ${directory}`);
-if (process.platform !== 'win32' && (directoryStat.mode & 0o077) !== 0) fail(`Release evidence directory must not permit group or world access: ${directory}`);
-if (fs.realpathSync.native(directory) !== directory) fail(`Release evidence directory path is not canonical: ${directory}`);
-
+validatePrivateDirectory(directory, 'Release evidence directory');
 const manifestPair = verifyChecksumPair(manifestPath, 'Release manifest', 4 * 1024 * 1024);
 let manifest;
 try { manifest = JSON.parse(manifestPair.data.toString('utf8')); } catch { fail('Release manifest is not valid JSON'); }
@@ -98,23 +95,25 @@ if (manifest.version !== expectedPreviewVersion) fail(`Release manifest version 
 if (manifest.branch !== expectedReleaseBranch || manifest.branch !== verifiedBranch) fail('Release manifest branch does not match the verified branch');
 if (String(manifest.commitSha || '').toLowerCase() !== verifiedCommitSha.toLowerCase()) fail('Release manifest commit SHA does not match the verified commit SHA');
 if (manifest.commitIdentityVerified !== true) fail('Release manifest commit identity is not verified');
-if (typeof manifest.approvedBy !== 'string' || !manifest.approvedBy.trim()) fail('Release manifest approver evidence is missing');
-if (typeof manifest.changeReference !== 'string' || !manifest.changeReference.trim()) fail('Release manifest change reference is missing');
+validateReleaseText(manifest.approvedBy, 'Release manifest approver evidence', 160);
+validateReleaseText(manifest.changeReference, 'Release manifest change reference', 240);
+const generatedAtMs = Date.parse(String(manifest.generatedAt || ''));
+if (!Number.isFinite(generatedAtMs)) fail('Release manifest generatedAt timestamp is invalid');
+if (generatedAtMs > Date.now() + 5 * 60 * 1000) fail('Release manifest generatedAt timestamp is unreasonably in the future');
+if (generatedAtMs < Date.now() - 30 * 24 * 60 * 60 * 1000) fail('Release manifest is older than the permitted 30-day verification window');
 if (manifest.dependencyLockPresent !== true) fail('Release manifest does not confirm a committed dependency lock');
 if (!/^[0-9a-f]{64}$/i.test(String(manifest.approvedSourceInventorySha256 || ''))) fail('Release manifest approved source inventory checksum is invalid');
-if (manifest.releaseSourceIntegrityVerified !== true) fail('Release manifest does not confirm approved source-integrity verification');
-if (manifest.releaseSourcePackageLockPresent !== true) fail('Release source inventory did not include the committed dependency lock');
+if (manifest.releaseSourceIntegrityVerified !== true || manifest.releaseSourcePackageLockPresent !== true) fail('Release manifest source-integrity evidence is incomplete');
 if (!Number.isInteger(manifest.releaseSourceProtectedFileCount) || manifest.releaseSourceProtectedFileCount < 25) fail('Release source protected-file count is invalid');
 if (!Number.isInteger(manifest.releaseSourceMigrationCount) || manifest.releaseSourceMigrationCount < 25) fail('Release source migration count is invalid');
 if (manifest.migrationLedgerBootstrapFile !== expectedBootstrapFile) fail('Release manifest migration-ledger bootstrap filename is invalid');
-if (manifest.migrationLedgerBootstrapEvidenceVerified !== true) fail('Release manifest does not confirm verified bootstrap execution evidence');
-if (manifest.bootstrapEvidenceVerifiedBeforeReleaseFreeze !== true) fail('Bootstrap evidence was not verified before release freeze');
-if (!path.isAbsolute(String(manifest.migrationLedgerBootstrapEvidencePath || ''))) fail('Release manifest bootstrap evidence path is invalid');
-if (!/^[0-9a-f]{64}$/i.test(String(manifest.migrationLedgerBootstrapEvidenceSha256 || ''))) fail('Release manifest bootstrap evidence checksum is invalid');
-if (!/^[0-9a-f]{64}$/i.test(String(manifest.migrationLedgerBootstrapEvidenceSidecarSha256 || ''))) fail('Release manifest bootstrap evidence sidecar checksum is invalid');
-if (manifest.runtimeLedgerCreationDisabled !== true) fail('Runtime ledger creation must remain disabled');
-if (manifest.migrationCompletionRequiresConfirmedLockRelease !== true) fail('Release manifest does not require confirmed migration lock release');
-if (manifest.migrationConnectionClosedBeforeSuccess !== true) fail('Release manifest does not require database cleanup before migration success');
+if (manifest.migrationLedgerBootstrapEvidenceVerified !== true || manifest.bootstrapEvidenceVerifiedBeforeReleaseFreeze !== true) fail('Release manifest bootstrap evidence verification is incomplete');
+const bootstrapEvidencePath = String(manifest.migrationLedgerBootstrapEvidencePath || '');
+if (!path.isAbsolute(bootstrapEvidencePath) || path.normalize(bootstrapEvidencePath) !== bootstrapEvidencePath) fail('Release manifest bootstrap evidence path is invalid');
+if (bootstrapEvidencePath === manifestPath) fail('Bootstrap evidence path must differ from release manifest path');
+validatePrivateDirectory(path.dirname(bootstrapEvidencePath), 'Bootstrap evidence directory');
+if (!/^[0-9a-f]{64}$/i.test(String(manifest.migrationLedgerBootstrapEvidenceSha256 || '')) || !/^[0-9a-f]{64}$/i.test(String(manifest.migrationLedgerBootstrapEvidenceSidecarSha256 || ''))) fail('Release manifest bootstrap evidence checksums are invalid');
+if (manifest.runtimeLedgerCreationDisabled !== true || manifest.migrationCompletionRequiresConfirmedLockRelease !== true || manifest.migrationConnectionClosedBeforeSuccess !== true) fail('Release manifest migration safety controls are incomplete');
 if (manifest.productionMutationEnabled !== false || manifest.mergeExecutionEnabled !== false) fail('Release manifest execution safety flags are invalid');
 if (!Array.isArray(manifest.failures) || manifest.failures.length !== 0) fail('Release manifest contains blocking failures');
 
@@ -126,14 +125,12 @@ if (sha256(lockBytes) !== String(manifest.dependencyLockSha256).toLowerCase()) f
 const bootstrapBytes = readSecureRegularFile(path.join(root, expectedBootstrapFile), { label: 'Checked-out migration ledger bootstrap', maxBytes: 1024 * 1024 });
 if (sha256(bootstrapBytes) !== String(manifest.migrationLedgerBootstrapSha256).toLowerCase()) fail('Release manifest migration-ledger bootstrap checksum does not match the checked-out source');
 
-const bootstrapEvidencePath = manifest.migrationLedgerBootstrapEvidencePath;
 const bootstrapPair = verifyChecksumPair(bootstrapEvidencePath, 'Migration ledger bootstrap evidence', 4 * 1024 * 1024);
 if (bootstrapPair.dataSha256 !== manifest.migrationLedgerBootstrapEvidenceSha256.toLowerCase()) fail('Bootstrap evidence file changed after release freeze');
 if (bootstrapPair.sidecarSha256 !== manifest.migrationLedgerBootstrapEvidenceSidecarSha256.toLowerCase()) fail('Bootstrap evidence checksum sidecar changed after release freeze');
 let bootstrapEvidence;
 try { bootstrapEvidence = JSON.parse(bootstrapPair.data.toString('utf8')); } catch { fail('Bootstrap execution evidence is not valid JSON'); }
-if (bootstrapEvidence.ok !== true || bootstrapEvidence.database !== 'kloka_talk2me') fail('Bootstrap execution evidence identity is invalid');
-if (bootstrapEvidence.bootstrapFile !== expectedBootstrapFile) fail('Bootstrap execution evidence filename is invalid');
+if (bootstrapEvidence.ok !== true || bootstrapEvidence.database !== 'kloka_talk2me' || bootstrapEvidence.bootstrapFile !== expectedBootstrapFile) fail('Bootstrap execution evidence identity is invalid');
 if (bootstrapEvidence.bootstrapSha256 !== manifest.migrationLedgerBootstrapSha256.toLowerCase()) fail('Bootstrap execution evidence is not bound to the frozen bootstrap source');
 if (bootstrapEvidence.preexistingLedgerTableCount !== 0 || bootstrapEvidence.createdLedgerTableCount !== 1) fail('Bootstrap execution evidence table counts are invalid');
 if (bootstrapEvidence.ledgerSchemaVerified !== true || bootstrapEvidence.ledgerEmpty !== true) fail('Bootstrap execution evidence does not prove a verified empty ledger');
@@ -160,16 +157,21 @@ console.log(JSON.stringify({
   version: manifest.version,
   commitSha: manifest.commitSha,
   branch: manifest.branch,
-  commitShaMatchesVerifiedCheckout: true,
-  branchMatchesVerifiedCheckout: true,
-  approvedSourceInventorySha256: manifest.approvedSourceInventorySha256,
+  generatedAt: manifest.generatedAt,
+  generatedAtValidated: true,
+  releaseMetadataValidated: true,
   releaseSourceIntegrityReverifiedAfterFreeze: true,
   releaseSourceProtectedFileCount: sourceEvidence.protectedFileCount,
   releaseSourceMigrationCount: sourceEvidence.migrationCount,
   evidenceDirectoryCanonical: true,
   evidenceDirectoryPrivate: true,
+  evidenceDirectoryOwnerVerified: true,
+  bootstrapEvidenceDirectoryCanonical: true,
+  bootstrapEvidenceDirectoryPrivate: true,
+  bootstrapEvidenceDirectoryOwnerVerified: true,
   evidenceReadsUseNoFollow: true,
   evidenceDescriptorIdentityVerified: true,
+  protectedFileOwnershipVerified: true,
   protectedFileSizeLimitsEnforced: true,
   packageManifestMatchesWorkspace: true,
   dependencyLockMatchesWorkspace: true,
