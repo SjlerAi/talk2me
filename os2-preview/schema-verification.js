@@ -4,7 +4,7 @@ const mysql = require('mysql2/promise');
 
 const REQUIRED_TABLES = [
   'os2_master_customers','os2_customer_accounts','os2_mobile_lines','os2_fixed_accounts','os2_fixed_services',
-  'os2_customer_ownership','os2_customer_restrictions','os2_authorised_representatives','os2_customer_documents',
+  'os2_customer_ownership','os2_customer_restrictions','os2_restriction_history','os2_authorised_representatives','os2_customer_documents',
   'os2_work_items','os2_work_item_history','os2_approval_requests','os2_approval_consumption_history','os2_audit_log','os2_import_batches',
   'os2_import_rows','os2_opportunities','os2_attendance_corrections','os2_notifications','os2_email_queue',
   'os2_broadcasts','os2_digest_runs','os2_calendar_events','os2_customer_claims','os2_sticky_notes',
@@ -19,6 +19,8 @@ const REQUIRED_COLUMNS = {
   os2_customer_accounts: ['id','master_customer_id','account_number','normalised_account_number','archived_at'],
   os2_mobile_lines: ['id','master_customer_id','mobile_number','contract_months','next_upgrade_date','archived_at'],
   os2_fixed_services: ['id','fixed_account_id','service_name','mac_address','solution_id','order_number','archived_at'],
+  os2_customer_restrictions: ['id','master_customer_id','restriction_type','restriction_value','value_numeric','is_active','revoked_at','revoked_by','revoke_reason'],
+  os2_restriction_history: ['id','restriction_id','master_customer_id','event_type','before_json','after_json','reason','changed_by','created_at'],
   os2_work_items: ['id','work_type','title','lifecycle_state','assigned_staff_id','master_customer_id','due_at','archived_at'],
   os2_approval_requests: ['id','request_type','action_key','master_customer_id','request_payload','payload_hash','status','consumed_at','consumed_by','consumed_for_entity_type','consumed_for_entity_id'],
   os2_approval_consumption_history: ['id','approval_request_id','action_key','payload_hash','consumed_by','consumed_at'],
@@ -50,7 +52,7 @@ async function main() {
       for(const column of required) if(!columnSet.has(column)) fail(`missing column ${table}.${column}`);
     }
     const [migrationRows]=await pool.execute('SELECT migration_name,checksum,applied_at FROM os2_schema_migrations ORDER BY migration_name');
-    if(migrationRows.length<12) fail(`expected at least 12 applied migrations, found ${migrationRows.length}`);
+    if(migrationRows.length<13) fail(`expected at least 13 applied migrations, found ${migrationRows.length}`);
     const [duplicateAccounts]=await pool.execute('SELECT normalised_account_number,COUNT(*) total FROM os2_customer_accounts WHERE archived_at IS NULL AND normalised_account_number IS NOT NULL GROUP BY normalised_account_number HAVING COUNT(*)>1 LIMIT 20');
     const [duplicateMobiles]=await pool.execute('SELECT mobile_number,COUNT(*) total FROM os2_mobile_lines WHERE archived_at IS NULL AND mobile_number IS NOT NULL GROUP BY mobile_number HAVING COUNT(*)>1 LIMIT 20');
     if(duplicateAccounts.length) fail(`duplicate active normalised account numbers detected: ${duplicateAccounts.map(x=>x.normalised_account_number).join(', ')}`);
