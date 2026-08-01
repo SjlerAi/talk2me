@@ -2,6 +2,11 @@
 
 const mysql = require('mysql2/promise');
 
+const PREVIEW_DATABASE = 'kloka_talk2me';
+const EXPECTED_MIGRATION_COUNT = 25;
+const CONNECTION_TIMEOUT_MS = 10000;
+const QUERY_LIMIT = 20;
+
 const REQUIRED_TABLES = [
   'os2_master_customers','os2_customer_lifecycle_history','os2_customer_duplicate_cases','os2_customer_duplicate_history',
   'os2_customer_merge_plans','os2_customer_merge_plan_history','os2_customer_merge_execution_authorisations',
@@ -49,67 +54,136 @@ const REQUIRED_COLUMNS = {
   os2_backup_runs:['id','backup_type','status','database_name','storage_path','file_name','checksum_sha256','file_size_bytes','table_count','row_count_estimate','verified_at'],
   os2_restore_tests:['id','backup_run_id','status','target_environment','expected_database_name','verified_checks','failed_checks'],
   os2_operational_checks:['id','check_type','status','metric_value','metric_unit','details_json','checked_at'],
+  os2_schema_migrations:['id','migration_name','checksum_sha256','executed_at','executed_by','execution_ms'],
   app_sessions:['session_id','expires_at','last_seen_at','ip_address','user_agent','revoked_at','revoked_reason']
 };
 
-function fail(message) {
-  console.error(`SCHEMA VERIFICATION FAILED: ${message}`);
-  process.exitCode = 1;
+function required(name, maxLength = 255) {
+  const value = String(process.env[name] || '').trim();
+  if (!value || value.length > maxLength || /[\u0000\r\n]/.test(value)) throw new Error(`INVALID_${name}`);
+  return value;
+}
+function assertZero(rows, label, formatter = row => row.id) {
+  if (rows.length) throw new Error(`${label}:${rows.map(formatter).join(',')}`);
+}
+function assertLowerHex(value, label) {
+  if (!/^[0-9a-f]{64}$/.test(String(value || ''))) throw new Error(label);
 }
 
 async function main() {
-  const dbName = String(process.env.DB_NAME || '');
-  if (dbName !== 'kloka_talk2me') throw new Error('REFUSING_NON_PREVIEW_DATABASE');
-  const pool = mysql.createPool({
-    host:process.env.DB_HOST, port:Number(process.env.DB_PORT || 3306), user:process.env.DB_USER,
-    password:process.env.DB_PASSWORD || '', database:dbName, connectionLimit:2, namedPlaceholders:true, charset:'utf8mb4'
-  });
-  try {
-    const [tables] = await pool.execute('SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA=:schema',{schema:dbName});
-    const tableNames = new Set(tables.map(row => row.TABLE_NAME));
-    for (const table of REQUIRED_TABLES) if (!tableNames.has(table)) fail(`missing table ${table}`);
+  const dbName = required('DB_NAME', 64);
+  if (dbName !== PREVIEW_DATABASE) throw new Error('REFUSING_NON_PREVIEW_DATABASE');
+  const host = required('DB_HOST', 255);
+  const user = required('DB_USER', 128);
+  const port = Number(process.env.DB_PORT || 3306);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('INVALID_DB_PORT');
+  if (String(process.env.ALLOW_PRODUCTION_MUTATION || '').toLowerCase() === 'true') throw new Error('PRODUCTION_MUTATION_FLAG_PROHIBITED');
+  if (String(process.env.ENABLE_CUSTOMER_MERGE_EXECUTION || '').toLowerCase() === 'true') throw new Error('MERGE_EXECUTION_FLAG_PROHIBITED');
 
-    for (const [table, required] of Object.entries(REQUIRED_COLUMNS)) {
-      const [columns] = await pool.execute('SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=:schema AND TABLE_NAME=:table',{schema:dbName,table});
-      const names = new Set(columns.map(row => row.COLUMN_NAME));
-      for (const column of required) if (!names.has(column)) fail(`missing column ${table}.${column}`);
+  const pool = mysql.createPool({
+    host, port, user, password: process.env.DB_PASSWORD || '', database: dbName,
+    connectionLimit: 2, connectTimeout: CONNECTION_TIMEOUT_MS, waitForConnections: true,
+    queueLimit: 0, enableKeepAlive: false, namedPlaceholders: false, charset: 'utf8mb4', dateStrings: false
+  });
+
+  try {
+    const [identityRows] = await pool.execute('SELECT DATABASE() AS database_name, @@session.autocommit AS autocommit_value');
+    const identity = identityRows[0] || {};
+    if (identity.database_name !== PREVIEW_DATABASE) throw new Error('DATABASE_IDENTITY_MISMATCH');
+    if (Number(identity.autocommit_value) !== 1) throw new Error('AUTOCOMMIT_REQUIRED');
+    await pool.query("SET SESSION time_zone = '+00:00'");
+    const [timezoneRows] = await pool.execute('SELECT @@session.time_zone AS time_zone_value');
+    if (!timezoneRows[0] || timezoneRows[0].time_zone_value !== '+00:00') throw new Error('UTC_SESSION_REQUIRED');
+
+    const [tables] = await pool.execute('SELECT TABLE_NAME,ENGINE,TABLE_COLLATION FROM information_schema.TABLES WHERE TABLE_SCHEMA=?', [dbName]);
+    const tableMap = new Map(tables.map(row => [row.TABLE_NAME, row]));
+    const missingTables = REQUIRED_TABLES.filter(table => !tableMap.has(table));
+    if (missingTables.length) throw new Error(`MISSING_TABLES:${missingTables.join(',')}`);
+    for (const table of REQUIRED_TABLES) {
+      const row = tableMap.get(table);
+      if (String(row.ENGINE || '').toUpperCase() !== 'INNODB') throw new Error(`INVALID_TABLE_ENGINE:${table}`);
+      if (row.TABLE_COLLATION !== 'utf8mb4_unicode_ci') throw new Error(`INVALID_TABLE_COLLATION:${table}`);
     }
 
-    const [migrations] = await pool.execute('SELECT migration_name,checksum,applied_at FROM os2_schema_migrations ORDER BY migration_name');
-    if (migrations.length < 25) fail(`expected at least 25 applied migrations, found ${migrations.length}`);
+    for (const [table, requiredColumns] of Object.entries(REQUIRED_COLUMNS)) {
+      const [columns] = await pool.execute('SELECT COLUMN_NAME,ORDINAL_POSITION FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=? AND TABLE_NAME=? ORDER BY ORDINAL_POSITION', [dbName, table]);
+      const names = columns.map(row => row.COLUMN_NAME);
+      const missing = requiredColumns.filter(column => !names.includes(column));
+      if (missing.length) throw new Error(`MISSING_COLUMNS:${table}:${missing.join(',')}`);
+      if (new Set(names).size !== names.length) throw new Error(`DUPLICATE_COLUMN_METADATA:${table}`);
+    }
 
-    const [accounts] = await pool.execute('SELECT normalised_account_number,COUNT(*) total FROM os2_customer_accounts WHERE archived_at IS NULL AND normalised_account_number IS NOT NULL GROUP BY normalised_account_number HAVING COUNT(*)>1 LIMIT 20');
-    const [primaryAccounts] = await pool.execute('SELECT master_customer_id,COUNT(*) total FROM os2_customer_accounts WHERE archived_at IS NULL AND is_primary=1 GROUP BY master_customer_id HAVING COUNT(*)>1 LIMIT 20');
-    const [mobiles] = await pool.execute('SELECT mobile_number,COUNT(*) total FROM os2_mobile_lines WHERE archived_at IS NULL AND mobile_number IS NOT NULL GROUP BY mobile_number HAVING COUNT(*)>1 LIMIT 20');
-    const [duplicateGrants] = await pool.execute("SELECT master_customer_id,staff_id,COUNT(*) total FROM os2_customer_access_grants WHERE revoked_at IS NULL AND (expires_at IS NULL OR expires_at>NOW()) GROUP BY master_customer_id,staff_id HAVING COUNT(*)>1 LIMIT 20");
-    const [archivedWithActiveOwnership] = await pool.execute('SELECT mc.id FROM os2_master_customers mc JOIN os2_customer_ownership o ON o.master_customer_id=mc.id AND o.is_current=1 WHERE mc.archived_at IS NOT NULL LIMIT 20');
-    const [invalidDuplicatePairs] = await pool.execute('SELECT id FROM os2_customer_duplicate_cases WHERE primary_customer_id>=candidate_customer_id OR primary_customer_id=candidate_customer_id LIMIT 20');
-    const [invalidMergePlans] = await pool.execute("SELECT id FROM os2_customer_merge_plans WHERE survivor_customer_id=source_customer_id OR plan_hash NOT REGEXP '^[0-9a-f]{64}$' OR executed_at IS NOT NULL LIMIT 20");
-    const [invalidAuthorisations] = await pool.execute("SELECT id FROM os2_customer_merge_execution_authorisations WHERE plan_hash NOT REGEXP '^[0-9a-f]{64}$' OR snapshot_hash NOT REGEXP '^[0-9a-f]{64}$' OR restore_test_id IS NULL OR (status='authorised' AND (authorised_at IS NULL OR expires_at IS NULL)) OR consumed_at IS NOT NULL LIMIT 20");
-    const [invalidRepresentativePermissions] = await pool.execute("SELECT id FROM os2_authorised_representatives WHERE JSON_VALID(permissions_json)=0 LIMIT 20");
-    const [activeExpiredRepresentatives] = await pool.execute("SELECT id FROM os2_authorised_representatives WHERE status='active' AND revoked_at IS NULL AND expires_at IS NOT NULL AND expires_at<=NOW() LIMIT 20");
-    const [unsafeApprovals] = await pool.execute("SELECT id FROM os2_approval_requests WHERE consumed_at IS NULL AND status IN ('pending','deferred','approved') AND (integrity_version<>2 OR invalidated_at IS NOT NULL OR payload_hash IS NULL OR payload_hash NOT REGEXP '^[0-9a-f]{64}$') LIMIT 20");
-    const [invalidatedApprovalsStillOpen] = await pool.execute("SELECT id FROM os2_approval_requests WHERE invalidated_at IS NOT NULL AND status IN ('pending','deferred','approved') LIMIT 20");
+    const [ledgerRows] = await pool.execute('SELECT id,migration_name,checksum_sha256,executed_at,executed_by,execution_ms FROM os2_schema_migrations ORDER BY id ASC');
+    if (ledgerRows.length !== EXPECTED_MIGRATION_COUNT) throw new Error(`MIGRATION_COUNT_MISMATCH:${ledgerRows.length}`);
+    let previousId = 0;
+    const seenNames = new Set();
+    for (let index = 0; index < ledgerRows.length; index += 1) {
+      const row = ledgerRows[index];
+      const expectedSequence = String(index + 1).padStart(3, '0');
+      const expectedPrefix = `20260801_${expectedSequence}_`;
+      if (!Number.isInteger(Number(row.id)) || Number(row.id) <= previousId) throw new Error(`MIGRATION_LEDGER_ID_INVALID:${index}`);
+      previousId = Number(row.id);
+      if (typeof row.migration_name !== 'string' || !row.migration_name.startsWith(expectedPrefix) || !row.migration_name.endsWith('.sql')) throw new Error(`MIGRATION_NAME_SEQUENCE_INVALID:${row.migration_name}`);
+      if (seenNames.has(row.migration_name)) throw new Error(`DUPLICATE_MIGRATION_NAME:${row.migration_name}`);
+      seenNames.add(row.migration_name);
+      assertLowerHex(row.checksum_sha256, `MIGRATION_CHECKSUM_INVALID:${row.migration_name}`);
+      if (!(row.executed_at instanceof Date) || !Number.isFinite(row.executed_at.getTime())) throw new Error(`MIGRATION_EXECUTED_AT_INVALID:${row.migration_name}`);
+      if (row.executed_by !== null && (typeof row.executed_by !== 'string' || !row.executed_by.trim() || row.executed_by.length > 190)) throw new Error(`MIGRATION_EXECUTED_BY_INVALID:${row.migration_name}`);
+      if (!Number.isInteger(Number(row.execution_ms)) || Number(row.execution_ms) < 0) throw new Error(`MIGRATION_EXECUTION_MS_INVALID:${row.migration_name}`);
+    }
+    if (!seenNames.has('20260801_025_merge_authorisation_restore_pin.sql')) throw new Error('RESTORE_PIN_MIGRATION_NOT_APPLIED');
 
-    if (accounts.length) fail(`duplicate active normalised account numbers detected: ${accounts.map(x=>x.normalised_account_number).join(', ')}`);
-    if (primaryAccounts.length) fail(`customers with multiple primary accounts detected: ${primaryAccounts.map(x=>x.master_customer_id).join(', ')}`);
-    if (mobiles.length) fail(`duplicate active mobile numbers detected: ${mobiles.map(x=>x.mobile_number).join(', ')}`);
-    if (duplicateGrants.length) fail(`duplicate active customer access grants detected: ${duplicateGrants.map(x=>`${x.master_customer_id}:${x.staff_id}`).join(', ')}`);
-    if (archivedWithActiveOwnership.length) fail(`archived customers with active ownership detected: ${archivedWithActiveOwnership.map(x=>x.id).join(', ')}`);
-    if (invalidDuplicatePairs.length) fail(`invalid duplicate customer pair ordering detected: ${invalidDuplicatePairs.map(x=>x.id).join(', ')}`);
-    if (invalidMergePlans.length) fail(`invalid or executed merge plans detected before merge execution release: ${invalidMergePlans.map(x=>x.id).join(', ')}`);
-    if (invalidAuthorisations.length) fail(`invalid, unpinned or consumed merge execution authorisations detected before merge execution release: ${invalidAuthorisations.map(x=>x.id).join(', ')}`);
-    if (invalidRepresentativePermissions.length) fail(`representatives with invalid permission JSON detected: ${invalidRepresentativePermissions.map(x=>x.id).join(', ')}`);
-    if (activeExpiredRepresentatives.length) fail(`expired representatives still marked active: ${activeExpiredRepresentatives.map(x=>x.id).join(', ')}`);
-    if (unsafeApprovals.length) fail(`open approvals without integrity version 2 and a valid payload hash: ${unsafeApprovals.map(x=>x.id).join(', ')}`);
-    if (invalidatedApprovalsStillOpen.length) fail(`invalidated approvals still in an open or approved state: ${invalidatedApprovalsStillOpen.map(x=>x.id).join(', ')}`);
+    const checks = [
+      ['DUPLICATE_ACTIVE_ACCOUNT_NUMBERS', 'SELECT normalised_account_number AS value FROM os2_customer_accounts WHERE archived_at IS NULL AND normalised_account_number IS NOT NULL GROUP BY normalised_account_number HAVING COUNT(*)>1 LIMIT ?', row => row.value],
+      ['MULTIPLE_PRIMARY_ACCOUNTS', 'SELECT master_customer_id AS value FROM os2_customer_accounts WHERE archived_at IS NULL AND is_primary=1 GROUP BY master_customer_id HAVING COUNT(*)>1 LIMIT ?', row => row.value],
+      ['DUPLICATE_ACTIVE_MOBILES', 'SELECT mobile_number AS value FROM os2_mobile_lines WHERE archived_at IS NULL AND mobile_number IS NOT NULL GROUP BY mobile_number HAVING COUNT(*)>1 LIMIT ?', row => row.value],
+      ['DUPLICATE_ACTIVE_ACCESS_GRANTS', 'SELECT CONCAT(master_customer_id,\':\',staff_id) AS value FROM os2_customer_access_grants WHERE revoked_at IS NULL AND (expires_at IS NULL OR expires_at>UTC_TIMESTAMP()) GROUP BY master_customer_id,staff_id HAVING COUNT(*)>1 LIMIT ?', row => row.value],
+      ['ARCHIVED_CUSTOMERS_WITH_ACTIVE_OWNERSHIP', 'SELECT mc.id AS value FROM os2_master_customers mc JOIN os2_customer_ownership o ON o.master_customer_id=mc.id AND o.is_current=1 WHERE mc.archived_at IS NOT NULL LIMIT ?', row => row.value],
+      ['INVALID_DUPLICATE_PAIRS', 'SELECT id AS value FROM os2_customer_duplicate_cases WHERE primary_customer_id>=candidate_customer_id LIMIT ?', row => row.value],
+      ['INVALID_MERGE_PLANS', "SELECT id AS value FROM os2_customer_merge_plans WHERE survivor_customer_id=source_customer_id OR plan_hash NOT REGEXP '^[0-9a-f]{64}$' OR executed_at IS NOT NULL LIMIT ?", row => row.value],
+      ['INVALID_MERGE_AUTHORISATIONS', "SELECT id AS value FROM os2_customer_merge_execution_authorisations WHERE plan_hash NOT REGEXP '^[0-9a-f]{64}$' OR snapshot_hash NOT REGEXP '^[0-9a-f]{64}$' OR restore_test_id IS NULL OR (status='authorised' AND (authorised_at IS NULL OR expires_at IS NULL)) OR consumed_at IS NOT NULL LIMIT ?", row => row.value],
+      ['INVALID_REPRESENTATIVE_PERMISSIONS', 'SELECT id AS value FROM os2_authorised_representatives WHERE JSON_VALID(permissions_json)=0 LIMIT ?', row => row.value],
+      ['EXPIRED_ACTIVE_REPRESENTATIVES', "SELECT id AS value FROM os2_authorised_representatives WHERE status='active' AND revoked_at IS NULL AND expires_at IS NOT NULL AND expires_at<=UTC_TIMESTAMP() LIMIT ?", row => row.value],
+      ['UNSAFE_OPEN_APPROVALS', "SELECT id AS value FROM os2_approval_requests WHERE consumed_at IS NULL AND status IN ('pending','deferred','approved') AND (integrity_version<>2 OR invalidated_at IS NOT NULL OR payload_hash IS NULL OR payload_hash NOT REGEXP '^[0-9a-f]{64}$') LIMIT ?", row => row.value],
+      ['INVALIDATED_APPROVALS_STILL_OPEN', "SELECT id AS value FROM os2_approval_requests WHERE invalidated_at IS NOT NULL AND status IN ('pending','deferred','approved') LIMIT ?", row => row.value],
+      ['ORPHAN_ACCOUNTS', 'SELECT a.id AS value FROM os2_customer_accounts a LEFT JOIN os2_master_customers c ON c.id=a.master_customer_id WHERE c.id IS NULL LIMIT ?', row => row.value],
+      ['ORPHAN_MOBILE_LINES', 'SELECT m.id AS value FROM os2_mobile_lines m LEFT JOIN os2_master_customers c ON c.id=m.master_customer_id WHERE c.id IS NULL LIMIT ?', row => row.value],
+      ['ORPHAN_WORK_ITEMS', 'SELECT w.id AS value FROM os2_work_items w LEFT JOIN os2_master_customers c ON c.id=w.master_customer_id WHERE w.master_customer_id IS NOT NULL AND c.id IS NULL LIMIT ?', row => row.value],
+      ['NEGATIVE_IMPORT_COUNTS', 'SELECT id AS value FROM os2_import_batches WHERE COALESCE(total_rows,0)<0 OR COALESCE(processed_rows,0)<0 OR COALESCE(failed_rows,0)<0 LIMIT ?', row => row.value],
+      ['INVALID_EXPORT_CHECKSUMS', "SELECT id AS value FROM os2_data_exports WHERE sha256_checksum IS NOT NULL AND sha256_checksum NOT REGEXP '^[0-9a-f]{64}$' LIMIT ?", row => row.value],
+      ['VERIFIED_BACKUPS_WITHOUT_CHECKSUM', "SELECT id AS value FROM os2_backup_runs WHERE status='verified' AND (checksum_sha256 IS NULL OR checksum_sha256 NOT REGEXP '^[0-9a-f]{64}$' OR verified_at IS NULL) LIMIT ?", row => row.value]
+    ];
 
-    if (!process.exitCode) console.log(JSON.stringify({
-      ok:true,database:dbName,requiredTables:REQUIRED_TABLES.length,verifiedColumnGroups:Object.keys(REQUIRED_COLUMNS).length,
-      appliedMigrations:migrations.length,duplicateAccounts:0,multiplePrimaryAccounts:0,duplicateMobiles:0,duplicateAccessGrants:0,
-      archivedWithActiveOwnership:0,invalidDuplicatePairs:0,invalidMergePlans:0,invalidAuthorisations:0,
-      invalidRepresentativePermissions:0,activeExpiredRepresentatives:0,unsafeApprovals:0,invalidatedApprovalsStillOpen:0
-    },null,2));
+    const zeroDefectChecks = {};
+    for (const [label, sql, formatter] of checks) {
+      const [rows] = await pool.execute(sql, [QUERY_LIMIT]);
+      assertZero(rows, label, formatter);
+      zeroDefectChecks[label] = 0;
+    }
+
+    console.log(JSON.stringify({
+      ok: true,
+      check: 'schema-verification',
+      database: dbName,
+      databaseIdentityVerified: true,
+      autocommitVerified: true,
+      utcSessionVerified: true,
+      requiredTables: REQUIRED_TABLES.length,
+      verifiedColumnGroups: Object.keys(REQUIRED_COLUMNS).length,
+      tableEnginesVerified: REQUIRED_TABLES.length,
+      tableCollationsVerified: REQUIRED_TABLES.length,
+      appliedMigrations: ledgerRows.length,
+      exactMigrationCountVerified: true,
+      migrationLedgerColumnNamesCorrected: true,
+      restorePinMigrationApplied: true,
+      migrationLedgerSequenceVerified: true,
+      migrationLedgerChecksumsVerified: true,
+      migrationExecutionMetadataVerified: true,
+      zeroDefectChecks,
+      zeroDefectCheckCount: Object.keys(zeroDefectChecks).length,
+      productionMutationEnabled: false,
+      mergeExecutionEnabled: false
+    }, null, 2));
   } finally {
     await pool.end();
   }
