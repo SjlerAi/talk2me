@@ -55,6 +55,10 @@ requireMarkers(activationRunbook, [
   'enforce bounded file sizes before reading'
 ], 'Activation runbook');
 
+if (pkg.scripts['check:release-evidence-security'] !== 'node release-evidence-security-check.js') throw new Error('Missing check:release-evidence-security command');
+if (!pkg.scripts.check.includes('node --check release-evidence-security-check.js')) throw new Error('Release evidence security syntax check missing from normal validation');
+if (!pkg.scripts.check.includes('node release-evidence-security-check.js')) throw new Error('Release evidence security execution missing from normal validation');
+
 console.log(JSON.stringify({
   ok: true,
   check: 'release-evidence-security',
@@ -65,6 +69,8 @@ console.log(JSON.stringify({
   boundedReadsRequired: true,
   protectedTargets: protectedTargets.length,
   independentlyExecutable: true,
+  packageCommandRegistered: true,
+  normalValidationRegistered: true,
   productionMutationEnabled: false,
   mergeExecutionEnabled: false
 }, null, 2));
