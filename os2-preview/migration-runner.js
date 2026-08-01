@@ -3,6 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { spawnSync } = require('child_process');
 const mysql = require('mysql2/promise');
 
 const MIGRATIONS_DIR = path.join(__dirname, 'migrations');
@@ -10,6 +11,7 @@ const PREVIEW_DATABASE = 'kloka_talk2me';
 const MIGRATION_LOCK_NAME = 'talk2me_os2_preview_migrations';
 const MIGRATION_LOCK_TIMEOUT_SECONDS = 10;
 const MAX_MIGRATION_BYTES = 4 * 1024 * 1024;
+const BOOTSTRAP_EVIDENCE_VERIFIER = path.join(__dirname, 'migration-ledger-bootstrap-evidence-verification.js');
 
 function required(name) {
   const value = String(process.env[name] || '').trim();
@@ -19,6 +21,24 @@ function required(name) {
 
 function checksum(content) {
   return crypto.createHash('sha256').update(content).digest('hex');
+}
+
+function verifyBootstrapEvidence() {
+  const evidencePath = required('MIGRATION_LEDGER_BOOTSTRAP_EVIDENCE_PATH');
+  const result = spawnSync(process.execPath, [BOOTSTRAP_EVIDENCE_VERIFIER], {
+    cwd: __dirname,
+    env: {
+      ...process.env,
+      MIGRATION_LEDGER_BOOTSTRAP_EVIDENCE_PATH: evidencePath,
+      ALLOW_PRODUCTION_MUTATION: 'false',
+      ENABLE_CUSTOMER_MERGE_EXECUTION: 'false'
+    },
+    stdio: 'inherit'
+  });
+  if (result.error) throw new Error(`BOOTSTRAP_EVIDENCE_VERIFIER_START_FAILED:${result.error.message}`);
+  if (result.signal) throw new Error(`BOOTSTRAP_EVIDENCE_VERIFIER_SIGNALLED:${result.signal}`);
+  if (result.status !== 0) throw new Error(`BOOTSTRAP_EVIDENCE_VERIFICATION_FAILED:${result.status}`);
+  return evidencePath;
 }
 
 function secureMigrationDirectory() {
@@ -83,7 +103,6 @@ async function verifyLedgerSchema(connection) {
   if (tables.length !== 1) throw new Error('MIGRATION_LEDGER_BOOTSTRAP_REQUIRED');
   if (String(tables[0].ENGINE || '').toUpperCase() !== 'INNODB') throw new Error('MIGRATION_LEDGER_ENGINE_INVALID');
   if (tables[0].TABLE_COLLATION !== 'utf8mb4_unicode_ci') throw new Error('MIGRATION_LEDGER_COLLATION_INVALID');
-
   const [columns] = await connection.execute(`SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT, EXTRA, ORDINAL_POSITION
     FROM information_schema.COLUMNS
     WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'os2_schema_migrations'
@@ -105,7 +124,6 @@ async function verifyLedgerSchema(connection) {
     if (actualDefault !== rule[3]) throw new Error(`MIGRATION_LEDGER_DEFAULT_INVALID:${rule[0]}`);
     if (rule[4] && !String(row.EXTRA || '').includes(rule[4])) throw new Error(`MIGRATION_LEDGER_EXTRA_INVALID:${rule[0]}`);
   }
-
   const [indexes] = await connection.execute(`SELECT INDEX_NAME, NON_UNIQUE, SEQ_IN_INDEX, COLUMN_NAME
     FROM information_schema.STATISTICS
     WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'os2_schema_migrations'
@@ -162,6 +180,7 @@ async function run() {
   if (String(process.env.ALLOW_PRODUCTION_MUTATION || '').toLowerCase() === 'true') throw new Error('PRODUCTION_MUTATION_FLAG_PROHIBITED');
   if (String(process.env.ENABLE_CUSTOMER_MERGE_EXECUTION || '').toLowerCase() === 'true') throw new Error('MERGE_EXECUTION_FLAG_PROHIBITED');
 
+  const bootstrapEvidencePath = verifyBootstrapEvidence();
   const directoryIdentity = secureMigrationDirectory();
   const files = migrationFiles();
   const migrationSources = files.map(name => {
@@ -172,7 +191,6 @@ async function run() {
   if (after.dev !== directoryIdentity.dev || after.ino !== directoryIdentity.ino) throw new Error('MIGRATIONS_DIRECTORY_CHANGED_DURING_INVENTORY');
 
   const connection = await mysql.createConnection({ host: required('DB_HOST'), port: Number(process.env.DB_PORT || 3306), user: required('DB_USER'), password: process.env.DB_PASSWORD || '', database, multipleStatements: true, charset: 'utf8mb4' });
-
   let lockAcquired = false;
   let lockConnectionId = null;
   try {
@@ -190,7 +208,24 @@ async function run() {
       executed += 1;
       console.log(`applied ${migration.name}`);
     }
-    console.log(JSON.stringify({ ok: true, check: 'preview-migration-runner', database, migrationCount: migrationSources.length, previouslyApplied: applied.size, applied: executed, ledgerBootstrapVerified: true, runtimeCreateTableUsed: false, ledgerStrictPrefixVerified: true, advisoryLockUsed: true, advisoryLockOwnerVerified: true, secureMigrationReads: true, productionMutationEnabled: false, mergeExecutionEnabled: false }, null, 2));
+    console.log(JSON.stringify({
+      ok: true,
+      check: 'preview-migration-runner',
+      database,
+      bootstrapEvidencePath,
+      bootstrapEvidenceVerifiedBeforeDatabaseConnection: true,
+      migrationCount: migrationSources.length,
+      previouslyApplied: applied.size,
+      applied: executed,
+      ledgerBootstrapVerified: true,
+      runtimeCreateTableUsed: false,
+      ledgerStrictPrefixVerified: true,
+      advisoryLockUsed: true,
+      advisoryLockOwnerVerified: true,
+      secureMigrationReads: true,
+      productionMutationEnabled: false,
+      mergeExecutionEnabled: false
+    }, null, 2));
   } finally {
     if (lockAcquired) await releaseMigrationLock(connection, lockConnectionId);
     await connection.end();
