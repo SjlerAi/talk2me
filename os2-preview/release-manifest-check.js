@@ -27,6 +27,13 @@ const gateMarkers = [
   "pkg.name !== 'talk2me-os2-preview'",
   "const packageJsonChecksum = sha256('package.json')",
   'packageJsonSha256: packageJsonChecksum',
+  "const bootstrapFile = 'MIGRATION_LEDGER_BOOTSTRAP.sql'",
+  'migrationLedgerBootstrapFile: bootstrapFile',
+  'migrationLedgerBootstrapSha256: bootstrapChecksum',
+  'migrationLedgerBootstrapGovernanceRequired: true',
+  'runtimeLedgerCreationDisabled: true',
+  "'migration-ledger-bootstrap-governance-check.js'",
+  "'check:migration-ledger-bootstrap'",
   "fs.openSync(file, 'wx', 0o600)",
   'fs.fsyncSync(descriptor)',
   'fs.linkSync(checksumTemp, checksumPath)',
@@ -109,9 +116,17 @@ const verifierMarkers = [
   "manifest.application !== 'talk2me-os2-preview'",
   'manifest.version !== expectedPreviewVersion',
   'Release manifest package.json checksum is invalid',
+  'manifest.migrationLedgerBootstrapFile !== expectedBootstrapFile',
+  'Release manifest migration-ledger bootstrap checksum is invalid',
+  'Release manifest does not require migration-ledger bootstrap governance',
+  'Release manifest does not confirm runtime ledger creation is disabled',
   "label: 'Checked-out package.json'",
   "label: 'Checked-out package-lock.json'",
+  "label: 'Checked-out migration ledger bootstrap'",
   "label: 'Checked-out migration'",
+  'migration-ledger bootstrap checksum does not match the checked-out source',
+  'migrationLedgerBootstrapMatchesWorkspace: true',
+  'runtimeLedgerCreationDisabled: true',
   'package.json checksum does not match the checked-out package.json',
   'Checked-out package.json is not valid JSON',
   'dependency-lock checksum does not match the checked-out package-lock.json',
@@ -146,6 +161,7 @@ const runbookMarkers = [
 requireMarkers(runbook, runbookMarkers, 'release runbook');
 
 if (!pkg.scripts['verify:preview-data']) throw new Error('Missing verify:preview-data script');
+if (!pkg.scripts['check:migration-ledger-bootstrap']) throw new Error('Missing check:migration-ledger-bootstrap script');
 if (!pkg.scripts.check.includes('node --check preview-data-verification.js')) throw new Error('Preview data verifier syntax check missing from normal validation');
 if (!pkg.scripts['check:release-candidate']) throw new Error('Missing check:release-candidate script');
 if (!pkg.scripts['check:release-manifest']) throw new Error('Missing check:release-manifest script');
@@ -157,6 +173,9 @@ console.log(JSON.stringify({
   module: 'release-candidate-governance',
   version: pkg.version,
   restorePinMigration: '20260801_025_merge_authorisation_restore_pin.sql',
+  migrationLedgerBootstrapGovernanceRequired: true,
+  migrationLedgerBootstrapWorkspaceBindingRequired: true,
+  runtimeLedgerCreationDisabled: true,
   mergeExecutionEnabled: false,
   previewDataVerificationRequired: true,
   previewDataVerificationOrder: ['schema-verification.js','merge-restore-evidence-verification.js'],
