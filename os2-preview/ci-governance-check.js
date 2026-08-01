@@ -23,41 +23,18 @@ const sourceIntegrityGovernance = fs.readFileSync(sourceIntegrityGovernancePath,
 const runbook = fs.readFileSync(runbookPath, 'utf8');
 
 const workflowMarkers = [
-  'permissions:',
-  'contents: read',
-  'timeout-minutes:',
-  'Detect dependency lock',
-  'package-lock.json is absent',
-  'Verify and retain pre-install workspace source integrity',
-  'id: preinstall-source',
-  '$RUNNER_TEMP/os2-workspace-source-integrity-preinstall.json',
-  'npm run --silent verify:workspace-source-integrity',
-  'inventory_sha256=',
-  'package_lock_present=',
-  'Confirm dependency-lock detection matches source evidence',
-  'steps.preinstall-source.outputs.package_lock_present',
-  'PREVIEW_APP_ROOT: ${{ github.workspace }}/os2-preview',
-  'DB_NAME: kloka_talk2me',
-  'RELEASE_BRANCH: agent/talk2me-os2-integrated-rebuild',
-  "ALLOW_PRODUCTION_MUTATION: 'false'",
-  "ENABLE_CUSTOMER_MERGE_EXECUTION: 'false'",
-  'npm install --ignore-scripts --no-audit --no-fund --package-lock=false',
-  "if: steps.dependency-lock.outputs.present == 'true'",
-  'npm run check',
-  'npm audit --omit=dev --audit-level=high',
-  'Record dependency audit blocker',
-  'DEPENDENCY_LOCK_PRESENT:',
-  'EXPECTED_PREINSTALL_SOURCE_INVENTORY_SHA256:',
-  'steps.preinstall-source.outputs.inventory_sha256',
-  'Generate build evidence with pre-install source continuity',
-  'npm run evidence:build',
-  'actions/upload-artifact@v4',
-  'os2-preview/**',
-  'public/os2/**'
+  'permissions:', 'contents: read', 'timeout-minutes:', 'Detect dependency lock', 'package-lock.json is absent',
+  'Verify and retain pre-install workspace source integrity', 'id: preinstall-source', '$RUNNER_TEMP/os2-workspace-source-integrity-preinstall.json',
+  'npm run --silent verify:workspace-source-integrity', 'inventory_sha256=', 'package_lock_present=',
+  'Confirm dependency-lock detection matches source evidence', 'steps.preinstall-source.outputs.package_lock_present',
+  'PREVIEW_APP_ROOT: ${{ github.workspace }}/os2-preview', 'DB_NAME: kloka_talk2me',
+  'RELEASE_BRANCH: agent/talk2me-os2-integrated-rebuild', "ALLOW_PRODUCTION_MUTATION: 'false'", "ENABLE_CUSTOMER_MERGE_EXECUTION: 'false'",
+  'npm install --ignore-scripts --no-audit --no-fund --package-lock=false', "if: steps.dependency-lock.outputs.present == 'true'",
+  'npm run check', 'npm audit --omit=dev --audit-level=high', 'Record dependency audit blocker', 'DEPENDENCY_LOCK_PRESENT:',
+  'EXPECTED_PREINSTALL_SOURCE_INVENTORY_SHA256:', 'steps.preinstall-source.outputs.inventory_sha256',
+  'Generate build evidence with pre-install source continuity', 'npm run evidence:build', 'actions/upload-artifact@v4', 'os2-preview/**', 'public/os2/**'
 ];
-for (const marker of workflowMarkers) {
-  if (!workflow.includes(marker)) throw new Error(`Missing CI workflow control: ${marker}`);
-}
+for (const marker of workflowMarkers) if (!workflow.includes(marker)) throw new Error(`Missing CI workflow control: ${marker}`);
 
 if (!pkg.scripts?.['evidence:build']) throw new Error('Missing evidence:build package script');
 if (pkg.scripts?.['verify:workspace-source-integrity'] !== 'node workspace-source-integrity.js') throw new Error('Missing exact verify:workspace-source-integrity package script');
@@ -66,86 +43,39 @@ if (!pkg.scripts?.['check:ci-governance']) throw new Error('Missing check:ci-gov
 if (!pkg.scripts.check.includes('ci-governance-check.js')) throw new Error('CI governance check not included in main validation suite');
 
 const evidenceMarkers = [
-  "const { spawnSync } = require('child_process')",
-  'runWorkspaceSourceIntegrity()',
-  "'workspace-source-integrity.js'",
-  'verifierTimeoutMs = 30000',
-  'timeout: verifierTimeoutMs',
-  "killSignal: 'SIGKILL'",
-  'shell: false',
-  "result.error.code === 'ETIMEDOUT'",
-  'result.error',
-  'result.signal',
-  'result.status !== 0',
-  'EXPECTED_PREINSTALL_SOURCE_INVENTORY_SHA256',
-  'GITHUB_ACTIONS',
-  'equalHex(expectedPreinstallDigest, postinstallDigest)',
-  'Protected source inventory changed between pre-install verification and build-evidence generation',
-  'parseBooleanEnvironment',
-  'DEPENDENCY_LOCK_PRESENT does not match the filesystem',
-  'Workspace source-integrity lock evidence does not match the filesystem',
-  'entry.isSymbolicLink()',
-  'stat.nlink !== 1',
-  'workspaceSourceIntegrityVerified: true',
-  'preinstallWorkspaceSourceInventorySha256',
-  'postinstallWorkspaceSourceInventorySha256',
-  'workspaceSourceIntegrityStableAcrossDependencyInstall',
-  'dependencyLockStateVerifiedAgainstFilesystem: true',
-  'dependencyLockStateVerifiedAgainstSourceIntegrity: true',
-  'workspaceSourceProtectedFileCount',
-  'workspaceSourceMigrationCount',
-  'workspace-source-integrity.json',
-  'workspace-source-integrity.sha256',
-  'sha256',
-  'migrationCount',
-  'routeFileCount',
-  'checkFileCount',
-  'GITHUB_SHA',
-  'dependencyAuditEligible',
-  'releaseCandidateEligible'
+  "const { spawnSync } = require('child_process')", 'runWorkspaceSourceIntegrity()', "'workspace-source-integrity.js'",
+  'verifierTimeoutMs = 30000', 'timeout: verifierTimeoutMs', "killSignal: 'SIGKILL'", 'shell: false', "result.error.code === 'ETIMEDOUT'",
+  'EXPECTED_PREINSTALL_SOURCE_INVENTORY_SHA256', 'GITHUB_ACTIONS', 'equalHex(expectedPreinstallDigest, postinstallDigest)',
+  'Protected source inventory changed between pre-install verification and build-evidence generation', 'parseBooleanEnvironment',
+  'DEPENDENCY_LOCK_PRESENT does not match the filesystem', 'Workspace source-integrity lock evidence does not match the filesystem',
+  'entry.isSymbolicLink()', 'stat.nlink !== 1', 'assertPrivateDirectory', 'atomicWrite', 'fs.constants.O_EXCL', 'fs.fsyncSync',
+  'Evidence output permissions must be 0600', 'Evidence directory must not permit group or world access', 'verifySidecar',
+  'artifact-manifest.json', 'artifact-manifest.sha256', 'privateDirectoryVerified: true', 'atomicPublicationVerified: true',
+  'checksumPairsVerified: true', 'evidenceDirectoryPrivate: true', 'evidenceFilesAtomic: true', 'evidenceChecksumPairsVerified: true',
+  'workspaceSourceIntegrityVerified: true', 'preinstallWorkspaceSourceInventorySha256', 'postinstallWorkspaceSourceInventorySha256',
+  'workspaceSourceIntegrityStableAcrossDependencyInstall', 'dependencyLockStateVerifiedAgainstFilesystem: true',
+  'dependencyLockStateVerifiedAgainstSourceIntegrity: true', 'workspaceSourceProtectedFileCount', 'workspaceSourceMigrationCount',
+  'workspace-source-integrity.json', 'workspace-source-integrity.sha256', 'build-evidence.json', 'build-evidence.sha256',
+  'migrationCount', 'routeFileCount', 'checkFileCount', 'GITHUB_SHA', 'dependencyAuditEligible', 'releaseCandidateEligible'
 ];
-for (const marker of evidenceMarkers) {
-  if (!evidence.includes(marker)) throw new Error(`Missing build evidence marker: ${marker}`);
-}
+for (const marker of evidenceMarkers) if (!evidence.includes(marker)) throw new Error(`Missing build evidence marker: ${marker}`);
 
-for (const marker of [
-  "check: 'workspace-source-integrity'",
-  'inventorySha256',
-  'secureDescriptorReads: true',
-  'canonicalPathBinding: true',
-  'hardLinkRejection: true',
-  'ownershipConsistency: true',
-  'boundedReads: true'
-]) {
+for (const marker of ["check: 'workspace-source-integrity'", 'inventorySha256', 'secureDescriptorReads: true', 'canonicalPathBinding: true', 'hardLinkRejection: true', 'ownershipConsistency: true', 'boundedReads: true']) {
   if (!sourceIntegrity.includes(marker)) throw new Error(`Missing workspace source integrity marker: ${marker}`);
 }
-for (const marker of [
-  "check: 'workspace-source-integrity-governance'",
-  'packageVerifierCommandRegistered: true',
-  'normalValidationRegistered: true',
-  'environmentBoundVerifierExcludedFromNormalExecution: true'
-]) {
+for (const marker of ["check: 'workspace-source-integrity-governance'", 'packageVerifierCommandRegistered: true', 'normalValidationRegistered: true', 'environmentBoundVerifierExcludedFromNormalExecution: true']) {
   if (!sourceIntegrityGovernance.includes(marker)) throw new Error(`Missing workspace source integrity governance marker: ${marker}`);
 }
 
 const runbookMarkers = [
-  'npm install --ignore-scripts --no-audit --no-fund --package-lock=false',
-  'pre-install inventory digest',
-  'post-install inventory digest',
-  'must match exactly',
-  'dependency-lock detection must agree',
-  'workspaceSourceIntegrityStableAcrossDependencyInstall: true',
-  'dependencyLockPresent: false',
-  'dependencyAuditEligible: false',
-  'releaseCandidateEligible: false',
-  'npm ci --ignore-scripts --no-audit --no-fund',
-  'release-candidate gate must continue to fail',
-  'pinned restore-evidence verification',
+  'npm install --ignore-scripts --no-audit --no-fund --package-lock=false', 'pre-install inventory digest', 'post-install inventory digest',
+  'must match exactly', 'dependency-lock detection must agree', 'workspaceSourceIntegrityStableAcrossDependencyInstall: true',
+  'atomic publication', 'private `0700` evidence directory', 'private `0600` evidence files', 'artifact-manifest.json',
+  'checksum pairs are reverified before upload', 'dependencyLockPresent: false', 'dependencyAuditEligible: false', 'releaseCandidateEligible: false',
+  'npm ci --ignore-scripts --no-audit --no-fund', 'release-candidate gate must continue to fail', 'pinned restore-evidence verification',
   'Production at `talk2me.uent.co.za` remains outside this workflow'
 ];
-for (const marker of runbookMarkers) {
-  if (!runbook.includes(marker)) throw new Error(`Missing CI runbook control: ${marker}`);
-}
+for (const marker of runbookMarkers) if (!runbook.includes(marker)) throw new Error(`Missing CI runbook control: ${marker}`);
 
 const preinstallPosition = workflow.indexOf('npm run --silent verify:workspace-source-integrity');
 const installPosition = workflow.indexOf('npm install --ignore-scripts');
@@ -177,6 +107,11 @@ console.log(JSON.stringify({
   buildEvidenceVerifierExecutionBounded: true,
   broadEvidenceSymlinkRejectionRequired: true,
   broadEvidenceHardLinkRejectionRequired: true,
+  buildEvidencePrivateDirectoryRequired: true,
+  buildEvidenceAtomicPublicationRequired: true,
+  buildEvidencePrivateFilesRequired: true,
+  buildEvidenceChecksumReverificationRequired: true,
+  artifactManifestRequired: true,
   buildEvidenceBoundToWorkspaceSourceInventory: true,
   workspaceSourceIntegrityArtifactRetained: true,
   dependencyLockPolicy: 'source-validation-continues-audit-blocked-until-committed-lock',
