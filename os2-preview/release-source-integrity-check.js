@@ -6,6 +6,8 @@ const path = require('path');
 const root = __dirname;
 const verifier = fs.readFileSync(path.join(root, 'release-source-integrity-verification.js'), 'utf8');
 const workspaceVerifier = fs.readFileSync(path.join(root, 'workspace-source-integrity.js'), 'utf8');
+const releaseGate = fs.readFileSync(path.join(root, 'release-candidate-gate.js'), 'utf8');
+const manifestVerifier = fs.readFileSync(path.join(root, 'release-manifest-verification.js'), 'utf8');
 const preflight = fs.readFileSync(path.join(root, 'preview-activation-preflight.js'), 'utf8');
 const runbook = fs.readFileSync(path.join(root, 'RELEASE_CANDIDATE_RUNBOOK.md'), 'utf8');
 
@@ -46,6 +48,24 @@ requireMarkers(workspaceVerifier, [
   'boundedReads: true'
 ], 'Workspace source integrity verifier');
 
+requireMarkers(releaseGate, [
+  "requireValue('RELEASE_SOURCE_INVENTORY_SHA256').toLowerCase()",
+  "'release-source-integrity-verification.js'",
+  "{ RELEASE_SOURCE_INVENTORY_SHA256: approvedSourceInventorySha256 }",
+  'Release source integrity verifier returned an unexpected inventory digest',
+  'approvedSourceInventorySha256: approvedSourceInventorySha256',
+  'releaseSourceIntegrityVerified: Boolean(sourceIntegrityEvidence && sourceIntegrityEvidence.exactApprovedInventoryMatched === true)',
+  'releaseSourcePackageLockPresent: sourceIntegrityEvidence ? sourceIntegrityEvidence.packageLockPresent : false',
+  'productionMutationEnabled: false',
+  'mergeExecutionEnabled: false'
+], 'Release candidate gate');
+
+requireMarkers(manifestVerifier, [
+  "check: 'release-manifest-verification'",
+  'productionMutationEnabled: false',
+  'mergeExecutionEnabled: false'
+], 'Release manifest verifier');
+
 requireMarkers(preflight, [
   "'release-source-integrity-check.js'",
   'releaseSourceIntegrityGovernanceVerified: true'
@@ -55,11 +75,16 @@ requireMarkers(runbook, [
   'RELEASE_SOURCE_INVENTORY_SHA256',
   'node release-source-integrity-verification.js',
   'exact approved workspace source digest',
-  'package-lock.json to be included in the protected inventory'
+  'package-lock.json` to be included in the protected inventory',
+  'approvedSourceInventorySha256',
+  'releaseSourceIntegrityVerified'
 ], 'Release candidate runbook');
 
 if (preflight.includes("'release-source-integrity-verification.js'")) {
   throw new Error('Environment-bound release source verification must not execute during source-only activation preflight');
+}
+if (releaseGate.indexOf("'release-source-integrity-verification.js'") > releaseGate.indexOf('publishEvidencePair(output')) {
+  throw new Error('Release source integrity must be verified before release-manifest publication');
 }
 
 console.log(JSON.stringify({
@@ -69,6 +94,10 @@ console.log(JSON.stringify({
   exactDigestComparisonRequired: true,
   workspaceVerifierReexecuted: true,
   packageLockInProtectedInventoryRequired: true,
+  releaseFreezeRunsSourceVerifier: true,
+  releaseManifestFreezesApprovedDigest: true,
+  releaseManifestRecordsSourceVerification: true,
+  sourceVerificationPrecedesManifestPublication: true,
   secureDescriptorEvidenceRequired: true,
   environmentBoundVerifierExcludedFromSourceOnlyPreflight: true,
   activationGovernanceRegistrationRequired: true,
