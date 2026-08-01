@@ -7,6 +7,7 @@ const root = __dirname;
 const verifier = fs.readFileSync(path.join(root, 'workspace-source-integrity.js'), 'utf8');
 const preflight = fs.readFileSync(path.join(root, 'preview-activation-preflight.js'), 'utf8');
 const runbook = fs.readFileSync(path.join(root, 'PREVIEW_ACTIVATION_RUNBOOK.md'), 'utf8');
+const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 
 function requireMarkers(source, markers, label) {
   for (const marker of markers) if (!source.includes(marker)) throw new Error(`${label} missing ${marker}`);
@@ -60,6 +61,13 @@ requireMarkers(runbook, [
   'source inventory digest'
 ], 'Activation runbook');
 
+if (pkg.scripts['verify:workspace-source-integrity'] !== 'node workspace-source-integrity.js') throw new Error('Missing verify:workspace-source-integrity command');
+if (pkg.scripts['check:workspace-source-integrity'] !== 'node workspace-source-integrity-check.js') throw new Error('Missing check:workspace-source-integrity command');
+if (!pkg.scripts.check.includes('node --check workspace-source-integrity.js')) throw new Error('Workspace source integrity syntax check missing from normal validation');
+if (!pkg.scripts.check.includes('node --check workspace-source-integrity-check.js')) throw new Error('Workspace source integrity governance syntax check missing from normal validation');
+if (!pkg.scripts.check.includes('node workspace-source-integrity-check.js')) throw new Error('Workspace source integrity governance missing from normal validation');
+if (pkg.scripts.check.includes('node workspace-source-integrity.js &&')) throw new Error('Environment-bound source inventory must not execute in normal validation');
+
 console.log(JSON.stringify({
   ok: true,
   check: 'workspace-source-integrity-governance',
@@ -71,6 +79,10 @@ console.log(JSON.stringify({
   boundedReadsRequired: true,
   migrationDirectoryPurityRequired: true,
   activationPreflightRegistrationRequired: true,
+  packageCommandRegistered: true,
+  normalSyntaxValidationRegistered: true,
+  normalGovernanceValidationRegistered: true,
+  environmentBoundVerifierExcludedFromNormalExecution: true,
   productionMutationEnabled: false,
   mergeExecutionEnabled: false
 }, null, 2));
