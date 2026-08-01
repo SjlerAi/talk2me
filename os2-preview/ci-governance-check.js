@@ -22,6 +22,10 @@ const sourceIntegrity = fs.readFileSync(sourceIntegrityPath, 'utf8');
 const sourceIntegrityGovernance = fs.readFileSync(sourceIntegrityGovernancePath, 'utf8');
 const runbook = fs.readFileSync(runbookPath, 'utf8');
 
+function requireMarkers(source, markers, label) {
+  for (const marker of markers) if (!source.includes(marker)) throw new Error(`${label} missing ${marker}`);
+}
+
 const workflowMarkers = [
   'permissions:', 'contents: read', 'timeout-minutes:', 'Detect dependency lock', 'package-lock.json is absent',
   'Verify and retain pre-install workspace source integrity', 'id: preinstall-source', '$RUNNER_TEMP/os2-workspace-source-integrity-preinstall.json',
@@ -34,7 +38,7 @@ const workflowMarkers = [
   'EXPECTED_PREINSTALL_SOURCE_INVENTORY_SHA256:', 'steps.preinstall-source.outputs.inventory_sha256',
   'Generate build evidence with pre-install source continuity', 'npm run evidence:build', 'actions/upload-artifact@v4', 'os2-preview/**', 'public/os2/**'
 ];
-for (const marker of workflowMarkers) if (!workflow.includes(marker)) throw new Error(`Missing CI workflow control: ${marker}`);
+requireMarkers(workflow, workflowMarkers, 'CI workflow');
 
 if (!pkg.scripts?.['evidence:build']) throw new Error('Missing evidence:build package script');
 if (pkg.scripts?.['verify:workspace-source-integrity'] !== 'node workspace-source-integrity.js') throw new Error('Missing exact verify:workspace-source-integrity package script');
@@ -48,34 +52,44 @@ const evidenceMarkers = [
   'EXPECTED_PREINSTALL_SOURCE_INVENTORY_SHA256', 'GITHUB_ACTIONS', 'equalHex(expectedPreinstallDigest, postinstallDigest)',
   'Protected source inventory changed between pre-install verification and build-evidence generation', 'parseBooleanEnvironment',
   'DEPENDENCY_LOCK_PRESENT does not match the filesystem', 'Workspace source-integrity lock evidence does not match the filesystem',
-  'entry.isSymbolicLink()', 'stat.nlink !== 1', 'assertPrivateDirectory', 'atomicWrite', 'fs.constants.O_EXCL', 'fs.fsyncSync',
-  'Evidence output permissions must be 0600', 'Evidence directory must not permit group or world access', 'verifySidecar',
-  'artifact-manifest.json', 'artifact-manifest.sha256', 'privateDirectoryVerified: true', 'atomicPublicationVerified: true',
-  'checksumPairsVerified: true', 'evidenceDirectoryPrivate: true', 'evidenceFilesAtomic: true', 'evidenceChecksumPairsVerified: true',
-  'workspaceSourceIntegrityVerified: true', 'preinstallWorkspaceSourceInventorySha256', 'postinstallWorkspaceSourceInventorySha256',
-  'workspaceSourceIntegrityStableAcrossDependencyInstall', 'dependencyLockStateVerifiedAgainstFilesystem: true',
-  'dependencyLockStateVerifiedAgainstSourceIntegrity: true', 'workspaceSourceProtectedFileCount', 'workspaceSourceMigrationCount',
+  'maxManifestFiles = 2000', 'maxManifestFileBytes = 16 * 1024 * 1024', 'maxManifestTotalBytes = 256 * 1024 * 1024',
+  'assertCanonicalDirectory', 'O_DIRECTORY and O_NOFOLLOW are required for build-evidence directory validation',
+  'descriptorStat.dev !== stat.dev || descriptorStat.ino !== stat.ino', 'readSecureFile', 'fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW',
+  'descriptorStat.dev !== pathStat.dev || descriptorStat.ino !== pathStat.ino', 'bytes.length !== descriptorStat.size',
+  'Manifest source directory changed during traversal', 'Build evidence file count exceeds', 'Build evidence source bytes exceed',
+  'Existing build-evidence path must be a real directory', 'Existing build-evidence directory owner mismatch',
+  'assertPrivateDirectory', 'atomicWrite', 'fs.constants.O_EXCL', 'fs.fsyncSync', 'Evidence output permissions must be 0600',
+  'verifySidecar', 'artifact-manifest.json', 'artifact-manifest.sha256', 'privateDirectoryVerified: true',
+  'atomicPublicationVerified: true', 'checksumPairsVerified: true', 'secureManifestDescriptorReads: true',
+  'boundedManifestCollection: true', 'manifestDirectoryIdentityRechecked: true',
+  'workspaceSourceIntegrityVerified: true', 'workspaceSourceIntegrityStableAcrossDependencyInstall',
+  'dependencyLockStateVerifiedAgainstFilesystem: true', 'dependencyLockStateVerifiedAgainstSourceIntegrity: true',
   'workspace-source-integrity.json', 'workspace-source-integrity.sha256', 'build-evidence.json', 'build-evidence.sha256',
   'migrationCount', 'routeFileCount', 'checkFileCount', 'GITHUB_SHA', 'dependencyAuditEligible', 'releaseCandidateEligible'
 ];
-for (const marker of evidenceMarkers) if (!evidence.includes(marker)) throw new Error(`Missing build evidence marker: ${marker}`);
+requireMarkers(evidence, evidenceMarkers, 'Build evidence');
 
-for (const marker of ["check: 'workspace-source-integrity'", 'inventorySha256', 'secureDescriptorReads: true', 'canonicalPathBinding: true', 'hardLinkRejection: true', 'ownershipConsistency: true', 'boundedReads: true']) {
-  if (!sourceIntegrity.includes(marker)) throw new Error(`Missing workspace source integrity marker: ${marker}`);
-}
-for (const marker of ["check: 'workspace-source-integrity-governance'", 'packageVerifierCommandRegistered: true', 'normalValidationRegistered: true', 'environmentBoundVerifierExcludedFromNormalExecution: true']) {
-  if (!sourceIntegrityGovernance.includes(marker)) throw new Error(`Missing workspace source integrity governance marker: ${marker}`);
-}
+requireMarkers(sourceIntegrity, [
+  "check: 'workspace-source-integrity'", 'inventorySha256', 'secureDescriptorReads: true', 'canonicalPathBinding: true',
+  'hardLinkRejection: true', 'ownershipConsistency: true', 'boundedReads: true', 'ciEvidenceControlsProtected: files.some'
+], 'Workspace source integrity');
+requireMarkers(sourceIntegrityGovernance, [
+  "check: 'workspace-source-integrity-governance'", 'packageVerifierCommandRegistered: true',
+  'normalValidationRegistered: true', 'environmentBoundVerifierExcludedFromNormalExecution: true',
+  'ciBuildEvidenceProtectionRequired: true', 'ciGovernanceProtectionRequired: true'
+], 'Workspace source integrity governance');
 
 const runbookMarkers = [
   'npm install --ignore-scripts --no-audit --no-fund --package-lock=false', 'pre-install inventory digest', 'post-install inventory digest',
   'must match exactly', 'dependency-lock detection must agree', 'workspaceSourceIntegrityStableAcrossDependencyInstall: true',
-  'atomic publication', 'private `0700` evidence directory', 'private `0600` evidence files', 'artifact-manifest.json',
-  'checksum pairs are reverified before upload', 'dependencyLockPresent: false', 'dependencyAuditEligible: false', 'releaseCandidateEligible: false',
-  'npm ci --ignore-scripts --no-audit --no-fund', 'release-candidate gate must continue to fail', 'pinned restore-evidence verification',
+  'secure descriptor-based reads', '`O_NOFOLLOW`', '`O_DIRECTORY`', '2,000 files', '16 MiB', '256 MiB',
+  'directory identity is rechecked', 'atomic publication', 'private `0700` evidence directory', 'private `0600` evidence files',
+  'artifact-manifest.json', 'checksum pairs are reverified before upload', 'dependencyLockPresent: false',
+  'dependencyAuditEligible: false', 'releaseCandidateEligible: false', 'npm ci --ignore-scripts --no-audit --no-fund',
+  'release-candidate gate must continue to fail', 'pinned restore-evidence verification',
   'Production at `talk2me.uent.co.za` remains outside this workflow'
 ];
-for (const marker of runbookMarkers) if (!runbook.includes(marker)) throw new Error(`Missing CI runbook control: ${marker}`);
+requireMarkers(runbook, runbookMarkers, 'CI runbook');
 
 const preinstallPosition = workflow.indexOf('npm run --silent verify:workspace-source-integrity');
 const installPosition = workflow.indexOf('npm install --ignore-scripts');
@@ -105,8 +119,14 @@ console.log(JSON.stringify({
   dependencyLockDetectionConsistencyRequired: true,
   buildEvidenceLockStateConsistencyRequired: true,
   buildEvidenceVerifierExecutionBounded: true,
-  broadEvidenceSymlinkRejectionRequired: true,
-  broadEvidenceHardLinkRejectionRequired: true,
+  buildEvidenceDirectoryDescriptorsRequired: true,
+  buildEvidenceFileDescriptorReadsRequired: true,
+  buildEvidenceDirectoryIdentityRecheckRequired: true,
+  buildEvidenceOwnerConsistencyRequired: true,
+  buildEvidenceFileCountBounded: true,
+  buildEvidencePerFileBytesBounded: true,
+  buildEvidenceTotalBytesBounded: true,
+  existingEvidencePathSafetyRequired: true,
   buildEvidencePrivateDirectoryRequired: true,
   buildEvidenceAtomicPublicationRequired: true,
   buildEvidencePrivateFilesRequired: true,
