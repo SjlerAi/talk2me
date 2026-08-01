@@ -6,18 +6,27 @@ This runbook applies only to `https://talk2me.kloka.co.za` and database `kloka_t
 
 1. Confirm the checked-out branch is `agent/talk2me-os2-integrated-rebuild`.
 2. Confirm production has not been changed.
-3. Back up the preview database.
-4. Install dependencies in `os2-preview`.
-5. Run `npm run check`.
-6. Run `npm run check:readiness`.
-7. Run preview migrations only with `ALLOW_PREVIEW_MIGRATIONS=true`.
-8. Run `DB_NAME=kloka_talk2me npm run verify:preview-data` after migrations.
-9. Confirm the orchestrator completed `schema-verification.js` before `merge-restore-evidence-verification.js`.
-10. Confirm the successful result identifies `kloka_talk2me` and reports `mergeExecutionEnabled: false`.
-11. Restart only the preview Node.js application.
-12. Confirm `/health` returns the expected OS2 version and connected preview database.
+3. Confirm a current verified preview backup exists.
+4. Confirm the one-time migration ledger bootstrap was executed only through `npm run bootstrap:migration-ledger`.
+5. Verify the private bootstrap evidence pair with `npm run verify:migration-ledger-bootstrap-evidence`.
+6. Confirm the migration command used the same absolute `MIGRATION_LEDGER_BOOTSTRAP_EVIDENCE_PATH` and re-ran the evidence verifier before opening MySQL.
+7. Confirm the final migration result reports `bootstrapEvidenceVerifiedBeforeDatabaseConnection: true`, `advisoryLockReleased: true`, and `databaseConnectionClosedBeforeSuccess: true`.
+8. Install dependencies in `os2-preview` only with the committed dependency lock and `npm ci`.
+9. Run `npm run check`.
+10. Run `npm run check:readiness`.
+11. Run `npm run check:deployment`.
+12. Run `npm run check:uat-gate`.
+13. Run `DB_NAME=kloka_talk2me npm run verify:preview-data` after migrations.
+14. Confirm the orchestrator completed `schema-verification.js` first and `merge-restore-evidence-verification.js` second.
+15. Confirm the successful result identifies `kloka_talk2me` and reports `mergeExecutionEnabled: false`.
+16. Restart only the preview Node.js application.
+17. Confirm `/health` returns the expected OS2 version and connected preview database.
 
-Do not begin automated or manual UAT when the preview data-verification orchestrator fails, is interrupted, or has not been run. Running only `npm run verify:schema` is not sufficient because pinned restore evidence must be verified in the same controlled sequence.
+Do not begin automated or manual UAT when bootstrap evidence is absent, altered, unverifiable, points to a different bootstrap source, or was not verified by the migration runner before its database connection.
+
+Do not treat individual `applied <migration>` messages as migration completion evidence. Only the final post-cleanup JSON success record confirms that the advisory lock was released and the database connection was closed.
+
+Do not begin UAT when the preview data-verification orchestrator fails, is interrupted, or has not been run. Running only `npm run verify:schema` is not sufficient because pinned restore evidence must be verified in the same controlled sequence.
 
 ## Read-only automated UAT
 
@@ -83,7 +92,7 @@ Test with separate Owner, Manager, Admin and Staff accounts.
 
 ### Staff
 
-- Confirm only assigned/owned work and customer actions are available.
+- Confirm only assigned or owned work and customer actions are available.
 - Create and update a test work item.
 - Request a customer claim.
 - Confirm arbitrary reassignment, approval decisions and broadcasts are blocked.
@@ -121,6 +130,9 @@ Keep the email worker disabled for initial UAT.
 Record for every scenario:
 
 - exact commit SHA and preview version;
+- verified backup reference and SHA-256;
+- bootstrap evidence path and bootstrap source SHA-256;
+- final migration completion result showing evidence verification, lock release and connection closure;
 - preview data-verification result and execution order;
 - test date and tester;
 - role used;
@@ -130,4 +142,4 @@ Record for every scenario:
 - screenshot or error detail;
 - pass, fail or deferred status.
 
-Do not declare the rebuild ready until preview data verification, automated UAT, role-based UAT, import UAT and controlled email testing all pass on the preview environment.
+Do not declare the rebuild ready until dependency freeze, bootstrap evidence verification, controlled migration completion, preview data verification, automated UAT, role-based UAT, import UAT and controlled email testing all pass on the preview environment.
