@@ -17,10 +17,15 @@ requireText(migration,"rt.status='passed'",'passed restore backfill filter');
 requireText(migration,'ORDER BY rt.completed_at DESC,rt.id DESC','deterministic latest restore backfill');
 forbidText(migration,'MAX(rt.id)','non-chronological restore selection');
 
-const routePinned=authorisation.includes('restore_test_id')&&readiness.includes('a.restore_test_id');
-if(routePinned){
-  requireText(authorisation,'PINNED_RESTORE_TEST_REQUIRED','missing pinned restore rejection');
-  requireText(readiness,'rt.id=a.restore_test_id','exact readiness restore join');
-}
+requireText(authorisation,'restore_test_id','authorisation restore pin storage');
+requireText(authorisation,'restoreTestId:evidence.restore.id','selected restore pin assignment');
+requireText(authorisation,'PINNED_RESTORE_TEST_REQUIRED','missing pinned restore rejection');
+requireText(authorisation,'authorisation.restore_test_id','decision-time pinned restore revalidation');
+requireText(authorisation,'id=:restoreTestId AND backup_run_id=:backupRunId','exact restore and backup match');
+requireText(readiness,'a.restore_test_id','readiness restore pin projection');
+requireText(readiness,'rt.id=a.restore_test_id','exact readiness restore join');
+requireText(readiness,'restoreEvidencePinned','pinned restore readiness check');
+requireText(readiness,'restoreBelongsToBackup','restore-to-backup ownership check');
+forbidText(readiness,'ORDER BY rt2.completed_at','latest restore substitution in readiness');
 
-console.log(JSON.stringify({ok:true,check:'merge-restore-pin',schemaReady:true,routePinned},null,2));
+console.log(JSON.stringify({ok:true,check:'merge-restore-pin',schemaReady:true,routePinned:true},null,2));
