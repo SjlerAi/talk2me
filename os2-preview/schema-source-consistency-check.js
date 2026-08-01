@@ -14,6 +14,7 @@ const readiness=read('customer-merge-execution-readiness-routes.js');
 const previewReadiness=read('readiness-check.js');
 const deploymentCheck=read('deployment-check.js');
 const uatGate=read('uat-gate-check.js');
+const releaseCandidateGate=read('release-candidate-gate.js');
 const schemaVerification=read('schema-verification.js');
 const restoreEvidenceVerification=read('merge-restore-evidence-verification.js');
 const packageSource=read('package.json');
@@ -84,5 +85,15 @@ need(uatGate,'rt.completed_at > a.authorised_at','UAT gate restore chronology re
 need(uatGate,"pkg.scripts['verify:merge-restore-evidence']",'UAT gate restore evidence command requirement');
 need(uatGate,"pkg.scripts['check:merge-restore-pin']",'UAT gate restore pin command requirement');
 need(uatGate,'executionAvailable:false','UAT gate merge execution lock');
+need(releaseCandidateGate,'migrations.length < 25','release-candidate migration floor');
+need(releaseCandidateGate,'20260801_025_merge_authorisation_restore_pin.sql','release-candidate migration 025 requirement');
+need(releaseCandidateGate,'merge-restore-evidence-verification.js','release-candidate restore evidence verifier requirement');
+need(releaseCandidateGate,"'verify:merge-restore-evidence'",'release-candidate restore verification command requirement');
+need(releaseCandidateGate,"'check:merge-restore-pin'",'release-candidate restore pin command requirement');
+need(releaseCandidateGate,'rt.id=a.restore_test_id','release-candidate exact restore pin evidence');
+need(releaseCandidateGate,'restoreMatchesBackup','release-candidate restore-to-backup evidence');
+need(releaseCandidateGate,'executionAvailable:false','release-candidate merge execution lock');
+need(releaseCandidateGate,'mergeExecutionEnabled: false','release manifest merge execution lock');
+need(releaseCandidateGate,"package-lock.json is required before release-candidate freeze",'release-candidate dependency lock requirement');
 
 console.log(JSON.stringify({ok:true,check:'schema-source-consistency'},null,2));
