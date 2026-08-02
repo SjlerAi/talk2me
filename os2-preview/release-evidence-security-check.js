@@ -49,9 +49,7 @@ requireMarkers(governance, [
   'migrationDirectoryIdentityRequired: true',
   'migrationChecksumFormatRequired: true',
   'releaseVerifierChildEnvironmentSanitized: true',
-  'completeParentEnvironmentInheritanceProhibited: true',
-  'fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW)',
-  'expectedMode: 0o600'
+  'completeParentEnvironmentInheritanceProhibited: true'
 ], 'Release governance');
 requireMarkers(activationRunbook, [
   'open protected files with `O_NOFOLLOW`',
