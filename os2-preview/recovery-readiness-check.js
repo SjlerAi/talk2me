@@ -19,7 +19,7 @@ function markers(file, required) {
 const backupRunner = markers('backup-runner.js', [
   "PREVIEW_DB = 'kloka_talk2me'", "RELEASE_BRANCH = 'agent/talk2me-os2-integrated-rebuild'",
   'ALLOW_PREVIEW_BACKUPS', 'ALLOW_PRODUCTION_MUTATION', 'ENABLE_CUSTOMER_MERGE_EXECUTION',
-  'BACKUP_PRIVATE_DIR', 'O_NOFOLLOW', 'MYSQLDUMP_TIMEOUT_MS', 'crypto.createHash',
+  'BACKUP_PRIVATE_DIR', 'O_NOFOLLOW', 'DUMP_TIMEOUT_MS = 15 * 60 * 1000', 'crypto.createHash',
   'checksum_sha256', "status='completed'", 'productionMutationEnabled: false', 'mergeExecutionEnabled: false'
 ]);
 const backupVerification = markers('backup-verification.js', [
@@ -45,8 +45,9 @@ const restoreIntegration = markers('restore-test-integration-check.js', [
   'semanticChecksAfterImportRequired: true', 'failedChecksMustBeZero: true'
 ]);
 markers('merge-restore-evidence-verification.js', [
-  "rt.status <> 'passed'", "rt.target_environment <> 'isolated_preview_restore'", 'rt.failed_checks <> 0',
-  'rt.evidence_json IS NULL', 'rt.reviewed_by IS NULL', 'invalidAuthorisations: 0'
+  "row.restore_status !== 'passed'", "row.target_environment !== 'isolated_preview_restore'",
+  "Number(row.failed_checks) !== 0", "row.evidence_json === null",
+  "Number(row.reviewed_by) <= 0", 'invalidAuthorisations: 0'
 ]);
 markers('migrations/20260801_011_backup_recovery_and_operations.sql', [
   'CREATE TABLE IF NOT EXISTS os2_backup_runs', 'CREATE TABLE IF NOT EXISTS os2_restore_tests',
@@ -55,14 +56,14 @@ markers('migrations/20260801_011_backup_recovery_and_operations.sql', [
 ]);
 markers('BACKUP_AND_RECOVERY_RUNBOOK.md', [
   'Controlled isolated restore test', 'pre-created empty isolated database',
-  'must never create or drop the target database', 'backup checksum is reverified before import',
+  'must never create or drop the target database', 'Backup checksum is reverified before import',
   'failedChecks: 0', 'Manual cleanup after evidence retention'
 ]);
 
 if (backupRunner.includes('...process.env')) failures.push('Backup dump child inherits complete parent environment');
 if (restoreRunner.includes('...process.env')) failures.push('Restore import child inherits complete parent environment');
 if (/\bCREATE DATABASE\b|\bDROP DATABASE\b/i.test(restoreRunner)) failures.push('Restore runner contains database create/drop SQL');
-if (!backupVerification.includes("record.status !== 'completed' && record.status !== 'verified'")) failures.push('Backup verification status gate missing');
+if (!backupVerification.includes("!['completed','verified'].includes(record.status)")) failures.push('Backup verification status gate missing');
 if (restoreRunner.indexOf('secureFile(filePath') > restoreRunner.indexOf('importDump({ filePath')) failures.push('Restore checksum verification must precede import');
 if (restoreRunner.indexOf('RESTORE_TARGET_NOT_EMPTY') > restoreRunner.indexOf('RESTORE_TEST_RECORD_NOT_CREATED')) failures.push('Target emptiness must precede restore evidence creation');
 if (restoreRunner.indexOf('RESTORE_TEST_RECORD_NOT_CREATED') > restoreRunner.indexOf('await importDump')) failures.push('Running restore evidence must precede import');
