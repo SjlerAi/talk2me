@@ -7,13 +7,19 @@ on:
     paths:
       - 'os2-preview/**'
       - '.github/workflows/os2-preview-validation.yml'
+  pull_request:
+    branches:
+      - agent/talk2me-os2-foundation
+    paths:
+      - 'os2-preview/**'
+      - '.github/workflows/os2-preview-validation.yml'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: os2-preview-validation-${{ github.ref }}
+  group: os2-preview-validation-${{ github.event.pull_request.head.ref || github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -36,11 +42,13 @@ jobs:
 
       - name: Confirm controlled source identity
         shell: bash
+        env:
+          CONTROLLED_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
         run: |
           set -euo pipefail
-          test "${GITHUB_REF_NAME}" = "agent/talk2me-os2-integrated-rebuild"
+          test "$CONTROLLED_BRANCH" = "agent/talk2me-os2-integrated-rebuild"
           test "$(node -p "require('./package.json').version")" = "0.60.0"
-          printf 'branch=%s\ncommit=%s\nnode=%s\nnpm=%s\n' "$GITHUB_REF_NAME" "$GITHUB_SHA" "$(node --version)" "$(npm --version)"
+          printf 'branch=%s\ncommit=%s\nnode=%s\nnpm=%s\n' "$CONTROLLED_BRANCH" "$GITHUB_SHA" "$(node --version)" "$(npm --version)"
 
       - name: Install dependencies without lifecycle scripts
         shell: bash
