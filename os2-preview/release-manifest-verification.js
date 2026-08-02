@@ -123,7 +123,7 @@ function verifyFrozenSource(root, inventorySha256) {
 }
 
 const root = __dirname;
-const expectedPreviewVersion = '0.59.0';
+const expectedPreviewVersion = '0.60.0';
 const expectedApplication = 'talk2me-os2-preview';
 const expectedReleaseBranch = 'agent/talk2me-os2-integrated-rebuild';
 const expectedDatabase = 'kloka_talk2me';
