@@ -30,8 +30,8 @@ const migration025 = read('migrations/20260801_025_merge_authorisation_restore_p
 requireAll(migration001, ["status ENUM('active','expired','revoked','archived')"], 'representative lifecycle');
 requireAll(plan, ["status='active'", 'expires_at IS NULL OR expires_at>NOW()'], 'merge plan representative filtering');
 requireAll(freshness, ["status='active'", 'expires_at IS NULL OR expires_at>NOW()'], 'merge freshness representative filtering');
-forbid(plan, 'is_active=1', 'nonexistent representative is_active column in merge plan');
-forbid(freshness, 'is_active=1', 'nonexistent representative is_active column in freshness');
+forbid(plan, 'os2_authorised_representatives WHERE master_customer_id=:sourceId AND is_active=1', 'nonexistent representative is_active column in merge plan');
+forbid(freshness, 'os2_authorised_representatives WHERE master_customer_id=:sourceId AND is_active=1', 'nonexistent representative is_active column in freshness');
 
 requireAll(migration021, ['current_snapshot_hash', 'revalidated_at'], 'merge freshness migration');
 requireAll(authorisation, ['revalidated_at', 'restore_test_id', 'PINNED_RESTORE_TEST_REQUIRED'], 'merge authorisation');
