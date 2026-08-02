@@ -49,16 +49,17 @@ jobs:
           test "$GITHUB_REF_NAME" = "agent/talk2me-os2-integrated-rebuild"
           test -n "$GITHUB_SHA"
 
-      - name: Detect dependency lock
-        id: dependency-lock
-        shell: bash
-        run: |
-          if [ -f package-lock.json ]; then
-            echo "present=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "present=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::package-lock.json is absent. Source validation will continue, dependency audit and release-candidate freeze remain blocked."
-          fi
+      - name: Verify committed dependency lock
+        env:
+          PREVIEW_APP_ROOT: ${{ github.workspace }}/os2-preview
+          DB_NAME: kloka_talk2me
+          RELEASE_BRANCH: agent/talk2me-os2-integrated-rebuild
+          ALLOW_PRODUCTION_MUTATION: 'false'
+          ENABLE_CUSTOMER_MERGE_EXECUTION: 'false'
+        run: node dependency-lock-verification.js
+
+      - name: Verify dependency lock governance
+        run: node dependency-lock-governance-check.js
 
       - name: Verify and retain pre-install workspace source integrity
         id: preinstall-source
@@ -79,34 +80,20 @@ jobs:
             if (evidence.ok !== true || !/^[0-9a-f]{64}$/i.test(String(evidence.inventorySha256 || ""))) {
               throw new Error("Pre-install source-integrity evidence is incomplete");
             }
-            if (typeof evidence.packageLockPresent !== "boolean") {
-              throw new Error("Pre-install source-integrity lock evidence is invalid");
+            if (evidence.packageLockPresent !== true) {
+              throw new Error("Committed dependency lock is required in source-integrity evidence");
             }
             fs.appendFileSync(process.env.GITHUB_OUTPUT, `inventory_sha256=${String(evidence.inventorySha256).toLowerCase()}\n`);
-            fs.appendFileSync(process.env.GITHUB_OUTPUT, `package_lock_present=${evidence.packageLockPresent}\n`);
           ' "$evidence_file"
 
-      - name: Confirm dependency-lock detection matches source evidence
-        shell: bash
-        run: |
-          test "${{ steps.dependency-lock.outputs.present }}" = "${{ steps.preinstall-source.outputs.package_lock_present }}"
-
-      - name: Install dependencies without changing repository lock state
-        run: npm install --ignore-scripts --no-audit --no-fund --package-lock=false
+      - name: Install dependencies from committed lock
+        run: npm ci --ignore-scripts --no-audit --no-fund
 
       - name: Run integrated validation suite
         run: npm run check
 
-      - name: Run dependency audit
-        if: steps.dependency-lock.outputs.present == 'true'
+      - name: Run production dependency audit
         run: npm audit --omit=dev --audit-level=high
-
-      - name: Record dependency audit blocker
-        if: steps.dependency-lock.outputs.present != 'true'
-        shell: bash
-        run: |
-          echo "### Dependency audit blocked" >> "$GITHUB_STEP_SUMMARY"
-          echo "A committed os2-preview/package-lock.json is required before dependency audit and release-candidate freeze." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Generate build evidence with pre-install source continuity
         env:
@@ -120,7 +107,7 @@ jobs:
           GITHUB_RUN_NUMBER: ${{ github.run_number }}
           GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
           GITHUB_ACTOR: ${{ github.actor }}
-          DEPENDENCY_LOCK_PRESENT: ${{ steps.dependency-lock.outputs.present }}
+          DEPENDENCY_LOCK_PRESENT: 'true'
           EXPECTED_PREINSTALL_SOURCE_INVENTORY_SHA256: ${{ steps.preinstall-source.outputs.inventory_sha256 }}
           PREVIEW_APP_ROOT: ${{ github.workspace }}/os2-preview
           DB_NAME: kloka_talk2me
