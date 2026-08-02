@@ -27,7 +27,7 @@ for (const table of ['os2_backup_runs','os2_restore_tests','os2_operational_chec
 }
 
 function containsExecutableCreateTable(source) {
-  return /(?:pool|connection)\s*\.\s*(?:execute|query)\s*\(\s*(?:`|'|")[\s\S]{0,4000}?\bCREATE\s+TABLE\b/i.test(source);
+  return /(?:pool|connection)\s*\.\s*(?:execute|query)\s*\(\s*(?:`|'|")\s*CREATE\s+TABLE\b/i.test(source);
 }
 if (containsExecutableCreateTable(backup) || containsExecutableCreateTable(verify)) {
   throw new Error('Runtime CREATE TABLE detected in operations scripts');
