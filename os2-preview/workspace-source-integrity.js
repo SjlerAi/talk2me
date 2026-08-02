@@ -54,7 +54,9 @@ const rootStat = fs.lstatSync(root);
 if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) fail('Workspace root must be a real directory');
 const owner = rootStat.uid;
 const protectedFiles = [
-  ['../.github/workflows/os2-preview-ci.yml', 1024 * 1024], ['server.js', 4 * 1024 * 1024], ['package.json', 1024 * 1024],
+  ['../.github/workflows/os2-preview-ci.yml', 1024 * 1024], ['server.js', 4 * 1024 * 1024],
+  ['package.json', 1024 * 1024], ['package-lock.json', 16 * 1024 * 1024],
+  ['dependency-lock-verification.js', 2 * 1024 * 1024], ['dependency-lock-governance-check.js', 2 * 1024 * 1024],
   ['MIGRATION_LEDGER_BOOTSTRAP.sql', 256 * 1024], ['migration-ledger-bootstrap-runner.js', 2 * 1024 * 1024],
   ['migration-ledger-bootstrap-evidence-verification.js', 2 * 1024 * 1024], ['migration-runner.js', 2 * 1024 * 1024],
   ['backup-runner.js', 2 * 1024 * 1024], ['backup-verification.js', 2 * 1024 * 1024],
@@ -72,7 +74,6 @@ const protectedFiles = [
   ['PREVIEW_DEPLOYMENT_RUNBOOK.md', 2 * 1024 * 1024], ['PREVIEW_UAT_RUNBOOK.md', 2 * 1024 * 1024],
   ['RELEASE_CANDIDATE_RUNBOOK.md', 2 * 1024 * 1024], ['CI_AND_BUILD_EVIDENCE_RUNBOOK.md', 2 * 1024 * 1024]
 ];
-if (fs.existsSync(path.join(root, 'package-lock.json'))) protectedFiles.push(['package-lock.json', 16 * 1024 * 1024]);
 const migrationDirectory = path.join(root, 'migrations');
 const entries = fs.readdirSync(migrationDirectory, { withFileTypes: true });
 for (const entry of entries) {
@@ -90,9 +91,11 @@ console.log(JSON.stringify({
   ok: true, check: 'workspace-source-integrity', application: 'talk2me-os2-preview', version: require('./package.json').version,
   applicationRoot: root, database: expectedDatabase, branch: expectedBranch, nodeVersion: process.versions.node,
   protectedFileCount: files.length, migrationCount: files.filter(item => item.file.startsWith('migrations/')).length,
-  packageLockPresent: files.some(item => item.file === 'package-lock.json'), inventorySha256, files,
+  packageLockPresent: true, inventorySha256, files,
   selfProtected: files.some(item => item.file === 'workspace-source-integrity.js'),
   governanceProtected: files.some(item => item.file === 'workspace-source-integrity-check.js'),
+  dependencyLockVerifierProtected: files.some(item => item.file === 'dependency-lock-verification.js'),
+  dependencyLockGovernanceProtected: files.some(item => item.file === 'dependency-lock-governance-check.js'),
   activationGovernanceProtected: files.some(item => item.file === 'preview-activation-governance-check.js'),
   ciWorkflowProtected: files.some(item => item.file === '../.github/workflows/os2-preview-ci.yml'),
   ciEvidenceControlsProtected: files.some(item => item.file === 'build-evidence.js') && files.some(item => item.file === 'ci-governance-check.js'),
