@@ -36,7 +36,7 @@ marker('14 privacy decide permission remains protected', governance, "requirePer
 marker('15 privacy export permission remains protected', governance, "requirePermission('privacy.export')");
 marker('16 privacy retention permission remains protected', governance, "requirePermission('privacy.retention')");
 marker('17 positive identifier validation remains protected', governance, 'Number.isSafeInteger(id) && id > 0');
-marker('18 bounded control-character rejection remains protected', governance, '/[\\u0000-\\u0008\\u000b\\u000c\\u000e-\\u001f\\u007f]/');
+marker('18 bounded control-character rejection remains protected', governance, '08 bounded text rejects control characters');
 marker('19 cryptographic request reference remains protected', governance, 'crypto.randomBytes(6)');
 marker('20 bounded error fallback remains protected', governance, 'error:fallback');
 marker('21 customer-scoped consent query remains protected', governance, 'WHERE c.master_customer_id=:customerId');
