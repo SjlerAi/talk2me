@@ -1,0 +1,209 @@
+name: OS2 Dependency Lock Adoption
+
+on:
+  push:
+    branches:
+      - agent/talk2me-os2-integrated-rebuild
+    paths:
+      - 'os2-preview/package-lock.json'
+      - 'os2-preview/dependency-lock-provenance.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: os2-dependency-lock-adoption-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify-adoption:
+    name: Verify OS2 dependency lock adoption
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: os2-preview
+    env:
+      PREVIEW_APP_ROOT: ${{ github.workspace }}/os2-preview
+      DB_NAME: kloka_talk2me
+      RELEASE_BRANCH: agent/talk2me-os2-integrated-rebuild
+      EXPECTED_REPOSITORY: SjlerAi/talk2me
+      EXPECTED_REF: refs/heads/agent/talk2me-os2-integrated-rebuild
+      PROVENANCE_MAX_AGE_HOURS: '168'
+      ALLOW_PRODUCTION_MUTATION: 'false'
+      ENABLE_CUSTOMER_MERGE_EXECUTION: 'false'
+      ADOPTION_EVIDENCE_ROOT: ${{ runner.temp }}/talk2me-lock-adoption-evidence
+
+    steps:
+      - name: Checkout adoption commit and parent
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '20'
+
+      - name: Confirm controlled adoption event and commit shape
+        id: identity
+        shell: bash
+        env:
+          EVENT_BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = "SjlerAi/talk2me"
+          test "$GITHUB_REF" = "refs/heads/agent/talk2me-os2-integrated-rebuild"
+          test "$GITHUB_REF_NAME" = "agent/talk2me-os2-integrated-rebuild"
+          printf '%s' "$GITHUB_SHA" | grep -Eq '^[0-9a-f]{40}$'
+          case "$GITHUB_EVENT_NAME" in
+            push)
+              printf '%s' "$EVENT_BEFORE" | grep -Eq '^[0-9a-f]{40}$'
+              test "$EVENT_BEFORE" != "0000000000000000000000000000000000000000"
+              source_commit="$EVENT_BEFORE"
+              ;;
+            workflow_dispatch)
+              source_commit="$(node -e 'const p=require("./dependency-lock-provenance.json"); process.stdout.write(String(p.sourceCommit||""))')"
+              printf '%s' "$source_commit" | grep -Eq '^[0-9a-f]{40}$'
+              git fetch --no-tags --depth=1 origin "$source_commit"
+              ;;
+            *)
+              echo "Unsupported event: $GITHUB_EVENT_NAME" >&2
+              exit 1
+              ;;
+          esac
+          test "$(git rev-list --count "$source_commit..$GITHUB_SHA")" = "1"
+          test "$(git rev-parse "$GITHUB_SHA^")" = "$source_commit"
+          changed="$(git diff --name-only "$source_commit" "$GITHUB_SHA" | LC_ALL=C sort)"
+          expected="$(printf '%s\n%s' 'os2-preview/dependency-lock-provenance.json' 'os2-preview/package-lock.json')"
+          test "$changed" = "$expected"
+          test -f package-lock.json
+          test -f dependency-lock-provenance.json
+          test ! -e node_modules
+          test "$ALLOW_PRODUCTION_MUTATION" = "false"
+          test "$ENABLE_CUSTOMER_MERGE_EXECUTION" = "false"
+          printf 'source_commit=%s\n' "$source_commit" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare private adoption evidence directory
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$ADOPTION_EVIDENCE_ROOT"
+          chmod 700 "$ADOPTION_EVIDENCE_ROOT"
+          test "$(stat -c '%a' "$ADOPTION_EVIDENCE_ROOT")" = "700"
+          case "$ADOPTION_EVIDENCE_ROOT" in "$GITHUB_WORKSPACE"/*) exit 1 ;; esac
+
+      - name: Verify committed dependency lock provenance
+        shell: bash
+        env:
+          EXPECTED_SOURCE_COMMIT: ${{ steps.identity.outputs.source_commit }}
+          CURRENT_COMMIT: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          node dependency-lock-provenance-verification.js > "$ADOPTION_EVIDENCE_ROOT/dependency-lock-provenance-verification.json"
+          node - <<'NODE'
+          const fs = require('fs');
+          const file = `${process.env.ADOPTION_EVIDENCE_ROOT}/dependency-lock-provenance-verification.json`;
+          const evidence = JSON.parse(fs.readFileSync(file, 'utf8'));
+          if (evidence.ok !== true || evidence.check !== 'dependency-lock-provenance-verification') throw new Error('Provenance verification evidence invalid');
+          if (evidence.sourceCommit !== process.env.EXPECTED_SOURCE_COMMIT || evidence.currentCommit !== process.env.GITHUB_SHA) throw new Error('Provenance commit continuity invalid');
+          if (evidence.productionMutationEnabled !== false || evidence.mergeExecutionEnabled !== false) throw new Error('Provenance safety evidence invalid');
+          NODE
+
+      - name: Verify adoption governance and committed lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          node dependency-lock-adoption-check.js > "$ADOPTION_EVIDENCE_ROOT/dependency-lock-adoption-governance.json"
+          node dependency-lock-verification.js > "$ADOPTION_EVIDENCE_ROOT/dependency-lock-verification.json"
+
+      - name: Capture pre-install source identity
+        id: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run --silent verify:workspace-source-integrity > "$ADOPTION_EVIDENCE_ROOT/source-integrity-preinstall.json"
+          node - <<'NODE'
+          const fs = require('fs');
+          const evidence = JSON.parse(fs.readFileSync(`${process.env.ADOPTION_EVIDENCE_ROOT}/source-integrity-preinstall.json`, 'utf8'));
+          if (evidence.ok !== true || evidence.packageLockPresent !== true || evidence.dependencyLockProvenanceProtected !== true) throw new Error('Pre-install source identity invalid');
+          if (!/^[0-9a-f]{64}$/.test(String(evidence.inventorySha256 || ''))) throw new Error('Pre-install source digest invalid');
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `inventory_sha256=${evidence.inventorySha256}\n`);
+          NODE
+
+      - name: Install and validate adopted dependency graph
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run check
+          npm audit --omit=dev --audit-level=high
+
+      - name: Prove source continuity and clean workspace
+        shell: bash
+        env:
+          EXPECTED_INVENTORY_SHA256: ${{ steps.source.outputs.inventory_sha256 }}
+        run: |
+          set -euo pipefail
+          npm run --silent verify:workspace-source-integrity > "$ADOPTION_EVIDENCE_ROOT/source-integrity-postinstall.json"
+          node - <<'NODE'
+          const fs = require('fs');
+          const evidence = JSON.parse(fs.readFileSync(`${process.env.ADOPTION_EVIDENCE_ROOT}/source-integrity-postinstall.json`, 'utf8'));
+          if (evidence.ok !== true || evidence.inventorySha256 !== process.env.EXPECTED_INVENTORY_SHA256) throw new Error('Protected source changed during adoption validation');
+          NODE
+          rm -rf node_modules
+          test ! -e node_modules
+          test -z "$(git -C "$GITHUB_WORKSPACE" status --porcelain --untracked-files=all)"
+
+      - name: Build adoption evidence artifact
+        shell: bash
+        env:
+          SOURCE_COMMIT: ${{ steps.identity.outputs.source_commit }}
+          SOURCE_INVENTORY_SHA256: ${{ steps.source.outputs.inventory_sha256 }}
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const fs = require('fs');
+          const path = require('path');
+          const crypto = require('crypto');
+          const root = process.env.ADOPTION_EVIDENCE_ROOT;
+          const lock = fs.readFileSync('package-lock.json');
+          const provenance = fs.readFileSync('dependency-lock-provenance.json');
+          const evidence = {
+            ok: true,
+            check: 'dependency-lock-adoption',
+            repository: process.env.GITHUB_REPOSITORY,
+            ref: process.env.GITHUB_REF,
+            sourceCommit: process.env.SOURCE_COMMIT,
+            adoptionCommit: process.env.GITHUB_SHA,
+            workflow: process.env.GITHUB_WORKFLOW,
+            runId: Number(process.env.GITHUB_RUN_ID),
+            runAttempt: Number(process.env.GITHUB_RUN_ATTEMPT),
+            sourceInventorySha256: process.env.SOURCE_INVENTORY_SHA256,
+            packageLockSha256: crypto.createHash('sha256').update(lock).digest('hex'),
+            provenanceSha256: crypto.createHash('sha256').update(provenance).digest('hex'),
+            exactTwoFileCommit: true,
+            npmCiCompleted: true,
+            integratedValidationCompleted: true,
+            highSeverityAuditPassed: true,
+            productionMutationEnabled: false,
+            mergeExecutionEnabled: false,
+            generatedAt: new Date().toISOString()
+          };
+          const file = path.join(root, 'dependency-lock-adoption.json');
+          fs.writeFileSync(file, `${JSON.stringify(evidence, null, 2)}\n`, { mode: 0o600, flag: 'wx' });
+          NODE
+          find "$ADOPTION_EVIDENCE_ROOT" -maxdepth 1 -type f -exec chmod 600 {} +
+          (cd "$ADOPTION_EVIDENCE_ROOT" && sha256sum *.json > SHA256SUMS)
+          chmod 600 "$ADOPTION_EVIDENCE_ROOT/SHA256SUMS"
+          (cd "$ADOPTION_EVIDENCE_ROOT" && sha256sum --check SHA256SUMS)
+
+      - name: Upload adoption evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: os2-dependency-lock-adoption-${{ github.run_number }}-attempt-${{ github.run_attempt }}
+          path: ${{ env.ADOPTION_EVIDENCE_ROOT }}
+          if-no-files-found: error
+          retention-days: 30
