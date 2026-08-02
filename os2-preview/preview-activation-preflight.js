@@ -30,6 +30,8 @@ if (String(process.env.ENABLE_CUSTOMER_MERGE_EXECUTION || '').toLowerCase() === 
 
 const checks = [
   'workspace-topology-verification.js',
+  'dependency-lock-verification.js',
+  'dependency-lock-governance-check.js',
   'workspace-source-integrity.js',
   'workspace-source-integrity-check.js',
   'workspace-topology-governance-check.js',
@@ -121,6 +123,9 @@ console.log(JSON.stringify({
   productionMutationDisabledInChildren: true,
   mergeExecutionDisabledInChildren: true,
   workspaceTopologyVerified: true,
+  dependencyLockVerified: true,
+  dependencyLockGovernanceVerified: true,
+  packageLockRequired: true,
   workspaceSourceIntegrityVerified: true,
   workspaceSourceIntegrityGovernanceVerified: true,
   workspaceTopologyGovernanceVerified: true,
@@ -135,6 +140,7 @@ console.log(JSON.stringify({
   recoveryReleaseGateVerified: true,
   releaseEvidenceSecurityVerified: true,
   releaseManifestGovernanceVerified: true,
+  dependencyInstallationExecuted: false,
   databaseBackedVerificationExecuted: false,
   backupRuntimeExecuted: false,
   backupVerificationExecuted: false,
