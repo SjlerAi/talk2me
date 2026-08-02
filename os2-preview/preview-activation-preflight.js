@@ -14,13 +14,7 @@ const configuredRoot = String(process.env.PREVIEW_APP_ROOT || '').trim();
 const nodeMajor = Number.parseInt(process.versions.node.split('.')[0], 10);
 
 function fail(message) {
-  console.error(JSON.stringify({
-    ok: false,
-    check: 'preview-activation-preflight',
-    error: message,
-    productionMutationEnabled: false,
-    mergeExecutionEnabled: false
-  }, null, 2));
+  console.error(JSON.stringify({ ok: false, check: 'preview-activation-preflight', error: message, productionMutationEnabled: false, mergeExecutionEnabled: false }, null, 2));
   process.exit(1);
 }
 
@@ -45,6 +39,7 @@ const checks = [
   'migration-runner-security-check.js',
   'restore-test-governance-check.js',
   'restore-test-integration-check.js',
+  'recovery-readiness-check.js',
   'runtime-release-identity-check.js',
   'readiness-check.js',
   'deployment-check.js',
@@ -56,15 +51,10 @@ const checks = [
 
 const inheritedKeys = ['PATH', 'HOME', 'USER', 'LOGNAME', 'TMPDIR', 'TEMP', 'TMP', 'LANG', 'LC_ALL', 'TZ', 'CI', 'GITHUB_ACTIONS'];
 const prohibitedKeys = ['NODE_OPTIONS', 'NODE_PATH', 'BASH_ENV', 'ENV', 'CDPATH', 'GIT_DIR', 'GIT_WORK_TREE', 'NPM_CONFIG_PREFIX', 'NPM_CONFIG_USERCONFIG'];
-
 function buildChildEnvironment() {
   const childEnv = {};
-  for (const key of inheritedKeys) {
-    if (typeof process.env[key] === 'string' && process.env[key].length > 0) childEnv[key] = process.env[key];
-  }
-  for (const key of prohibitedKeys) {
-    if (Object.prototype.hasOwnProperty.call(childEnv, key)) fail(`Prohibited child environment variable retained: ${key}`);
-  }
+  for (const key of inheritedKeys) if (typeof process.env[key] === 'string' && process.env[key].length > 0) childEnv[key] = process.env[key];
+  for (const key of prohibitedKeys) if (Object.prototype.hasOwnProperty.call(childEnv, key)) fail(`Prohibited child environment variable retained: ${key}`);
   childEnv.PREVIEW_APP_ROOT = root;
   childEnv.DB_NAME = expectedDatabase;
   childEnv.RELEASE_BRANCH = expectedBranch;
@@ -86,15 +76,7 @@ if (childEnvironment.RELEASE_BRANCH !== expectedBranch) fail('Child environment 
 
 const completed = [];
 for (const script of checks) {
-  const result = spawnSync(process.execPath, [path.join(root, script)], {
-    cwd: root,
-    env: childEnvironment,
-    stdio: 'inherit',
-    timeout: childTimeoutMs,
-    killSignal: 'SIGKILL',
-    shell: false,
-    windowsHide: true
-  });
+  const result = spawnSync(process.execPath, [path.join(root, script)], { cwd: root, env: childEnvironment, stdio: 'inherit', timeout: childTimeoutMs, killSignal: 'SIGKILL', shell: false, windowsHide: true });
   if (result.error && result.error.code === 'ETIMEDOUT') fail(`${script} exceeded ${childTimeoutMs}ms`);
   if (result.error) fail(`${script} could not start: ${result.error.message}`);
   if (result.signal) fail(`${script} was interrupted by signal ${result.signal}`);
@@ -148,9 +130,12 @@ console.log(JSON.stringify({
   migrationRunnerSecurityVerified: true,
   restoreTestGovernanceVerified: true,
   restoreTestIntegrationVerified: true,
+  recoveryReadinessVerified: true,
   releaseEvidenceSecurityVerified: true,
   releaseManifestGovernanceVerified: true,
   databaseBackedVerificationExecuted: false,
+  backupRuntimeExecuted: false,
+  backupVerificationExecuted: false,
   restoreTestExecuted: false,
   migrationsExecuted: false,
   previewRestartExecuted: false,
