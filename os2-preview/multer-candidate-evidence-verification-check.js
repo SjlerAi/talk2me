@@ -7,6 +7,7 @@ const { spawnSync } = require('child_process');
 const source = fs.readFileSync(path.join(__dirname, 'multer-candidate-evidence-verification.js'), 'utf8');
 const schema = fs.readFileSync(path.join(__dirname, 'MULTER_2_CANDIDATE_EVIDENCE_SCHEMA.md'), 'utf8');
 const negativeRegression = fs.readFileSync(path.join(__dirname, 'multer-candidate-evidence-negative-regression-check.js'), 'utf8');
+const inputRegression = fs.readFileSync(path.join(__dirname, 'multer-candidate-evidence-input-regression-check.js'), 'utf8');
 const failures = [];
 function requireMarkers(text, markers, label) {
   for (const marker of markers) if (!text.includes(marker)) failures.push(`${label} missing ${marker}`);
@@ -94,6 +95,31 @@ requireMarkers(negativeRegression, [
   'sourceTreeMutationEnabled: false'
 ], 'candidate evidence negative regression');
 
+requireMarkers(inputRegression, [
+  "check: 'multer-candidate-evidence-input-regression'",
+  'validCanonicalInputsAccepted',
+  'relativePathRejected',
+  'nonNormalizedPathRejected',
+  'symlinkRejected',
+  'hardLinkRejected',
+  'emptyFileRejected',
+  'oversizedJsonRejected',
+  'oversizedLockRejected',
+  'crlfJsonRejected',
+  'missingFinalNewlineRejected',
+  'invalidUtf8Rejected',
+  'arrayJsonRejected',
+  'nullJsonRejected',
+  'canonicalJsonRequired: true',
+  'absoluteNormalizedPathsRequired: true',
+  'singleLinkRegularFilesRequired: true',
+  'boundedInputsRequired: true',
+  'isolatedTemporaryFilesOnly: true',
+  'externalNetworkUsed: false',
+  'databaseConfigured: false',
+  'sourceTreeMutationEnabled: false'
+], 'candidate evidence input regression');
+
 for (const prohibited of [
   "require('http')", "require('https')", "require('net')", "require('tls')", "require('mysql2')",
   'child_process', 'spawn(', 'spawnSync(', 'exec(', 'execSync(', 'fetch(', 'axios', 'process.chdir(',
@@ -109,6 +135,13 @@ if (regressionEvidence.caseCount !== 14) failures.push('Negative regression must
 for (const [name, passed] of Object.entries(regressionEvidence.cases || {})) if (passed !== true) failures.push(`Negative regression case failed: ${name}`);
 for (const key of ['externalNetworkUsed','databaseConfigured','sourceTreeMutationEnabled','dependencyAdoptionAuthorized','previewActivationAuthorized','productionMutationEnabled']) if (regressionEvidence[key] !== false) failures.push(`Negative regression safety flag must remain false: ${key}`);
 if (regressionEvidence.isolatedTemporaryFilesOnly !== true) failures.push('Negative regression must use isolated temporary files only');
+
+const inputEvidence = runJsonCheck('multer-candidate-evidence-input-regression-check.js', 'Multer candidate evidence input regression');
+if (inputEvidence.ok !== true || inputEvidence.check !== 'multer-candidate-evidence-input-regression') failures.push('Input regression evidence identity invalid');
+if (inputEvidence.caseCount !== 13) failures.push('Input regression must execute exactly 13 cases');
+for (const [name, passed] of Object.entries(inputEvidence.cases || {})) if (passed !== true) failures.push(`Input regression case failed: ${name}`);
+for (const key of ['canonicalJsonRequired','absoluteNormalizedPathsRequired','singleLinkRegularFilesRequired','boundedInputsRequired','isolatedTemporaryFilesOnly']) if (inputEvidence[key] !== true) failures.push(`Input regression required flag must remain true: ${key}`);
+for (const key of ['externalNetworkUsed','databaseConfigured','sourceTreeMutationEnabled','dependencyAdoptionAuthorized','previewActivationAuthorized','productionMutationEnabled']) if (inputEvidence[key] !== false) failures.push(`Input regression safety flag must remain false: ${key}`);
 
 if (failures.length) {
   console.error('MULTER CANDIDATE EVIDENCE VERIFICATION GOVERNANCE FAILED');
@@ -127,6 +160,8 @@ console.log(JSON.stringify({
   rollbackCompletionRequired: true,
   negativeRegressionRequired: true,
   negativeRegressionCases: 14,
+  inputRegressionRequired: true,
+  inputRegressionCases: 13,
   shellExecutionAvailable: false,
   externalNetworkAvailable: false,
   databaseAvailable: false,
