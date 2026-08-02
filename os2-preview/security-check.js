@@ -36,6 +36,14 @@ assert(!result.error,`Multer governance execution failed: ${result.error&&result
 assert(result.status===0,`Multer governance failed: ${String(result.stderr||result.stdout).trim()}`);
 const evidence=JSON.parse(String(result.stdout||'{}'));
 assert(evidence.ok===true&&evidence.check==='multer-upgrade-governance','Multer governance evidence invalid');
+assert(evidence.uploadSurfaces===3,'Multer upload inventory evidence invalid');
+assert(evidence.singleFileLimitsRequired===true,'Multer single-file limits evidence missing');
+assert(evidence.multipartFieldAndPartLimitsRequired===true,'Multer multipart metadata limits evidence missing');
+assert(evidence.authorizationBeforeParsingRequired===true,'Multer authorization ordering evidence missing');
+assert(evidence.privateDocumentStorageRequired===true,'Private customer document storage evidence missing');
+assert(evidence.privateStaffUploadDirectoryRequired===true,'Private staff upload directory evidence missing');
+assert(evidence.validationFailureCleanupRequired===true,'Rejected upload cleanup evidence missing');
+assert(evidence.persistenceFailureCleanupRequired===true,'Persistence failure cleanup evidence missing');
 assert(evidence.multer2UpgradeExecuted===false,'Multer 2 upgrade must not execute during source validation');
 assert(evidence.productionMutationEnabled===false,'Multer governance must prohibit production mutation');
 console.log('Security controls validation passed');
