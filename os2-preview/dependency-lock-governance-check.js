@@ -34,13 +34,13 @@ const activationRunbook = read('PREVIEW_ACTIVATION_RUNBOOK.md');
 const adoptionRunbook = read('DEPENDENCY_LOCK_ADOPTION_RUNBOOK.md');
 
 requireMarkers(verifier, [
-  "expectedApplication = 'talk2me-os2-preview'", "expectedVersion = '0.59.0'",
+  "expectedApplication = 'talk2me-os2-preview'", "expectedVersion = '0.60.0'",
   "expectedDatabase = 'kloka_talk2me'", "expectedBranch = 'agent/talk2me-os2-integrated-rebuild'",
   'expectedNodeMajor = 20', 'expectedLockfileVersion = 3', 'maxPackageBytes = 1024 * 1024',
   'maxLockBytes = 16 * 1024 * 1024', 'maxPackageEntries = 5000',
   "bcryptjs: '^2.4.3'", "express: '^4.19.2'", "multer: '^1.4.5-lts.1'",
   "mysql2: '^3.11.0'", "nodemailer: '^6.9.16'", "xlsx: '^0.18.5'",
-  'PACKAGE_JSON_NOT_REGULAR_FILE', 'PACKAGE_LOCK_NOT_REGULAR_FILE', 'HARD_LINK_PROHIBITED',
+  '${label}_NOT_REGULAR_FILE', 'HARD_LINK_PROHIBITED',
   'WRITABLE_BY_GROUP_OR_WORLD', 'OWNER_MISMATCH', 'PATH_NOT_CANONICAL', 'O_NOFOLLOW_UNAVAILABLE',
   'IDENTITY_CHANGED_DURING_OPEN', 'METADATA_CHANGED_DURING_OPEN', 'READ_SIZE_MISMATCH',
   "new TextDecoder('utf-8', { fatal: true })", 'BOM_PROHIBITED', 'NUL_PROHIBITED',
