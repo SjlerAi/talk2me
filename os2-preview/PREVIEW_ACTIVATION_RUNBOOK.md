@@ -23,16 +23,39 @@ Generate the initial lock only through the separately governed procedure in `DEP
 
 A controlled manual GitHub Actions path is documented in `DEPENDENCY_LOCK_WORKFLOW_RUNBOOK.md`. The workflow is protected by `dependency-lock-workflow-check.js`, runs only through `workflow_dispatch`, has read-only repository permission, does not commit automatically and publishes a seven-day review artifact containing `package-lock.json`, evidence, manifest and checksums.
 
-The source-only activation preflight runs `dependency-lock-generator-check.js` and `dependency-lock-workflow-check.js`; it never runs `dependency-lock-generator.js` or the GitHub Actions workflow. Successful source governance must retain:
+The source-only activation preflight runs `dependency-lock-generator-check.js`, `dependency-lock-workflow-check.js` and `dependency-lock-artifact-check.js`; it never runs `dependency-lock-generator.js`, `dependency-lock-artifact-verification.js` or the GitHub Actions workflow. Successful source governance must retain:
 
 ```text
 dependencyLockGeneratorGovernanceVerified: true
 dependencyLockWorkflowGovernanceVerified: true
+dependencyLockArtifactGovernanceVerified: true
+dependencyLockArtifactVerificationExecuted: false
 dependencyLockGenerationWorkflowExecuted: false
 dependencyLockGenerationExecuted: false
 ```
 
 After generation, review and commit only `package-lock.json`. Private generation evidence and temporary npm data must stay outside the repository and outside `public_html`.
+
+## Dependency lock artifact verification
+
+The downloaded review artifact must be verified through `dependency-lock-artifact-verification.js` according to `DEPENDENCY_LOCK_ARTIFACT_REVIEW_RUNBOOK.md` before its `package-lock.json` is considered for commit.
+
+Artifact verification requires:
+
+- the exact 13-file artifact set;
+- a private `0700` canonical artifact directory;
+- private `0600` regular files;
+- no symbolic links, additional hard links, hidden files or nested directories;
+- exact repository, branch, commit, workflow, run ID and run-attempt identity;
+- exact `SHA256SUMS` coverage with constant-time digest comparison;
+- the dedicated generation-evidence checksum sidecar;
+- exact lock identity and reviewed direct dependencies;
+- exact manifest keys and safety flags;
+- successful generation, independent verification and governance evidence;
+- matching pre-install, post-install and manifest source inventory digests;
+- rejection of password, token, secret, authorization, cookie and database-password fields.
+
+Artifact verification is environment-bound and therefore is not executed by `npm run check` or the source-only activation preflight.
 
 ## Dependency lock verification
 
@@ -71,24 +94,25 @@ The preflight must execute these controls in this exact order:
 3. `dependency-lock-governance-check.js`
 4. `dependency-lock-generator-check.js`
 5. `dependency-lock-workflow-check.js`
-6. `workspace-source-integrity.js`
-7. `workspace-source-integrity-check.js`
-8. `workspace-topology-governance-check.js`
-9. `migration-ledger-bootstrap-governance-check.js`
-10. `migration-ledger-bootstrap-runner-check.js`
-11. `migration-ledger-bootstrap-evidence-check.js`
-12. `migration-runner-security-check.js`
-13. `restore-test-governance-check.js`
-14. `restore-test-integration-check.js`
-15. `recovery-readiness-check.js`
-16. `recovery-release-gate.js`
-17. `runtime-release-identity-check.js`
-18. `readiness-check.js`
-19. `deployment-check.js`
-20. `uat-gate-check.js`
-21. `release-evidence-security-check.js`
-22. `release-source-integrity-check.js`
-23. `release-manifest-check.js`
+6. `dependency-lock-artifact-check.js`
+7. `workspace-source-integrity.js`
+8. `workspace-source-integrity-check.js`
+9. `workspace-topology-governance-check.js`
+10. `migration-ledger-bootstrap-governance-check.js`
+11. `migration-ledger-bootstrap-runner-check.js`
+12. `migration-ledger-bootstrap-evidence-check.js`
+13. `migration-runner-security-check.js`
+14. `restore-test-governance-check.js`
+15. `restore-test-integration-check.js`
+16. `recovery-readiness-check.js`
+17. `recovery-release-gate.js`
+18. `runtime-release-identity-check.js`
+19. `readiness-check.js`
+20. `deployment-check.js`
+21. `uat-gate-check.js`
+22. `release-evidence-security-check.js`
+23. `release-source-integrity-check.js`
+24. `release-manifest-check.js`
 
 Every child control has a 30-second execution limit, forced `SIGKILL` termination on timeout, shell execution disabled, inherited output and fixed preview-only safety flags. The preflight stops when a child cannot start, times out, is interrupted or returns non-zero.
 
@@ -138,7 +162,7 @@ ALLOW_PRODUCTION_MUTATION=false
 ENABLE_CUSTOMER_MERGE_EXECUTION=false
 ```
 
-The environment object is frozen, its key count is bounded, and the same immutable values are supplied to all 23 controls. Production mutation and merge execution are forced off in every child.
+The environment object is frozen, its key count is bounded, and the same immutable values are supplied to all 24 controls. Production mutation and merge execution are forced off in every child.
 
 ## Workspace topology verification
 
@@ -155,9 +179,10 @@ The inventory includes:
 - `.github/workflows/os2-preview-ci.yml`;
 - `.github/workflows/os2-dependency-lock-generation.yml`;
 - `package.json` and `package-lock.json`;
-- dependency lock verification, generation, workflow and governance controls;
+- dependency lock verification, generation, workflow, artifact and governance controls;
 - `DEPENDENCY_LOCK_GENERATION_RUNBOOK.md`;
 - `DEPENDENCY_LOCK_WORKFLOW_RUNBOOK.md`;
+- `DEPENDENCY_LOCK_ARTIFACT_REVIEW_RUNBOOK.md`;
 - server, migration, recovery, activation, readiness, deployment, UAT and release controls;
 - all protected governance files;
 - every ordered migration;
@@ -168,6 +193,22 @@ The CI workflow file itself is part of the protected source inventory. The depen
 Each protected file is read through secure descriptor-based reads using `O_NOFOLLOW`, canonical path binding, device and inode comparison, additional hard-link rejection, owner consistency, safe permissions and bounded reads.
 
 The canonical record contains relative filename, byte length and SHA-256. Sorted records are hashed into one source inventory digest named `inventorySha256`.
+
+## Governed dependency commands
+
+The package exposes these dependency-lock commands:
+
+```text
+verify:dependency-lock           node dependency-lock-verification.js
+generate:dependency-lock         node dependency-lock-generator.js
+verify:dependency-lock-artifact  node dependency-lock-artifact-verification.js
+check:dependency-lock-governance node dependency-lock-governance-check.js
+check:dependency-lock-generator  node dependency-lock-generator-check.js
+check:dependency-lock-workflow   node dependency-lock-workflow-check.js
+check:dependency-lock-artifact   node dependency-lock-artifact-check.js
+```
+
+`npm run check` syntax-checks all dependency-lock controls and executes source-only governance. It must not execute dependency-lock generation or environment-bound artifact verification.
 
 ## Governed recovery commands
 
@@ -205,11 +246,12 @@ Any protected source change invalidates prior CI approval and requires a new CI 
 
 ## Source-only limitations
 
-A successful activation preflight proves source governance only. It does not prove dependency-lock workflow execution, dependency-lock generation, dependency installation, backup execution, backup verification, restore testing, database migration, preview data verification, deployment, restart, smoke testing or UAT.
+A successful activation preflight proves source governance only. It does not prove dependency-lock artifact verification, dependency-lock workflow execution, dependency-lock generation, dependency installation, backup execution, backup verification, restore testing, database migration, preview data verification, deployment, restart, smoke testing or UAT.
 
 Successful preflight evidence must retain:
 
 ```text
+dependencyLockArtifactVerificationExecuted: false
 dependencyLockGenerationWorkflowExecuted: false
 dependencyLockGenerationExecuted: false
 dependencyInstallationExecuted: false
@@ -228,29 +270,30 @@ mergeExecutionEnabled: false
 1. Confirm the controlled branch and exact intended commit.
 2. When absent, generate `package-lock.json` either through the controlled server-side generator procedure or the manual read-only GitHub workflow.
 3. Verify the private evidence pair or downloaded workflow artifact and `SHA256SUMS`.
-4. Review and commit only the generated lockfile.
-5. Repeat the source-only activation preflight.
-6. Run `npm ci --ignore-scripts --no-audit --no-fund` from the committed lockfile.
-7. Run `npm run check`, readiness, deployment, UAT and recovery governance checks.
-8. Run `npm audit --omit=dev --audit-level=high` and stop on unresolved high or critical findings.
-9. Retain the exact CI workspace source inventory and build-evidence artifact.
-10. Run approved release-source integrity verification.
-11. Generate and verify the preview database backup.
-12. Pre-create an empty isolated restore database.
-13. Run the isolated restore test and require zero failed checks.
-14. Create the private bootstrap-evidence directory.
-15. Execute the one-time migration-ledger bootstrap.
-16. Verify the bootstrap evidence pair.
-17. Apply the 25 ordered preview migrations.
-18. Require advisory-lock release and database closure evidence.
-19. Run preview-data verification.
-20. Re-run approved source-integrity verification before formal UAT.
-21. Complete automated and manual preview UAT.
-22. Re-run source-integrity verification before release freeze.
-23. Freeze and verify the release manifest.
-24. Restart only the preview Node.js application.
-25. Run technical smoke testing.
-26. Record all evidence in GitHub Issue #83.
+4. Run `dependency-lock-artifact-verification.js` for a downloaded workflow artifact and retain its successful result.
+5. Review and commit only the generated lockfile.
+6. Repeat the source-only activation preflight.
+7. Run `npm ci --ignore-scripts --no-audit --no-fund` from the committed lockfile.
+8. Run `npm run check`, readiness, deployment, UAT and recovery governance checks.
+9. Run `npm audit --omit=dev --audit-level=high` and stop on unresolved high or critical findings.
+10. Retain the exact CI workspace source inventory and build-evidence artifact.
+11. Run approved release-source integrity verification.
+12. Generate and verify the preview database backup.
+13. Pre-create an empty isolated restore database.
+14. Run the isolated restore test and require zero failed checks.
+15. Create the private bootstrap-evidence directory.
+16. Execute the one-time migration-ledger bootstrap.
+17. Verify the bootstrap evidence pair.
+18. Apply the 25 ordered preview migrations.
+19. Require advisory-lock release and database closure evidence.
+20. Run preview-data verification.
+21. Re-run approved source-integrity verification before formal UAT.
+22. Complete automated and manual preview UAT.
+23. Re-run source-integrity verification before release freeze.
+24. Freeze and verify the release manifest.
+25. Restart only the preview Node.js application.
+26. Run technical smoke testing.
+27. Record all evidence in GitHub Issue #83.
 
 ## Dependency installation policy
 
@@ -261,7 +304,7 @@ npm ci --ignore-scripts --no-audit --no-fund
 npm audit --omit=dev --audit-level=high
 ```
 
-Dependency installation and auditing occur only after dependency-lock verification, generator governance, workflow governance, workspace topology and source integrity pass for the exact candidate.
+Dependency installation and auditing occur only after dependency-lock verification, generator governance, workflow governance, artifact governance, workspace topology and source integrity pass for the exact candidate.
 
 ## Recovery controls
 
@@ -294,7 +337,11 @@ Do not proceed when:
 - dependency-lock verification fails;
 - dependency-lock generator governance fails;
 - dependency-lock workflow governance fails;
+- dependency-lock artifact governance fails;
+- downloaded artifact verification fails;
 - the workflow artifact source commit or checksums do not match;
+- artifact permissions are not private;
+- artifact evidence contains prohibited secret fields;
 - Node.js is not 20.x;
 - production mutation or merge execution is enabled;
 - the source inventory differs from the approved CI digest;
@@ -306,4 +353,4 @@ Do not proceed when:
 - release-manifest verification fails;
 - the exact deployed commit cannot be proven.
 
-The dependency lock has not been generated or committed. The dependency-lock workflow has not been executed. The migration-ledger bootstrap, migration 025, preview data verification, deployment, restart and formal UAT have not yet been executed.
+The dependency lock has not been generated or committed. The dependency-lock workflow and artifact verifier have not been executed. The migration-ledger bootstrap, migration 025, preview data verification, deployment, restart and formal UAT have not yet been executed.
