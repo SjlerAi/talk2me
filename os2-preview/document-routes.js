@@ -65,7 +65,7 @@ module.exports = function createDocumentRouter({ pool, requireAuth }) {
       if (!doc) return res.status(404).json({ok:false,error:'DOCUMENT_NOT_FOUND'});
       const absolutePath = path.resolve(privateRoot,doc.storage_key);
       if (!absolutePath.startsWith(`${privateRoot}${path.sep}`) || !fs.existsSync(absolutePath)) return res.status(404).json({ok:false,error:'DOCUMENT_FILE_NOT_FOUND'});
-      await pool.execute(`INSERT INTO os2_document_access_log (document_id,staff_id,access_type,ip_address,user_agent,created_at) VALUES (:documentId,:staffId,'download',:ip,:userAgent,NOW())`,{documentId:doc.id,staffId:Number(req.user.id),ip:requestContext(req).ip,userAgent:requestContext(req).userAgent});
+      await pool.execute(`INSERT INTO os2_customer_document_access_log (document_id,staff_id,access_type,ip_address,user_agent,created_at) VALUES (:documentId,:staffId,'download',:ip,:userAgent,NOW())`,{documentId:doc.id,staffId:Number(req.user.id),ip:requestContext(req).ip,userAgent:requestContext(req).userAgent});
       res.setHeader('Content-Type',doc.mime_type||'application/octet-stream');
       res.setHeader('Content-Disposition',`attachment; filename="${safeName(doc.original_filename)}"`);
       res.setHeader('X-Content-Type-Options','nosniff');
