@@ -17,18 +17,21 @@ requireMarkers(verifier, [
   'bytes.length !== descriptorStat.size', 'crypto.createHash(\'sha256\')',
   "['../.github/workflows/os2-preview-ci.yml', 1024 * 1024]", "['package-lock.json', 16 * 1024 * 1024]",
   "['dependency-lock-verification.js', 2 * 1024 * 1024]", "['dependency-lock-governance-check.js', 2 * 1024 * 1024]",
-  "['workspace-source-integrity.js', 2 * 1024 * 1024]", "['workspace-source-integrity-check.js', 2 * 1024 * 1024]",
-  "['workspace-topology-governance-check.js', 2 * 1024 * 1024]", "['preview-activation-governance-check.js', 2 * 1024 * 1024]",
-  "['build-evidence.js', 2 * 1024 * 1024]", "['ci-governance-check.js', 2 * 1024 * 1024]",
-  "['release-source-integrity-verification.js', 2 * 1024 * 1024]", "['release-source-integrity-check.js', 2 * 1024 * 1024]",
-  "['release-manifest-check.js', 2 * 1024 * 1024]", "['backup-runner.js', 2 * 1024 * 1024]",
-  "['backup-verification.js', 2 * 1024 * 1024]", "['restore-test-runner.js', 2 * 1024 * 1024]",
-  "['restore-test-governance-check.js', 2 * 1024 * 1024]", "['restore-test-integration-check.js', 2 * 1024 * 1024]",
-  "['recovery-readiness-check.js', 2 * 1024 * 1024]", "['recovery-release-gate.js', 2 * 1024 * 1024]",
-  "['BACKUP_AND_RECOVERY_RUNBOOK.md', 2 * 1024 * 1024]", "['CI_AND_BUILD_EVIDENCE_RUNBOOK.md', 2 * 1024 * 1024]",
-  'Unexpected migrations directory entry:', 'Protected source inventory contains duplicate paths', 'canonicalInventory', 'inventorySha256',
-  'packageLockPresent: true', 'selfProtected: files.some', 'governanceProtected: files.some',
-  'dependencyLockVerifierProtected: files.some', 'dependencyLockGovernanceProtected: files.some',
+  "['dependency-lock-generator.js', 2 * 1024 * 1024]", "['dependency-lock-generator-check.js', 2 * 1024 * 1024]",
+  "['DEPENDENCY_LOCK_GENERATION_RUNBOOK.md', 2 * 1024 * 1024]", "['workspace-source-integrity.js', 2 * 1024 * 1024]",
+  "['workspace-source-integrity-check.js', 2 * 1024 * 1024]", "['workspace-topology-governance-check.js', 2 * 1024 * 1024]",
+  "['preview-activation-governance-check.js', 2 * 1024 * 1024]", "['build-evidence.js', 2 * 1024 * 1024]",
+  "['ci-governance-check.js', 2 * 1024 * 1024]", "['release-source-integrity-verification.js', 2 * 1024 * 1024]",
+  "['release-source-integrity-check.js', 2 * 1024 * 1024]", "['release-manifest-check.js', 2 * 1024 * 1024]",
+  "['backup-runner.js', 2 * 1024 * 1024]", "['backup-verification.js', 2 * 1024 * 1024]",
+  "['restore-test-runner.js', 2 * 1024 * 1024]", "['restore-test-governance-check.js', 2 * 1024 * 1024]",
+  "['restore-test-integration-check.js', 2 * 1024 * 1024]", "['recovery-readiness-check.js', 2 * 1024 * 1024]",
+  "['recovery-release-gate.js', 2 * 1024 * 1024]", "['BACKUP_AND_RECOVERY_RUNBOOK.md', 2 * 1024 * 1024]",
+  "['CI_AND_BUILD_EVIDENCE_RUNBOOK.md', 2 * 1024 * 1024]", 'Unexpected migrations directory entry:',
+  'Protected source inventory contains duplicate paths', 'canonicalInventory', 'inventorySha256', 'packageLockPresent: true',
+  'selfProtected: files.some', 'governanceProtected: files.some', 'dependencyLockVerifierProtected: files.some',
+  'dependencyLockGovernanceProtected: files.some', 'dependencyLockGeneratorProtected: files.some',
+  'dependencyLockGeneratorGovernanceProtected: files.some', 'dependencyLockGenerationRunbookProtected: files.some',
   'activationGovernanceProtected: files.some', 'ciWorkflowProtected: files.some', 'ciEvidenceControlsProtected: files.some',
   'releaseGovernanceProtected: files.some', 'backupRunnerProtected: files.some', 'backupVerificationProtected: files.some',
   'restoreRunnerProtected: files.some', 'restoreGovernanceProtected: files.some', 'restoreIntegrationProtected: files.some',
@@ -42,27 +45,29 @@ if (verifier.includes("if (fs.existsSync(path.join(root, 'package-lock.json')))"
 
 requireMarkers(preflight, [
   "'workspace-topology-verification.js'", "'dependency-lock-verification.js'", "'dependency-lock-governance-check.js'",
-  "'workspace-source-integrity.js'", "'workspace-source-integrity-check.js'", "'restore-test-governance-check.js'",
-  "'restore-test-integration-check.js'", "'recovery-readiness-check.js'", "'recovery-release-gate.js'",
-  'dependencyLockVerified: true', 'dependencyLockGovernanceVerified: true', 'packageLockRequired: true',
-  'workspaceSourceIntegrityVerified: true', 'workspaceSourceIntegrityGovernanceVerified: true',
-  'restoreTestGovernanceVerified: true', 'restoreTestIntegrationVerified: true', 'recoveryReadinessVerified: true',
-  'recoveryReleaseGateVerified: true', 'dependencyInstallationExecuted: false', 'backupRuntimeExecuted: false',
+  "'dependency-lock-generator-check.js'", "'workspace-source-integrity.js'", "'workspace-source-integrity-check.js'",
+  "'restore-test-governance-check.js'", "'restore-test-integration-check.js'", "'recovery-readiness-check.js'",
+  "'recovery-release-gate.js'", 'dependencyLockVerified: true', 'dependencyLockGovernanceVerified: true',
+  'dependencyLockGeneratorGovernanceVerified: true', 'packageLockRequired: true', 'workspaceSourceIntegrityVerified: true',
+  'workspaceSourceIntegrityGovernanceVerified: true', 'restoreTestGovernanceVerified: true',
+  'restoreTestIntegrationVerified: true', 'recoveryReadinessVerified: true', 'recoveryReleaseGateVerified: true',
+  'dependencyLockGenerationExecuted: false', 'dependencyInstallationExecuted: false', 'backupRuntimeExecuted: false',
   'backupVerificationExecuted: false', 'restoreTestExecuted: false'
 ], 'Preview activation preflight');
 
 const expectedOrder = [
   "'workspace-topology-verification.js'", "'dependency-lock-verification.js'", "'dependency-lock-governance-check.js'",
-  "'workspace-source-integrity.js'", "'workspace-source-integrity-check.js'", "'workspace-topology-governance-check.js'",
-  "'migration-ledger-bootstrap-governance-check.js'", "'migration-runner-security-check.js'",
-  "'restore-test-governance-check.js'", "'restore-test-integration-check.js'", "'recovery-readiness-check.js'",
-  "'recovery-release-gate.js'", "'runtime-release-identity-check.js'"
+  "'dependency-lock-generator-check.js'", "'workspace-source-integrity.js'", "'workspace-source-integrity-check.js'",
+  "'workspace-topology-governance-check.js'", "'migration-ledger-bootstrap-governance-check.js'",
+  "'migration-runner-security-check.js'", "'restore-test-governance-check.js'", "'restore-test-integration-check.js'",
+  "'recovery-readiness-check.js'", "'recovery-release-gate.js'", "'runtime-release-identity-check.js'"
 ];
 for (let index = 1; index < expectedOrder.length; index += 1) if (preflight.indexOf(expectedOrder[index - 1]) >= preflight.indexOf(expectedOrder[index])) throw new Error(`Workspace source integrity order invalid at ${expectedOrder[index]}`);
 
 requireMarkers(runbook, [
-  'Dependency lock verification', 'package-lock.json', 'deterministic SHA-256 inventory',
-  'secure descriptor-based reads', 'source inventory digest', 'CI workflow file itself is part of the protected source inventory'
+  'Dependency lock verification', 'package-lock.json', 'dependency-lock-generator-check.js',
+  'deterministic SHA-256 inventory', 'secure descriptor-based reads', 'source inventory digest',
+  'CI workflow file itself is part of the protected source inventory'
 ], 'Activation runbook');
 if (pkg.scripts['verify:workspace-source-integrity'] !== 'node workspace-source-integrity.js') throw new Error('Missing verify:workspace-source-integrity command');
 if (pkg.scripts['check:workspace-source-integrity'] !== 'node workspace-source-integrity-check.js') throw new Error('Missing check:workspace-source-integrity command');
@@ -79,6 +84,9 @@ console.log(JSON.stringify({
   packageLockUnconditionalProtectionRequired: true,
   dependencyLockVerifierProtected: verifier.includes("['dependency-lock-verification.js', 2 * 1024 * 1024]"),
   dependencyLockGovernanceProtected: verifier.includes("['dependency-lock-governance-check.js', 2 * 1024 * 1024]"),
+  dependencyLockGeneratorProtected: verifier.includes("['dependency-lock-generator.js', 2 * 1024 * 1024]"),
+  dependencyLockGeneratorGovernanceProtected: verifier.includes("['dependency-lock-generator-check.js', 2 * 1024 * 1024]"),
+  dependencyLockGenerationRunbookProtected: verifier.includes("['DEPENDENCY_LOCK_GENERATION_RUNBOOK.md', 2 * 1024 * 1024]"),
   secureDescriptorReadsRequired: true,
   descriptorMetadataStabilityRequired: true,
   exactReadByteCountRequired: true,
@@ -110,6 +118,7 @@ console.log(JSON.stringify({
   activationPreflightRegistrationRequired: true,
   dependencyLockVerificationPreflightRegistrationRequired: true,
   dependencyLockGovernancePreflightRegistrationRequired: true,
+  dependencyLockGeneratorGovernancePreflightRegistrationRequired: true,
   restoreGovernancePreflightRegistrationRequired: true,
   restoreIntegrationPreflightRegistrationRequired: true,
   recoveryReadinessPreflightRegistrationRequired: true,
@@ -118,6 +127,7 @@ console.log(JSON.stringify({
   normalSyntaxValidationRegistered: true,
   normalGovernanceValidationRegistered: true,
   environmentBoundVerifierExcludedFromNormalExecution: true,
+  environmentChangingLockGeneratorExcludedFromNormalExecution: true,
   productionMutationEnabled: false,
   mergeExecutionEnabled: false
 }, null, 2));
