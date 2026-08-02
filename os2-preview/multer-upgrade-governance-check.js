@@ -42,6 +42,8 @@ const administration = read('administration-routes.js');
 const regression = read('multer-request-regression-check.js');
 const runbook = read('MULTER_2_UPGRADE_RUNBOOK.md');
 const versionReview = read('MULTER_2_VERSION_REVIEW.md');
+const generationApproval = read('MULTER_2_GENERATION_APPROVAL.md');
+const generationApprovalCheck = read('multer-generation-approval-check.js');
 
 const currentReviewedVersion = '^1.4.5-lts.1';
 const selectedTargetVersion = '2.2.0';
@@ -157,11 +159,42 @@ requireMarkers(versionReview, [
   'adopt `package.json` and `package-lock.json` only through the controlled two-file adoption process'
 ], 'Multer 2 version review');
 
+requireMarkers(generationApproval, [
+  'Multer 2.2.0 Dependency-Evidence Generation Approval',
+  'Status: not approved',
+  'Exact candidate dependency: `multer@2.2.0`',
+  'Owner generation approval granted: no',
+  'Candidate manifest creation authorized: no',
+  'Dependency-lock generation authorized: no',
+  'Dependency-lock adoption authorized: no',
+  'Preview activation authorized: no',
+  'Production mutation authorized: no',
+  'APPROVE_MULTER_2_2_0_DEPENDENCY_EVIDENCE_GENERATION',
+  'the exact 40-character source commit SHA',
+  'an approval timestamp in canonical UTC',
+  'the approving owner identity',
+  'dependency adoption remains separately gated'
+], 'Multer generation approval');
+
+requireMarkers(generationApprovalCheck, [
+  "check: 'multer-generation-approval'",
+  "const candidateMulter = '2.2.0'",
+  "const approvalPhrase = 'APPROVE_MULTER_2_2_0_DEPENDENCY_EVIDENCE_GENERATION'",
+  'ownerGenerationApprovalGranted: false',
+  'candidateManifestCreationAuthorized: false',
+  'dependencyLockGenerationAuthorized: false',
+  'dependencyLockAdoptionAuthorized: false',
+  'previewActivationAuthorized: false',
+  'productionMutationEnabled: false'
+], 'Multer generation approval checker');
+
 requireMarkers(runbook, [
   'Controlled Multer 2 Upgrade Runbook',
   'Status: target selected, dependency change not executed',
   'Selected review target: exact Multer 2.2.0',
   'MULTER_2_VERSION_REVIEW.md',
+  'MULTER_2_GENERATION_APPROVAL.md',
+  'status `not approved`',
   'Multer 3 pre-release versions are excluded',
   'Customer documents',
   'Monthly import preview',
@@ -169,6 +202,7 @@ requireMarkers(runbook, [
   'Completed isolated request regressions',
   'authorization middleware remains before Multer middleware',
   'exact target `2.2.0`; no range and no pre-release substitution',
+  'generation approval, dependency adoption, preview activation and production activation as separate gates',
   'no rejected upload remains on disk',
   'production remains untouched until explicit owner approval'
 ], 'Multer upgrade runbook');
@@ -188,7 +222,13 @@ console.log(JSON.stringify({
   prereleaseCandidatesProhibited: true,
   exactVersionRequiredForAdoption: true,
   explicitGenerationApprovalRequired: true,
+  exactGenerationApprovalPhraseRequired: true,
+  generationApprovalCurrentlyGranted: false,
+  candidateManifestCreationCurrentlyAuthorized: false,
   controlledTwoFileAdoptionRequired: true,
+  dependencyAdoptionSeparatelyGated: true,
+  previewActivationSeparatelyGated: true,
+  productionActivationSeparatelyGated: true,
   activeDependencyChanged: false,
   packageLockChanged: false,
   uploadSurfaces: 3,
