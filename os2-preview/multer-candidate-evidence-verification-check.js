@@ -47,6 +47,14 @@ requireMarkers(source, [
   "MULTER_CANDIDATE_PACKAGE_PATH",
   "MULTER_CANDIDATE_LOCK_PATH",
   "MULTER_SOURCE_INVENTORY_PATH",
+  "fs.constants.O_NOFOLLOW",
+  "descriptor = fs.openSync(file, flags)",
+  "const opened = fs.fstatSync(descriptor)",
+  "const after = fs.fstatSync(descriptor)",
+  "sameFile(before, opened)",
+  "sameFile(opened, after)",
+  "bytes.length !== opened.size",
+  "fs.closeSync(descriptor)",
   "crypto.timingSafeEqual",
   "evidence.check !== 'multer-2-candidate-evidence'",
   "evidence.repository !== 'SjlerAi/talk2me'",
@@ -57,6 +65,9 @@ requireMarkers(source, [
   "sourceClone.dependencies.multer = '2.2.0'",
   "CANDIDATE_PACKAGE_DIFF_INVALID",
   "digestsVerified: 4",
+  "descriptorBoundReads: true",
+  "noFollowOpenRequired: true",
+  "inodeContinuityVerified: true",
   "if (evidence.rollbackRequired && !evidence.rollbackCompleted)",
   "adoptionAuthorized: false",
   "previewActivationAuthorized: false",
@@ -128,6 +139,8 @@ for (const prohibited of [
 
 if ((source.match(/equalDigest\(/g) || []).length !== 5) failures.push('Verifier must define one equalDigest function and invoke it four times');
 if ((source.match(/readRegular\(required\(/g) || []).length !== 6) failures.push('Verifier must read exactly six explicit local inputs');
+if ((source.match(/fs\.openSync\(/g) || []).length !== 1) failures.push('Verifier must use one controlled descriptor open path');
+if ((source.match(/fs\.fstatSync\(/g) || []).length !== 2) failures.push('Verifier must verify descriptor state before and after reading');
 
 const regressionEvidence = runJsonCheck('multer-candidate-evidence-negative-regression-check.js', 'Multer candidate evidence negative regression');
 if (regressionEvidence.ok !== true || regressionEvidence.check !== 'multer-candidate-evidence-negative-regression') failures.push('Negative regression evidence identity invalid');
@@ -162,6 +175,10 @@ console.log(JSON.stringify({
   negativeRegressionCases: 14,
   inputRegressionRequired: true,
   inputRegressionCases: 13,
+  descriptorBoundReadsRequired: true,
+  noFollowOpenRequired: true,
+  inodeContinuityRequired: true,
+  postReadSizeContinuityRequired: true,
   shellExecutionAvailable: false,
   externalNetworkAvailable: false,
   databaseAvailable: false,
