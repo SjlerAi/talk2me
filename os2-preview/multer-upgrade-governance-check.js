@@ -133,9 +133,9 @@ requireMarkers(regression, [
   'wrongBoundaryRejected: true',
   'truncatedBodyRejected: true',
   'missingBoundaryRejected: true',
-  'controlledErrorsOnly: true',
-  'privatePathDisclosureProhibited: true',
-  'stackTraceDisclosureProhibited: true',
+  'controlledErrorsRequired: true',
+  'privatePathDisclosureDetected: false',
+  'stackDisclosureDetected: false',
   'persistentStorageUsed: false',
   'productionMutationEnabled: false'
 ], 'Multer request regression');
