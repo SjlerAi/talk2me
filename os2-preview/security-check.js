@@ -29,6 +29,8 @@ const multerRunbook=read('MULTER_2_UPGRADE_RUNBOOK.md');
 const multerVersionReview=read('MULTER_2_VERSION_REVIEW.md');
 const multerGenerationApproval=read('MULTER_2_GENERATION_APPROVAL.md');
 const multerGenerationApprovalCheck=read('multer-generation-approval-check.js');
+const multerCandidatePlan=read('MULTER_2_CANDIDATE_MANIFEST_PLAN.md');
+const multerCandidatePlanCheck=read('multer-candidate-manifest-plan-check.js');
 
 assert(server.includes("require('./security-controls')"),'Security controls not imported');
 assert(server.includes("require('./security-routes')"),'Security router not imported');
@@ -57,6 +59,9 @@ assert(multerVersionReview.includes('Pre-release versions are prohibited'),'Mult
 assert(multerGenerationApproval.includes('Status: not approved'),'Multer generation approval must remain fail-closed');
 assert(multerGenerationApproval.includes('APPROVE_MULTER_2_2_0_DEPENDENCY_EVIDENCE_GENERATION'),'Exact Multer generation approval phrase missing');
 assert(multerGenerationApprovalCheck.includes("check: 'multer-generation-approval'"),'Multer generation approval evidence contract missing');
+assert(multerCandidatePlan.includes('Status: planned, not authorized, not applied'),'Multer candidate manifest plan must remain unapplied');
+assert(multerCandidatePlan.includes('to `"multer": "2.2.0"`'),'Exact Multer candidate transformation missing');
+assert(multerCandidatePlanCheck.includes("check: 'multer-candidate-manifest-plan'"),'Multer candidate manifest plan evidence contract missing');
 
 const evidence=runJsonCheck('multer-upgrade-governance-check.js','Multer governance');
 assert(evidence.ok===true&&evidence.check==='multer-upgrade-governance','Multer governance evidence invalid');
@@ -93,6 +98,21 @@ assert(approval.dependencyLockGenerationAuthorized===false,'Dependency lock gene
 assert(approval.dependencyLockAdoptionAuthorized===false,'Dependency lock adoption unexpectedly authorized');
 assert(approval.previewActivationAuthorized===false,'Preview activation unexpectedly authorized');
 assert(approval.productionMutationEnabled===false,'Multer generation approval must prohibit production mutation');
+
+const candidatePlan=runJsonCheck('multer-candidate-manifest-plan-check.js','Multer candidate manifest plan');
+assert(candidatePlan.ok===true&&candidatePlan.check==='multer-candidate-manifest-plan','Multer candidate manifest plan evidence invalid');
+assert(candidatePlan.currentDependency==='^1.4.5-lts.1','Multer candidate plan current dependency invalid');
+assert(candidatePlan.selectedCandidate==='2.2.0','Multer candidate plan selected version invalid');
+assert(candidatePlan.exactSingleDependencyChangeRequired===true,'Exact one-dependency candidate change evidence missing');
+assert(candidatePlan.scriptsContinuityRequired===true,'Candidate scripts continuity evidence missing');
+assert(candidatePlan.nonMulterDependencyContinuityRequired===true,'Candidate non-Multer dependency continuity evidence missing');
+assert(candidatePlan.lifecycleScriptsProhibited===true,'Candidate lifecycle-script prohibition evidence missing');
+assert(candidatePlan.privateCandidateWorkspaceRequired===true,'Private candidate workspace evidence missing');
+assert(candidatePlan.committedManifestMutationAuthorized===false,'Committed manifest mutation unexpectedly authorized');
+assert(candidatePlan.committedLockMutationAuthorized===false,'Committed lock mutation unexpectedly authorized');
+assert(candidatePlan.dependencyInstallationAuthorized===false,'Candidate dependency installation unexpectedly authorized');
+assert(candidatePlan.previewActivationAuthorized===false,'Candidate preview activation unexpectedly authorized');
+assert(candidatePlan.productionMutationEnabled===false,'Candidate plan must prohibit production mutation');
 
 const regression=runJsonCheck('multer-request-regression-check.js','Multer request regression');
 assert(regression.ok===true&&regression.check==='multer-request-regression','Multer request regression evidence invalid');
