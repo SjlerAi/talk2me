@@ -80,9 +80,9 @@ if (previewData.indexOf("'schema-verification.js'") >= previewData.indexOf("'mer
 requireMarkers('PREVIEW_DEPLOYMENT_RUNBOOK.md', [
   'talk2me.kloka.co.za', 'talk2me.uent.co.za', 'npm run migrate:preview',
   'npm run verify:preview-data', 'exactly 25 migration ledger rows',
-  '`checksum_sha256` and `executed_at`', '18 zero-defect data checks',
-  'backup status `verified`', 'isolated_preview_restore', 'restore reviewer',
-  'schema verification must complete before restore-evidence verification',
+  '`checksum_sha256`', '`executed_at`', '18 zero-defect data checks',
+  'status `verified`', 'isolated_preview_restore', 'restore reviewer',
+  'Schema verification must complete before restore-evidence verification',
   'Restart only the preview Node.js application'
 ]);
 
