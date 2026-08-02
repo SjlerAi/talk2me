@@ -57,7 +57,8 @@ function secureRead(file, maxBytes, expectedOwner, label) {
   if (stat.nlink !== 1) fail(`${label}_HARD_LINK_PROHIBITED`);
   if (stat.uid !== expectedOwner) fail(`${label}_OWNER_MISMATCH`);
   if (stat.size <= 0 || stat.size > maxBytes) fail(`${label}_SIZE_INVALID`);
-  if (process.platform !== 'win32' && (stat.mode & 0o077) !== 0) fail(`${label}_NOT_PRIVATE`);
+  const requirePrivate = label.startsWith('ARTIFACT_');
+  if (process.platform !== 'win32' && (stat.mode & (requirePrivate ? 0o077 : 0o022)) !== 0) fail(`${label}_PERMISSIONS_INVALID`);
   if (fs.realpathSync.native(file) !== file) fail(`${label}_NOT_CANONICAL`);
   const fd = fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
   try {
