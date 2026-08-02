@@ -5,6 +5,7 @@ const path = require('path');
 const crypto = require('crypto');
 
 const root = __dirname;
+const repositoryRoot = path.resolve(root, '..');
 const expectedDatabase = 'kloka_talk2me';
 const expectedBranch = 'agent/talk2me-os2-integrated-rebuild';
 const expectedNodeMajor = 20;
@@ -14,7 +15,9 @@ function fail(message) {
   process.exit(1);
 }
 function secureHash(relativePath, maxBytes, expectedOwner) {
-  const file = path.join(root, relativePath);
+  if (typeof relativePath !== 'string' || !relativePath || path.isAbsolute(relativePath) || relativePath.includes('\u0000')) fail(`Protected source path is invalid: ${relativePath}`);
+  const file = path.resolve(root, relativePath);
+  if (file !== repositoryRoot && !file.startsWith(`${repositoryRoot}${path.sep}`)) fail(`Protected source escapes the repository root: ${relativePath}`);
   let pathStat;
   try { pathStat = fs.lstatSync(file); } catch { fail(`Protected source is missing: ${relativePath}`); }
   if (!pathStat.isFile() || pathStat.isSymbolicLink()) fail(`Protected source must be a regular non-symlink file: ${relativePath}`);
@@ -52,6 +55,9 @@ if (String(process.env.ENABLE_CUSTOMER_MERGE_EXECUTION || '').toLowerCase() === 
 
 const rootStat = fs.lstatSync(root);
 if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) fail('Workspace root must be a real directory');
+const repositoryStat = fs.lstatSync(repositoryRoot);
+if (!repositoryStat.isDirectory() || repositoryStat.isSymbolicLink()) fail('Repository root must be a real directory');
+if (repositoryStat.uid !== rootStat.uid) fail('Repository and application roots must share an owner');
 const owner = rootStat.uid;
 const protectedFiles = [
   ['../.github/workflows/os2-preview-ci.yml', 1024 * 1024],
@@ -95,7 +101,7 @@ const inventorySha256 = crypto.createHash('sha256').update(canonicalInventory).d
 
 console.log(JSON.stringify({
   ok: true, check: 'workspace-source-integrity', application: 'talk2me-os2-preview', version: require('./package.json').version,
-  applicationRoot: root, database: expectedDatabase, branch: expectedBranch, nodeVersion: process.versions.node,
+  applicationRoot: root, repositoryRoot, database: expectedDatabase, branch: expectedBranch, nodeVersion: process.versions.node,
   protectedFileCount: files.length, migrationCount: files.filter(item => item.file.startsWith('migrations/')).length,
   packageLockPresent: true, inventorySha256, files,
   selfProtected: files.some(item => item.file === 'workspace-source-integrity.js'),
@@ -120,6 +126,9 @@ console.log(JSON.stringify({
   recoveryReadinessProtected: files.some(item => item.file === 'recovery-readiness-check.js'),
   recoveryReleaseGateProtected: files.some(item => item.file === 'recovery-release-gate.js'),
   recoveryRunbookProtected: files.some(item => item.file === 'BACKUP_AND_RECOVERY_RUNBOOK.md'),
+  repositoryRootContainmentRequired: true,
+  parentWorkflowPathsResolvedCanonically: true,
+  repositoryApplicationOwnerConsistency: true,
   duplicatePathsRejected: true, secureDescriptorReads: true, pathAndDescriptorMetadataBound: true,
   exactReadByteCountRequired: true, canonicalPathBinding: true, hardLinkRejection: true,
   ownershipConsistency: true, boundedReads: true, productionMutationEnabled: false, mergeExecutionEnabled: false
