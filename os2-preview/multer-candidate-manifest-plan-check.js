@@ -2,6 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { spawnSync } = require('child_process');
 
 const root = __dirname;
 const failures = [];
@@ -16,10 +17,28 @@ function read(name) {
 function requireMarkers(source, markers, label) {
   for (const marker of markers) if (!source.includes(marker)) failures.push(`${label} missing ${marker}`);
 }
+function runJsonCheck(file, label) {
+  const result = spawnSync(process.execPath, [file], {
+    cwd: root,
+    encoding: 'utf8',
+    timeout: 30000,
+    maxBuffer: 256 * 1024,
+    shell: false,
+    env: Object.freeze({ PATH: process.env.PATH || '', NODE_ENV: 'test' })
+  });
+  if (result.error) failures.push(`${label} execution failed: ${result.error.message}`);
+  else if (result.status !== 0) failures.push(`${label} failed: ${String(result.stderr || result.stdout).trim()}`);
+  else {
+    try { return JSON.parse(String(result.stdout || '{}')); }
+    catch { failures.push(`${label} returned invalid JSON`); }
+  }
+  return {};
+}
 
 const pkg = JSON.parse(read('package.json'));
 const plan = read('MULTER_2_CANDIDATE_MANIFEST_PLAN.md');
 const approval = read('MULTER_2_GENERATION_APPROVAL.md');
+const schema = read('MULTER_2_CANDIDATE_EVIDENCE_SCHEMA.md');
 
 const expectedCurrent = '^1.4.5-lts.1';
 const expectedCandidate = '2.2.0';
@@ -63,6 +82,23 @@ requireMarkers(approval, [
   'Dependency-lock adoption authorized: no'
 ], 'Generation approval');
 
+requireMarkers(schema, [
+  'Status: defined, generation not authorized, no evidence emitted',
+  'Schema version: `1`',
+  'No additional key is permitted.',
+  'constant-time comparison',
+  'When rollback is required, rollback completion must be true'
+], 'Candidate evidence schema');
+
+const schemaEvidence = runJsonCheck('multer-candidate-evidence-schema-check.js', 'Multer candidate evidence schema');
+if (schemaEvidence.ok !== true || schemaEvidence.check !== 'multer-candidate-evidence-schema-governance') failures.push('Candidate evidence schema evidence invalid');
+if (schemaEvidence.schemaVersion !== 1 || schemaEvidence.exactKeyCount !== 28) failures.push('Candidate evidence schema identity invalid');
+if (schemaEvidence.exactCandidateVersion !== '2.2.0') failures.push('Candidate evidence target invalid');
+if (schemaEvidence.fourSha256BindingsRequired !== true || schemaEvidence.constantTimeDigestComparisonRequired !== true) failures.push('Candidate digest governance incomplete');
+if (schemaEvidence.rollbackEvidenceRequired !== true || schemaEvidence.secretFieldsProhibited !== true) failures.push('Candidate rollback or secret governance incomplete');
+if (schemaEvidence.ownerGenerationApprovalGranted !== false || schemaEvidence.dependencyLockGenerationAuthorized !== false) failures.push('Candidate generation unexpectedly authorized');
+if (schemaEvidence.dependencyAdoptionAuthorized !== false || schemaEvidence.previewActivationAuthorized !== false || schemaEvidence.productionMutationEnabled !== false) failures.push('Candidate downstream gate unexpectedly authorized');
+
 if (failures.length) {
   console.error('MULTER CANDIDATE MANIFEST PLAN CHECK FAILED');
   failures.forEach(failure => console.error(`- ${failure}`));
@@ -79,6 +115,13 @@ console.log(JSON.stringify({
   nonMulterDependencyContinuityRequired: true,
   lifecycleScriptsProhibited: true,
   privateCandidateWorkspaceRequired: true,
+  candidateEvidenceSchemaRequired: true,
+  candidateEvidenceSchemaVersion: 1,
+  candidateEvidenceExactKeyCount: 28,
+  fourSha256BindingsRequired: true,
+  constantTimeDigestComparisonRequired: true,
+  rollbackEvidenceRequired: true,
+  secretFieldsProhibited: true,
   committedManifestMutationAuthorized: false,
   committedLockMutationAuthorized: false,
   dependencyInstallationAuthorized: false,
