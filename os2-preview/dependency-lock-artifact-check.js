@@ -29,7 +29,7 @@ const workflowGovernance = read('dependency-lock-workflow-check.js');
 const runbook = read('DEPENDENCY_LOCK_ARTIFACT_REVIEW_RUNBOOK.md');
 
 requireMarkers(verifier, [
-  "expectedApplication = 'talk2me-os2-preview'", "expectedVersion = '0.59.0'", "expectedDatabase = 'kloka_talk2me'",
+  "expectedApplication = 'talk2me-os2-preview'", "expectedVersion = '0.60.0'", "expectedDatabase = 'kloka_talk2me'",
   "expectedBranch = 'agent/talk2me-os2-integrated-rebuild'", "expectedRepository = 'SjlerAi/talk2me'",
   "expectedWorkflow = 'OS2 Dependency Lock Generation'", 'maxArtifactFileBytes = 16 * 1024 * 1024',
   "'SHA256SUMS'", "'dependency-lock-artifact-governance.json'", "'dependency-lock-generation.json'",
