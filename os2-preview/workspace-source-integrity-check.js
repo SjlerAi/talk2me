@@ -11,6 +11,10 @@ const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'))
 function requireMarkers(source, markers, label) { for (const marker of markers) if (!source.includes(marker)) throw new Error(`${label} missing ${marker}`); }
 
 requireMarkers(verifier, [
+  "const repositoryRoot = path.resolve(root, '..')", 'path.resolve(root, relativePath)',
+  'Protected source escapes the repository root:', 'Repository root must be a real directory',
+  'Repository and application roots must share an owner', 'repositoryRootContainmentRequired: true',
+  'parentWorkflowPathsResolvedCanonically: true', 'repositoryApplicationOwnerConsistency: true',
   "expectedDatabase = 'kloka_talk2me'", "expectedBranch = 'agent/talk2me-os2-integrated-rebuild'", 'expectedNodeMajor = 20',
   'fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW', 'descriptorStat.dev !== pathStat.dev || descriptorStat.ino !== pathStat.ino',
   'descriptorStat.nlink !== 1', 'descriptorStat.size !== pathStat.size || descriptorStat.mtimeMs !== pathStat.mtimeMs',
@@ -45,6 +49,7 @@ requireMarkers(verifier, [
   'ownershipConsistency: true', 'boundedReads: true', 'productionMutationEnabled: false', 'mergeExecutionEnabled: false'
 ], 'Workspace source integrity verifier');
 
+if (verifier.includes("const file = path.join(root, relativePath)")) throw new Error('Protected parent workflow paths must not use non-canonical path.join resolution');
 if (verifier.includes("if (fs.existsSync(path.join(root, 'package-lock.json')))")) throw new Error('package-lock.json must be mandatory, not conditionally protected');
 
 requireMarkers(preflight, [
@@ -75,7 +80,8 @@ requireMarkers(runbook, [
   'Dependency lock generation', 'package-lock.json', 'dependency-lock-generator-check.js',
   'dependency-lock-workflow-check.js', 'DEPENDENCY_LOCK_WORKFLOW_RUNBOOK.md',
   'deterministic SHA-256 inventory', 'secure descriptor-based reads', 'source inventory digest',
-  'CI workflow file itself is part of the protected source inventory'
+  'CI workflow file itself is part of the protected source inventory',
+  'dependency-lock workflow is also part of the protected source inventory'
 ], 'Activation runbook');
 if (pkg.scripts['verify:workspace-source-integrity'] !== 'node workspace-source-integrity.js') throw new Error('Missing verify:workspace-source-integrity command');
 if (pkg.scripts['check:workspace-source-integrity'] !== 'node workspace-source-integrity-check.js') throw new Error('Missing check:workspace-source-integrity command');
@@ -88,6 +94,9 @@ console.log(JSON.stringify({
   ok: true,
   check: 'workspace-source-integrity-governance',
   deterministicInventoryRequired: true,
+  repositoryRootContainmentRequired: true,
+  parentWorkflowPathsResolvedCanonically: true,
+  repositoryApplicationOwnerConsistencyRequired: true,
   packageLockRequired: true,
   packageLockUnconditionalProtectionRequired: true,
   dependencyLockVerifierProtected: verifier.includes("['dependency-lock-verification.js', 2 * 1024 * 1024]"),
