@@ -7,6 +7,8 @@ const root = __dirname;
 const preflight = fs.readFileSync(path.join(root, 'preview-activation-preflight.js'), 'utf8');
 const topology = fs.readFileSync(path.join(root, 'workspace-topology-verification.js'), 'utf8');
 const topologyGovernance = fs.readFileSync(path.join(root, 'workspace-topology-governance-check.js'), 'utf8');
+const dependencyLock = fs.readFileSync(path.join(root, 'dependency-lock-verification.js'), 'utf8');
+const dependencyLockGovernance = fs.readFileSync(path.join(root, 'dependency-lock-governance-check.js'), 'utf8');
 const sourceIntegrity = fs.readFileSync(path.join(root, 'workspace-source-integrity.js'), 'utf8');
 const sourceIntegrityGovernance = fs.readFileSync(path.join(root, 'workspace-source-integrity-check.js'), 'utf8');
 const releaseSourceGovernance = fs.readFileSync(path.join(root, 'release-source-integrity-check.js'), 'utf8');
@@ -28,15 +30,17 @@ requireMarkers(preflight, [
   "childEnv.ALLOW_PRODUCTION_MUTATION = 'false'", "childEnv.ENABLE_CUSTOMER_MERGE_EXECUTION = 'false'", "childEnv.NODE_ENV = 'production'",
   'env: childEnvironment', "stdio: 'inherit'", 'timeout: childTimeoutMs', "killSignal: 'SIGKILL'", 'shell: false', 'windowsHide: true',
   "result.error.code === 'ETIMEDOUT'", 'result.signal', 'result.status !== 0',
-  'childEnvironmentSanitized: true', 'childEnvironmentFrozen: Object.isFrozen(childEnvironment)', 'childEnvironmentAllowlistApplied: true',
-  'nodeOptionsInherited: false', 'nodePathInherited: false', 'bashEnvInherited: false', 'envStartupHookInherited: false',
-  'gitDirectoryOverrideInherited: false', 'gitWorkTreeOverrideInherited: false', 'npmPrefixOverrideInherited: false', 'npmUserConfigOverrideInherited: false',
+  'childEnvironmentSanitized: true', 'childEnvironmentFrozen: Object.isFrozen(childEnvironment)',
+  'childEnvironmentAllowlistApplied: true', 'nodeOptionsInherited: false', 'nodePathInherited: false',
+  'bashEnvInherited: false', 'envStartupHookInherited: false', 'gitDirectoryOverrideInherited: false',
+  'gitWorkTreeOverrideInherited: false', 'npmPrefixOverrideInherited: false', 'npmUserConfigOverrideInherited: false',
   'productionNodeEnvironmentForced: true', 'previewRootForced: true', 'previewDatabaseForced: true', 'releaseBranchForced: true',
   'productionMutationDisabledInChildren: true', 'mergeExecutionDisabledInChildren: true',
+  'dependencyLockVerified: true', 'dependencyLockGovernanceVerified: true', 'packageLockRequired: true',
   'restoreTestGovernanceVerified: true', 'restoreTestIntegrationVerified: true', 'recoveryReadinessVerified: true',
-  'recoveryReleaseGateVerified: true', 'backupRuntimeExecuted: false', 'backupVerificationExecuted: false',
-  'restoreTestExecuted: false', 'databaseBackedVerificationExecuted: false', 'migrationsExecuted: false',
-  'previewRestartExecuted: false', 'productionMutationEnabled: false', 'mergeExecutionEnabled: false'
+  'recoveryReleaseGateVerified: true', 'dependencyInstallationExecuted: false', 'backupRuntimeExecuted: false',
+  'backupVerificationExecuted: false', 'restoreTestExecuted: false', 'databaseBackedVerificationExecuted: false',
+  'migrationsExecuted: false', 'previewRestartExecuted: false', 'productionMutationEnabled: false', 'mergeExecutionEnabled: false'
 ], 'Preview activation preflight');
 
 if (preflight.includes('...process.env')) throw new Error('Preview activation must not inherit the complete parent environment');
@@ -45,12 +49,13 @@ for (const prohibited of ['NODE_OPTIONS', 'NODE_PATH', 'BASH_ENV', 'GIT_DIR', 'G
 }
 
 const orderedScripts = [
-  "'workspace-topology-verification.js'", "'workspace-source-integrity.js'", "'workspace-source-integrity-check.js'",
-  "'workspace-topology-governance-check.js'", "'migration-ledger-bootstrap-governance-check.js'",
-  "'migration-ledger-bootstrap-runner-check.js'", "'migration-ledger-bootstrap-evidence-check.js'",
-  "'migration-runner-security-check.js'", "'restore-test-governance-check.js'", "'restore-test-integration-check.js'",
-  "'recovery-readiness-check.js'", "'recovery-release-gate.js'", "'runtime-release-identity-check.js'",
-  "'readiness-check.js'", "'deployment-check.js'", "'uat-gate-check.js'", "'release-evidence-security-check.js'",
+  "'workspace-topology-verification.js'", "'dependency-lock-verification.js'", "'dependency-lock-governance-check.js'",
+  "'workspace-source-integrity.js'", "'workspace-source-integrity-check.js'", "'workspace-topology-governance-check.js'",
+  "'migration-ledger-bootstrap-governance-check.js'", "'migration-ledger-bootstrap-runner-check.js'",
+  "'migration-ledger-bootstrap-evidence-check.js'", "'migration-runner-security-check.js'",
+  "'restore-test-governance-check.js'", "'restore-test-integration-check.js'", "'recovery-readiness-check.js'",
+  "'recovery-release-gate.js'", "'runtime-release-identity-check.js'", "'readiness-check.js'",
+  "'deployment-check.js'", "'uat-gate-check.js'", "'release-evidence-security-check.js'",
   "'release-source-integrity-check.js'", "'release-manifest-check.js'"
 ];
 for (const script of orderedScripts) if (!preflight.includes(script)) throw new Error(`Preview activation preflight missing ordered script ${script}`);
@@ -62,19 +67,61 @@ requireMarkers(topology, [
   'fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW)', 'protectedFilesHardLinkFree: true',
   'ownershipConsistent: true', 'productionMutationEnabled: false', 'mergeExecutionEnabled: false'
 ], 'Workspace topology verification');
-requireMarkers(topologyGovernance, ["check: 'workspace-topology-governance'", 'packageCommandRegistered: true', 'normalValidationRegistered: true', 'migrationLedgerBootstrapProtected: true', 'migration025Required: true'], 'Workspace topology governance');
-requireMarkers(sourceIntegrity, ["check: 'workspace-source-integrity'", 'inventorySha256', 'recoveryReadinessProtected: files.some', 'recoveryReleaseGateProtected: files.some', 'secureDescriptorReads: true', 'canonicalPathBinding: true', 'hardLinkRejection: true', 'ownershipConsistency: true', 'boundedReads: true'], 'Workspace source integrity');
-requireMarkers(sourceIntegrityGovernance, ["check: 'workspace-source-integrity-governance'", 'deterministicInventoryRequired: true', 'recoveryReadinessProtectionRequired: true', 'recoveryReleaseGateProtectionRequired: true', 'recoveryReleaseGatePreflightRegistrationRequired: true', 'packageCommandRegistered: true', 'normalSyntaxValidationRegistered: true', 'normalGovernanceValidationRegistered: true', 'environmentBoundVerifierExcludedFromNormalExecution: true'], 'Workspace source integrity governance');
-requireMarkers(releaseSourceGovernance, ["check: 'release-source-integrity-governance'", 'boundedExecutionRequired: true', 'forcedKillSignalRequired: true', 'shellExecutionDisabled: true', 'protectedFileCountConsistencyRequired: true', 'verificationBeforeReleasePublicationRequired: true', 'postFreezeVerificationBeforeIndividualFilesRequired: true'], 'Release source integrity governance');
-requireMarkers(recoveryReadiness, ["check: 'recovery-readiness'", 'meaningfulControls: 60', 'backupGenerationGoverned: true', 'backupVerificationGoverned: true', 'isolatedRestoreGoverned: true', 'productionMutationEnabled: false', 'mergeExecutionEnabled: false'], 'Recovery readiness governance');
-requireMarkers(recoveryRelease, ["check: 'recovery-release-gate'", 'meaningfulControls: 60', 'exactPackageCommandsRequired: true', 'normalSyntaxValidationRequired: true', 'normalGovernanceExecutionRequired: true', 'environmentChangingRecoveryCommandsExcludedFromNormalValidation: true', 'productionMutationEnabled: false', 'mergeExecutionEnabled: false'], 'Recovery release governance');
+requireMarkers(topologyGovernance, [
+  "check: 'workspace-topology-governance'", 'packageCommandRegistered: true', 'normalValidationRegistered: true',
+  'migrationLedgerBootstrapProtected: true', 'migration025Required: true'
+], 'Workspace topology governance');
+requireMarkers(dependencyLock, [
+  "check: 'dependency-lock-verification'", 'meaningfulControls: 60', 'packageLockPresent: true',
+  'lockfileVersionThreeRequired: true', 'npmRegistryHttpsOnlyRequired: true', 'sha512IntegrityRequired: true',
+  'dependencyEdgesResolved: true', 'productionMutationEnabled: false', 'mergeExecutionEnabled: false'
+], 'Dependency lock verification');
+requireMarkers(dependencyLockGovernance, [
+  "check: 'dependency-lock-governance'", 'meaningfulControls: 60', 'npmCiRequired: true',
+  'activationPreflightRegistrationRequired: true', 'sourceInventoryProtectionRequired: true',
+  'productionMutationEnabled: false', 'mergeExecutionEnabled: false', 'dependencyInstallationExecuted: false'
+], 'Dependency lock governance');
+requireMarkers(sourceIntegrity, [
+  "check: 'workspace-source-integrity'", 'inventorySha256', 'packageLockPresent: true',
+  'dependencyLockVerifierProtected: files.some', 'dependencyLockGovernanceProtected: files.some',
+  'recoveryReadinessProtected: files.some', 'recoveryReleaseGateProtected: files.some',
+  'secureDescriptorReads: true', 'canonicalPathBinding: true', 'hardLinkRejection: true',
+  'ownershipConsistency: true', 'boundedReads: true'
+], 'Workspace source integrity');
+requireMarkers(sourceIntegrityGovernance, [
+  "check: 'workspace-source-integrity-governance'", 'deterministicInventoryRequired: true',
+  'packageLockRequired: true', 'dependencyLockVerifierProtected: verifier.includes',
+  'dependencyLockGovernanceProtected: verifier.includes', 'dependencyLockVerificationPreflightRegistrationRequired: true',
+  'dependencyLockGovernancePreflightRegistrationRequired: true', 'recoveryReadinessProtectionRequired: true',
+  'recoveryReleaseGateProtectionRequired: true', 'recoveryReleaseGatePreflightRegistrationRequired: true',
+  'packageCommandRegistered: true', 'normalSyntaxValidationRegistered: true', 'normalGovernanceValidationRegistered: true',
+  'environmentBoundVerifierExcludedFromNormalExecution: true'
+], 'Workspace source integrity governance');
+requireMarkers(releaseSourceGovernance, [
+  "check: 'release-source-integrity-governance'", 'boundedExecutionRequired: true',
+  'forcedKillSignalRequired: true', 'shellExecutionDisabled: true', 'protectedFileCountConsistencyRequired: true',
+  'verificationBeforeReleasePublicationRequired: true', 'postFreezeVerificationBeforeIndividualFilesRequired: true'
+], 'Release source integrity governance');
+requireMarkers(recoveryReadiness, [
+  "check: 'recovery-readiness'", 'meaningfulControls: 60', 'backupGenerationGoverned: true',
+  'backupVerificationGoverned: true', 'isolatedRestoreGoverned: true',
+  'productionMutationEnabled: false', 'mergeExecutionEnabled: false'
+], 'Recovery readiness governance');
+requireMarkers(recoveryRelease, [
+  "check: 'recovery-release-gate'", 'meaningfulControls: 60', 'exactPackageCommandsRequired: true',
+  'normalSyntaxValidationRequired: true', 'normalGovernanceExecutionRequired: true',
+  'environmentChangingRecoveryCommandsExcludedFromNormalValidation: true',
+  'productionMutationEnabled: false', 'mergeExecutionEnabled: false'
+], 'Recovery release governance');
 
 requireMarkers(runbook, [
   'talk2me.kloka.co.za', 'talk2me.uent.co.za', 'kloka_talk2me', 'agent/talk2me-os2-integrated-rebuild',
-  'sanitized allowlisted child environment', '`NODE_OPTIONS`', '`NODE_PATH`', '`BASH_ENV`', '`GIT_DIR`', '`GIT_WORK_TREE`', '`NPM_CONFIG_USERCONFIG`',
-  '`NODE_ENV=production`', 'production mutation and merge execution are forced off',
-  '30-second execution limit', 'forced `SIGKILL` termination', 'shell execution disabled',
-  'npm run verify:preview-activation-preflight', 'npm ci', 'npm run check', 'Restart only the preview Node.js application'
+  'Dependency lock verification', 'package-lock.json', 'lockfileVersion` must be `3`',
+  'sanitized allowlisted child environment', '`NODE_OPTIONS`', '`NODE_PATH`', '`BASH_ENV`',
+  '`GIT_DIR`', '`GIT_WORK_TREE`', '`NPM_CONFIG_USERCONFIG`', '`NODE_ENV=production`',
+  'production mutation and merge execution are forced off', '30-second execution limit',
+  'forced `SIGKILL` termination', 'shell execution disabled', 'npm run verify:preview-activation-preflight',
+  'npm ci --ignore-scripts --no-audit --no-fund', 'npm run check', 'Restart only the preview Node.js application'
 ], 'Preview activation runbook');
 
 const exactScripts = {
@@ -130,6 +177,10 @@ console.log(JSON.stringify({
   productionMutationDisabledInChildren: true,
   mergeExecutionDisabledInChildren: true,
   workspaceTopologyVerificationRequired: true,
+  dependencyLockVerificationRequired: true,
+  dependencyLockGovernanceRequired: true,
+  packageLockRequired: true,
+  dependencyInstallationExecuted: false,
   workspaceSourceIntegrityRequired: true,
   restoreTestGovernanceRequired: true,
   restoreTestIntegrationRequired: true,
