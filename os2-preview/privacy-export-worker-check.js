@@ -38,7 +38,6 @@ function control(name, condition) {
   }
 }
 function workerMarker(name, marker) { control(name, worker.includes(marker)); }
-function routeMarker(name, marker) { control(name, routes.includes(marker)); }
 function supporting(name, condition) {
   try { assert.ok(condition, name); } catch (error) { failures.push(`${name}: ${error.message}`); }
 }
@@ -93,7 +92,8 @@ control('47 spreadsheet formula injection is neutralized', csvCell('=2+2').start
 control('48 CSV uses canonical LF and final newline', csv([{ b:'x', a:'y' }]) === 'a,b\ny,x\n');
 control('49 canonical JSON is sorted and newline terminated', canonicalJson({ z:1, a:2 }) === '{\n  "a": 2,\n  "z": 1\n}\n');
 workerMarker('50 binary values are prohibited from text exports', 'BINARY_VALUE_PROHIBITED');
-control('51 path segments are deterministic and traversal safe', /^[A-Za-z0-9_-]+-[0-9a-f]{12}$/.test(safeSegment('../../customer')));
+const safePathSegment = safeSegment('../../customer');
+control('51 path segments are deterministic and traversal safe', /^[A-Za-z0-9._-]+-[0-9a-f]{12}$/.test(safePathSegment) && !safePathSegment.includes('/') && !safePathSegment.includes('\\') && safePathSegment !== '..' && !safePathSegment.startsWith('.'));
 workerMarker('52 temporary output directory is randomized', 'crypto.randomBytes(8).toString(\'hex\')}.tmp');
 workerMarker('53 existing final export targets are never overwritten', 'EXPORT_TARGET_ALREADY_EXISTS');
 workerMarker('54 export files use exclusive no-follow creation', 'O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY | fs.constants.O_NOFOLLOW');
@@ -117,7 +117,7 @@ supporting('export access events are recorded', routes.includes('os2_export_acce
 supporting('worker start command is exact', pkg.scripts['start:privacy-export-worker'] === 'node privacy-export-worker.js');
 supporting('worker governance command is exact', pkg.scripts['check:privacy-export-worker'] === 'node privacy-export-worker-check.js');
 supporting('worker syntax and governance run in normal validation', pkg.scripts.check.includes('node --check privacy-export-worker.js') && pkg.scripts.check.includes('node privacy-export-worker-check.js'));
-supporting('runbook declares 60 governed controls', runbook.includes('## Sixty governed controls') && runbook.includes('60.'));
+supporting('runbook declares 60 governed controls', runbook.includes('## Sixty governed controls') && runbook.includes('60. Failure details are reduced to bounded error codes'));
 supporting('runbook keeps production untouched', runbook.includes('Production at `talk2me.uent.co.za` remains untouched'));
 
 if (controls.length !== 60) failures.push(`Expected exactly 60 named privacy-export controls; found ${controls.length}`);
