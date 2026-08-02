@@ -70,9 +70,10 @@ requireMarkers(releaseGate, [
   'releaseSourceIntegrityVerified: Boolean(sourceIntegrityEvidence'
 ], 'Release candidate gate');
 
+const manifestVerifierCall = 'verifyFrozenSource(root, manifest.approvedSourceInventorySha256)';
 requireMarkers(manifestVerifier, [
   'manifest.approvedSourceInventorySha256',
-  'verifyReleaseSourceIntegrity(manifest.approvedSourceInventorySha256)',
+  manifestVerifierCall,
   'releaseSourceIntegrityMatchesApprovedDigest: true'
 ], 'Release manifest verifier');
 
@@ -112,7 +113,7 @@ if (gateVerifyPosition === -1 || gatePublishPosition === -1 || gateVerifyPositio
   throw new Error('Release source integrity must be verified before release evidence publication');
 }
 
-const manifestVerifyPosition = manifestVerifier.indexOf('verifyReleaseSourceIntegrity(manifest.approvedSourceInventorySha256)');
+const manifestVerifyPosition = manifestVerifier.indexOf(manifestVerifierCall);
 const packageVerifyPosition = manifestVerifier.indexOf("readSecureRegularFile(path.join(root, 'package.json')");
 if (manifestVerifyPosition === -1 || packageVerifyPosition === -1 || manifestVerifyPosition >= packageVerifyPosition) {
   throw new Error('Post-freeze source integrity must be verified before individual package checks');
