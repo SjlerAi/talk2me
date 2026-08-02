@@ -37,9 +37,9 @@ const runnerMarkers = [
 requireMarkers(runner, runnerMarkers, 'Bootstrap runner');
 
 const orderedMarkers = [
-  'validateEvidenceTarget(evidencePath)', 'secureReadBootstrap()', 'validateBootstrapSql(sql)', 'mysql.createConnection',
+  '  validateEvidenceTarget(evidencePath);', '  const sql = secureReadBootstrap();', '  validateBootstrapSql(sql);', '  const connection = await mysql.createConnection',
   'DATABASE() AS database_name', 'SELECT GET_LOCK(?, ?) AS acquired', 'BOOTSTRAP_REFUSES_EXISTING_LEDGER_TABLE',
-  'await connection.query(sql)', 'verifyLedgerSchema(connection)', 'SELECT RELEASE_LOCK(?) AS released',
+  'await connection.query(sql)', 'await verifyLedgerSchema(connection)', 'SELECT RELEASE_LOCK(?) AS released',
   'SELECT IS_FREE_LOCK(?) AS is_free', 'await connection.end()', 'publishEvidencePair(evidencePath, evidence)'
 ];
 let previous = -1;
