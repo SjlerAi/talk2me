@@ -70,3 +70,11 @@ Reject or roll back the candidate if:
 - malformed or truncated requests no longer fail closed;
 - dependency provenance or lock verification fails;
 - any production operation is required before preview evidence is complete.
+
+## Validation evidence
+
+- Exact-version governance is enforced by `multer-upgrade-governance-check.js`.
+- Parent security enforcement is provided by `security-check.js`.
+- Complete committed-source validation passed in workflow run 236.
+- Validated branch commit: `baad923ad2d98e58482d36a68e9e04a2f6b972b1`.
+- Active Multer dependency and package-lock contents remained unchanged.
