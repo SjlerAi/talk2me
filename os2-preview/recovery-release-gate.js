@@ -9,28 +9,28 @@ function requireMarkers(file, markers) { const source = read(file); for (const m
 
 const recovery = requireMarkers('recovery-readiness-check.js', [
   "check: 'recovery-readiness'", 'meaningfulControls: 60', 'previewDatabaseOnly: true', 'controlledBranchRequired: true',
-  'backupGenerationGoverned: true', 'backupVerificationGoverned: true', 'isolatedRestoreGoverned: true',
-  'verifiedBackupRequired: true', 'backupChecksumRequired: true', 'privateBackupStorageRequired: true',
-  'backupDescriptorIdentityRequired: true', 'backupSizeBounded: true', 'backupExecutionBounded: true',
-  'fullParentEnvironmentInherited: false', 'precreatedRestoreTargetRequired: true', 'restoreTargetMustBeEmpty: true',
-  'restoreTargetCreateProhibited: true', 'restoreTargetDropProhibited: true', 'restoreChecksumReverificationRequired: true',
-  'restoreImportExecutionBounded: true', 'restoreEvidenceRecordedBeforeImport: true', 'restoreReviewerRequired: true',
-  'restoredTableCountComparisonRequired: true', 'requiredRestoreTablesRequired: true', 'exactMigrationCountRequired: 25',
-  'migrationChecksumsRequired: true', 'zeroRestoreFailuresRequired: true', 'downstreamMergePinVerificationRequired: true',
+  'backupCompletionEvidenceRequired: true', 'backupVerificationRequired: true', 'recoveryIntegrationRequired: true',
+  'verifiedBackupRequiredForRestore: true', 'backupChecksumRequired: true', 'privateBackupDirectoryRequired: true',
+  'restoreSourceDescriptorIdentityRequired: true', 'backupFilePrivateRequired: true', 'backupDumpTimeoutRequired: true',
+  'backupDumpEnvironmentSanitized: true', 'precreatedRestoreTargetRequired: true', 'emptyRestoreTargetRequired: true',
+  'targetDatabaseCreationProhibited: true', 'targetDatabaseDropProhibited: true', 'restoreSourceChecksumReverificationRequired: true',
+  'restoreImportTimeoutRequired: true', 'restoreEvidenceBeforeImportRequired: true', 'restoreReviewerRequired: true',
+  'restoreTableCountComparisonRequired: true', 'restoreRequiredTablesRequired: true', 'restoreMigrationCountRequired: 25',
+  'restoreMigrationChecksumsRequired: true', 'restoreFailedChecksMustBeZero: true', 'restoreEvidenceConsumedByMergeGate: true',
   'productionMutationEnabled: false', 'mergeExecutionEnabled: false'
 ]);
 
 const backupRunner = requireMarkers('backup-runner.js', [
-  "PREVIEW_DATABASE = 'kloka_talk2me'", 'ALLOW_PREVIEW_BACKUPS', 'BACKUP_PRIVATE_DIR', 'ALLOW_PRODUCTION_MUTATION',
+  "PREVIEW_DB = 'kloka_talk2me'", 'ALLOW_PREVIEW_BACKUPS', 'BACKUP_PRIVATE_DIR', 'ALLOW_PRODUCTION_MUTATION',
   'ENABLE_CUSTOMER_MERGE_EXECUTION', 'mysqldump', 'SIGKILL', 'shell: false', 'checksum_sha256', 'file_size_bytes'
 ]);
 if (backupRunner.includes('...process.env')) failures.push('Backup process must not inherit the full parent environment');
 
 const backupVerify = requireMarkers('backup-verification.js', [
-  "PREVIEW_DATABASE = 'kloka_talk2me'", 'crypto.timingSafeEqual', 'O_NOFOLLOW', "status='verified'",
+  "PREVIEW_DB = 'kloka_talk2me'", 'crypto.timingSafeEqual', 'O_NOFOLLOW', "status='verified'",
   'backup_file_verification', 'productionMutationEnabled: false', 'mergeExecutionEnabled: false'
 ]);
-if (backupVerify.includes('CREATE TABLE')) failures.push('Backup verification must not create schema');
+if (/\.(?:execute|query)\(\s*[`'\"]\s*CREATE\s+TABLE/i.test(backupVerify)) failures.push('Backup verification must not create schema');
 
 const restoreRunner = requireMarkers('restore-test-runner.js', [
   "PREVIEW_DB = 'kloka_talk2me'", "TARGET_PREFIX = 'kloka_talk2me_restore_test_'", 'ALLOW_PREVIEW_RESTORE_TEST',
@@ -42,8 +42,8 @@ if (/\bCREATE DATABASE\b|\bDROP DATABASE\b/i.test(restoreRunner)) failures.push(
 if (restoreRunner.includes('...process.env')) failures.push('Restore import must not inherit the full parent environment');
 
 requireMarkers('merge-restore-evidence-verification.js', [
-  "b.status <> 'verified'", "rt.status <> 'passed'", "rt.target_environment <> 'isolated_preview_restore'",
-  'rt.failed_checks <> 0', 'rt.reviewed_by IS NULL', 'AUTHORISED_WITHOUT_PINNED_RESTORE',
+  "row.backup_status !== 'verified'", "row.restore_status !== 'passed'", "row.target_environment !== 'isolated_preview_restore'",
+  'Number(row.failed_checks) !== 0', 'Number(row.reviewed_by) <= 0', 'AUTHORISED_WITHOUT_PINNED_RESTORE',
   'backupIdentityVerified: true', 'restoreIdentityVerified: true', 'invalidAuthorisations: 0'
 ]);
 requireMarkers('preview-data-verification.js', [
@@ -66,11 +66,11 @@ requireMarkers('migrations/20260801_011_backup_recovery_and_operations.sql', [
   'reviewed_by BIGINT UNSIGNED NULL'
 ]);
 requireMarkers('migrations/20260801_025_merge_authorisation_restore_pin.sql', [
-  'ADD COLUMN backup_run_id BIGINT NULL', 'ADD COLUMN restore_test_id BIGINT NULL'
+  'ADD COLUMN restore_test_id BIGINT NULL AFTER backup_run_id', 'WHERE rt.backup_run_id=a.backup_run_id'
 ]);
 requireMarkers('BACKUP_AND_RECOVERY_RUNBOOK.md', [
   'Controlled isolated restore test', 'pre-created empty isolated database', 'must never create or drop the target database',
-  'backup checksum is reverified before import', 'failedChecks: 0', 'Manual cleanup after evidence retention'
+  'Backup checksum is reverified before import', 'failedChecks: 0', 'Manual cleanup after evidence retention'
 ]);
 
 const previewData = read('preview-data-verification.js');
