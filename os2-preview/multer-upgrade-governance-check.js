@@ -89,6 +89,7 @@ requireOrder(routeSegment(imports, "router.post('/api/imports/preview'", 'monthl
   'async (req,res)'
 ], 'monthly import authorization');
 
+const staffRoute = routeSegment(administration, "router.post('/api/administration/staff/:id/document'", 'staff document route');
 requireMarkers(administration, [
   "const multer = require('multer')",
   'fs.mkdirSync(uploadDir, { recursive: true, mode: 0o700 })',
@@ -100,11 +101,14 @@ requireMarkers(administration, [
   'parts: 5',
   "'image/jpeg','image/png','image/webp','application/pdf'",
   "upload.single('file')",
-  'function removeUploadedFile(file)',
-  'removeUploadedFile(req.file);return res.status(400)',
-  'removeUploadedFile(req.file);res.status(500)'
+  'function removeUploadedFile(file)'
 ], 'staff document upload');
-requireOrder(routeSegment(administration, "router.post('/api/administration/staff/:id/document'", 'staff document route'), [
+requireMarkers(staffRoute, [
+  'removeUploadedFile(req.file);',
+  "return res.status(400).json({ok:false,error:'INVALID_DOCUMENT_UPLOAD'})",
+  "catch(error){removeUploadedFile(req.file);res.status(500).json({ok:false,error:error.code||'DOCUMENT_UPLOAD_FAILED'})"
+], 'staff document cleanup');
+requireOrder(staffRoute, [
   'requireAuth, requireManager',
   "upload.single('file')",
   'async (req,res)'
