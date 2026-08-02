@@ -17,6 +17,7 @@ const expectedWorkflow = 'OS2 Dependency Lock Generation';
 const expectedNodeMajor = 20;
 const maxLockBytes = 16 * 1024 * 1024;
 const maxEvidenceBytes = 4 * 1024 * 1024;
+const maxProvenanceBytes = 64 * 1024;
 const verifierTimeoutMs = 30000;
 const artifactVerifierPath = path.join(root, 'dependency-lock-artifact-verification.js');
 const lockTarget = path.join(root, 'package-lock.json');
