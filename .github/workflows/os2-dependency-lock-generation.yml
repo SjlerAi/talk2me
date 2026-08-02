@@ -32,6 +32,7 @@ jobs:
       ENABLE_CUSTOMER_MERGE_EXECUTION: 'false'
       LOCK_TEMP_ROOT: ${{ runner.temp }}/talk2me-lock-temp
       LOCK_EVIDENCE_ROOT: ${{ runner.temp }}/talk2me-lock-evidence
+      LOCK_ARTIFACT_ROOT: ${{ runner.temp }}/os2-dependency-lock-artifact
 
     steps:
       - name: Checkout controlled branch
@@ -141,6 +142,7 @@ jobs:
           node dependency-lock-governance-check.js > "$LOCK_EVIDENCE_ROOT/dependency-lock-governance.json"
           node dependency-lock-generator-check.js > "$LOCK_EVIDENCE_ROOT/dependency-lock-generator-governance.json"
           node dependency-lock-workflow-check.js > "$LOCK_EVIDENCE_ROOT/dependency-lock-workflow-governance.json"
+          node dependency-lock-artifact-check.js > "$LOCK_EVIDENCE_ROOT/dependency-lock-artifact-governance.json"
 
       - name: Capture pre-install protected source identity
         id: source
@@ -185,11 +187,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          artifact="$RUNNER_TEMP/os2-dependency-lock-artifact"
+          artifact="$LOCK_ARTIFACT_ROOT"
           mkdir -p "$artifact"
-          cp package-lock.json "$artifact/package-lock.json"
-          cp "$LOCK_EVIDENCE_ROOT"/*.json "$artifact/"
-          cp "$LOCK_EVIDENCE_ROOT"/*.sha256 "$artifact/"
+          chmod 700 "$artifact"
+          install -m 600 package-lock.json "$artifact/package-lock.json"
+          install -m 600 "$LOCK_EVIDENCE_ROOT"/*.json "$artifact/"
+          install -m 600 "$LOCK_EVIDENCE_ROOT"/*.sha256 "$artifact/"
           lock_sha="$(sha256sum package-lock.json | awk '{print $1}')"
           cat > "$artifact/manifest.txt" <<MANIFEST
           repository=$GITHUB_REPOSITORY
@@ -203,13 +206,32 @@ jobs:
           production_mutation_enabled=false
           merge_execution_enabled=false
           MANIFEST
+          chmod 600 "$artifact/manifest.txt"
           (cd "$artifact" && sha256sum package-lock.json *.json manifest.txt > SHA256SUMS)
+          chmod 600 "$artifact/SHA256SUMS"
+          find "$artifact" -maxdepth 1 -type f -exec chmod 600 {} +
+          test "$(stat -c '%a' "$artifact")" = "700"
+          test "$(find "$artifact" -maxdepth 1 -type f ! -perm 600 -print -quit)" = ""
           (cd "$artifact" && sha256sum --check SHA256SUMS)
+
+      - name: Verify dependency lock review artifact
+        shell: bash
+        env:
+          DEPENDENCY_LOCK_ARTIFACT_ROOT: ${{ env.LOCK_ARTIFACT_ROOT }}
+          EXPECTED_REPOSITORY: ${{ github.repository }}
+          EXPECTED_REF: ${{ github.ref }}
+          EXPECTED_COMMIT_SHA: ${{ github.sha }}
+          EXPECTED_WORKFLOW: ${{ github.workflow }}
+          EXPECTED_RUN_ID: ${{ github.run_id }}
+          EXPECTED_RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          node dependency-lock-artifact-verification.js
 
       - name: Upload dependency lock review artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: os2-dependency-lock-${{ github.run_number }}-attempt-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/os2-dependency-lock-artifact
+          path: ${{ env.LOCK_ARTIFACT_ROOT }}
           if-no-files-found: error
           retention-days: 7
