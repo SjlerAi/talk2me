@@ -52,10 +52,10 @@ requireMarkers(governance, [
   'completeParentEnvironmentInheritanceProhibited: true'
 ], 'Release governance');
 requireMarkers(activationRunbook, [
-  'open protected files with `O_NOFOLLOW`',
-  'compare the validated path device/inode identity with the opened descriptor',
-  'read through the validated descriptor rather than reopening by path',
-  'enforce bounded file sizes before reading'
+  'uses `O_DIRECTORY | O_NOFOLLOW`',
+  'compares path and descriptor identity',
+  'secure descriptor-based reads with `O_NOFOLLOW`',
+  'bounded reads, and exact byte counts'
 ], 'Activation runbook');
 
 if (pkg.scripts['check:release-evidence-security'] !== 'node release-evidence-security-check.js') throw new Error('Missing check:release-evidence-security command');
@@ -73,6 +73,7 @@ console.log(JSON.stringify({
   checksumPairCoverageRequired: true,
   bootstrapEvidenceCoverageRequired: true,
   governanceSecureReadAssertionsRequired: true,
+  runbookEquivalentControlsRequired: true,
   protectedTargets: protectedTargets.length,
   independentlyExecutable: true,
   packageCommandRegistered: true,
