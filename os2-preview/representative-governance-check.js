@@ -22,9 +22,9 @@ requireText(routes,'REPRESENTATIVE_AND_REASON_REQUIRED','mandatory revocation re
 requireText(access,'createRepresentativeGovernanceRouter','governance router mount');
 requireText(migration,'os2_representative_history','history schema');
 requireText(schema,"'os2_representative_history'",'history table schema verification');
-requireText(schema,'invalidRepresentativePermissions','permission JSON integrity verification');
-requireText(schema,'activeExpiredRepresentatives','expired representative integrity verification');
-requireText(schema,'migrations.length < 23','migration 023 expectation');
+requireText(schema,"'INVALID_REPRESENTATIVE_PERMISSIONS'",'permission JSON integrity verification');
+requireText(schema,"'EXPIRED_ACTIVE_REPRESENTATIVES'",'expired representative integrity verification');
+requireText(schema,'EXPECTED_MIGRATION_COUNT = 25','exact migration inventory expectation');
 requireText(packageJson,'check:representative-governance','package script registration');
 
-console.log(JSON.stringify({ok:true,check:'representative-governance',schemaMigration:23},null,2));
+console.log(JSON.stringify({ok:true,check:'representative-governance',schemaMigration:23,exactMigrationInventory:25},null,2));
