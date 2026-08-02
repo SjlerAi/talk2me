@@ -1,0 +1,3 @@
+Dependency-lock adoption source governance is implemented but has not been executed.
+The generation workflow, artifact verification, materializer, provenance verification, adoption workflow, dependency installation, dependency audit, preview deployment, migrations, restart, and UAT remain outstanding.
+Production mutation and customer-merge execution remain disabled.
