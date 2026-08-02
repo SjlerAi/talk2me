@@ -96,6 +96,14 @@ The normal security-validation chain creates isolated temporary local files and 
 
 The fixture uses no external network, database, source-tree mutation, dependency adoption, preview activation or production mutation.
 
+## Completed candidate-evidence input regressions
+
+Source: `multer-candidate-evidence-input-regression-check.js`
+
+The normal security-validation chain verifies one valid canonical input set plus 12 invalid path or file-shape variants. It rejects relative and non-normalized paths, symlinks, hard links, empty files, oversized JSON and lock files, CRLF JSON, missing final newlines, invalid UTF-8, arrays and null JSON values.
+
+The fixture uses isolated temporary files only. It performs no external networking, database access, dependency adoption, preview activation, production mutation or source-tree mutation.
+
 ## Required pre-upgrade controls
 
 Before changing the Multer dependency:
@@ -116,9 +124,10 @@ Before changing the Multer dependency:
 14. Bind source manifest, candidate manifest, candidate lock and protected source inventory with SHA-256 digests.
 15. Require constant-time digest comparison, approval freshness within 24 hours and completed rollback evidence when rollback is required.
 16. Prohibit credentials, environment dumps, private paths, sessions, cookies, authorization headers and database values from candidate evidence.
-17. Require the 14-case candidate-evidence regression suite to pass before any approved generation cycle.
+17. Require the 14-case candidate-evidence semantic regression suite to pass before any approved generation cycle.
+18. Require the 13-case candidate-evidence path and canonical-input regression suite to pass before any approved generation cycle.
 
-Items 1 through 7 are enforced in committed source-level validation. Item 8 is governed by `MULTER_2_VERSION_REVIEW.md` and `multer-upgrade-governance-check.js`. Items 9 and 10 are governed by `MULTER_2_GENERATION_APPROVAL.md` and `multer-generation-approval-check.js`. Items 11 and 12 are governed by `MULTER_2_CANDIDATE_MANIFEST_PLAN.md` and `multer-candidate-manifest-plan-check.js`. Items 13 through 17 are governed by `MULTER_2_CANDIDATE_EVIDENCE_SCHEMA.md`, `multer-candidate-evidence-schema-check.js`, `multer-candidate-evidence-verification-check.js` and `multer-candidate-evidence-negative-regression-check.js`. Deployed-route regression and preview UAT remain required after controlled dependency adoption.
+Items 1 through 7 are enforced in committed source-level validation. Item 8 is governed by `MULTER_2_VERSION_REVIEW.md` and `multer-upgrade-governance-check.js`. Items 9 and 10 are governed by `MULTER_2_GENERATION_APPROVAL.md` and `multer-generation-approval-check.js`. Items 11 and 12 are governed by `MULTER_2_CANDIDATE_MANIFEST_PLAN.md` and `multer-candidate-manifest-plan-check.js`. Items 13 through 18 are governed by `MULTER_2_CANDIDATE_EVIDENCE_SCHEMA.md`, `multer-candidate-evidence-schema-check.js`, `multer-candidate-evidence-verification-check.js`, `multer-candidate-evidence-negative-regression-check.js` and `multer-candidate-evidence-input-regression-check.js`. Deployed-route regression and preview UAT remain required after controlled dependency adoption.
 
 ## Upgrade procedure
 
@@ -128,7 +137,7 @@ Items 1 through 7 are enforced in committed source-level validation. Item 8 is g
 4. Record the approved 40-character source commit, canonical UTC timestamp and approving owner identity.
 5. Create the candidate manifest only in a private temporary workspace according to `MULTER_2_CANDIDATE_MANIFEST_PLAN.md`.
 6. Emit candidate evidence only in the exact schema defined by `MULTER_2_CANDIDATE_EVIDENCE_SCHEMA.md`.
-7. Run the candidate-evidence verifier and all 14 negative regressions.
+7. Run the candidate-evidence verifier, all 14 semantic negative regressions and all 13 path/canonical-input regressions.
 8. Regenerate the dependency lock through the controlled generation workflow.
 9. Review artifact checksum, provenance and source-inventory continuity.
 10. Adopt `package.json` and `package-lock.json` only through the controlled two-file adoption process.
@@ -169,7 +178,8 @@ The upgrade is accepted only when:
 - generation occurs no more than 24 hours after approval;
 - rollback completion is proven when rollback is required;
 - candidate evidence contains no prohibited secret or private operational data;
-- all 14 candidate-evidence regression cases pass;
+- all 14 candidate-evidence semantic regression cases pass;
+- all 13 candidate-evidence path and canonical-input regression cases pass;
 - dependency adoption remains separately approved and provenance-bound;
 - all current size and file-count limits remain enforced;
 - authorization still executes before multipart parsing;
