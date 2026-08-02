@@ -21,6 +21,7 @@ Source: `document-routes.js`
 - Memory storage is used.
 - Maximum file size is 10 MiB.
 - Maximum file count is one.
+- Maximum field count is four and maximum multipart part count is five.
 - Accepted MIME types are PDF, JPEG, PNG and WebP.
 - Persistent files are written beneath `OS2_PRIVATE_DOCUMENT_ROOT` or the private default root.
 - Resolved paths must remain beneath the private root.
@@ -36,6 +37,8 @@ Source: `import-routes.js`
 - Authentication and owner authorization execute before multipart parsing.
 - Memory storage is used.
 - Maximum file size is 12 MiB.
+- Maximum file count is one.
+- Maximum field count is eight and maximum multipart part count is nine.
 - Accepted filename extensions are CSV, XLSX and XLS.
 - Empty workbooks are rejected.
 - Import files are limited to 10,000 rows.
@@ -48,9 +51,12 @@ Source: `administration-routes.js`
 - Route: `POST /api/administration/staff/:id/document`
 - Authentication and manager authorization execute before multipart parsing.
 - Disk storage uses generated random filenames rather than client filenames.
+- The upload directory uses mode `0700`.
 - Maximum file size is 8 MiB.
+- Maximum file count is one.
+- Maximum field count is four and maximum multipart part count is five.
 - Accepted MIME types are PDF, JPEG, PNG and WebP.
-- Failed database persistence removes the uploaded file.
+- Failed validation or database persistence must remove the uploaded file.
 
 ## Required pre-upgrade corrections
 
@@ -100,6 +106,7 @@ Each upload surface must test:
 The upgrade is accepted only when:
 
 - all current size and file-count limits remain enforced;
+- all current field-count and part-count limits remain enforced;
 - authorization still executes before multipart parsing;
 - no rejected upload remains on disk;
 - customer documents remain outside the public web root;
