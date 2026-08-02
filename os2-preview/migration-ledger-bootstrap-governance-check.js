@@ -45,7 +45,11 @@ if (!runner.includes('MIGRATION_LEDGER_BOOTSTRAP_REQUIRED')) throw new Error('Mi
 if (runner.includes('CREATE TABLE IF NOT EXISTS os2_schema_migrations')) throw new Error('Migration runner must not create the ledger at runtime');
 if (!topology.includes("MIGRATION_LEDGER_BOOTSTRAP.sql")) throw new Error('Workspace topology must protect the ledger bootstrap file');
 if (!topology.includes('migrationLedgerBootstrapPresent')) throw new Error('Workspace topology must report ledger bootstrap presence');
-for (const marker of ['MIGRATION_LEDGER_BOOTSTRAP.sql', 'Do not use application startup or the migration runner to create this table', 'MIGRATION_LEDGER_BOOTSTRAP_REQUIRED']) {
+for (const marker of [
+  'migration-ledger-bootstrap-runner.js',
+  'never through application startup',
+  'migration runner is prohibited from creating tables at runtime'
+]) {
   if (!runbook.includes(marker)) throw new Error(`Deployment runbook missing bootstrap marker: ${marker}`);
 }
 
