@@ -21,6 +21,14 @@ const verifierTimeoutMs = 60 * 1000;
 const packagePath = path.join(root, 'package.json');
 const lockPath = path.join(root, 'package-lock.json');
 const verifierPath = path.join(root, 'dependency-lock-verification.js');
+const expectedDirectDependencies = Object.freeze({
+  bcryptjs: '^2.4.3',
+  express: '^4.19.2',
+  multer: '^1.4.5-lts.1',
+  mysql2: '^3.11.0',
+  nodemailer: '^6.9.16',
+  xlsx: '^0.18.5'
+});
 
 function fail(message) { throw new Error(message); }
 function required(name, maxLength = 4096) {
@@ -29,6 +37,12 @@ function required(name, maxLength = 4096) {
   return value;
 }
 function plainObject(value) { return value && typeof value === 'object' && !Array.isArray(value); }
+function exactObject(left, right) {
+  if (!plainObject(left) || !plainObject(right)) return false;
+  const leftKeys = Object.keys(left).sort();
+  const rightKeys = Object.keys(right).sort();
+  return leftKeys.length === rightKeys.length && leftKeys.every((key, index) => key === rightKeys[index] && left[key] === right[key]);
+}
 function sha256(bytes) { return crypto.createHash('sha256').update(bytes).digest('hex'); }
 function secureRead(file, maxBytes, expectedOwner, label) {
   if (!path.isAbsolute(file) || path.normalize(file) !== file) fail(`${label}_PATH_INVALID`);
@@ -87,23 +101,30 @@ function parseJson(text, label) {
   if (!plainObject(value)) fail(`${label}_ROOT_OBJECT_REQUIRED`);
   return value;
 }
-function atomicWrite(file, bytes, mode, expectedParentOwner) {
+function publishExclusive(file, bytes, mode, expectedParentOwner) {
   const parent = path.dirname(file);
-  secureDirectory(parent, 'ATOMIC_WRITE_PARENT', expectedParentOwner, parent !== root);
+  secureDirectory(parent, 'EXCLUSIVE_WRITE_PARENT', expectedParentOwner, parent !== root);
   if (fs.existsSync(file)) fail(`REFUSING_TO_OVERWRITE:${file}`);
   const temporary = path.join(parent, `.${path.basename(file)}.${process.pid}.${crypto.randomBytes(12).toString('hex')}.tmp`);
   const flags = fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY | fs.constants.O_NOFOLLOW;
   const fd = fs.openSync(temporary, flags, mode);
+  let linked = false;
   try {
     let offset = 0;
     while (offset < bytes.length) offset += fs.writeSync(fd, bytes, offset, bytes.length - offset);
     fs.fsyncSync(fd);
     fs.fchmodSync(fd, mode);
   } finally { fs.closeSync(fd); }
-  fs.renameSync(temporary, file);
+  try {
+    fs.linkSync(temporary, file);
+    linked = true;
+  } finally {
+    try { fs.unlinkSync(temporary); } catch { if (!linked) throw new Error(`TEMPORARY_PUBLICATION_CLEANUP_FAILED:${temporary}`); }
+  }
   const result = fs.lstatSync(file);
-  if (!result.isFile() || result.isSymbolicLink() || result.nlink !== 1 || result.size !== bytes.length) fail(`ATOMIC_WRITE_NOT_CONFIRMED:${file}`);
-  if (process.platform !== 'win32' && (result.mode & 0o777) !== mode) fail(`ATOMIC_WRITE_MODE_INVALID:${file}`);
+  if (!result.isFile() || result.isSymbolicLink() || result.nlink !== 1 || result.size !== bytes.length) fail(`EXCLUSIVE_WRITE_NOT_CONFIRMED:${file}`);
+  if (process.platform !== 'win32' && (result.mode & 0o777) !== mode) fail(`EXCLUSIVE_WRITE_MODE_INVALID:${file}`);
+  return { dev: result.dev, ino: result.ino, size: result.size, uid: result.uid, mode: result.mode };
 }
 function safeRemoveGeneratedLock(expectedDigest) {
   if (!fs.existsSync(lockPath)) return;
@@ -113,7 +134,7 @@ function safeRemoveGeneratedLock(expectedDigest) {
   } catch { /* preserve unexpected files for manual review */ }
 }
 function sanitizedEnvironment(tempDirectory, npmBin, nodeBin) {
-  const env = {
+  return Object.freeze({
     PATH: [path.dirname(nodeBin), path.dirname(npmBin), '/usr/bin', '/bin'].join(path.delimiter),
     HOME: tempDirectory,
     TMPDIR: tempDirectory,
@@ -132,8 +153,7 @@ function sanitizedEnvironment(tempDirectory, npmBin, nodeBin) {
     npm_config_update_notifier: 'false',
     npm_config_cache: path.join(tempDirectory, 'npm-cache'),
     npm_config_userconfig: '/dev/null'
-  };
-  return Object.freeze(env);
+  });
 }
 function runBounded(command, args, options, timeoutMs, label) {
   const result = spawnSync(command, args, { ...options, encoding: 'utf8', maxBuffer: 4 * 1024 * 1024, timeout: timeoutMs, killSignal: 'SIGKILL', shell: false, windowsHide: true });
@@ -160,16 +180,12 @@ async function main() {
   const packageEvidence = secureRead(packagePath, maxPackageBytes, rootIdentity.uid, 'PACKAGE_JSON');
   const pkg = parseJson(packageEvidence.text, 'PACKAGE_JSON');
   if (pkg.name !== expectedApplication || pkg.version !== expectedVersion || pkg.private !== true || pkg.main !== 'server.js') fail('PACKAGE_IDENTITY_INVALID');
-  if (!plainObject(pkg.dependencies) || Object.keys(pkg.dependencies).length !== 6) fail('PACKAGE_DEPENDENCIES_INVALID');
+  if (!exactObject(pkg.dependencies, expectedDirectDependencies)) fail('PACKAGE_DEPENDENCIES_INVALID');
   for (const name of ['preinstall','install','postinstall','prepare','prepublish','prepublishOnly','prepack','postpack']) if (pkg.scripts && Object.prototype.hasOwnProperty.call(pkg.scripts, name)) fail(`PACKAGE_LIFECYCLE_SCRIPT_PROHIBITED:${name}`);
 
   const npmBin = validateExecutable(required('NPM_BIN'), 'NPM_BIN');
   const nodeBin = validateExecutable(required('NODE_BIN'), 'NODE_BIN');
   if (fs.realpathSync.native(nodeBin) !== fs.realpathSync.native(process.execPath)) fail('NODE_BIN_PROCESS_MISMATCH');
-  const npmVersionResult = runBounded(npmBin, ['--version'], { cwd: root, env: sanitizedEnvironment(root, npmBin, nodeBin) }, 15000, 'NPM_VERSION');
-  const npmVersion = String(npmVersionResult.stdout || '').trim();
-  if (!/^\d+\.\d+\.\d+$/.test(npmVersion) || Number.parseInt(npmVersion, 10) !== expectedNpmMajor) fail(`NPM_MAJOR_MUST_BE_${expectedNpmMajor}`);
-
   const tempRoot = required('DEPENDENCY_LOCK_TEMP_ROOT');
   if (tempRoot === root || tempRoot.startsWith(`${root}${path.sep}`) || /public_html/i.test(tempRoot)) fail('TEMP_ROOT_LOCATION_PROHIBITED');
   secureDirectory(tempRoot, 'TEMP_ROOT', rootIdentity.uid, true);
@@ -184,8 +200,12 @@ async function main() {
   let publishedDigest = null;
   try {
     secureDirectory(temporaryDirectory, 'TEMP_WORKSPACE', rootIdentity.uid, true);
-    atomicWrite(path.join(temporaryDirectory, 'package.json'), packageEvidence.bytes, 0o600, rootIdentity.uid);
     const env = sanitizedEnvironment(temporaryDirectory, npmBin, nodeBin);
+    const npmVersionResult = runBounded(npmBin, ['--version'], { cwd: temporaryDirectory, env }, 15000, 'NPM_VERSION');
+    const npmVersion = String(npmVersionResult.stdout || '').trim();
+    if (!/^\d+\.\d+\.\d+$/.test(npmVersion) || Number.parseInt(npmVersion, 10) !== expectedNpmMajor) fail(`NPM_MAJOR_MUST_BE_${expectedNpmMajor}`);
+    publishExclusive(path.join(temporaryDirectory, 'package.json'), packageEvidence.bytes, 0o600, rootIdentity.uid);
+
     const startedAt = new Date();
     const args = ['install','--package-lock-only','--ignore-scripts','--no-audit','--no-fund','--package-lock=true','--lockfile-version=3',`--registry=${expectedRegistry}`];
     runBounded(npmBin, args, { cwd: temporaryDirectory, env }, generationTimeoutMs, 'DEPENDENCY_LOCK_GENERATION');
@@ -196,19 +216,30 @@ async function main() {
     if (candidateJson.name !== expectedApplication || candidateJson.version !== expectedVersion || candidateJson.lockfileVersion !== 3 || candidateJson.requires !== true) fail('GENERATED_LOCK_IDENTITY_INVALID');
     if (!plainObject(candidateJson.packages) || !plainObject(candidateJson.packages[''])) fail('GENERATED_LOCK_PACKAGES_INVALID');
     if (candidateJson.packages[''].name !== expectedApplication || candidateJson.packages[''].version !== expectedVersion) fail('GENERATED_LOCK_ROOT_INVALID');
-    if (JSON.stringify(candidateJson.packages[''].dependencies) !== JSON.stringify(pkg.dependencies)) fail('GENERATED_LOCK_DEPENDENCIES_MISMATCH');
+    if (!exactObject(candidateJson.packages[''].dependencies, expectedDirectDependencies)) fail('GENERATED_LOCK_DEPENDENCIES_MISMATCH');
 
     const rootAfterGeneration = secureDirectory(root, 'APPLICATION_ROOT_POST_GENERATION', rootIdentity.uid, false);
     if (rootAfterGeneration.dev !== rootIdentity.dev || rootAfterGeneration.ino !== rootIdentity.ino) fail('APPLICATION_ROOT_IDENTITY_CHANGED');
     const packageAfterGeneration = secureRead(packagePath, maxPackageBytes, rootIdentity.uid, 'PACKAGE_JSON_POST_GENERATION');
     if (packageAfterGeneration.sha256 !== packageEvidence.sha256) fail('PACKAGE_JSON_CHANGED_DURING_GENERATION');
-    atomicWrite(lockPath, candidate.bytes, 0o644, rootIdentity.uid);
+    publishExclusive(lockPath, candidate.bytes, 0o644, rootIdentity.uid);
     publishedDigest = candidate.sha256;
 
     const verifierEnv = Object.freeze({
-      PATH: env.PATH, HOME: env.HOME, TMPDIR: env.TMPDIR, LANG: env.LANG, LC_ALL: env.LC_ALL, TZ: 'UTC', NODE_ENV: 'production',
-      PREVIEW_APP_ROOT: root, DB_NAME: expectedDatabase, RELEASE_BRANCH: expectedBranch,
-      ALLOW_PRODUCTION_MUTATION: 'false', ENABLE_CUSTOMER_MERGE_EXECUTION: 'false'
+      PATH: env.PATH,
+      HOME: env.HOME,
+      TMPDIR: env.TMPDIR,
+      TEMP: env.TEMP,
+      TMP: env.TMP,
+      LANG: env.LANG,
+      LC_ALL: env.LC_ALL,
+      TZ: 'UTC',
+      NODE_ENV: 'production',
+      PREVIEW_APP_ROOT: root,
+      DB_NAME: expectedDatabase,
+      RELEASE_BRANCH: expectedBranch,
+      ALLOW_PRODUCTION_MUTATION: 'false',
+      ENABLE_CUSTOMER_MERGE_EXECUTION: 'false'
     });
     const verifierResult = runBounded(nodeBin, [verifierPath], { cwd: root, env: verifierEnv }, verifierTimeoutMs, 'DEPENDENCY_LOCK_VERIFICATION');
     let verifierEvidence;
@@ -250,8 +281,8 @@ async function main() {
     };
     const evidenceBytes = Buffer.from(`${JSON.stringify(evidence, null, 2)}\n`, 'utf8');
     const evidenceDigest = sha256(evidenceBytes);
-    atomicWrite(evidencePath, evidenceBytes, 0o600, evidenceParent.uid);
-    atomicWrite(`${evidencePath}.sha256`, Buffer.from(`${evidenceDigest}  ${path.basename(evidencePath)}\n`, 'utf8'), 0o600, evidenceParent.uid);
+    publishExclusive(evidencePath, evidenceBytes, 0o600, evidenceParent.uid);
+    publishExclusive(`${evidencePath}.sha256`, Buffer.from(`${evidenceDigest}  ${path.basename(evidencePath)}\n`, 'utf8'), 0o600, evidenceParent.uid);
     console.log(JSON.stringify({ ...evidence, evidenceSha256: evidenceDigest }, null, 2));
   } catch (error) {
     if (publishedDigest) safeRemoveGeneratedLock(publishedDigest);
