@@ -130,9 +130,9 @@ requireMarkers(adoptionGovernance, [
 
 requireMarkers(lockWorkflow, [
   'name: OS2 Dependency Lock Generation', 'workflow_dispatch:', 'contents: read', 'cancel-in-progress: false',
-  'actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955',
-  'actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020',
-  'actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02',
+  'actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd',
+  'actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e',
+  'actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f',
   'test "$LOCK_CONFIRMATION" = "GENERATE_OS2_LOCK"', 'node dependency-lock-generator.js',
   'node dependency-lock-workflow-check.js', 'node dependency-lock-artifact-check.js',
   'npm ci --ignore-scripts --no-audit --no-fund', 'npm audit --omit=dev --audit-level=high',
@@ -158,7 +158,7 @@ requireMarkers(adoptionWorkflow, [
   'node dependency-lock-verification.js', 'npm ci --ignore-scripts --no-audit --no-fund',
   'npm run check', 'npm audit --omit=dev --audit-level=high', 'rm -rf node_modules',
   'test -z "$(git -C "$GITHUB_WORKSPACE" status --porcelain --untracked-files=all)"',
-  'actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02', 'retention-days: 30'
+  'actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f', 'retention-days: 30'
 ], 'dependency lock adoption workflow');
 if (adoptionWorkflow.includes('contents: write')) failures.push('Adoption workflow must not have repository write permission');
 if (adoptionWorkflow.includes('persist-credentials: true')) failures.push('Adoption workflow checkout credentials must not persist');
