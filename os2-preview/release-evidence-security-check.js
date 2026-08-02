@@ -26,7 +26,7 @@ const secureReadMarkers = [
   'descriptorStat.size > maxBytes',
   'fs.readFileSync(descriptor)',
   'fs.closeSync(descriptor)',
-  "expectedMode: 0o600",
+  'expectedMode: 0o600',
   'maxBytes: 4096',
   'evidenceReadsUseNoFollow: true',
   'evidenceDescriptorIdentityVerified: true',
@@ -36,22 +36,22 @@ requireMarkers(verifier, secureReadMarkers, 'Release verifier');
 
 const protectedTargets = [
   "verifyChecksumPair(manifestPath, 'Release manifest'",
-  "readSecureRegularFile(file, { label, expectedMode: 0o600, maxBytes })",
-  "readSecureRegularFile(`${file}.sha256`, { label: `${label} checksum`, expectedMode: 0o600, maxBytes: 4096 })",
+  'readSecureRegularFile(file, { label, expectedMode: 0o600, maxBytes })',
+  'readSecureRegularFile(`${file}.sha256`, { label: `${label} checksum`, expectedMode: 0o600, maxBytes: 4096 })',
   "readSecureRegularFile(path.join(root, 'package.json')",
   "readSecureRegularFile(path.join(root, 'package-lock.json')",
   "verifyChecksumPair(bootstrapEvidencePath, 'Migration ledger bootstrap evidence'",
-  "readSecureRegularFile(path.join(migrationsDirectory, file)"
+  'readSecureRegularFile(path.join(migrationsDirectory, file)'
 ];
 requireMarkers(verifier, protectedTargets, 'Protected read coverage');
 requireMarkers(governance, [
-  "'evidenceReadByteCountVerified: true'",
-  "'migrationDirectoryIdentityRequired: true'",
-  "'migrationChecksumFormatRequired: true'",
-  "'releaseVerifierChildEnvironmentSanitized: true'",
-  "'completeParentEnvironmentInheritanceProhibited: true'",
-  "'fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW)'",
-  "'expectedMode: 0o600'"
+  'evidenceReadByteCountVerified: true',
+  'migrationDirectoryIdentityRequired: true',
+  'migrationChecksumFormatRequired: true',
+  'releaseVerifierChildEnvironmentSanitized: true',
+  'completeParentEnvironmentInheritanceProhibited: true',
+  'fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW)',
+  'expectedMode: 0o600'
 ], 'Release governance');
 requireMarkers(activationRunbook, [
   'open protected files with `O_NOFOLLOW`',
