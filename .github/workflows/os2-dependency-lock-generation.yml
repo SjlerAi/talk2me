@@ -125,7 +125,7 @@ jobs:
           const digest = crypto.createHash('sha256').update(lock).digest('hex');
           if (evidence.ok !== true || result.ok !== true) throw new Error('Generation evidence is not successful');
           if (evidence.check !== 'dependency-lock-generation' || result.check !== 'dependency-lock-generation') throw new Error('Generation evidence identity mismatch');
-          if (evidence.application !== 'talk2me-os2-preview' || evidence.version !== '0.59.0') throw new Error('Application identity mismatch');
+          if (evidence.application !== 'talk2me-os2-preview' || evidence.version !== '0.60.0') throw new Error('Application identity mismatch');
           if (evidence.database !== 'kloka_talk2me' || evidence.branch !== 'agent/talk2me-os2-integrated-rebuild') throw new Error('Preview identity mismatch');
           if (evidence.packageLockSha256 !== digest || result.packageLockSha256 !== digest) throw new Error('Lock digest mismatch');
           if (evidence.packageLockVerifiedAfterPublication !== true) throw new Error('Independent post-publication verification missing');
