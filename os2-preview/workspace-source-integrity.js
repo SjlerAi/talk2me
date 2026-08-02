@@ -62,15 +62,19 @@ const owner = rootStat.uid;
 const protectedFiles = [
   ['../.github/workflows/os2-preview-ci.yml', 1024 * 1024],
   ['../.github/workflows/os2-dependency-lock-generation.yml', 1024 * 1024],
+  ['../.github/workflows/os2-dependency-lock-adoption.yml', 1024 * 1024],
   ['server.js', 4 * 1024 * 1024],
   ['package.json', 1024 * 1024], ['package-lock.json', 16 * 1024 * 1024],
   ['dependency-lock-verification.js', 2 * 1024 * 1024], ['dependency-lock-governance-check.js', 2 * 1024 * 1024],
   ['dependency-lock-generator.js', 2 * 1024 * 1024], ['dependency-lock-generator-check.js', 2 * 1024 * 1024],
   ['dependency-lock-workflow-check.js', 2 * 1024 * 1024],
   ['dependency-lock-artifact-verification.js', 2 * 1024 * 1024], ['dependency-lock-artifact-check.js', 2 * 1024 * 1024],
+  ['dependency-lock-provenance-verification.js', 2 * 1024 * 1024],
+  ['dependency-lock-adoption-materializer.js', 2 * 1024 * 1024], ['dependency-lock-adoption-check.js', 2 * 1024 * 1024],
   ['DEPENDENCY_LOCK_GENERATION_RUNBOOK.md', 2 * 1024 * 1024],
   ['DEPENDENCY_LOCK_WORKFLOW_RUNBOOK.md', 2 * 1024 * 1024],
   ['DEPENDENCY_LOCK_ARTIFACT_REVIEW_RUNBOOK.md', 2 * 1024 * 1024],
+  ['DEPENDENCY_LOCK_ADOPTION_RUNBOOK.md', 2 * 1024 * 1024],
   ['MIGRATION_LEDGER_BOOTSTRAP.sql', 256 * 1024], ['migration-ledger-bootstrap-runner.js', 2 * 1024 * 1024],
   ['migration-ledger-bootstrap-evidence-verification.js', 2 * 1024 * 1024], ['migration-runner.js', 2 * 1024 * 1024],
   ['backup-runner.js', 2 * 1024 * 1024], ['backup-verification.js', 2 * 1024 * 1024],
@@ -88,6 +92,8 @@ const protectedFiles = [
   ['PREVIEW_DEPLOYMENT_RUNBOOK.md', 2 * 1024 * 1024], ['PREVIEW_UAT_RUNBOOK.md', 2 * 1024 * 1024],
   ['RELEASE_CANDIDATE_RUNBOOK.md', 2 * 1024 * 1024], ['CI_AND_BUILD_EVIDENCE_RUNBOOK.md', 2 * 1024 * 1024]
 ];
+const provenancePath = path.join(root, 'dependency-lock-provenance.json');
+if (fs.existsSync(provenancePath)) protectedFiles.push(['dependency-lock-provenance.json', 64 * 1024]);
 const migrationDirectory = path.join(root, 'migrations');
 const entries = fs.readdirSync(migrationDirectory, { withFileTypes: true });
 for (const entry of entries) {
@@ -115,10 +121,16 @@ console.log(JSON.stringify({
   dependencyLockWorkflowGovernanceProtected: files.some(item => item.file === 'dependency-lock-workflow-check.js'),
   dependencyLockArtifactVerifierProtected: files.some(item => item.file === 'dependency-lock-artifact-verification.js'),
   dependencyLockArtifactGovernanceProtected: files.some(item => item.file === 'dependency-lock-artifact-check.js'),
+  dependencyLockProvenanceVerifierProtected: files.some(item => item.file === 'dependency-lock-provenance-verification.js'),
+  dependencyLockAdoptionMaterializerProtected: files.some(item => item.file === 'dependency-lock-adoption-materializer.js'),
+  dependencyLockAdoptionGovernanceProtected: files.some(item => item.file === 'dependency-lock-adoption-check.js'),
+  dependencyLockProvenanceProtected: files.some(item => item.file === 'dependency-lock-provenance.json'),
   dependencyLockGenerationRunbookProtected: files.some(item => item.file === 'DEPENDENCY_LOCK_GENERATION_RUNBOOK.md'),
   dependencyLockWorkflowRunbookProtected: files.some(item => item.file === 'DEPENDENCY_LOCK_WORKFLOW_RUNBOOK.md'),
   dependencyLockArtifactRunbookProtected: files.some(item => item.file === 'DEPENDENCY_LOCK_ARTIFACT_REVIEW_RUNBOOK.md'),
+  dependencyLockAdoptionRunbookProtected: files.some(item => item.file === 'DEPENDENCY_LOCK_ADOPTION_RUNBOOK.md'),
   dependencyLockWorkflowProtected: files.some(item => item.file === '../.github/workflows/os2-dependency-lock-generation.yml'),
+  dependencyLockAdoptionWorkflowProtected: files.some(item => item.file === '../.github/workflows/os2-dependency-lock-adoption.yml'),
   activationGovernanceProtected: files.some(item => item.file === 'preview-activation-governance-check.js'),
   ciWorkflowProtected: files.some(item => item.file === '../.github/workflows/os2-preview-ci.yml'),
   ciEvidenceControlsProtected: files.some(item => item.file === 'build-evidence.js') && files.some(item => item.file === 'ci-governance-check.js'),
@@ -134,6 +146,7 @@ console.log(JSON.stringify({
   repositoryRootContainmentRequired: true,
   parentWorkflowPathsResolvedCanonically: true,
   repositoryApplicationOwnerConsistency: true,
+  conditionalProvenanceProtectionRequired: true,
   duplicatePathsRejected: true, secureDescriptorReads: true, pathAndDescriptorMetadataBound: true,
   exactReadByteCountRequired: true, canonicalPathBinding: true, hardLinkRejection: true,
   ownershipConsistency: true, boundedReads: true, productionMutationEnabled: false, mergeExecutionEnabled: false
