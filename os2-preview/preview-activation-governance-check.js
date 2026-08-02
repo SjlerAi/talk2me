@@ -32,34 +32,42 @@ const generatorGovernance = read('dependency-lock-generator-check.js');
 const workflowGovernance = read('dependency-lock-workflow-check.js');
 const artifactVerifier = read('dependency-lock-artifact-verification.js');
 const artifactGovernance = read('dependency-lock-artifact-check.js');
+const provenanceVerifier = read('dependency-lock-provenance-verification.js');
+const adoptionMaterializer = read('dependency-lock-adoption-materializer.js');
+const adoptionGovernance = read('dependency-lock-adoption-check.js');
 const sourceIntegrity = read('workspace-source-integrity.js');
 const sourceGovernance = read('workspace-source-integrity-check.js');
 const lockWorkflow = read('../.github/workflows/os2-dependency-lock-generation.yml');
+const adoptionWorkflow = read('../.github/workflows/os2-dependency-lock-adoption.yml');
 const ciWorkflow = read('../.github/workflows/os2-preview-ci.yml');
 const activationRunbook = read('PREVIEW_ACTIVATION_RUNBOOK.md');
 const generationRunbook = read('DEPENDENCY_LOCK_GENERATION_RUNBOOK.md');
 const workflowRunbook = read('DEPENDENCY_LOCK_WORKFLOW_RUNBOOK.md');
 const artifactRunbook = read('DEPENDENCY_LOCK_ARTIFACT_REVIEW_RUNBOOK.md');
+const adoptionRunbook = read('DEPENDENCY_LOCK_ADOPTION_RUNBOOK.md');
 const pkg = JSON.parse(read('package.json'));
 
 requireMarkers(preflight, [
   "expectedDatabase = 'kloka_talk2me'", "expectedBranch = 'agent/talk2me-os2-integrated-rebuild'",
   'expectedNodeMajor = 20', 'childTimeoutMs = 30000', "'dependency-lock-verification.js'",
   "'dependency-lock-governance-check.js'", "'dependency-lock-generator-check.js'",
-  "'dependency-lock-workflow-check.js'", "'dependency-lock-artifact-check.js'", "'workspace-source-integrity.js'",
+  "'dependency-lock-workflow-check.js'", "'dependency-lock-artifact-check.js'",
+  "'dependency-lock-adoption-check.js'", "'workspace-source-integrity.js'",
   'dependencyLockVerified: true', 'dependencyLockGovernanceVerified: true',
   'dependencyLockGeneratorGovernanceVerified: true', 'dependencyLockWorkflowGovernanceVerified: true',
-  'dependencyLockArtifactGovernanceVerified: true', 'dependencyLockArtifactVerificationExecuted: false',
-  'dependencyLockGenerationWorkflowExecuted: false', 'dependencyLockGenerationExecuted: false',
-  'dependencyInstallationExecuted: false', 'productionMutationEnabled: false', 'mergeExecutionEnabled: false'
+  'dependencyLockArtifactGovernanceVerified: true', 'dependencyLockAdoptionGovernanceVerified: true',
+  'dependencyLockProvenanceVerificationExecuted: false', 'dependencyLockAdoptionMaterializationExecuted: false',
+  'dependencyLockArtifactVerificationExecuted: false', 'dependencyLockGenerationWorkflowExecuted: false',
+  'dependencyLockGenerationExecuted: false', 'dependencyInstallationExecuted: false',
+  'productionMutationEnabled: false', 'mergeExecutionEnabled: false'
 ], 'preview activation preflight');
 requireOrder(preflight, [
   "'workspace-topology-verification.js'", "'dependency-lock-verification.js'",
   "'dependency-lock-governance-check.js'", "'dependency-lock-generator-check.js'",
   "'dependency-lock-workflow-check.js'", "'dependency-lock-artifact-check.js'",
-  "'workspace-source-integrity.js'", "'workspace-source-integrity-check.js'",
-  "'runtime-release-identity-check.js'", "'readiness-check.js'", "'deployment-check.js'",
-  "'uat-gate-check.js'", "'release-manifest-check.js'"
+  "'dependency-lock-adoption-check.js'", "'workspace-source-integrity.js'",
+  "'workspace-source-integrity-check.js'", "'runtime-release-identity-check.js'",
+  "'readiness-check.js'", "'deployment-check.js'", "'uat-gate-check.js'", "'release-manifest-check.js'"
 ], 'preview activation preflight');
 if (preflight.includes('...process.env')) failures.push('Preflight must not inherit the full parent environment');
 if (!preflight.includes("killSignal: 'SIGKILL'")) failures.push('Preflight must force SIGKILL on timeout');
@@ -100,6 +108,25 @@ requireMarkers(artifactGovernance, [
   'readOnlyVerificationRequired: true', 'artifactVerificationBeforeUploadRequired: true',
   'environmentBoundArtifactVerifierExcludedFromNormalExecution: true'
 ], 'dependency lock artifact governance');
+requireMarkers(provenanceVerifier, [
+  "check: 'dependency-lock-provenance-verification'", 'meaningfulControls: 60',
+  'exactProvenanceSchemaVerified: true', 'sourceCommitContinuityVerified: true',
+  'provenanceFreshnessVerified: true', 'packageLockDigestVerified: true',
+  'secretFieldsRejected: true', 'automaticCommit: false',
+  'productionMutationEnabled: false', 'mergeExecutionEnabled: false'
+], 'dependency lock provenance verifier');
+requireMarkers(adoptionMaterializer, [
+  "check: 'dependency-lock-adoption-materialization'", 'meaningfulControls: 60',
+  'artifactVerifierPassed: true', 'exclusiveNoOverwritePublication: true',
+  'packageLockPublished: true', 'provenancePublished: true',
+  'automaticCommit: false', 'gitMutationExecuted: false'
+], 'dependency lock adoption materializer');
+requireMarkers(adoptionGovernance, [
+  "check: 'dependency-lock-adoption-governance'", 'meaningfulControls: 60',
+  'adoptionWorkflowReadOnlyRequired: true', 'adoptionWorkflowSingleCommitRequired: true',
+  'immediateParentContinuityRequired: true', 'exactTwoFileChangeRequired: true',
+  'environmentChangingAdoptionExcludedFromNormalValidation: true'
+], 'dependency lock adoption governance');
 
 requireMarkers(lockWorkflow, [
   'name: OS2 Dependency Lock Generation', 'workflow_dispatch:', 'contents: read', 'cancel-in-progress: false',
@@ -121,35 +148,58 @@ if (lockWorkflow.includes('continue-on-error: true')) failures.push('Lock workfl
 if (lockWorkflow.includes('npm install ')) failures.push('Lock workflow must not use npm install');
 if (lockWorkflow.indexOf('Verify dependency lock review artifact') >= lockWorkflow.indexOf('Upload dependency lock review artifact')) failures.push('Artifact verification must precede upload');
 
+requireMarkers(adoptionWorkflow, [
+  'name: OS2 Dependency Lock Adoption', 'push:', 'workflow_dispatch:', 'contents: read',
+  'cancel-in-progress: false', 'fetch-depth: 2', 'persist-credentials: false',
+  "PROVENANCE_MAX_AGE_HOURS: '168'", 'test "$(git rev-list --count "$source_commit..$GITHUB_SHA")" = "1"',
+  'test "$(git rev-parse "$GITHUB_SHA^")" = "$source_commit"',
+  "'os2-preview/dependency-lock-provenance.json'", "'os2-preview/package-lock.json'",
+  'node dependency-lock-provenance-verification.js', 'node dependency-lock-adoption-check.js',
+  'node dependency-lock-verification.js', 'npm ci --ignore-scripts --no-audit --no-fund',
+  'npm run check', 'npm audit --omit=dev --audit-level=high', 'rm -rf node_modules',
+  'test -z "$(git -C "$GITHUB_WORKSPACE" status --porcelain --untracked-files=all)"',
+  'actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02', 'retention-days: 30'
+], 'dependency lock adoption workflow');
+if (adoptionWorkflow.includes('contents: write')) failures.push('Adoption workflow must not have repository write permission');
+if (adoptionWorkflow.includes('persist-credentials: true')) failures.push('Adoption workflow checkout credentials must not persist');
+if (adoptionWorkflow.includes('continue-on-error: true')) failures.push('Adoption workflow must fail closed');
+if (adoptionWorkflow.includes('npm install ')) failures.push('Adoption workflow must not use npm install');
+if (adoptionWorkflow.includes('cancel-in-progress: true')) failures.push('Adoption workflow must not cancel an in-progress verification');
+
 requireMarkers(sourceIntegrity, [
   "['../.github/workflows/os2-dependency-lock-generation.yml', 1024 * 1024]",
+  "['../.github/workflows/os2-dependency-lock-adoption.yml', 1024 * 1024]",
   "['dependency-lock-workflow-check.js', 2 * 1024 * 1024]",
   "['dependency-lock-artifact-verification.js', 2 * 1024 * 1024]",
   "['dependency-lock-artifact-check.js', 2 * 1024 * 1024]",
-  "['DEPENDENCY_LOCK_WORKFLOW_RUNBOOK.md', 2 * 1024 * 1024]",
-  "['DEPENDENCY_LOCK_ARTIFACT_REVIEW_RUNBOOK.md', 2 * 1024 * 1024]",
-  'dependencyLockWorkflowGovernanceProtected: files.some',
-  'dependencyLockArtifactVerifierProtected: files.some',
-  'dependencyLockArtifactGovernanceProtected: files.some',
-  'dependencyLockArtifactRunbookProtected: files.some', 'dependencyLockWorkflowProtected: files.some'
+  "['dependency-lock-provenance-verification.js', 2 * 1024 * 1024]",
+  "['dependency-lock-adoption-materializer.js', 2 * 1024 * 1024]",
+  "['dependency-lock-adoption-check.js', 2 * 1024 * 1024]",
+  "['DEPENDENCY_LOCK_ADOPTION_RUNBOOK.md', 2 * 1024 * 1024]",
+  'dependencyLockProvenanceProtected: files.some',
+  'dependencyLockAdoptionWorkflowProtected: files.some'
 ], 'workspace source integrity');
 requireMarkers(sourceGovernance, [
-  'dependencyLockWorkflowGovernanceProtected: verifier.includes',
-  'dependencyLockArtifactVerifierProtected: verifier.includes',
-  'dependencyLockArtifactGovernanceProtected: verifier.includes',
-  'dependencyLockArtifactRunbookProtected: verifier.includes',
-  'dependencyLockArtifactGovernancePreflightRegistrationRequired: true',
-  'environmentBoundArtifactVerifierExcludedFromNormalExecution: true'
+  'dependencyLockProvenanceVerifierProtected: verifier.includes',
+  'dependencyLockAdoptionMaterializerProtected: verifier.includes',
+  'dependencyLockAdoptionGovernanceProtected: verifier.includes',
+  'dependencyLockConditionalProvenanceProtectionRequired: verifier.includes',
+  'dependencyLockAdoptionRunbookProtected: verifier.includes',
+  'dependencyLockAdoptionWorkflowProtected: verifier.includes',
+  'dependencyLockAdoptionGovernancePreflightRegistrationRequired: true',
+  'environmentChangingAdoptionMaterializerExcludedFromNormalExecution: true'
 ], 'workspace source governance');
 
 requireMarkers(ciWorkflow, [
   'name: OS2 Preview CI', 'contents: read', 'node dependency-lock-verification.js',
+  '.github/workflows/os2-dependency-lock-adoption.yml',
   'npm ci --ignore-scripts --no-audit --no-fund', 'npm audit --omit=dev --audit-level=high'
 ], 'preview CI workflow');
 requireMarkers(activationRunbook, [
-  'Dependency lock generation', 'Dependency lock artifact verification',
-  'dependency-lock-generator-check.js', 'dependency-lock-artifact-check.js',
-  'DEPENDENCY_LOCK_ARTIFACT_REVIEW_RUNBOOK.md', 'package-lock.json',
+  'Dependency lock generation', 'Dependency lock artifact verification', 'Dependency lock adoption',
+  'dependency-lock-generator-check.js', 'dependency-lock-artifact-check.js', 'dependency-lock-adoption-check.js',
+  'DEPENDENCY_LOCK_ARTIFACT_REVIEW_RUNBOOK.md', 'DEPENDENCY_LOCK_ADOPTION_RUNBOOK.md',
+  'package-lock.json', 'dependency-lock-provenance.json',
   'npm ci --ignore-scripts --no-audit --no-fund', 'productionMutationEnabled: false',
   'mergeExecutionEnabled: false'
 ], 'activation runbook');
@@ -166,21 +216,34 @@ requireMarkers(artifactRunbook, [
   'private `0700` directory', 'private `0600` files', 'source inventory continuity',
   'GitHub Issue #83', 'production remains untouched'
 ], 'artifact runbook');
+requireMarkers(adoptionRunbook, [
+  'Dependency Lock Adoption', 'dependency-lock-adoption-materializer.js',
+  'dependency-lock-provenance-verification.js', 'exact 15-field schema',
+  'exactly these two paths in one commit', 'immediate child of the recorded generation source commit',
+  'OS2 Dependency Lock Adoption', '168 hours', 'GitHub Issue #83'
+], 'adoption runbook');
 
 const exactScripts = {
   'verify:preview-activation-preflight': 'node preview-activation-preflight.js',
   'check:preview-activation-governance': 'node preview-activation-governance-check.js',
   'verify:dependency-lock-artifact': 'node dependency-lock-artifact-verification.js',
-  'check:dependency-lock-artifact': 'node dependency-lock-artifact-check.js'
+  'check:dependency-lock-artifact': 'node dependency-lock-artifact-check.js',
+  'materialize:dependency-lock-adoption': 'node dependency-lock-adoption-materializer.js',
+  'verify:dependency-lock-provenance': 'node dependency-lock-provenance-verification.js',
+  'check:dependency-lock-adoption': 'node dependency-lock-adoption-check.js'
 };
 for (const [name, command] of Object.entries(exactScripts)) if (pkg.scripts[name] !== command) failures.push(`Exact ${name} command missing`);
 for (const marker of [
   'node --check preview-activation-preflight.js', 'node --check preview-activation-governance-check.js',
   'node --check dependency-lock-artifact-verification.js', 'node --check dependency-lock-artifact-check.js',
-  'node dependency-lock-artifact-check.js', 'node preview-activation-governance-check.js'
+  'node --check dependency-lock-provenance-verification.js', 'node --check dependency-lock-adoption-materializer.js',
+  'node --check dependency-lock-adoption-check.js', 'node dependency-lock-artifact-check.js',
+  'node dependency-lock-adoption-check.js', 'node preview-activation-governance-check.js'
 ]) if (!pkg.scripts.check.includes(marker)) failures.push(`Normal validation missing ${marker}`);
 if (pkg.scripts.check.includes('node dependency-lock-generator.js &&')) failures.push('Environment-changing lock generation must not run in normal validation');
 if (pkg.scripts.check.includes('node dependency-lock-artifact-verification.js &&')) failures.push('Environment-bound artifact verification must not run in normal validation');
+if (pkg.scripts.check.includes('node dependency-lock-adoption-materializer.js &&')) failures.push('Environment-changing adoption materialization must not run in normal validation');
+if (pkg.scripts.check.includes('node dependency-lock-provenance-verification.js &&')) failures.push('Environment-bound provenance verification must not run in normal validation');
 
 if (failures.length) {
   console.error('PREVIEW ACTIVATION GOVERNANCE CHECK FAILED');
@@ -193,7 +256,7 @@ console.log(JSON.stringify({
   check: 'preview-activation-governance',
   application: pkg.name,
   version: pkg.version,
-  orderedSourceChecks: 24,
+  orderedSourceChecks: 25,
   activationChildExecutionBounded: true,
   activationChildTimeoutMs: 30000,
   activationChildForcedKillSignalRequired: true,
@@ -211,16 +274,22 @@ console.log(JSON.stringify({
   dependencyLockGeneratorGovernanceRequired: true,
   dependencyLockWorkflowGovernanceRequired: true,
   dependencyLockArtifactGovernanceRequired: true,
+  dependencyLockAdoptionGovernanceRequired: true,
+  dependencyLockProvenanceVerificationExecuted: false,
+  dependencyLockAdoptionMaterializationExecuted: false,
   dependencyLockArtifactVerificationExecuted: false,
   dependencyLockWorkflowManualOnly: true,
   dependencyLockWorkflowRepositoryWriteProhibited: true,
   dependencyLockWorkflowAutomaticCommitProhibited: true,
   dependencyLockWorkflowArtifactRetentionDays: 7,
+  dependencyLockAdoptionWorkflowReadOnly: true,
+  dependencyLockAdoptionSingleCommitRequired: true,
+  dependencyLockAdoptionExactTwoFileChangeRequired: true,
   dependencyLockGenerationWorkflowExecuted: false,
   dependencyLockGenerationExecuted: false,
   dependencyInstallationExecuted: false,
   workspaceSourceIntegrityRequired: true,
-  dependencyLockArtifactSourcesProtected: true,
+  dependencyLockAdoptionSourcesProtected: true,
   recoveryReadinessRequired: true,
   recoveryReleaseGateRequired: true,
   releaseSourceIntegrityGovernanceRequired: true,
