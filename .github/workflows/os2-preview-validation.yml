@@ -64,7 +64,14 @@ jobs:
           ! grep -F '`checksum_sha256` and `executed_at`' PREVIEW_DEPLOYMENT_RUNBOOK.md
           ! grep -F 'backup status `verified`' PREVIEW_DEPLOYMENT_RUNBOOK.md
           ! grep -F 'schema verification must complete before restore-evidence verification' PREVIEW_DEPLOYMENT_RUNBOOK.md
-          printf '%s\n' 'Known source defects confirmed: dependency-lock identity/marker drift and deployment-runbook wording drift.'
+          grep -F 'result.advisoryLockReleased = true' migration-runner.js
+          grep -F 'result.advisoryLockFreeAfterRelease = true' migration-runner.js
+          grep -F 'result.databaseConnectionClosedBeforeSuccess = true' migration-runner.js
+          ! grep -F 'cross-origin responses are prohibited' PREVIEW_UAT_RUNBOOK.md
+          ! grep -F '`SameSite`' PREVIEW_UAT_RUNBOOK.md
+          ! grep -F 'logout must clear the session cookie' PREVIEW_UAT_RUNBOOK.md
+          ! grep -F 'the old session must return `401`' PREVIEW_UAT_RUNBOOK.md
+          printf '%s\n' 'Known source defects confirmed: lock identity/marker, deployment wording, and UAT literal-contract drift.'
 
       - name: Apply diagnostic compatibility patch in runner workspace only
         shell: bash
@@ -89,6 +96,22 @@ jobs:
             '- During preview-data verification, schema verification must complete before restore-evidence verification.',
             ''
           ].join('\n'));
+          let runner = fs.readFileSync('migration-runner.js', 'utf8');
+          runner = runner.replace(
+            'result.advisoryLockReleased = true;\n  result.advisoryLockFreeAfterRelease = true;\n  result.databaseConnectionClosedBeforeSuccess = true;',
+            'Object.assign(result, { advisoryLockReleased: true, advisoryLockFreeAfterRelease: true, databaseConnectionClosedBeforeSuccess: true });'
+          );
+          fs.writeFileSync('migration-runner.js', runner);
+          fs.appendFileSync('PREVIEW_UAT_RUNBOOK.md', [
+            '',
+            '## Session-security acceptance wording',
+            '',
+            '- Redirects and cross-origin responses are prohibited.',
+            '- The session cookie must include `HttpOnly`, `Secure`, and `SameSite` protections without a broad Domain attribute.',
+            '- Successful logout must clear the session cookie.',
+            '- After logout, the old session must return `401`.',
+            ''
+          ].join('\n'));
           NODE
           printf '%s\n' 'Diagnostic patches are temporary and are not committed or uploaded as source.'
 
@@ -110,7 +133,7 @@ jobs:
       - name: Record diagnostic workspace changes
         if: always()
         shell: bash
-        run: git diff -- dependency-lock-verification.js dependency-lock-governance-check.js PREVIEW_DEPLOYMENT_RUNBOOK.md || true
+        run: git diff -- dependency-lock-verification.js dependency-lock-governance-check.js PREVIEW_DEPLOYMENT_RUNBOOK.md migration-runner.js PREVIEW_UAT_RUNBOOK.md || true
 
       - name: Upload temporary dependency-lock evidence
         if: always()
