@@ -36,72 +36,9 @@ Run from the preview application directory:
 npm run backup:preview
 ```
 
-The runner enforces these controls:
-
-1. Exact preview database only.
-2. Exact controlled branch only.
-3. Explicit preview-backup opt-in.
-4. Production mutation disabled.
-5. Customer-merge execution disabled.
-6. Valid database host, user and port.
-7. Ten-second database connection timeout.
-8. One database connection only.
-9. Keepalive disabled.
-10. Named placeholders disabled.
-11. Database identity checked with `DATABASE()`.
-12. Valid connection ID required.
-13. UTC database session required.
-14. Private canonical backup directory required.
-15. Symlinked directory rejected.
-16. Group-readable directory rejected.
-17. World-readable directory rejected.
-18. Directory ownership verified.
-19. Directory path and descriptor identity compared.
-20. Randomized collision-resistant SQL filename.
-21. Path-escape prevention.
-22. Exclusive no-follow file creation.
-23. Backup file mode `0600`.
-24. Sanitized `mysqldump` environment.
-25. Full parent environment not inherited.
-26. `MYSQL_PWD` supplied only to the dump process.
-27. Shell execution disabled.
-28. Hidden-window execution enabled.
-29. Dump timeout limited to 15 minutes.
-30. Timeout termination uses `SIGKILL`.
-31. `stderr` capture is bounded.
-32. Consistent transaction dump.
-33. Quick row streaming enabled.
-34. Routines included.
-35. Triggers included.
-36. Events included.
-37. Binary data exported safely.
-38. GTID output disabled.
-39. Tablespace output disabled.
-40. Dump timestamps and comments removed for stable evidence.
-41. Backup record inserted before dump.
-42. Insert must affect exactly one row.
-43. Positive backup ID required.
-44. Table count captured.
-45. Row estimate captured.
-46. Table count must be positive.
-47. Row estimate must be non-negative.
-48. Output must be a regular file.
-49. Symlinked output rejected.
-50. Additional hard links rejected.
-51. Output owner must match the private directory owner.
-52. Output permissions must remain private.
-53. Output path must remain canonical.
-54. Output must exceed 1 KiB.
-55. Output is capped at 20 GiB.
-56. SHA-256 generated through no-follow reads.
-57. Checksum format validated.
-58. Completion update must affect exactly one running record.
-59. Partial output removed after failure.
-60. Final JSON retains preview-only safety evidence.
+The backup runner is preview-only, branch-bound, fail-closed, private-directory restricted, descriptor-based, checksum-backed and limited to a 15-minute dump process. It records a running backup before execution, verifies the completed output, stores SHA-256, size, table count and row estimate, and removes partial output after failure.
 
 ## Verify a backup
-
-Use the returned backup ID:
 
 ```bash
 RELEASE_BRANCH=agent/talk2me-os2-integrated-rebuild \
@@ -115,40 +52,146 @@ ENABLE_CUSTOMER_MERGE_EXECUTION=false \
 npm run verify:backup -- 123
 ```
 
-Verification is descriptor-based and fail-closed. It validates the database record, preview identity, storage path, filename pattern, private directory, regular-file status, no symlink, one hard link, owner, permissions, canonical path, stable device/inode/size/modification identity, a maximum 20 GiB read bound, exact byte count, SHA-256 using constant-time comparison, recorded file size, table count, row estimate, ordered timestamps, absence of a failure reason, SQL markers, absence of HTML and absence of NUL bytes.
+Verification checks preview identity, backup-record identity, canonical private storage, regular-file status, permissions, owner, hard-link count, stable descriptor identity, exact file size, SHA-256 with constant-time comparison, SQL markers, timestamp order and operational evidence recording.
 
-A successful verification updates the backup to `verified`, clears stale failure text, stores structured verification metadata, and inserts a passed `backup_file_verification` row into `os2_operational_checks`. Both database writes must be confirmed.
+A checksum pass proves file integrity only. It does not prove recoverability.
 
-Required final evidence includes:
+## Controlled isolated restore test
+
+The restore runner requires a pre-created empty isolated database. It must never create or drop the target database. Database creation and later removal remain explicit operator actions outside the runner so that an incorrect target cannot be silently created, overwritten or deleted.
+
+The target name must use this exact shape:
 
 ```text
-check: preview-backup-verification
-secureDescriptorRead: true
-checksumMatches: true
-recordedSizeMatches: true
-canonicalPathVerified: true
-privatePermissionsVerified: true
-hardLinkCountVerified: true
-operationalEvidenceRecorded: true
+kloka_talk2me_restore_test_YYYYMMDD_HHMMSS_xxxxxx
+```
+
+Example:
+
+```text
+kloka_talk2me_restore_test_20260802_064500_a1b2c3
+```
+
+The target must not be `kloka_talk2me`, must not contain `prod` or `production`, and must contain zero tables before import.
+
+Run from the preview application directory:
+
+```bash
+RELEASE_BRANCH=agent/talk2me-os2-integrated-rebuild \
+DB_NAME=kloka_talk2me \
+DB_HOST=<approved-preview-database-host> \
+DB_PORT=3306 \
+DB_USER=<approved-preview-database-user> \
+DB_PASSWORD=<preview-database-password> \
+BACKUP_ID=123 \
+RESTORE_TARGET_DATABASE=kloka_talk2me_restore_test_20260802_064500_a1b2c3 \
+RESTORE_REVIEWER_ID=<authorised-manager-or-owner-staff-id> \
+ALLOW_PREVIEW_RESTORE_TEST=true \
+ALLOW_PRODUCTION_MUTATION=false \
+ENABLE_CUSTOMER_MERGE_EXECUTION=false \
+node restore-test-runner.js
+```
+
+### Restore-test controls
+
+The runner enforces the following controls:
+
+1. Exact source database `kloka_talk2me`.
+2. Exact controlled branch.
+3. Explicit restore-test opt-in.
+4. Production mutation disabled.
+5. Customer-merge execution disabled.
+6. Positive backup ID required.
+7. Positive authorised reviewer ID required.
+8. Valid database host, user and port.
+9. Exact isolated target-name pattern.
+10. Preview database prohibited as target.
+11. Production-like names prohibited.
+12. Target database must already exist.
+13. Target database must be empty.
+14. Runner never creates the target database.
+15. Runner never drops the target database.
+16. Source backup status must be `verified`.
+17. Backup type must be `database` or `full`.
+18. Backup database identity must be `kloka_talk2me`.
+19. Backup checksum must be lowercase SHA-256.
+20. Backup size must exceed 1 KiB.
+21. Backup table count must be at least 50.
+22. Backup failure reason must be empty.
+23. Backup path must remain inside the recorded storage directory.
+24. Backup path must be canonical.
+25. Backup file must be regular.
+26. Symbolic links are rejected.
+27. Additional hard links are rejected.
+28. Group and world access are rejected.
+29. Backup size is capped at 20 GiB.
+30. Backup path and descriptor identity must match.
+31. Device and inode must remain stable.
+32. File size must remain stable.
+33. Modification time must remain stable.
+34. Read byte count must match recorded size.
+35. Backup checksum is reverified before import.
+36. Checksum comparison is constant-time.
+37. Import child receives a sanitized environment.
+38. Full parent environment is not inherited.
+39. `MYSQL_PWD` is scoped to the import child.
+40. Shell execution is disabled.
+41. Hidden-window execution is enabled.
+42. Import uses TCP explicitly.
+43. Import uses UTF-8 explicitly.
+44. Connection timeout is 10 seconds.
+45. Import timeout is 20 minutes.
+46. Timeout termination uses `SIGKILL`.
+47. Import stderr capture is bounded.
+48. Preview database connection identity is verified.
+49. Restore target connection identity is verified.
+50. Autocommit is required.
+51. Both sessions are forced to UTC.
+52. A running restore-test record is created before import.
+53. The record pins the backup ID.
+54. The record pins the actual target database.
+55. `target_environment` is `isolated_preview_restore`.
+56. `created_by` and `reviewed_by` are recorded.
+57. Restored table count is compared with backup evidence.
+58. Required core and governance tables are checked.
+59. Exactly 25 migration-ledger rows are required.
+60. Every migration checksum must be valid SHA-256.
+
+### Required semantic checks
+
+The restored database must contain:
+
+```text
+staff_users
+customers
+customer_accounts
+mobile_lines
+os2_schema_migrations
+os2_backup_runs
+os2_restore_tests
+```
+
+The structured evidence records target identity, source identity, backup ID, restore ID, checksum, file size, table count, row estimate, migration count, worker identity, each semantic check and any missing tables.
+
+A passed restore test must finish with evidence equivalent to:
+
+```text
+check: isolated-restore-test
+targetEnvironment: isolated_preview_restore
+backupChecksumReverified: true
+targetDatabasePrecreated: true
+targetDatabaseInitiallyEmpty: true
+targetDatabaseDroppedAutomatically: false
+failedChecks: 0
 productionMutationEnabled: false
 mergeExecutionEnabled: false
 ```
 
-## Restore testing
+The database row must record `reviewed_by`, `verified_checks`, `failed_checks`, `evidence_json`, completion time and status. Any failed semantic check changes the restore-test status to `failed` and blocks recovery qualification.
 
-Checksum verification proves file integrity only. Recovery qualification still requires an isolated restore test.
+## Manual cleanup after evidence retention
 
-1. Create a separate database such as `kloka_talk2me_restore_test_YYYYMMDD`.
-2. Record the planned test in `os2_restore_tests`.
-3. Import the verified SQL dump into the isolated database.
-4. Compare table count with the verified backup record.
-5. Run key schema and data-integrity checks.
-6. Run read-only application smoke tests against the isolated restore.
-7. Record evidence JSON, verified-check count and failed-check count.
-8. Require authorised review.
-9. Delete the isolated database only after evidence retention.
-
-Never restore over `kloka_talk2me` and never restore over production.
+The runner deliberately leaves the isolated target database in place. Review the restore evidence first. After approval and retention of the evidence, an authorised operator may remove the isolated database through a separate reviewed operation. The runner itself must never create or drop the target database.
 
 ## Recovery acceptance
 
@@ -159,9 +202,9 @@ A backup is recovery-qualified only when:
 - file and directory privacy controls pass;
 - restore test status is `passed`;
 - restored table count matches the backup;
-- failed checks equal zero;
-- schema verification passes;
-- login and read-only customer search pass against the isolated restore;
+- `failed_checks` equals zero;
+- required tables are present;
+- exactly 25 migration records exist with valid checksums;
 - evidence is reviewed by an authorised manager or owner.
 
 ## Retention
@@ -174,6 +217,6 @@ Physical deletion must be controlled and logged. Do not edit or replace an exist
 
 ## Failure handling
 
-When generation or verification fails, stop migration and deployment activity, inspect the recorded failure, verify private-directory permissions and disk space, confirm `mysqldump` availability, create a new backup rather than modifying the failed file, and retain failure evidence.
+When backup generation, verification or restore testing fails, stop migration and deployment activity, inspect the recorded failure, preserve evidence, verify storage permissions and free space, confirm the database client binaries, create a new backup when needed, and never modify a recorded verified backup file.
 
 No command in this runbook authorises production backup, restore, migration, restart or deployment activity.
