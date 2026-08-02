@@ -7,7 +7,7 @@ const ROLE_PERMISSIONS = Object.freeze({
     'account.read','account.create','account.update','service.read','service.create','service.update',
     'document.read','document.upload','document.archive','restriction.read','restriction.update',
     'work.read','work.create','work.update','work.assign','work.accept','work.return',
-    'approval.read','approval.create','approval.decide','claim.request','claim.approve','report.read','report.export',
+    'approval.read','approval.create','approval.decide','claim.request','claim.approve','assignment.approve','report.read','report.export',
     'import.read','import.upload','import.review','import.finalise','staff.read','attendance.read','attendance.correct',
     'audit.read','launcher.read','launcher.update','notification.broadcast','notification.queue.read','digest.generate',
     'security.event.read','security.session.revoke','privacy.read','privacy.manage','privacy.decide','privacy.export','privacy.retention'
