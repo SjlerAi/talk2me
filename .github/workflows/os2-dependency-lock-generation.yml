@@ -1,0 +1,215 @@
+name: OS2 Dependency Lock Generation
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type GENERATE_OS2_LOCK to generate a review artifact
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: os2-dependency-lock-generation-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    name: Generate reviewed OS2 dependency lock artifact
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: os2-preview
+    env:
+      PREVIEW_APP_ROOT: ${{ github.workspace }}/os2-preview
+      DB_NAME: kloka_talk2me
+      RELEASE_BRANCH: agent/talk2me-os2-integrated-rebuild
+      ALLOW_DEPENDENCY_LOCK_GENERATION: 'true'
+      ALLOW_PRODUCTION_MUTATION: 'false'
+      ENABLE_CUSTOMER_MERGE_EXECUTION: 'false'
+      LOCK_TEMP_ROOT: ${{ runner.temp }}/talk2me-lock-temp
+      LOCK_EVIDENCE_ROOT: ${{ runner.temp }}/talk2me-lock-evidence
+
+    steps:
+      - name: Checkout controlled branch
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '20'
+
+      - name: Confirm manual event and immutable source identity
+        shell: bash
+        env:
+          LOCK_CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
+          test "$LOCK_CONFIRMATION" = "GENERATE_OS2_LOCK"
+          test "$GITHUB_REPOSITORY" = "SjlerAi/talk2me"
+          test "$GITHUB_REF" = "refs/heads/agent/talk2me-os2-integrated-rebuild"
+          test "$GITHUB_REF_NAME" = "agent/talk2me-os2-integrated-rebuild"
+          printf '%s' "$GITHUB_SHA" | grep -Eq '^[0-9a-f]{40}$'
+          test ! -e package-lock.json
+          test ! -e node_modules
+          test "$ALLOW_PRODUCTION_MUTATION" = "false"
+          test "$ENABLE_CUSTOMER_MERGE_EXECUTION" = "false"
+
+      - name: Prepare private generation directories
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$LOCK_TEMP_ROOT" "$LOCK_EVIDENCE_ROOT"
+          chmod 700 "$LOCK_TEMP_ROOT" "$LOCK_EVIDENCE_ROOT"
+          test "$(stat -c '%a' "$LOCK_TEMP_ROOT")" = "700"
+          test "$(stat -c '%a' "$LOCK_EVIDENCE_ROOT")" = "700"
+          case "$LOCK_TEMP_ROOT" in "$GITHUB_WORKSPACE"/*) exit 1 ;; esac
+          case "$LOCK_EVIDENCE_ROOT" in "$GITHUB_WORKSPACE"/*) exit 1 ;; esac
+
+      - name: Resolve controlled Node and npm binaries
+        id: runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          node_bin="$(readlink -f "$(command -v node)")"
+          npm_bin="$(readlink -f "$(command -v npm)")"
+          test -f "$node_bin"
+          test -x "$node_bin"
+          test -f "$npm_bin"
+          test -x "$npm_bin"
+          node_major="$($node_bin -p 'process.versions.node.split(".")[0]')"
+          npm_major="$($npm_bin --version | cut -d. -f1)"
+          test "$node_major" = "20"
+          test "$npm_major" = "10"
+          printf 'node_bin=%s\n' "$node_bin" >> "$GITHUB_OUTPUT"
+          printf 'npm_bin=%s\n' "$npm_bin" >> "$GITHUB_OUTPUT"
+
+      - name: Run controlled dependency lock generator
+        shell: bash
+        env:
+          NODE_BIN: ${{ steps.runtime.outputs.node_bin }}
+          NPM_BIN: ${{ steps.runtime.outputs.npm_bin }}
+          DEPENDENCY_LOCK_TEMP_ROOT: ${{ env.LOCK_TEMP_ROOT }}
+          DEPENDENCY_LOCK_EVIDENCE_PATH: ${{ env.LOCK_EVIDENCE_ROOT }}/dependency-lock-generation.json
+        run: |
+          set -euo pipefail
+          node dependency-lock-generator.js > "$LOCK_EVIDENCE_ROOT/generator-result.json"
+          test -s package-lock.json
+          test ! -e node_modules
+          test -s "$LOCK_EVIDENCE_ROOT/dependency-lock-generation.json"
+          test -s "$LOCK_EVIDENCE_ROOT/dependency-lock-generation.json.sha256"
+          test -s "$LOCK_EVIDENCE_ROOT/generator-result.json"
+
+      - name: Verify private generation evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$LOCK_EVIDENCE_ROOT"
+          sha256sum --check dependency-lock-generation.json.sha256
+          cd "$GITHUB_WORKSPACE/os2-preview"
+          node - <<'NODE'
+          const fs = require('fs');
+          const crypto = require('crypto');
+          const evidenceRoot = process.env.LOCK_EVIDENCE_ROOT;
+          const evidence = JSON.parse(fs.readFileSync(`${evidenceRoot}/dependency-lock-generation.json`, 'utf8'));
+          const result = JSON.parse(fs.readFileSync(`${evidenceRoot}/generator-result.json`, 'utf8'));
+          const lock = fs.readFileSync('package-lock.json');
+          const digest = crypto.createHash('sha256').update(lock).digest('hex');
+          if (evidence.ok !== true || result.ok !== true) throw new Error('Generation evidence is not successful');
+          if (evidence.check !== 'dependency-lock-generation' || result.check !== 'dependency-lock-generation') throw new Error('Generation evidence identity mismatch');
+          if (evidence.application !== 'talk2me-os2-preview' || evidence.version !== '0.59.0') throw new Error('Application identity mismatch');
+          if (evidence.database !== 'kloka_talk2me' || evidence.branch !== 'agent/talk2me-os2-integrated-rebuild') throw new Error('Preview identity mismatch');
+          if (evidence.packageLockSha256 !== digest || result.packageLockSha256 !== digest) throw new Error('Lock digest mismatch');
+          if (evidence.packageLockVerifiedAfterPublication !== true) throw new Error('Independent post-publication verification missing');
+          if (evidence.lifecycleScriptsExecuted !== false || evidence.nodeModulesGenerated !== false) throw new Error('Generation side-effect evidence invalid');
+          if (evidence.fullParentEnvironmentInherited !== false || evidence.registryPinned !== true) throw new Error('Generation environment evidence invalid');
+          if (evidence.productionMutationEnabled !== false || evidence.mergeExecutionEnabled !== false) throw new Error('Safety evidence invalid');
+          NODE
+
+      - name: Run lock and workflow governance
+        shell: bash
+        run: |
+          set -euo pipefail
+          node dependency-lock-verification.js > "$LOCK_EVIDENCE_ROOT/dependency-lock-verification.json"
+          node dependency-lock-governance-check.js > "$LOCK_EVIDENCE_ROOT/dependency-lock-governance.json"
+          node dependency-lock-generator-check.js > "$LOCK_EVIDENCE_ROOT/dependency-lock-generator-governance.json"
+          node dependency-lock-workflow-check.js > "$LOCK_EVIDENCE_ROOT/dependency-lock-workflow-governance.json"
+
+      - name: Capture pre-install protected source identity
+        id: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run --silent verify:workspace-source-integrity > "$LOCK_EVIDENCE_ROOT/source-integrity-preinstall.json"
+          node - <<'NODE'
+          const fs = require('fs');
+          const evidence = JSON.parse(fs.readFileSync(`${process.env.LOCK_EVIDENCE_ROOT}/source-integrity-preinstall.json`, 'utf8'));
+          if (evidence.ok !== true || evidence.packageLockPresent !== true) throw new Error('Pre-install source evidence invalid');
+          if (!/^[0-9a-f]{64}$/.test(String(evidence.inventorySha256 || ''))) throw new Error('Pre-install inventory digest invalid');
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `inventory_sha256=${evidence.inventorySha256}\n`);
+          NODE
+
+      - name: Install and validate generated lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run check
+          npm audit --omit=dev --audit-level=high
+
+      - name: Prove source continuity after installation
+        shell: bash
+        env:
+          EXPECTED_INVENTORY_SHA256: ${{ steps.source.outputs.inventory_sha256 }}
+        run: |
+          set -euo pipefail
+          npm run --silent verify:workspace-source-integrity > "$LOCK_EVIDENCE_ROOT/source-integrity-postinstall.json"
+          node - <<'NODE'
+          const fs = require('fs');
+          const evidence = JSON.parse(fs.readFileSync(`${process.env.LOCK_EVIDENCE_ROOT}/source-integrity-postinstall.json`, 'utf8'));
+          if (evidence.ok !== true || evidence.inventorySha256 !== process.env.EXPECTED_INVENTORY_SHA256) throw new Error('Protected source changed during installation or validation');
+          NODE
+          rm -rf node_modules
+          test ! -e node_modules
+          status="$(git status --porcelain --untracked-files=all)"
+          test "$status" = "?? os2-preview/package-lock.json"
+
+      - name: Build review artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          artifact="$RUNNER_TEMP/os2-dependency-lock-artifact"
+          mkdir -p "$artifact"
+          cp package-lock.json "$artifact/package-lock.json"
+          cp "$LOCK_EVIDENCE_ROOT"/*.json "$artifact/"
+          cp "$LOCK_EVIDENCE_ROOT"/*.sha256 "$artifact/"
+          lock_sha="$(sha256sum package-lock.json | awk '{print $1}')"
+          cat > "$artifact/manifest.txt" <<MANIFEST
+          repository=$GITHUB_REPOSITORY
+          ref=$GITHUB_REF
+          commit=$GITHUB_SHA
+          workflow=$GITHUB_WORKFLOW
+          run_id=$GITHUB_RUN_ID
+          run_attempt=$GITHUB_RUN_ATTEMPT
+          source_inventory_sha256=${{ steps.source.outputs.inventory_sha256 }}
+          package_lock_sha256=$lock_sha
+          production_mutation_enabled=false
+          merge_execution_enabled=false
+          MANIFEST
+          (cd "$artifact" && sha256sum package-lock.json *.json manifest.txt > SHA256SUMS)
+          sha256sum --check "$artifact/SHA256SUMS"
+
+      - name: Upload dependency lock review artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: os2-dependency-lock-${{ github.run_number }}-attempt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/os2-dependency-lock-artifact
+          if-no-files-found: error
+          retention-days: 7
