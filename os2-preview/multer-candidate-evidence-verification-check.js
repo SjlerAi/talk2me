@@ -2,12 +2,34 @@
 
 const fs = require('fs');
 const path = require('path');
+const { spawnSync } = require('child_process');
 
 const source = fs.readFileSync(path.join(__dirname, 'multer-candidate-evidence-verification.js'), 'utf8');
 const schema = fs.readFileSync(path.join(__dirname, 'MULTER_2_CANDIDATE_EVIDENCE_SCHEMA.md'), 'utf8');
+const negativeRegression = fs.readFileSync(path.join(__dirname, 'multer-candidate-evidence-negative-regression-check.js'), 'utf8');
 const failures = [];
 function requireMarkers(text, markers, label) {
   for (const marker of markers) if (!text.includes(marker)) failures.push(`${label} missing ${marker}`);
+}
+function runJsonCheck(file, label) {
+  const result = spawnSync(process.execPath, [file], {
+    cwd: __dirname,
+    encoding: 'utf8',
+    timeout: 60000,
+    maxBuffer: 256 * 1024,
+    shell: false,
+    env: Object.freeze({ PATH: process.env.PATH || '', NODE_ENV: 'test' })
+  });
+  if (result.error) {
+    failures.push(`${label} execution failed: ${result.error.message}`);
+    return {};
+  }
+  if (result.status !== 0) {
+    failures.push(`${label} failed: ${String(result.stderr || result.stdout).trim()}`);
+    return {};
+  }
+  try { return JSON.parse(String(result.stdout || '{}')); }
+  catch { failures.push(`${label} returned invalid JSON`); return {}; }
 }
 
 requireMarkers(source, [
@@ -50,6 +72,28 @@ requireMarkers(schema, [
   'Unexpected files must be preserved for manual review.'
 ], 'candidate evidence schema');
 
+requireMarkers(negativeRegression, [
+  "check: 'multer-candidate-evidence-negative-regression'",
+  'validBaselineAccepted',
+  'extraKeyRejected',
+  'reorderedKeysRejected',
+  'staleApprovalRejected',
+  'commitMismatchRejected',
+  'ownerMismatchRejected',
+  'extraManifestChangeRejected',
+  'badSourceDigestRejected',
+  'badLockDigestRejected',
+  'rollbackIncompleteRejected',
+  'adoptionFlagRejected',
+  'previewFlagRejected',
+  'productionFlagRejected',
+  'lifecycleFlagRejected',
+  'isolatedTemporaryFilesOnly: true',
+  'externalNetworkUsed: false',
+  'databaseConfigured: false',
+  'sourceTreeMutationEnabled: false'
+], 'candidate evidence negative regression');
+
 for (const prohibited of [
   "require('http')", "require('https')", "require('net')", "require('tls')", "require('mysql2')",
   'child_process', 'spawn(', 'spawnSync(', 'exec(', 'execSync(', 'fetch(', 'axios', 'process.chdir(',
@@ -58,6 +102,13 @@ for (const prohibited of [
 
 if ((source.match(/equalDigest\(/g) || []).length !== 5) failures.push('Verifier must define one equalDigest function and invoke it four times');
 if ((source.match(/readRegular\(required\(/g) || []).length !== 6) failures.push('Verifier must read exactly six explicit local inputs');
+
+const regressionEvidence = runJsonCheck('multer-candidate-evidence-negative-regression-check.js', 'Multer candidate evidence negative regression');
+if (regressionEvidence.ok !== true || regressionEvidence.check !== 'multer-candidate-evidence-negative-regression') failures.push('Negative regression evidence identity invalid');
+if (regressionEvidence.caseCount !== 14) failures.push('Negative regression must execute exactly 14 cases');
+for (const [name, passed] of Object.entries(regressionEvidence.cases || {})) if (passed !== true) failures.push(`Negative regression case failed: ${name}`);
+for (const key of ['externalNetworkUsed','databaseConfigured','sourceTreeMutationEnabled','dependencyAdoptionAuthorized','previewActivationAuthorized','productionMutationEnabled']) if (regressionEvidence[key] !== false) failures.push(`Negative regression safety flag must remain false: ${key}`);
+if (regressionEvidence.isolatedTemporaryFilesOnly !== true) failures.push('Negative regression must use isolated temporary files only');
 
 if (failures.length) {
   console.error('MULTER CANDIDATE EVIDENCE VERIFICATION GOVERNANCE FAILED');
@@ -74,6 +125,8 @@ console.log(JSON.stringify({
   approvalBindingRequired: true,
   approvalFreshnessHours: 24,
   rollbackCompletionRequired: true,
+  negativeRegressionRequired: true,
+  negativeRegressionCases: 14,
   shellExecutionAvailable: false,
   externalNetworkAvailable: false,
   databaseAvailable: false,
