@@ -1,3 +1,5 @@
+'use strict';
+
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const multer = require('multer');
@@ -8,13 +10,13 @@ const crypto = require('crypto');
 module.exports = function createAdministrationRouter({ pool, requireAuth, requestIp }) {
   const router = express.Router();
   const uploadDir = path.join(__dirname, 'runtime', 'admin-uploads');
-  fs.mkdirSync(uploadDir, { recursive: true });
+  fs.mkdirSync(uploadDir, { recursive: true, mode: 0o700 });
   const upload = multer({
     storage: multer.diskStorage({
       destination: uploadDir,
       filename: (req, file, cb) => cb(null, `${Date.now()}-${crypto.randomBytes(8).toString('hex')}${path.extname(file.originalname).toLowerCase()}`)
     }),
-    limits: { fileSize: 8 * 1024 * 1024 },
+    limits: { fileSize: 8 * 1024 * 1024, files: 1, fields: 4, parts: 5 },
     fileFilter: (req, file, cb) => cb(null, ['image/jpeg','image/png','image/webp','application/pdf'].includes(file.mimetype))
   });
   const canManage = user => ['owner','manager'].includes(user.role);
