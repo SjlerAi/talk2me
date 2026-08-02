@@ -32,7 +32,7 @@ try {
 }
 
 const expectedApplication = 'talk2me-os2-preview';
-const expectedVersion = '0.59.0';
+const expectedVersion = '0.60.0';
 const expectedNodeMajor = 20;
 const expectedDatabase = 'kloka_talk2me';
 const configuredDatabase = String(process.env.DB_NAME || '').trim();
