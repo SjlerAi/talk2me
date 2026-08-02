@@ -23,30 +23,34 @@ requireMarkers(verifier, [
   "['backup-runner.js', 2 * 1024 * 1024]", "['backup-verification.js', 2 * 1024 * 1024]",
   "['restore-test-runner.js', 2 * 1024 * 1024]", "['restore-test-governance-check.js', 2 * 1024 * 1024]",
   "['restore-test-integration-check.js', 2 * 1024 * 1024]", "['recovery-readiness-check.js', 2 * 1024 * 1024]",
-  "['BACKUP_AND_RECOVERY_RUNBOOK.md', 2 * 1024 * 1024]", "['CI_AND_BUILD_EVIDENCE_RUNBOOK.md', 2 * 1024 * 1024]",
-  'Unexpected migrations directory entry:', 'Protected source inventory contains duplicate paths', 'canonicalInventory', 'inventorySha256',
-  'selfProtected: files.some', 'governanceProtected: files.some', 'activationGovernanceProtected: files.some', 'ciWorkflowProtected: files.some',
+  "['recovery-release-gate.js', 2 * 1024 * 1024]", "['BACKUP_AND_RECOVERY_RUNBOOK.md', 2 * 1024 * 1024]",
+  "['CI_AND_BUILD_EVIDENCE_RUNBOOK.md', 2 * 1024 * 1024]", 'Unexpected migrations directory entry:',
+  'Protected source inventory contains duplicate paths', 'canonicalInventory', 'inventorySha256', 'selfProtected: files.some',
+  'governanceProtected: files.some', 'activationGovernanceProtected: files.some', 'ciWorkflowProtected: files.some',
   'ciEvidenceControlsProtected: files.some', 'releaseGovernanceProtected: files.some', 'backupRunnerProtected: files.some',
   'backupVerificationProtected: files.some', 'restoreRunnerProtected: files.some', 'restoreGovernanceProtected: files.some',
-  'restoreIntegrationProtected: files.some', 'recoveryReadinessProtected: files.some', 'recoveryRunbookProtected: files.some',
-  'duplicatePathsRejected: true', 'secureDescriptorReads: true', 'pathAndDescriptorMetadataBound: true',
-  'exactReadByteCountRequired: true', 'canonicalPathBinding: true', 'hardLinkRejection: true',
-  'ownershipConsistency: true', 'boundedReads: true', 'productionMutationEnabled: false', 'mergeExecutionEnabled: false'
+  'restoreIntegrationProtected: files.some', 'recoveryReadinessProtected: files.some', 'recoveryReleaseGateProtected: files.some',
+  'recoveryRunbookProtected: files.some', 'duplicatePathsRejected: true', 'secureDescriptorReads: true',
+  'pathAndDescriptorMetadataBound: true', 'exactReadByteCountRequired: true', 'canonicalPathBinding: true',
+  'hardLinkRejection: true', 'ownershipConsistency: true', 'boundedReads: true',
+  'productionMutationEnabled: false', 'mergeExecutionEnabled: false'
 ], 'Workspace source integrity verifier');
 
 requireMarkers(preflight, [
   "'workspace-topology-verification.js'", "'workspace-source-integrity.js'", "'workspace-source-integrity-check.js'",
   "'restore-test-governance-check.js'", "'restore-test-integration-check.js'", "'recovery-readiness-check.js'",
-  'workspaceSourceIntegrityVerified: true', 'workspaceSourceIntegrityGovernanceVerified: true',
+  "'recovery-release-gate.js'", 'workspaceSourceIntegrityVerified: true', 'workspaceSourceIntegrityGovernanceVerified: true',
   'restoreTestGovernanceVerified: true', 'restoreTestIntegrationVerified: true', 'recoveryReadinessVerified: true',
-  'backupRuntimeExecuted: false', 'backupVerificationExecuted: false', 'restoreTestExecuted: false'
+  'recoveryReleaseGateVerified: true', 'backupRuntimeExecuted: false', 'backupVerificationExecuted: false',
+  'restoreTestExecuted: false'
 ], 'Preview activation preflight');
 
 const expectedOrder = [
   "'workspace-topology-verification.js'", "'workspace-source-integrity.js'", "'workspace-source-integrity-check.js'",
   "'workspace-topology-governance-check.js'", "'migration-ledger-bootstrap-governance-check.js'",
   "'migration-runner-security-check.js'", "'restore-test-governance-check.js'",
-  "'restore-test-integration-check.js'", "'recovery-readiness-check.js'", "'runtime-release-identity-check.js'"
+  "'restore-test-integration-check.js'", "'recovery-readiness-check.js'", "'recovery-release-gate.js'",
+  "'runtime-release-identity-check.js'"
 ];
 for (let index = 1; index < expectedOrder.length; index += 1) if (preflight.indexOf(expectedOrder[index - 1]) >= preflight.indexOf(expectedOrder[index])) throw new Error(`Workspace source integrity order invalid at ${expectedOrder[index]}`);
 
@@ -68,9 +72,10 @@ console.log(JSON.stringify({
   ciGovernanceProtectionRequired: true, releaseSourceGovernanceProtectionRequired: true, releaseManifestGovernanceProtectionRequired: true,
   backupRunnerProtectionRequired: true, backupVerificationProtectionRequired: true, restoreRunnerProtectionRequired: true,
   restoreGovernanceProtectionRequired: true, restoreIntegrationProtectionRequired: true, recoveryReadinessProtectionRequired: true,
-  recoveryRunbookProtectionRequired: true, releaseRunbookProtectionRequired: true, ciEvidenceRunbookProtectionRequired: true,
-  activationPreflightRegistrationRequired: true, restoreGovernancePreflightRegistrationRequired: true,
-  restoreIntegrationPreflightRegistrationRequired: true, recoveryReadinessPreflightRegistrationRequired: true,
+  recoveryReleaseGateProtectionRequired: true, recoveryRunbookProtectionRequired: true, releaseRunbookProtectionRequired: true,
+  ciEvidenceRunbookProtectionRequired: true, activationPreflightRegistrationRequired: true,
+  restoreGovernancePreflightRegistrationRequired: true, restoreIntegrationPreflightRegistrationRequired: true,
+  recoveryReadinessPreflightRegistrationRequired: true, recoveryReleaseGatePreflightRegistrationRequired: true,
   packageCommandRegistered: true, normalSyntaxValidationRegistered: true, normalGovernanceValidationRegistered: true,
   environmentBoundVerifierExcludedFromNormalExecution: true, productionMutationEnabled: false, mergeExecutionEnabled: false
 }, null, 2));
