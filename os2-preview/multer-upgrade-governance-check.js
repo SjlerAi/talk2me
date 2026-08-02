@@ -39,6 +39,7 @@ const pkg = JSON.parse(read('package.json'));
 const documents = read('document-routes.js');
 const imports = read('import-routes.js');
 const administration = read('administration-routes.js');
+const regression = read('multer-request-regression-check.js');
 const runbook = read('MULTER_2_UPGRADE_RUNBOOK.md');
 
 if (pkg.dependencies.multer !== '^1.4.5-lts.1') {
@@ -90,9 +91,9 @@ requireOrder(routeSegment(imports, "router.post('/api/imports/preview'", 'monthl
 
 requireMarkers(administration, [
   "const multer = require('multer')",
+  'fs.mkdirSync(uploadDir, { recursive: true, mode: 0o700 })',
   'storage: multer.diskStorage',
   'crypto.randomBytes(8)',
-  'mode: 0o700',
   'fileSize: 8 * 1024 * 1024',
   'files: 1',
   'fields: 4',
@@ -100,17 +101,27 @@ requireMarkers(administration, [
   "'image/jpeg','image/png','image/webp','application/pdf'",
   "upload.single('file')",
   'function removeUploadedFile(file)',
-  'removeUploadedFile(req.file);'
+  'removeUploadedFile(req.file);return res.status(400)',
+  'removeUploadedFile(req.file);res.status(500)'
 ], 'staff document upload');
-const staffRoute = routeSegment(administration, "router.post('/api/administration/staff/:id/document'", 'staff document route');
-requireOrder(staffRoute, [
+requireOrder(routeSegment(administration, "router.post('/api/administration/staff/:id/document'", 'staff document route'), [
   'requireAuth, requireManager',
   "upload.single('file')",
   'async (req,res)'
 ], 'staff document authorization');
-if ((staffRoute.match(/removeUploadedFile\(req\.file\);/g) || []).length < 2) {
-  failures.push('staff document route must clean rejected and failed uploads');
-}
+
+requireMarkers(regression, [
+  "check: 'multer-request-regression'",
+  "server.listen(0, '127.0.0.1'",
+  'LIMIT_FILE_SIZE',
+  'LIMIT_FIELD_COUNT',
+  'LIMIT_PART_COUNT',
+  'LIMIT_FILE_COUNT',
+  'LIMIT_UNEXPECTED_FILE',
+  'UNSUPPORTED_UPLOAD_TYPE',
+  'persistentStorageUsed: false',
+  'productionMutationEnabled: false'
+], 'Multer request regression');
 
 requireMarkers(runbook, [
   'Controlled Multer 2 Upgrade Runbook',
@@ -118,6 +129,7 @@ requireMarkers(runbook, [
   'Customer documents',
   'Monthly import preview',
   'Staff documents',
+  'Completed isolated request regressions',
   'authorization middleware remains before Multer middleware',
   'no rejected upload remains on disk',
   'production remains untouched until explicit owner approval'
@@ -134,17 +146,14 @@ console.log(JSON.stringify({
   check: 'multer-upgrade-governance',
   currentReviewedVersion: pkg.dependencies.multer,
   uploadSurfaces: 3,
-  customerDocumentUploadGoverned: true,
-  monthlyImportUploadGoverned: true,
-  staffDocumentUploadGoverned: true,
   singleFileLimitsRequired: true,
   multipartFieldAndPartLimitsRequired: true,
   authorizationBeforeParsingRequired: true,
   privateDocumentStorageRequired: true,
   privateStaffUploadDirectoryRequired: true,
-  rejectedUploadCleanupRequired: true,
   validationFailureCleanupRequired: true,
   persistenceFailureCleanupRequired: true,
+  isolatedRequestRegressionRequired: true,
   multer2UpgradeExecuted: false,
   dependencyInstallationExecuted: false,
   productionMutationEnabled: false
