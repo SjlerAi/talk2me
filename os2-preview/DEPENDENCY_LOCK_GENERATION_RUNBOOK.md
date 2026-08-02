@@ -15,30 +15,29 @@ It applies only to:
 
 Production at `talk2me.uent.co.za` remains untouched.
 
-## Why this is separate
+## Separation from normal validation
 
-The current release path requires a committed dependency lock before CI, dependency audit, source approval and release freeze can pass. Controlled lock generation is intentionally separate from ordinary validation because it writes `package-lock.json` and private provenance evidence.
+Controlled generation writes a lockfile and private evidence. It is therefore not executed by `npm run check`. Normal validation syntax-checks the generator and runs `dependency-lock-generator-check.js` only.
 
-The generator is not executed by `npm run check`. Normal validation only syntax-checks the generator and executes `dependency-lock-generator-check.js`.
+A directly generated lock is operational evidence, not an approved adoption commit. The approved repository adoption path uses the manual generation workflow, verified artifact, controlled materializer, provenance file, and adoption workflow.
 
 ## Preconditions
 
-1. The controlled branch is checked out at the intended commit.
-2. `package-lock.json` must not already exist.
-3. The application root must be canonical, owned by the operator and not writable by group or world users.
-4. `package.json` must be a canonical, regular, single-link file owned by the application-root owner.
-5. The exact real Node.js binary must be supplied through `NODE_BIN`.
-6. The exact canonical executable npm binary must be supplied through `NPM_BIN`.
-7. `NODE_BIN` must resolve to the binary running the generator.
-8. The runtime must be Node.js 20 and npm 10.
-9. A private temporary root must exist outside the application source tree and outside `public_html`.
-10. A private evidence directory must exist outside the application source tree and outside `public_html`.
-11. The evidence JSON and checksum sidecar must not already exist.
-12. Production mutation and customer-merge execution must remain disabled.
+1. The controlled branch is checked out at the intended source commit.
+2. `package-lock.json must not already exist` in the application root.
+3. `dependency-lock-provenance.json` must not already exist.
+4. The application root must be canonical and not writable by group or world users.
+5. `package.json` must be a canonical regular single-link file owned by the application owner.
+6. The exact canonical Node binary must be supplied through `NODE_BIN`.
+7. The exact canonical npm binary must be supplied through `NPM_BIN`.
+8. `NODE_BIN` must resolve to the process running the generator.
+9. The runtime must be Node.js 20 and npm 10.
+10. The private temporary root must be outside the source tree and outside `public_html`.
+11. The private evidence directory must be outside the source tree and outside `public_html`.
+12. Evidence JSON and checksum sidecar targets must not already exist.
+13. Production mutation and customer-merge execution must remain disabled.
 
-## Resolve the exact binaries
-
-Use the real canonical paths rather than a shell alias or symlink. Typical cPanel locations differ by host, so resolve them before running.
+## Resolve exact binaries
 
 ```bash
 readlink -f "$(command -v node)"
@@ -47,11 +46,7 @@ node --version
 npm --version
 ```
 
-The required runtime is Node.js 20 and npm 10.
-
 ## Prepare private directories
-
-Example only; use paths owned by the preview operator:
 
 ```bash
 mkdir -p /home/kloka/private_tmp/talk2me-lock
@@ -59,8 +54,6 @@ mkdir -p /home/kloka/private_evidence/talk2me-lock
 chmod 700 /home/kloka/private_tmp/talk2me-lock
 chmod 700 /home/kloka/private_evidence/talk2me-lock
 ```
-
-The temporary root and evidence parent must be absolute, normalized, canonical, non-symlink directories owned by the application-root owner. Group and world access is prohibited.
 
 ## Controlled generation command
 
@@ -80,74 +73,70 @@ ENABLE_CUSTOMER_MERGE_EXECUTION=false \
 node dependency-lock-generator.js
 ```
 
-## Generation controls
+## Sixty generation controls
 
-The generator:
-
-1. Requires the exact preview root.
-2. Requires `DB_NAME=kloka_talk2me`.
-3. Requires the controlled branch.
-4. Requires `ALLOW_DEPENDENCY_LOCK_GENERATION=true`.
-5. Refuses production mutation.
-6. Refuses customer-merge execution.
-7. Requires Node.js 20.
-8. Requires npm 10.
-9. Pins the npm registry to `https://registry.npmjs.org/`.
-10. Refuses to overwrite an existing `package-lock.json`.
-11. Securely reads `package.json` through `O_NOFOLLOW`.
-12. Rejects symbolic links and additional hard links.
-13. Requires owner consistency.
-14. Rejects unsafe group or world write permissions.
-15. Bounds the package source to 1 MiB.
-16. Uses fatal UTF-8 decoding.
-17. Rejects a byte-order mark, NUL bytes and CRLF.
-18. Requires a final newline.
-19. Requires the exact package identity and private flag.
-20. Requires the exact main entrypoint.
-21. Requires the reviewed direct-dependency set.
-22. Rejects package lifecycle scripts.
-23. Requires absolute canonical Node and npm binaries.
-24. Rejects writable or non-executable npm binaries.
-25. Confirms the supplied Node binary matches the current process.
-26. Runs npm version detection with a 15-second bound.
-27. Requires a private external temporary root.
-28. Refuses a temporary root inside the source tree.
-29. Refuses a temporary root inside `public_html`.
-30. Requires a private external evidence path.
-31. Requires a `.json` evidence filename.
-32. Refuses evidence overwrite.
-33. Creates a randomized private `0700` temporary workspace.
-34. Copies `package.json` through an exclusive `0600` write.
-35. Uses a sanitized allowlisted environment.
-36. Does not inherit the full parent environment.
-37. Sets a private npm cache inside the temporary workspace.
-38. Disables user npm configuration through `/dev/null`.
-39. Forces lifecycle scripts off.
-40. Disables audit during generation.
-41. Disables funding output during generation.
-42. Uses package-lock-only mode.
-43. Forces lockfile version 3.
-44. Uses shell-disabled argument-array execution.
-45. Limits output capture to 4 MiB.
-46. Limits generation to 10 minutes.
-47. Uses forced `SIGKILL` on timeout.
-48. Rejects unexpected `node_modules` creation.
-49. Securely reads the generated candidate lock.
-50. Requires exact lock root identity.
-51. Requires exact root dependency agreement with `package.json`.
-52. Rechecks the application-root identity after generation.
-53. Rechecks that `package.json` did not change.
-54. Publishes `package-lock.json` atomically and without overwrite.
-55. Publishes the source lock with non-writable group/world permissions.
-56. Runs `dependency-lock-verification.js` after publication.
-57. Requires matching post-publication SHA-256 evidence.
-58. Removes only its own checksum-matching lock after failed verification.
-59. Publishes a private evidence JSON and SHA-256 sidecar atomically.
-60. Cleans only its own verified temporary workspace.
+1. Exact preview root required.
+2. Exact preview database required.
+3. Exact controlled branch required.
+4. Explicit generation opt-in required.
+5. Production mutation refused.
+6. Customer-merge execution refused.
+7. Node.js 20 required.
+8. npm 10 required.
+9. Registry pinned to `https://registry.npmjs.org/`.
+10. Existing lock overwrite refused.
+11. Secure `O_NOFOLLOW` package read required.
+12. Symbolic links prohibited.
+13. Additional hard links prohibited.
+14. Owner consistency required.
+15. Unsafe group/world writes prohibited.
+16. Package source bounded to 1 MiB.
+17. Fatal UTF-8 decoding required.
+18. BOM, NUL, and CRLF prohibited.
+19. Final newline required.
+20. Exact package identity required.
+21. Exact main entrypoint required.
+22. Exact reviewed direct dependencies required.
+23. Lifecycle scripts prohibited.
+24. Canonical Node and npm binaries required.
+25. Writable or non-executable binaries rejected.
+26. Running Node binary identity confirmed.
+27. npm version detection bounded.
+28. Private external temporary root required.
+29. Source-tree temporary storage prohibited.
+30. `public_html` temporary storage prohibited.
+31. Private external evidence path required.
+32. Evidence overwrite prohibited.
+33. Randomized `0700` temporary workspace required.
+34. Exclusive private package copy required.
+35. Sanitized allowlisted environment required.
+36. Full parent environment inheritance prohibited.
+37. Private npm cache required.
+38. User npm configuration disabled.
+39. Lifecycle scripts are disabled.
+40. Audit during generation disabled.
+41. Funding output during generation disabled.
+42. Package-lock-only mode required.
+43. Lockfile version 3 required.
+44. Shell execution disabled.
+45. Child output bounded.
+46. Generation limited to ten minutes.
+47. Forced `SIGKILL` required on timeout.
+48. `node_modules must not be created`.
+49. Generated lock reopened securely.
+50. Exact lock root identity required.
+51. Exact root dependency agreement required.
+52. Application-root identity rechecked.
+53. `package.json` continuity rechecked.
+54. Exclusive no-overwrite lock publication required.
+55. Safe source permissions required.
+56. `dependency-lock-verification.js` required after publication.
+57. Exact post-publication SHA-256 evidence required.
+58. Failed verification rollback bound to the created digest.
+59. A private evidence pair is published atomically.
+60. Only the owned temporary workspace is cleaned.
 
 ## Expected success evidence
-
-A successful run must report:
 
 ```text
 check: dependency-lock-generation
@@ -164,31 +153,21 @@ productionMutationEnabled: false
 mergeExecutionEnabled: false
 ```
 
-The evidence pair is private operational evidence and must not be committed to the public source tree.
+## After direct generation
 
-## After generation
-
-1. Run the independent verifier again:
-
-```bash
-PREVIEW_APP_ROOT=/home/kloka/repositories/talk2me/os2-preview \
-DB_NAME=kloka_talk2me \
-RELEASE_BRANCH=agent/talk2me-os2-integrated-rebuild \
-ALLOW_PRODUCTION_MUTATION=false \
-ENABLE_CUSTOMER_MERGE_EXECUTION=false \
-node dependency-lock-verification.js
-```
-
-2. Review the exact `package-lock.json` diff.
-3. Confirm no `node_modules` directory or other generated source files appeared.
-4. Commit `package-lock.json` on the controlled branch.
-5. Run the full source-only preview activation preflight again.
-6. Allow CI to run `npm ci --ignore-scripts --no-audit --no-fund`.
-7. Require `npm audit --omit=dev --audit-level=high` to pass.
-8. Retain the exact CI source digest and build-evidence artifact.
+1. Rerun `dependency-lock-verification.js` with the fixed preview identity and safety flags.
+2. Review the exact lock and generation evidence.
+3. Confirm no `node_modules` or unrelated source file appeared.
+4. Do not commit the directly generated lock by itself.
+5. Remove the uncommitted direct-generation lock after the operational review when it is no longer needed.
+6. Use `OS2 Dependency Lock Generation` to create the approved review artifact for repository adoption.
+7. Verify that artifact according to `DEPENDENCY_LOCK_ARTIFACT_REVIEW_RUNBOOK.md`.
+8. Materialize the exact lock and `dependency-lock-provenance.json` through `dependency-lock-adoption-materializer.js`.
+9. Commit exactly the approved two-file adoption according to `DEPENDENCY_LOCK_ADOPTION_RUNBOOK.md`.
+10. Require the adoption workflow and normal preview CI to pass.
 
 ## Hard stops
 
-Stop immediately when the lock already exists, the runtime identity is wrong, the registry differs, source ownership or permissions are unsafe, the package changes during generation, `node_modules` appears, npm exits non-zero, the timeout is reached, the generated lock does not match the package, the independent verifier fails, or private evidence cannot be published atomically.
+Stop when the lock already exists, runtime identity differs, the registry differs, source permissions are unsafe, `package.json` changes, `node_modules` appears, npm exits non-zero, a timeout occurs, generated lock identity differs, independent verification fails, private evidence cannot be published, or any production/merge safety flag is enabled.
 
-Controlled lock generation does not deploy, migrate, restart, back up, restore or modify production.
+Controlled generation does not deploy, migrate, restart, back up, restore, commit, or modify production.
