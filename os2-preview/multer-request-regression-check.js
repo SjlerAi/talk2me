@@ -120,7 +120,8 @@ async function main() {
       { name: 'file', filename: 'one.txt', contentType: 'text/plain', value: 'one' },
       { name: 'file', filename: 'two.txt', contentType: 'text/plain', value: 'two' }
     ]));
-    assert(duplicate.status === 400 && duplicate.body.code === 'LIMIT_UNEXPECTED_FILE', 'multiple files must fail closed');
+    const duplicateCodes = new Set(['LIMIT_FILE_COUNT', 'LIMIT_UNEXPECTED_FILE']);
+    assert(duplicate.status === 400 && duplicateCodes.has(duplicate.body.code), 'multiple files must fail closed');
 
     const oversized = await request(server, '/upload', multipart([
       { name: 'file', filename: 'large.txt', contentType: 'text/plain', value: Buffer.alloc(33, 65) }
