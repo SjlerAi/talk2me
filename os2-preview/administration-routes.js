@@ -21,6 +21,10 @@ module.exports = function createAdministrationRouter({ pool, requireAuth, reques
   });
   const canManage = user => ['owner','manager'].includes(user.role);
   const isOwner = user => user.role === 'owner';
+  function removeUploadedFile(file) {
+    if (!file || !file.path) return;
+    try { fs.unlinkSync(file.path); } catch (_) {}
+  }
 
   async function assertTables() {
     const required = ['os2_launcher_links','os2_staff_documents'];
@@ -146,14 +150,17 @@ module.exports = function createAdministrationRouter({ pool, requireAuth, reques
 
   router.post('/api/administration/staff/:id/document', requireAuth, requireManager, upload.single('file'), async (req,res) => {
     const staffId=Number(req.params.id), type=String(req.body.type||'photo');
-    if(!req.file||!Number.isInteger(staffId)||staffId<1||!['photo','id_document'].includes(type))return res.status(400).json({ok:false,error:'INVALID_DOCUMENT_UPLOAD'});
+    if(!req.file||!Number.isInteger(staffId)||staffId<1||!['photo','id_document'].includes(type)){
+      removeUploadedFile(req.file);
+      return res.status(400).json({ok:false,error:'INVALID_DOCUMENT_UPLOAD'});
+    }
     try{
       await assertTables();
       const [result]=await pool.execute(`INSERT INTO os2_staff_documents (staff_id,document_type,original_name,stored_name,mime_type,file_size,uploaded_by)
         VALUES (:staffId,:type,:original,:stored,:mime,:size,:uploadedBy)`,{staffId,type,original:req.file.originalname,stored:req.file.filename,mime:req.file.mimetype,size:req.file.size,uploadedBy:req.user.id});
       await audit(req,'staff_document_uploaded','os2_staff_documents',result.insertId,`Uploaded ${type} for staff #${staffId}`,null,{staffId,type,original:req.file.originalname});
       res.status(201).json({ok:true,id:Number(result.insertId)});
-    }catch(error){try{fs.unlinkSync(req.file.path);}catch{}res.status(500).json({ok:false,error:error.code||'DOCUMENT_UPLOAD_FAILED'});}
+    }catch(error){removeUploadedFile(req.file);res.status(500).json({ok:false,error:error.code||'DOCUMENT_UPLOAD_FAILED'});}
   });
 
   router.post('/api/administration/launchers', requireAuth, requireOwner, async (req,res) => {
