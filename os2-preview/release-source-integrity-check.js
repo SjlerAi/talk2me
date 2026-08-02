@@ -74,7 +74,9 @@ const manifestVerifierCall = 'verifyFrozenSource(root, manifest.approvedSourceIn
 requireMarkers(manifestVerifier, [
   'manifest.approvedSourceInventorySha256',
   manifestVerifierCall,
-  'releaseSourceIntegrityMatchesApprovedDigest: true'
+  'sourceEvidence.exactApprovedInventoryMatched !== true',
+  'sourceEvidence.inventorySha256',
+  'manifest.approvedSourceInventorySha256'
 ], 'Release manifest verifier');
 
 requireMarkers(runbook, [
