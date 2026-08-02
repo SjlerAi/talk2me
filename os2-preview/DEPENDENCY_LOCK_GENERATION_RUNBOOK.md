@@ -19,7 +19,9 @@ Production at `talk2me.uent.co.za` remains untouched.
 
 Controlled generation writes a lockfile and private evidence. It is therefore not executed by `npm run check`. Normal validation syntax-checks the generator and runs `dependency-lock-generator-check.js` only.
 
-A directly generated lock is operational evidence, not an approved adoption commit. The approved repository adoption path uses the manual generation workflow, verified artifact, controlled materializer, provenance file, and adoption workflow.
+During controlled generation, lifecycle scripts are disabled and `node_modules must not be created`.
+
+A directly generated lock is operational evidence, not an approved adoption commit. Approved repository adoption uses the manual generation workflow, verified artifact, controlled materializer, provenance file, and adoption workflow.
 
 ## Preconditions
 
@@ -30,10 +32,10 @@ A directly generated lock is operational evidence, not an approved adoption comm
 5. `package.json` must be a canonical regular single-link file owned by the application owner.
 6. The exact canonical Node binary must be supplied through `NODE_BIN`.
 7. The exact canonical npm binary must be supplied through `NPM_BIN`.
-8. `NODE_BIN` must resolve to the process running the generator.
+8. `NODE_BIN` must identify the running process binary.
 9. The runtime must be Node.js 20 and npm 10.
-10. The private temporary root must be outside the source tree and outside `public_html`.
-11. The private evidence directory must be outside the source tree and outside `public_html`.
+10. The private temporary root must be outside the source tree and `public_html`.
+11. The private evidence directory must be outside the source tree and `public_html`.
 12. Evidence JSON and checksum sidecar targets must not already exist.
 13. Production mutation and customer-merge execution must remain disabled.
 
@@ -55,9 +57,7 @@ chmod 700 /home/kloka/private_tmp/talk2me-lock
 chmod 700 /home/kloka/private_evidence/talk2me-lock
 ```
 
-## Controlled generation command
-
-Run from `/home/kloka/repositories/talk2me/os2-preview`:
+## Controlled command
 
 ```bash
 PREVIEW_APP_ROOT=/home/kloka/repositories/talk2me/os2-preview \
@@ -97,7 +97,7 @@ node dependency-lock-generator.js
 20. Exact package identity required.
 21. Exact main entrypoint required.
 22. Exact reviewed direct dependencies required.
-23. Lifecycle scripts prohibited.
+23. Package lifecycle scripts prohibited.
 24. Canonical Node and npm binaries required.
 25. Writable or non-executable binaries rejected.
 26. Running Node binary identity confirmed.
@@ -113,7 +113,7 @@ node dependency-lock-generator.js
 36. Full parent environment inheritance prohibited.
 37. Private npm cache required.
 38. User npm configuration disabled.
-39. Lifecycle scripts are disabled.
+39. Lifecycle-script execution disabled.
 40. Audit during generation disabled.
 41. Funding output during generation disabled.
 42. Package-lock-only mode required.
@@ -122,7 +122,7 @@ node dependency-lock-generator.js
 45. Child output bounded.
 46. Generation limited to ten minutes.
 47. Forced `SIGKILL` required on timeout.
-48. `node_modules must not be created`.
+48. Unexpected `node_modules` creation rejected.
 49. Generated lock reopened securely.
 50. Exact lock root identity required.
 51. Exact root dependency agreement required.
@@ -136,7 +136,7 @@ node dependency-lock-generator.js
 59. A private evidence pair is published atomically.
 60. Only the owned temporary workspace is cleaned.
 
-## Expected success evidence
+## Expected evidence
 
 ```text
 check: dependency-lock-generation
@@ -155,16 +155,15 @@ mergeExecutionEnabled: false
 
 ## After direct generation
 
-1. Rerun `dependency-lock-verification.js` with the fixed preview identity and safety flags.
-2. Review the exact lock and generation evidence.
-3. Confirm no `node_modules` or unrelated source file appeared.
-4. Do not commit the directly generated lock by itself.
-5. Remove the uncommitted direct-generation lock after the operational review when it is no longer needed.
-6. Use `OS2 Dependency Lock Generation` to create the approved review artifact for repository adoption.
-7. Verify that artifact according to `DEPENDENCY_LOCK_ARTIFACT_REVIEW_RUNBOOK.md`.
-8. Materialize the exact lock and `dependency-lock-provenance.json` through `dependency-lock-adoption-materializer.js`.
-9. Commit exactly the approved two-file adoption according to `DEPENDENCY_LOCK_ADOPTION_RUNBOOK.md`.
-10. Require the adoption workflow and normal preview CI to pass.
+1. Rerun `dependency-lock-verification.js`.
+2. Review the exact lock and evidence pair.
+3. Confirm no `node_modules` or unrelated source appeared.
+4. Do not commit the direct-generation lock by itself.
+5. Use `OS2 Dependency Lock Generation` for the approved artifact.
+6. Follow `DEPENDENCY_LOCK_ARTIFACT_REVIEW_RUNBOOK.md`.
+7. Materialize the lock and `dependency-lock-provenance.json` through `dependency-lock-adoption-materializer.js`.
+8. Commit exactly the approved two-file adoption according to `DEPENDENCY_LOCK_ADOPTION_RUNBOOK.md`.
+9. Require the adoption workflow and normal preview CI to pass.
 
 ## Hard stops
 
