@@ -1,49 +1,90 @@
 'use strict';
 
 const mysql = require('mysql2/promise');
-const { startEmailWorker } = require('./email-worker');
+const {
+  loadEmailWorkerConfig,
+  verifyPool,
+  startEmailWorker,
+  safeError
+} = require('./email-worker');
 
-const required = ['DB_HOST','DB_USER','DB_NAME'];
-const missing = required.filter(name => !process.env[name]);
-if (missing.length) {
-  console.error(`Email worker cannot start; missing environment variables: ${missing.join(', ')}`);
-  process.exit(1);
-}
+let pool = null;
+let state = null;
+let shuttingDown = false;
 
-const pool = mysql.createPool({
-  host: process.env.DB_HOST,
-  port: Number(process.env.DB_PORT || 3306),
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME,
-  waitForConnections: true,
-  connectionLimit: Math.max(2, Math.min(Number(process.env.EMAIL_DB_CONNECTION_LIMIT || 4), 10)),
-  queueLimit: 0,
-  namedPlaceholders: true,
-  charset: 'utf8mb4'
-});
-
-const state = startEmailWorker({ pool });
-if (!state.enabled || !state.configured) {
-  pool.end().finally(() => process.exit(1));
-}
-
-async function shutdown(signal) {
+async function shutdown(signal, exitCode = 0) {
+  if (shuttingDown) return;
+  shuttingDown = true;
   console.log(`OS2 email worker received ${signal}`);
   try {
-    if (state.stop) await state.stop();
-    await pool.end();
-  } finally {
-    process.exit(0);
+    if (state && state.stop) await state.stop();
+  } catch (error) {
+    console.error('OS2 email worker stop failed', safeError(error));
+    exitCode = 1;
+  }
+  try {
+    if (pool) await pool.end();
+  } catch (error) {
+    console.error('OS2 email worker database close failed', safeError(error));
+    exitCode = 1;
+  }
+  process.exitCode = exitCode;
+}
+
+async function main() {
+  process.umask(0o077);
+  const config = loadEmailWorkerConfig(process.env);
+  pool = mysql.createPool({
+    host: config.dbHost,
+    port: config.dbPort,
+    user: config.dbUser,
+    password: config.dbPassword,
+    database: config.database,
+    waitForConnections: true,
+    connectionLimit: config.dbConnectionLimit,
+    maxIdle: config.dbConnectionLimit,
+    idleTimeout: 60000,
+    queueLimit: 0,
+    enableKeepAlive: false,
+    connectTimeout: 10000,
+    namedPlaceholders: true,
+    charset: 'utf8mb4',
+    timezone: 'Z'
+  });
+  await verifyPool(pool, config);
+  state = startEmailWorker({ pool, config });
+  if (config.runOnce) {
+    await state.done;
+    await shutdown('EMAIL_WORKER_RUN_ONCE_COMPLETE', 0);
   }
 }
 
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-process.on('SIGINT', () => shutdown('SIGINT'));
-process.on('uncaughtException', error => {
-  console.error('OS2 email worker uncaught exception', error?.code || error?.message || error);
-  shutdown('uncaughtException');
+process.once('SIGTERM', () => {
+  shutdown('SIGTERM', 0).catch(error => {
+    console.error('OS2 email worker shutdown failed', safeError(error));
+    process.exitCode = 1;
+  });
 });
-process.on('unhandledRejection', error => {
-  console.error('OS2 email worker unhandled rejection', error?.code || error?.message || error);
+process.once('SIGINT', () => {
+  shutdown('SIGINT', 0).catch(error => {
+    console.error('OS2 email worker shutdown failed', safeError(error));
+    process.exitCode = 1;
+  });
 });
+process.once('uncaughtException', error => {
+  console.error('OS2 email worker uncaught exception', safeError(error));
+  shutdown('uncaughtException', 1).catch(() => { process.exitCode = 1; });
+});
+process.once('unhandledRejection', error => {
+  console.error('OS2 email worker unhandled rejection', safeError(error));
+  shutdown('unhandledRejection', 1).catch(() => { process.exitCode = 1; });
+});
+
+if (require.main === module) {
+  main().catch(async error => {
+    console.error('OS2 EMAIL WORKER FAILED', safeError(error));
+    await shutdown('startupFailure', 1);
+  });
+}
+
+module.exports = { main, shutdown };
