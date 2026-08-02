@@ -72,7 +72,7 @@ requireMarkers(runbook, [
   'exact controlled branch', 'contiguous sequence beginning at `001`', 'Hidden files', 'non-file directory entries',
   'UTF-8 BOM', 'CRLF', 'final newline', 'ledger self-mutation', 'Destructive database-level SQL',
   '10-second connection timeout', 'UTC session', 'autocommit', 'positional placeholders',
-  'Final ledger inventory', 'IS_FREE_LOCK()', 'database connection closes before final success'
+  'finalLedgerInventoryVerified: true', 'IS_FREE_LOCK()', 'database connection closes before final success'
 ], 'Deployment runbook');
 
 if (pkg.scripts['migrate:preview'] !== 'node migration-runner.js') throw new Error('Missing exact migrate:preview command');
