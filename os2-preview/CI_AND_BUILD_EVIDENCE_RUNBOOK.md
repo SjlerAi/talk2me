@@ -6,6 +6,8 @@ This runbook governs automated validation for the integrated Talk2Me OS2 preview
 
 ## Controlled branch only
 
+This release-evidence policy is controlled branch only.
+
 Release-grade build evidence is produced only from:
 
 ```text
