@@ -1,14 +1,16 @@
 # Controlled Multer 2 Upgrade Runbook
 
-Status: planned, not executed
+Status: target selected, dependency change not executed
 Related issue: #85
 Preview version: 0.60.0
+Selected review target: exact Multer 2.2.0
+Version review: `MULTER_2_VERSION_REVIEW.md`
 
 ## Purpose
 
-Migrate the OS2 preview from the reviewed Multer 1.4.5 LTS line to Multer 2.x without weakening upload authentication, authorization, limits, private-storage controls, cleanup behavior or error handling.
+Migrate the OS2 preview from the reviewed Multer 1.4.5 LTS line to exact Multer 2.2.0 without weakening upload authentication, authorization, limits, private-storage controls, cleanup behavior or error handling.
 
-This runbook does not authorize dependency installation, deployment, migration execution, service restart or production mutation.
+Multer 3 pre-release versions are excluded. This runbook does not authorize dependency installation, deployment, migration execution, service restart or production mutation.
 
 ## Current upload inventory
 
@@ -63,46 +65,53 @@ Source: `administration-routes.js`
 
 Source: `multer-request-regression-check.js`
 
-The normal security-validation chain now runs a temporary HTTP server bound only to `127.0.0.1` on an ephemeral port. It configures no database and uses memory storage only.
+The normal security-validation chain runs a temporary HTTP server bound only to `127.0.0.1` on an ephemeral port. It configures no database and uses memory storage only.
 
 The fixture verifies:
 
 - one valid single-file request;
 - a missing file remains visible to route-level validation;
+- an empty multipart request remains visible to route-level validation;
 - multiple files fail closed;
-- oversized files fail closed;
-- excessive fields fail closed;
+- a wrong file field fails closed;
+- strict file-size boundary behavior is recorded;
+- excessive and duplicate fields are covered;
 - excessive parts fail closed;
 - unsupported MIME types fail closed;
-- responses are bounded and evidence contains no private paths;
+- wrong, missing and truncated multipart boundaries fail closed;
+- controlled JSON errors expose no private paths, stack traces or raw parser internals;
+- responses and evidence are bounded;
 - no persistent upload storage or production mutation is used.
 
 The fixture is a source-validation regression, not preview UAT and not evidence that deployed upload routes have been exercised.
 
-## Required pre-upgrade corrections
+## Required pre-upgrade controls
 
 Before changing the Multer dependency:
 
-1. Reject multiple files explicitly on every single-file route.
-2. Set bounded multipart field and part counts where supported.
+1. Keep multiple-file rejection explicit on every single-file route.
+2. Keep bounded multipart field and part counts.
 3. Ensure every validation failure after disk publication removes the temporary file.
 4. Return controlled upload errors without absolute paths or raw Multer internals.
 5. Confirm unsupported files are not retained.
 6. Confirm malformed and truncated multipart requests fail closed.
 7. Confirm authorization middleware remains before Multer middleware.
+8. Keep exact target `2.2.0`; no range and no pre-release substitution.
 
-Items 1, 2, 3 and 7 are enforced in committed source. Items 4, 5 and 6 still require deployed-route regression and preview UAT after the reviewed dependency upgrade.
+Items 1 through 7 are enforced in committed source-level validation. Item 8 is governed by `MULTER_2_VERSION_REVIEW.md` and `multer-upgrade-governance-check.js`. Deployed-route regression and preview UAT remain required after controlled dependency adoption.
 
 ## Upgrade procedure
 
 1. Work only on the controlled preview branch.
-2. Record the exact Multer 2.x version selected for review.
-3. Regenerate the dependency lock through the controlled generation workflow.
-4. Review artifact checksum, provenance and source-inventory continuity.
-5. Adopt the lock only through the controlled two-file adoption process.
-6. Run syntax, governance and focused upload regression checks.
-7. Run preview-only authenticated upload tests after explicit activation approval.
-8. Perform browser and mobile UAT for customer documents, staff documents and monthly import preview.
+2. Use exact Multer `2.2.0` as the reviewed candidate.
+3. Obtain explicit approval before dependency evidence generation.
+4. Regenerate the dependency lock through the controlled generation workflow.
+5. Review artifact checksum, provenance and source-inventory continuity.
+6. Adopt `package.json` and `package-lock.json` only through the controlled two-file adoption process.
+7. Run syntax, governance and focused upload regression checks.
+8. Review all error-code and size-boundary differences against the recorded 1.x baseline.
+9. Run preview-only authenticated upload tests after explicit activation approval.
+10. Perform browser and mobile UAT for customer documents, staff documents and monthly import preview.
 
 ## Regression matrix
 
@@ -128,6 +137,7 @@ Each upload surface must test:
 
 The upgrade is accepted only when:
 
+- exact Multer `2.2.0` and its controlled lock provenance are verified;
 - all current size and file-count limits remain enforced;
 - authorization still executes before multipart parsing;
 - no rejected upload remains on disk;
