@@ -49,7 +49,7 @@ let pkg = null;
 try { pkg = JSON.parse(pkgText); } catch { failures.push('package.json is invalid JSON'); }
 
 requireMarkers(provenance, [
-  "expectedApplication = 'talk2me-os2-preview'", "expectedVersion = '0.59.0'", "expectedDatabase = 'kloka_talk2me'",
+  "expectedApplication = 'talk2me-os2-preview'", "expectedVersion = '0.60.0'", "expectedDatabase = 'kloka_talk2me'",
   "expectedBranch = 'agent/talk2me-os2-integrated-rebuild'", "expectedRepository = 'SjlerAi/talk2me'",
   "expectedWorkflow = 'OS2 Dependency Lock Generation'", 'expectedNodeMajor = 20',
   'maxLockBytes = 16 * 1024 * 1024', 'maxProvenanceBytes = 64 * 1024', 'allowedClockSkewMs = 5 * 60 * 1000',
