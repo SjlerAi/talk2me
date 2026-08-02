@@ -56,19 +56,25 @@ Source: `administration-routes.js`
 - Maximum file count is one.
 - Maximum field count is four and maximum multipart part count is five.
 - Accepted MIME types are PDF, JPEG, PNG and WebP.
-- Failed validation or database persistence must remove the uploaded file.
+- Failed validation or database persistence removes the uploaded file.
 
-## Required pre-upgrade corrections
+## Completed pre-upgrade controls
+
+- [x] Reject multiple files explicitly on every single-file route.
+- [x] Set bounded multipart field and part counts.
+- [x] Remove staff-upload files after validation failures that occur after disk publication.
+- [x] Remove staff-upload files after database persistence failures.
+- [x] Confirm authorization middleware remains before Multer middleware.
+- [x] Register fail-closed upload governance in the normal security validation chain.
+
+## Remaining pre-upgrade validation
 
 Before changing the Multer dependency:
 
-1. Reject multiple files explicitly on every single-file route.
-2. Set bounded multipart field and part counts where supported.
-3. Ensure every validation failure after disk publication removes the temporary file.
-4. Return controlled upload errors without absolute paths or raw Multer internals.
-5. Confirm unsupported files are not retained.
-6. Confirm malformed and truncated multipart requests fail closed.
-7. Confirm authorization middleware remains before Multer middleware.
+1. Return controlled upload errors without absolute paths or raw Multer internals.
+2. Confirm unsupported files are not retained through focused request tests.
+3. Confirm malformed and truncated multipart requests fail closed through focused request tests.
+4. Add focused regression fixtures for missing, multiple, oversized and malformed uploads.
 
 ## Upgrade procedure
 
