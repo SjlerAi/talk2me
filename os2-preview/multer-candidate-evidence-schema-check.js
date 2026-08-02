@@ -2,6 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { spawnSync } = require('child_process');
 
 const root = __dirname;
 const failures = [];
@@ -18,10 +19,32 @@ function requireMarkers(source, markers, label) {
     if (!source.includes(marker)) failures.push(`${label} missing ${marker}`);
   }
 }
+function runJsonCheck(file, label) {
+  const result = spawnSync(process.execPath, [file], {
+    cwd: root,
+    encoding: 'utf8',
+    timeout: 30000,
+    maxBuffer: 256 * 1024,
+    shell: false,
+    env: Object.freeze({ PATH: process.env.PATH || '', NODE_ENV: 'test' })
+  });
+  if (result.error) {
+    failures.push(`${label} execution failed: ${result.error.message}`);
+    return {};
+  }
+  if (result.status !== 0) {
+    failures.push(`${label} failed: ${String(result.stderr || result.stdout).trim()}`);
+    return {};
+  }
+  try { return JSON.parse(String(result.stdout || '{}')); }
+  catch { failures.push(`${label} returned invalid JSON`); return {}; }
+}
 
 const schema = read('MULTER_2_CANDIDATE_EVIDENCE_SCHEMA.md');
 const approval = read('MULTER_2_GENERATION_APPROVAL.md');
 const plan = read('MULTER_2_CANDIDATE_MANIFEST_PLAN.md');
+const verifier = read('multer-candidate-evidence-verification.js');
+const verifierGovernance = read('multer-candidate-evidence-verification-check.js');
 const pkg = JSON.parse(read('package.json'));
 
 const exactKeys = [
@@ -77,6 +100,34 @@ requireMarkers(plan, [
   'production mutation disabled and adoption separately gated'
 ], 'candidate manifest plan');
 
+requireMarkers(verifier, [
+  "check: 'multer-candidate-evidence-verification'",
+  'exactKeyCount: EXPECTED_KEYS.length',
+  'approvalBound: true',
+  'approvalWindowHours: 24',
+  'digestsVerified: 4',
+  'onlyMulterDependencyChanged: true',
+  'adoptionAuthorized: false',
+  'previewActivationAuthorized: false',
+  'productionMutationEnabled: false'
+], 'candidate evidence verifier');
+requireMarkers(verifierGovernance, [
+  "check: 'multer-candidate-evidence-verification-governance'",
+  'exactEvidenceKeys: 28',
+  'explicitLocalInputs: 6',
+  'digestComparisons: 4',
+  'shellExecutionAvailable: false',
+  'externalNetworkAvailable: false',
+  'databaseAvailable: false',
+  'filesystemMutationAvailable: false'
+], 'candidate evidence verifier governance');
+
+const verifierEvidence = runJsonCheck('multer-candidate-evidence-verification-check.js', 'Multer candidate evidence verifier governance');
+if (verifierEvidence.ok !== true || verifierEvidence.check !== 'multer-candidate-evidence-verification-governance') failures.push('Candidate evidence verifier governance identity invalid');
+if (verifierEvidence.exactEvidenceKeys !== 28 || verifierEvidence.explicitLocalInputs !== 6 || verifierEvidence.digestComparisons !== 4) failures.push('Candidate evidence verifier governance counts invalid');
+if (verifierEvidence.approvalBindingRequired !== true || verifierEvidence.approvalFreshnessHours !== 24 || verifierEvidence.rollbackCompletionRequired !== true) failures.push('Candidate evidence verifier approval or rollback governance invalid');
+for (const key of ['shellExecutionAvailable','externalNetworkAvailable','databaseAvailable','filesystemMutationAvailable','dependencyAdoptionAuthorized','previewActivationAuthorized','productionMutationEnabled']) if (verifierEvidence[key] !== false) failures.push(`Candidate evidence verifier capability must remain false: ${key}`);
+
 if (pkg.dependencies.multer !== '^1.4.5-lts.1') failures.push('Active Multer dependency changed before candidate evidence authorization');
 if (Object.prototype.hasOwnProperty.call(pkg, 'devDependencies')) failures.push('Unexpected devDependencies in active package manifest');
 
@@ -99,6 +150,9 @@ console.log(JSON.stringify({
   fourSha256BindingsRequired: true,
   constantTimeDigestComparisonRequired: true,
   rollbackEvidenceRequired: true,
+  verifierGovernanceRequired: true,
+  verifierLocalInputs: 6,
+  verifierFilesystemMutationAvailable: false,
   secretFieldsProhibited: true,
   ownerGenerationApprovalGranted: false,
   dependencyLockGenerationAuthorized: false,
