@@ -35,10 +35,12 @@ const secureReadMarkers = [
 requireMarkers(verifier, secureReadMarkers, 'Release verifier');
 
 const protectedTargets = [
-  "readSecureRegularFile(manifestPath",
-  "readSecureRegularFile(checksumPath",
-  "readSecureRegularFile(packageJsonPath",
-  "readSecureRegularFile(packageLockPath",
+  "verifyChecksumPair(manifestPath, 'Release manifest'",
+  "readSecureRegularFile(file, { label, expectedMode: 0o600, maxBytes })",
+  "readSecureRegularFile(`${file}.sha256`, { label: `${label} checksum`, expectedMode: 0o600, maxBytes: 4096 })",
+  "readSecureRegularFile(path.join(root, 'package.json')",
+  "readSecureRegularFile(path.join(root, 'package-lock.json')",
+  "verifyChecksumPair(bootstrapEvidencePath, 'Migration ledger bootstrap evidence'",
   "readSecureRegularFile(path.join(migrationsDirectory, file)"
 ];
 requireMarkers(verifier, protectedTargets, 'Protected read coverage');
@@ -67,6 +69,8 @@ console.log(JSON.stringify({
   descriptorIdentityRequired: true,
   descriptorBasedReadRequired: true,
   boundedReadsRequired: true,
+  checksumPairCoverageRequired: true,
+  bootstrapEvidenceCoverageRequired: true,
   protectedTargets: protectedTargets.length,
   independentlyExecutable: true,
   packageCommandRegistered: true,
