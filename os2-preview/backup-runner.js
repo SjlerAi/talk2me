@@ -8,98 +8,148 @@ const { spawn } = require('child_process');
 const mysql = require('mysql2/promise');
 
 const PREVIEW_DB = 'kloka_talk2me';
+const RELEASE_BRANCH = 'agent/talk2me-os2-integrated-rebuild';
+const DUMP_TIMEOUT_MS = 15 * 60 * 1000;
+const CONNECTION_TIMEOUT_MS = 10000;
+const STDERR_LIMIT = 64 * 1024;
+const MAX_BACKUP_BYTES = 20 * 1024 * 1024 * 1024;
 
-function required(name) {
+function required(name, maxLength = 1024) {
   const value = String(process.env[name] || '').trim();
   if (!value) throw new Error(`MISSING_${name}`);
+  if (value.length > maxLength || /[\u0000\r\n]/.test(value)) throw new Error(`INVALID_${name}`);
   return value;
 }
-
-function ensureSafeConfiguration() {
-  if (required('DB_NAME') !== PREVIEW_DB) throw new Error('REFUSING_NON_PREVIEW_DATABASE');
-  if (process.env.ALLOW_PREVIEW_BACKUPS !== 'true') throw new Error('PREVIEW_BACKUPS_NOT_ENABLED');
-  const backupDir = path.resolve(required('BACKUP_PRIVATE_DIR'));
-  if (!path.isAbsolute(backupDir)) throw new Error('BACKUP_DIRECTORY_MUST_BE_ABSOLUTE');
-  if (backupDir.includes('/public_html/') || backupDir.endsWith('/public_html')) throw new Error('BACKUP_DIRECTORY_MUST_NOT_BE_PUBLIC');
-  return backupDir;
+function validatePort(value) {
+  const port = Number(value || 3306);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('DB_PORT_INVALID');
+  return port;
 }
-
+function secureDirectory(directory) {
+  if (!path.isAbsolute(directory) || path.normalize(directory) !== directory) throw new Error('BACKUP_DIRECTORY_MUST_BE_ABSOLUTE_AND_NORMALIZED');
+  if (directory.includes('/public_html/') || directory.endsWith('/public_html')) throw new Error('BACKUP_DIRECTORY_MUST_NOT_BE_PUBLIC');
+  fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
+  const stat = fs.lstatSync(directory);
+  if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error('BACKUP_DIRECTORY_NOT_SECURE');
+  if (fs.realpathSync.native(directory) !== directory) throw new Error('BACKUP_DIRECTORY_NOT_CANONICAL');
+  if (process.platform !== 'win32' && (stat.mode & 0o077) !== 0) throw new Error('BACKUP_DIRECTORY_MUST_BE_PRIVATE');
+  if (process.platform !== 'win32' && typeof process.getuid === 'function' && stat.uid !== process.getuid()) throw new Error('BACKUP_DIRECTORY_OWNER_MISMATCH');
+  if (typeof fs.constants.O_NOFOLLOW !== 'number' || typeof fs.constants.O_DIRECTORY !== 'number') throw new Error('SECURE_DIRECTORY_FLAGS_UNAVAILABLE');
+  const fd = fs.openSync(directory, fs.constants.O_RDONLY | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW);
+  try {
+    const opened = fs.fstatSync(fd);
+    if (opened.dev !== stat.dev || opened.ino !== stat.ino) throw new Error('BACKUP_DIRECTORY_CHANGED_DURING_OPEN');
+    return { dev: opened.dev, ino: opened.ino, uid: opened.uid, mode: opened.mode, mtimeMs: opened.mtimeMs };
+  } finally { fs.closeSync(fd); }
+}
+function ensureSafeConfiguration() {
+  if (required('DB_NAME', 128) !== PREVIEW_DB) throw new Error('REFUSING_NON_PREVIEW_DATABASE');
+  if (required('RELEASE_BRANCH', 255) !== RELEASE_BRANCH) throw new Error('RELEASE_BRANCH_MISMATCH');
+  if (String(process.env.ALLOW_PREVIEW_BACKUPS || '').toLowerCase() !== 'true') throw new Error('PREVIEW_BACKUPS_NOT_ENABLED');
+  if (String(process.env.ALLOW_PRODUCTION_MUTATION || '').toLowerCase() === 'true') throw new Error('PRODUCTION_MUTATION_FLAG_PROHIBITED');
+  if (String(process.env.ENABLE_CUSTOMER_MERGE_EXECUTION || '').toLowerCase() === 'true') throw new Error('MERGE_EXECUTION_FLAG_PROHIBITED');
+  return secureDirectory(required('BACKUP_PRIVATE_DIR', 2048));
+}
+function buildDumpEnvironment() {
+  const env = {};
+  for (const key of ['PATH','HOME','USER','LOGNAME','TMPDIR','TEMP','TMP','LANG','LC_ALL','TZ']) if (process.env[key]) env[key] = process.env[key];
+  env.MYSQL_PWD = process.env.DB_PASSWORD || '';
+  return Object.freeze(env);
+}
 function sha256(filePath) {
   return new Promise((resolve, reject) => {
     const hash = crypto.createHash('sha256');
-    const stream = fs.createReadStream(filePath);
+    const stream = fs.createReadStream(filePath, { flags: fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW });
     stream.on('error', reject);
     stream.on('data', chunk => hash.update(chunk));
     stream.on('end', () => resolve(hash.digest('hex')));
   });
 }
-
-function runDump(filePath) {
+function validateDumpBinary() {
+  const binary = String(process.env.MYSQLDUMP_BIN || 'mysqldump').trim();
+  if (!binary || /[\u0000\r\n]/.test(binary)) throw new Error('MYSQLDUMP_BIN_INVALID');
+  if (binary.includes('/') && (!path.isAbsolute(binary) || path.normalize(binary) !== binary)) throw new Error('MYSQLDUMP_BIN_MUST_BE_CANONICAL');
+  return binary;
+}
+function runDump(filePath, config) {
   const args = [
-    '--single-transaction','--quick','--routines','--triggers','--events',
-    '--default-character-set=utf8mb4',
-    '-h', required('DB_HOST'),
-    '-P', String(process.env.DB_PORT || 3306),
-    '-u', required('DB_USER'),
-    PREVIEW_DB
+    '--single-transaction','--quick','--routines','--triggers','--events','--hex-blob','--set-gtid-purged=OFF',
+    '--default-character-set=utf8mb4','--skip-comments','--skip-dump-date','--no-tablespaces',
+    '-h', config.host, '-P', String(config.port), '-u', config.user, PREVIEW_DB
   ];
   return new Promise((resolve, reject) => {
-    const output = fs.createWriteStream(filePath, { mode: 0o600 });
-    const child = spawn(process.env.MYSQLDUMP_BIN || 'mysqldump', args, {
-      env: { ...process.env, MYSQL_PWD: process.env.DB_PASSWORD || '' },
-      stdio: ['ignore','pipe','pipe']
-    });
+    const fd = fs.openSync(filePath, fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_NOFOLLOW, 0o600);
+    const output = fs.createWriteStream(null, { fd, autoClose: true });
+    const child = spawn(validateDumpBinary(), args, { env: buildDumpEnvironment(), stdio: ['ignore','pipe','pipe'], shell: false, windowsHide: true });
     let stderr = '';
-    child.stderr.on('data', chunk => { stderr += String(chunk).slice(0, 8000); });
+    let settled = false;
+    const timer = setTimeout(() => child.kill('SIGKILL'), DUMP_TIMEOUT_MS);
+    child.stderr.on('data', chunk => { if (stderr.length < STDERR_LIMIT) stderr += String(chunk).slice(0, STDERR_LIMIT - stderr.length); });
     child.stdout.pipe(output);
-    child.on('error', reject);
+    child.on('error', error => { if (!settled) { settled = true; clearTimeout(timer); reject(error); } });
     child.on('close', code => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
       output.end();
-      code === 0 ? resolve() : reject(new Error(`MYSQLDUMP_FAILED_${code}:${stderr.slice(-1000)}`));
+      if (code !== 0) return reject(new Error(`MYSQLDUMP_FAILED_${code}:${stderr.slice(-2000)}`));
+      resolve({ stderrBytes: Buffer.byteLength(stderr, 'utf8') });
     });
   });
+}
+async function verifyDatabaseIdentity(pool) {
+  const [[row]] = await pool.execute('SELECT DATABASE() AS database_name, CONNECTION_ID() AS connection_id, @@session.time_zone AS time_zone_value');
+  if (!row || row.database_name !== PREVIEW_DB) throw new Error('DATABASE_IDENTITY_MISMATCH');
+  if (!Number.isInteger(Number(row.connection_id)) || Number(row.connection_id) <= 0) throw new Error('DATABASE_CONNECTION_ID_INVALID');
+  await pool.query("SET SESSION time_zone = '+00:00'");
+  const [[timezone]] = await pool.execute('SELECT @@session.time_zone AS time_zone_value');
+  if (!timezone || timezone.time_zone_value !== '+00:00') throw new Error('UTC_SESSION_REQUIRED');
+  return Number(row.connection_id);
 }
 
 async function main() {
-  const backupDir = ensureSafeConfiguration();
-  fs.mkdirSync(backupDir, { recursive:true, mode:0o700 });
-  const stamp = new Date().toISOString().replace(/[:.]/g,'-');
-  const fileName = `talk2me-preview-${stamp}.sql`;
+  const backupDirIdentity = ensureSafeConfiguration();
+  const backupDir = required('BACKUP_PRIVATE_DIR', 2048);
+  const host = required('DB_HOST', 255);
+  const user = required('DB_USER', 128);
+  const port = validatePort(process.env.DB_PORT);
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const fileName = `talk2me-preview-${stamp}-${crypto.randomBytes(6).toString('hex')}.sql`;
+  if (!/^talk2me-preview-[0-9TZ-]+-[0-9a-f]{12}\.sql$/.test(fileName)) throw new Error('BACKUP_FILENAME_INVALID');
   const filePath = path.join(backupDir, fileName);
-  const workerId = `${os.hostname()}:${process.pid}`.slice(0,160);
-  const pool = mysql.createPool({
-    host: required('DB_HOST'), port:Number(process.env.DB_PORT || 3306), user:required('DB_USER'),
-    password:process.env.DB_PASSWORD || '', database:PREVIEW_DB, connectionLimit:2, namedPlaceholders:true
-  });
+  if (path.dirname(filePath) !== backupDir) throw new Error('BACKUP_PATH_ESCAPE_DETECTED');
+  const workerId = `${os.hostname()}:${process.pid}`.slice(0, 160);
+  const pool = mysql.createPool({ host, port, user, password: process.env.DB_PASSWORD || '', database: PREVIEW_DB, connectionLimit: 1, namedPlaceholders: false, charset: 'utf8mb4', connectTimeout: CONNECTION_TIMEOUT_MS, enableKeepAlive: false });
   let backupId;
+  let fileCreated = false;
   try {
-    const [insert] = await pool.execute(`INSERT INTO os2_backup_runs
-      (backup_type,status,database_name,storage_path,file_name,worker_id,started_at,created_at,updated_at)
-      VALUES('database','running',:db,:storage,:file,:worker,NOW(),NOW(),NOW())`, {
-      db:PREVIEW_DB, storage:backupDir, file:fileName, worker:workerId
-    });
+    const connectionId = await verifyDatabaseIdentity(pool);
+    const [insert] = await pool.execute("INSERT INTO os2_backup_runs (backup_type,status,database_name,storage_path,file_name,worker_id,started_at,created_at,updated_at) VALUES ('database','running',?,?,?,?,UTC_TIMESTAMP(),UTC_TIMESTAMP(),UTC_TIMESTAMP())", [PREVIEW_DB, backupDir, fileName, workerId]);
     backupId = Number(insert.insertId);
-    const [[stats]] = await pool.execute(`SELECT COUNT(*) table_count,COALESCE(SUM(TABLE_ROWS),0) row_count_estimate
-      FROM information_schema.TABLES WHERE TABLE_SCHEMA=:db`, { db:PREVIEW_DB });
-    await runDump(filePath);
+    if (!Number.isInteger(backupId) || backupId <= 0 || Number(insert.affectedRows) !== 1) throw new Error('BACKUP_RECORD_INSERT_NOT_CONFIRMED');
+    const [[stats]] = await pool.execute('SELECT COUNT(*) table_count,COALESCE(SUM(TABLE_ROWS),0) row_count_estimate FROM information_schema.TABLES WHERE TABLE_SCHEMA=?', [PREVIEW_DB]);
+    const tableCount = Number(stats.table_count);
+    const rowCountEstimate = Number(stats.row_count_estimate);
+    if (!Number.isInteger(tableCount) || tableCount < 1) throw new Error('BACKUP_TABLE_COUNT_INVALID');
+    if (!Number.isFinite(rowCountEstimate) || rowCountEstimate < 0) throw new Error('BACKUP_ROW_ESTIMATE_INVALID');
+    await runDump(filePath, { host, port, user });
+    fileCreated = true;
+    const stat = fs.lstatSync(filePath);
+    if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1) throw new Error('BACKUP_FILE_NOT_SECURE');
+    if (process.platform !== 'win32' && (stat.mode & 0o077) !== 0) throw new Error('BACKUP_FILE_NOT_PRIVATE');
+    if (process.platform !== 'win32' && stat.uid !== backupDirIdentity.uid) throw new Error('BACKUP_FILE_OWNER_MISMATCH');
+    if (stat.size <= 1024 || stat.size > MAX_BACKUP_BYTES) throw new Error('BACKUP_FILE_SIZE_INVALID');
+    if (fs.realpathSync.native(filePath) !== filePath) throw new Error('BACKUP_FILE_NOT_CANONICAL');
     const checksum = await sha256(filePath);
-    const fileSize = fs.statSync(filePath).size;
-    await pool.execute(`UPDATE os2_backup_runs SET status='completed',checksum_sha256=:checksum,
-      file_size_bytes=:size,table_count=:tables,row_count_estimate=:rows,completed_at=NOW(),updated_at=NOW()
-      WHERE id=:id`, { id:backupId, checksum, size:fileSize, tables:Number(stats.table_count), rows:Number(stats.row_count_estimate) });
-    console.log(JSON.stringify({ ok:true, backupId, fileName, fileSize, checksum, database:PREVIEW_DB }, null, 2));
+    if (!/^[0-9a-f]{64}$/.test(checksum)) throw new Error('BACKUP_CHECKSUM_INVALID');
+    const [update] = await pool.execute("UPDATE os2_backup_runs SET status='completed',checksum_sha256=?,file_size_bytes=?,table_count=?,row_count_estimate=?,completed_at=UTC_TIMESTAMP(),updated_at=UTC_TIMESTAMP(),failure_reason=NULL WHERE id=? AND status='running'", [checksum, stat.size, tableCount, rowCountEstimate, backupId]);
+    if (Number(update.affectedRows) !== 1) throw new Error('BACKUP_COMPLETION_UPDATE_NOT_CONFIRMED');
+    console.log(JSON.stringify({ ok: true, check: 'preview-backup-generation', backupId, fileName, filePath, fileSize: stat.size, checksum, tableCount, rowCountEstimate, database: PREVIEW_DB, branch: RELEASE_BRANCH, databaseConnectionId: connectionId, directoryPrivate: true, filePrivate: true, dumpEnvironmentSanitized: true, dumpExecutionBounded: true, productionMutationEnabled: false, mergeExecutionEnabled: false }, null, 2));
   } catch (error) {
-    if (backupId) await pool.execute(`UPDATE os2_backup_runs SET status='failed',failure_reason=:reason,completed_at=NOW(),updated_at=NOW() WHERE id=:id`, {
-      id:backupId, reason:String(error.message || error).slice(0,1000)
-    }).catch(() => {});
-    if (fs.existsSync(filePath)) fs.rmSync(filePath, { force:true });
+    if (backupId) await pool.execute("UPDATE os2_backup_runs SET status='failed',failure_reason=?,completed_at=UTC_TIMESTAMP(),updated_at=UTC_TIMESTAMP() WHERE id=? AND status='running'", [String(error.message || error).slice(0, 1000), backupId]).catch(() => {});
+    if (fileCreated || fs.existsSync(filePath)) fs.rmSync(filePath, { force: true });
     throw error;
-  } finally {
-    await pool.end();
-  }
+  } finally { await pool.end(); }
 }
 
-main().catch(error => {
-  console.error(`BACKUP FAILED: ${error.message}`);
-  process.exit(1);
-});
+main().catch(error => { console.error(`BACKUP FAILED: ${error.message}`); process.exit(1); });
