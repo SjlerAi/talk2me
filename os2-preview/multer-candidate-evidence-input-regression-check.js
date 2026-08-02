@@ -101,6 +101,10 @@ cases.relativePathRejected = executeCase('relative path', null, 'EVIDENCE_PATH_I
 cases.nonNormalizedPathRejected = executeCase('non-normalized path', null, 'EVIDENCE_PATH_INVALID', false, (env, state) => { env.MULTER_CANDIDATE_EVIDENCE_PATH = `${path.dirname(state.files.evidence)}${path.sep}.${path.sep}${path.basename(state.files.evidence)}`; });
 cases.symlinkRejected = executeCase('symlink', (state, root) => { const link = path.join(root, 'evidence-link.json'); fs.symlinkSync(state.files.evidence, link); state.files.evidence = link; }, 'EVIDENCE_NOT_REGULAR_FILE');
 cases.hardLinkRejected = executeCase('hard link', (state, root) => { const link = path.join(root, 'evidence-hardlink.json'); fs.linkSync(state.files.evidence, link); state.files.evidence = link; }, 'EVIDENCE_NOT_REGULAR_FILE');
+cases.missingFileRejected = executeCase('missing file', state => { fs.unlinkSync(state.files.evidence); }, 'EVIDENCE_READ_FAILED');
+cases.directoryRejected = executeCase('directory path', null, 'EVIDENCE_NOT_REGULAR_FILE', false, (env, state) => { env.MULTER_CANDIDATE_EVIDENCE_PATH = path.dirname(state.files.evidence); });
+cases.overlongEnvironmentPathRejected = executeCase('overlong environment path', null, 'INVALID_MULTER_CANDIDATE_EVIDENCE_PATH', false, env => { env.MULTER_CANDIDATE_EVIDENCE_PATH = `/${'a'.repeat(4097)}`; });
+cases.controlCharacterEnvironmentPathRejected = executeCase('control character environment path', null, 'INVALID_MULTER_CANDIDATE_EVIDENCE_PATH', false, (env, state) => { env.MULTER_CANDIDATE_EVIDENCE_PATH = `${state.files.evidence}\n`; });
 cases.emptyFileRejected = executeCase('empty file', state => { fs.truncateSync(state.files.evidence, 0); }, 'EVIDENCE_SIZE_INVALID');
 cases.oversizedJsonRejected = executeCase('oversized json', state => { fs.writeFileSync(state.files.evidence, Buffer.alloc(128 * 1024 + 1, 0x20)); }, 'EVIDENCE_SIZE_INVALID');
 cases.oversizedLockRejected = executeCase('oversized lock', state => { fs.writeFileSync(state.files.lock, Buffer.alloc(16 * 1024 * 1024 + 1, 0x20)); }, 'CANDIDATE_LOCK_SIZE_INVALID');
@@ -119,6 +123,10 @@ console.log(JSON.stringify({
   absoluteNormalizedPathsRequired: true,
   singleLinkRegularFilesRequired: true,
   boundedInputsRequired: true,
+  descriptorBoundReadsRequired: true,
+  missingAndDirectoryInputsRejected: true,
+  boundedEnvironmentPathsRequired: true,
+  controlCharactersProhibited: true,
   isolatedTemporaryFilesOnly: true,
   externalNetworkUsed: false,
   databaseConfigured: false,
