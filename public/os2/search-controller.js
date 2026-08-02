@@ -3,8 +3,7 @@
   const results = document.getElementById('results');
   if (!existingSearch || !results || existingSearch.dataset.controllerInstalled === '1') return;
 
-  // Replace the original input to remove the legacy input listener from os2.js.
-  // The search controller below is the single owner of customer-search requests.
+  // Replace the original input so this controller is the single owner of OS2 customer search.
   const search = existingSearch.cloneNode(true);
   search.dataset.controllerInstalled = '1';
   existingSearch.replaceWith(search);
@@ -17,9 +16,6 @@
     .normalize('NFKC')
     .toLowerCase()
     .trim();
-
-  const canonicalEmail = value => normaliseText(value)
-    .replace(/[^a-z0-9@._+\-]/g, '');
 
   let timer = null;
   let controller = null;
@@ -35,13 +31,18 @@
 
   function renderCustomers(customers) {
     results.innerHTML = customers.length
-      ? customers.map(item => `<div class="result" data-id="${Number(item.id)}" data-name="${escapeHtml(item.client_name)}"><b>${escapeHtml(item.client_name)}</b><span>${escapeHtml(item.account_number || 'No account')} · ${escapeHtml(item.cell_number || 'No phone')} · ${escapeHtml(item.email || item.city_town || '')}</span></div>`).join('')
+      ? customers.map(item => {
+          const account = item.account_numbers || 'No account';
+          const phone = item.primary_mobile || 'No phone';
+          const secondary = item.primary_email || item.town || '';
+          return `<div class="result" data-id="${Number(item.id)}" data-name="${escapeHtml(item.display_name)}"><b>${escapeHtml(item.display_name)}</b><span>${escapeHtml(account)} · ${escapeHtml(phone)} · ${escapeHtml(secondary)}</span></div>`;
+        }).join('')
       : '<div class="result"><b>No customers found</b><span>Try another name, number, email or account.</span></div>';
     showResults();
   }
 
   async function fetchCustomers(value, signal) {
-    const response = await fetch(`/api/customers/search?q=${encodeURIComponent(value)}`, {
+    const response = await fetch(`/api/os2/customers/search?q=${encodeURIComponent(value)}`, {
       headers: { Accept:'application/json' },
       cache: 'no-store',
       signal
@@ -60,24 +61,8 @@
     controller = new AbortController();
 
     try {
-      const canonicalValue = canonicalEmail(value);
-      const isEmailSearch = canonicalValue.includes('@');
-      let customers;
-
-      if (isEmailSearch) {
-        const atIndex = canonicalValue.indexOf('@');
-        const domainTyped = canonicalValue.slice(atIndex + 1);
-        const broadPrefix = domainTyped.length
-          ? `${canonicalValue.slice(0, atIndex + 1)}${domainTyped.charAt(0)}`
-          : canonicalValue;
-        const broadCustomers = await fetchCustomers(broadPrefix, controller.signal);
-        if (!broadCustomers) return;
-        customers = broadCustomers.filter(item => canonicalEmail(item.email).startsWith(canonicalValue));
-      } else {
-        customers = await fetchCustomers(value, controller.signal);
-        if (!customers) return;
-      }
-
+      const customers = await fetchCustomers(value, controller.signal);
+      if (!customers) return;
       if (requestSequence !== sequence || normaliseText(search.value) !== normaliseText(value)) return;
       renderCustomers(customers);
     } catch (error) {
@@ -100,7 +85,7 @@
       return;
     }
 
-    results.innerHTML = '<div class="result"><b>Searching…</b><span>Reading the OS2 test database</span></div>';
+    results.innerHTML = '<div class="result"><b>Searching…</b><span>Reading the OS2 database</span></div>';
     showResults();
     timer = setTimeout(() => runSearch(value, requestSequence), 250);
   });
