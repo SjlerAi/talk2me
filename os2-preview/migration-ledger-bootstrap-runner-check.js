@@ -64,7 +64,7 @@ requireMarkers(verifier, [
 
 requireMarkers(runbook, [
   'ALLOW_MIGRATION_LEDGER_BOOTSTRAP=true', 'VERIFIED_BACKUP_REFERENCE', 'VERIFIED_BACKUP_SHA256', 'BOOTSTRAP_OPERATOR',
-  'BOOTSTRAP_CHANGE_REFERENCE', 'MIGRATION_LEDGER_BOOTSTRAP_EVIDENCE_PATH', 'single reviewed SQL statement',
+  'BOOTSTRAP_CHANGE_REFERENCE', 'MIGRATION_LEDGER_BOOTSTRAP_EVIDENCE_PATH', 'one reviewed `CREATE TABLE os2_schema_migrations` statement',
   'database identity', 'UTC session time zone', 'autocommit', 'advisory lock is free after release',
   'private JSON evidence file', 'SHA-256 sidecar', 'refuses an existing ledger table', 'confirms the ledger is empty'
 ], 'Deployment runbook');
