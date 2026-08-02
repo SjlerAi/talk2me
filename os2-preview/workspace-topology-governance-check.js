@@ -22,6 +22,8 @@ function requireOrder(source, markers, label) {
   }
 }
 
+try { new Function(verifier); } catch (error) { failures.push(`Workspace topology verifier syntax invalid: ${error.message}`); }
+
 requireMarkers(verifier, [
   "expectedDatabase = 'kloka_talk2me'", "expectedBranch = 'agent/talk2me-os2-integrated-rebuild'",
   'expectedNodeMajor = 20', 'PREVIEW_APP_ROOT is required',
@@ -75,8 +77,8 @@ requireMarkers(bootstrapGovernance, [
 requireMarkers(activation, [
   "'workspace-topology-verification.js'", "'dependency-lock-adoption-check.js'",
   "'workspace-source-integrity.js'", "'workspace-source-integrity-check.js'",
-  "'workspace-topology-governance-check.js'", 'PREVIEW_APP_ROOT: root',
-  "ALLOW_PRODUCTION_MUTATION: 'false'", "ENABLE_CUSTOMER_MERGE_EXECUTION: 'false'",
+  "'workspace-topology-governance-check.js'", 'childEnv.PREVIEW_APP_ROOT = root',
+  "childEnv.ALLOW_PRODUCTION_MUTATION = 'false'", "childEnv.ENABLE_CUSTOMER_MERGE_EXECUTION = 'false'",
   'dependencyLockAdoptionGovernanceVerified: true',
   'dependencyLockProvenanceVerificationExecuted: false',
   'dependencyLockAdoptionMaterializationExecuted: false'
@@ -103,7 +105,6 @@ requireMarkers(adoptionRunbook, [
 
 if (pkg.scripts['check:workspace-topology-governance'] !== 'node workspace-topology-governance-check.js') failures.push('Missing exact workspace topology governance package command');
 for (const marker of [
-  'node --check workspace-topology-verification.js',
   'node --check workspace-topology-governance-check.js',
   'node workspace-topology-governance-check.js'
 ]) if (!pkg.scripts.check.includes(marker)) failures.push(`Normal validation missing ${marker}`);
@@ -118,6 +119,7 @@ console.log(JSON.stringify({
   ok: true,
   check: 'workspace-topology-governance',
   node20Required: true,
+  topologyVerifierSyntaxParsed: true,
   directoryNoFollowRequired: true,
   fileNoFollowRequired: true,
   descriptorIdentityRequired: true,
