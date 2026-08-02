@@ -18,6 +18,8 @@ const {
 
 const source = fs.readFileSync(path.join(__dirname, 'controlled-import-routes.js'), 'utf8');
 const migration = fs.readFileSync(path.join(__dirname, 'migrations', '20260801_002_controlled_import.sql'), 'utf8');
+const runbook = fs.readFileSync(path.join(__dirname, 'CONTROLLED_IMPORT_RUNBOOK.md'), 'utf8');
+const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8'));
 const failures = [];
 const controls = [];
 
@@ -119,6 +121,12 @@ supporting('legacy misspelled account column removed', !source.includes('normali
 supporting('nonexistent archived_at filters removed', !source.includes('archived_at'));
 supporting('raw internal error messages are not returned', !source.includes('error:error.message') && !source.includes('error.message :'));
 supporting('SQL values remain parameterized', !/VALUES\s*\([^)]*\$\{/.test(source));
+supporting('runbook documents 60 governed controls', runbook.includes('## Sixty governed controls') && runbook.includes('60. Finalisation counts must reconcile before completion.'));
+supporting('runbook preserves account number as strongest grouping key', runbook.includes('Account number is authoritative for grouping.'));
+supporting('runbook prohibits silent customer merge', runbook.includes('must never silently merge two Master Customers'));
+supporting('runbook states production remains untouched', runbook.includes('Production at `talk2me.uent.co.za` remains untouched'));
+supporting('exact package command registered', pkg.scripts['check:controlled-import'] === 'node controlled-import-check.js');
+supporting('controlled import governance runs in normal validation', pkg.scripts.check.includes('node controlled-import-check.js'));
 
 if (controls.length !== 60) failures.push(`Expected exactly 60 named controls; found ${controls.length}`);
 if (failures.length) {
@@ -143,6 +151,8 @@ console.log(JSON.stringify({
   finalisationRetryIsFailedRowsOnly: true,
   countReconciliationRequired: true,
   transactionalAuditRequired: true,
+  runbookGoverned: true,
+  packageCommandRegistered: true,
   productionMutationEnabled: false,
   mergeExecutionEnabled: false
 }, null, 2));
