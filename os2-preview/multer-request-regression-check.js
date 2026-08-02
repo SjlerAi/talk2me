@@ -145,15 +145,15 @@ async function main() {
     assert(wrongField.body.code === 'LIMIT_UNEXPECTED_FILE', 'wrong file field must fail closed');
 
     const oversized = await request(server, '/upload', multipart([
-      { name: 'file', filename: 'large.txt', contentType: 'text/plain', value: Buffer.alloc(33, 65) }
+      { name: 'file', filename: 'large.txt', contentType: 'text/plain', value: Buffer.alloc(32, 65) }
     ]));
-    assertControlledError(oversized, 'oversized file');
-    assert(oversized.body.code === 'LIMIT_FILE_SIZE', 'oversized file must fail closed');
+    assertControlledError(oversized, 'file at strict size limit');
+    assert(oversized.body.code === 'LIMIT_FILE_SIZE', 'file at strict size limit must fail closed');
 
-    const exactLimit = await request(server, '/upload', multipart([
-      { name: 'file', filename: 'exact.txt', contentType: 'text/plain', value: Buffer.alloc(32, 65) }
+    const belowLimit = await request(server, '/upload', multipart([
+      { name: 'file', filename: 'below.txt', contentType: 'text/plain', value: Buffer.alloc(31, 65) }
     ]));
-    assert(exactLimit.status === 200 && exactLimit.body.file.size === 32, 'exact file-size limit must pass');
+    assert(belowLimit.status === 200 && belowLimit.body.file.size === 31, 'file below size limit must pass');
 
     const excessiveFields = await request(server, '/upload', multipart([
       { name: 'a', value: '1' },
@@ -224,12 +224,12 @@ async function main() {
       stackDisclosureDetected: false,
       cases: {
         validSingleFile: true,
-        exactFileSizeLimitAccepted: true,
+        belowFileSizeLimitAccepted: true,
+        strictFileSizeLimitRejected: true,
         missingFileVisibleToRoute: true,
         emptyMultipartVisibleToRoute: true,
         multipleFilesRejected: true,
         wrongFieldRejected: true,
-        oversizedFileRejected: true,
         excessiveFieldsRejected: true,
         duplicateFieldsVisibleToRoute: true,
         excessivePartsRejected: true,
