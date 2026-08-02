@@ -41,9 +41,16 @@ const imports = read('import-routes.js');
 const administration = read('administration-routes.js');
 const regression = read('multer-request-regression-check.js');
 const runbook = read('MULTER_2_UPGRADE_RUNBOOK.md');
+const versionReview = read('MULTER_2_VERSION_REVIEW.md');
 
-if (pkg.dependencies.multer !== '^1.4.5-lts.1') {
+const currentReviewedVersion = '^1.4.5-lts.1';
+const selectedTargetVersion = '2.2.0';
+
+if (pkg.dependencies.multer !== currentReviewedVersion) {
   failures.push('Multer version changed without completing controlled issue #85 upgrade governance');
+}
+if (pkg.dependencies.multer === selectedTargetVersion) {
+  failures.push('Selected Multer 2 target must not be activated during source-only review');
 }
 
 requireMarkers(documents, [
@@ -123,18 +130,45 @@ requireMarkers(regression, [
   'LIMIT_FILE_COUNT',
   'LIMIT_UNEXPECTED_FILE',
   'UNSUPPORTED_UPLOAD_TYPE',
+  'wrongBoundaryRejected: true',
+  'truncatedBodyRejected: true',
+  'missingBoundaryRejected: true',
+  'controlledErrorsOnly: true',
+  'privatePathDisclosureProhibited: true',
+  'stackTraceDisclosureProhibited: true',
   'persistentStorageUsed: false',
   'productionMutationEnabled: false'
 ], 'Multer request regression');
 
+requireMarkers(versionReview, [
+  'Multer 2 Version Review',
+  'Status: target selected, dependency change not executed',
+  'Exact target version: `2.2.0`',
+  'Release channel: stable `latest`',
+  'Pre-release versions are prohibited',
+  '`3.0.0-alpha.2` is explicitly excluded',
+  'Current reviewed dependency: `^1.4.5-lts.1`',
+  'Selected review target: exact `2.2.0`',
+  'Active dependency changed: no',
+  'Package lock changed: no',
+  'Dependency installation executed: no',
+  'Production changed: no',
+  'obtain explicit approval to generate dependency evidence',
+  'adopt `package.json` and `package-lock.json` only through the controlled two-file adoption process'
+], 'Multer 2 version review');
+
 requireMarkers(runbook, [
   'Controlled Multer 2 Upgrade Runbook',
-  'Status: planned, not executed',
+  'Status: target selected, dependency change not executed',
+  'Selected review target: exact Multer 2.2.0',
+  'MULTER_2_VERSION_REVIEW.md',
+  'Multer 3 pre-release versions are excluded',
   'Customer documents',
   'Monthly import preview',
   'Staff documents',
   'Completed isolated request regressions',
   'authorization middleware remains before Multer middleware',
+  'exact target `2.2.0`; no range and no pre-release substitution',
   'no rejected upload remains on disk',
   'production remains untouched until explicit owner approval'
 ], 'Multer upgrade runbook');
@@ -149,6 +183,14 @@ console.log(JSON.stringify({
   ok: true,
   check: 'multer-upgrade-governance',
   currentReviewedVersion: pkg.dependencies.multer,
+  selectedTargetVersion,
+  stableReleaseChannelRequired: true,
+  prereleaseCandidatesProhibited: true,
+  exactVersionRequiredForAdoption: true,
+  explicitGenerationApprovalRequired: true,
+  controlledTwoFileAdoptionRequired: true,
+  activeDependencyChanged: false,
+  packageLockChanged: false,
   uploadSurfaces: 3,
   singleFileLimitsRequired: true,
   multipartFieldAndPartLimitsRequired: true,
@@ -158,6 +200,8 @@ console.log(JSON.stringify({
   validationFailureCleanupRequired: true,
   persistenceFailureCleanupRequired: true,
   isolatedRequestRegressionRequired: true,
+  malformedRequestRegressionRequired: true,
+  controlledErrorDisclosureRequired: true,
   multer2UpgradeExecuted: false,
   dependencyInstallationExecuted: false,
   productionMutationEnabled: false
