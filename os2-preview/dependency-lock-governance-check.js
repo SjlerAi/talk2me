@@ -51,9 +51,9 @@ if (verifier.includes('npm install') || verifier.includes('npm ci')) failures.pu
 if (/writeFile|appendFile|renameSync|unlinkSync|rmSync|mkdirSync/.test(verifier)) failures.push('Dependency verifier must not write or delete files');
 if (!verifier.includes("fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW)")) failures.push('Dependency verifier must use O_NOFOLLOW reads');
 if (!verifier.includes("record.resolved.startsWith('https://registry.npmjs.org/')")) failures.push('Dependency verifier must restrict tarballs to the npm registry over HTTPS');
-if (!verifier.includes("/^sha512-")) failures.push('Dependency verifier must require SHA-512 package integrity');
-if (!verifier.includes("lock.lockfileVersion !== expectedLockfileVersion")) failures.push('Dependency verifier must enforce lockfile version 3');
-if (!verifier.includes("!exactObject(rootPackage.dependencies, expectedDirectDependencies)")) failures.push('Dependency verifier must bind root lock dependencies to package.json');
+if (!verifier.includes('/^sha512-')) failures.push('Dependency verifier must require SHA-512 package integrity');
+if (!verifier.includes('lock.lockfileVersion !== expectedLockfileVersion')) failures.push('Dependency verifier must enforce lockfile version 3');
+if (!verifier.includes('!exactObject(rootPackage.dependencies, expectedDirectDependencies)')) failures.push('Dependency verifier must bind root lock dependencies to package.json');
 if (!verifier.includes('packageCandidatePaths(key, dependencyName)')) failures.push('Dependency verifier must resolve dependency graph edges');
 
 const workflow = requireMarkers('../.github/workflows/os2-preview-ci.yml', [
@@ -61,7 +61,7 @@ const workflow = requireMarkers('../.github/workflows/os2-preview-ci.yml', [
   'dependency-lock-governance-check.js', 'npm ci --ignore-scripts --no-audit --no-fund',
   'npm audit --omit=dev --audit-level=high', 'package-lock.json', 'verify:workspace-source-integrity'
 ]);
-if (workflow.includes('npm install --ignore-scripts')) failures.push('CI must not substitute npm install for npm ci');
+if (workflow.includes('npm install')) failures.push('CI must not substitute npm install for npm ci');
 if (workflow.includes('package-lock=false')) failures.push('CI must not bypass the committed dependency lock');
 if (workflow.includes('::warning::package-lock.json is absent')) failures.push('Missing lockfile must be a hard failure, not a warning');
 
@@ -82,8 +82,8 @@ if (sourceIntegrity.includes("if (fs.existsSync(path.join(root, 'package-lock.js
 
 requireMarkers('workspace-source-integrity-check.js', [
   "['package-lock.json', 16 * 1024 * 1024]", "['dependency-lock-verification.js', 2 * 1024 * 1024]",
-  "['dependency-lock-governance-check.js', 2 * 1024 * 1024]", 'dependencyLockVerifierProtected: files.some',
-  'dependencyLockGovernanceProtected: files.some', 'dependencyLockVerificationPreflightRegistrationRequired: true',
+  "['dependency-lock-governance-check.js', 2 * 1024 * 1024]", 'dependencyLockVerifierProtected: verifier.includes',
+  'dependencyLockGovernanceProtected: verifier.includes', 'dependencyLockVerificationPreflightRegistrationRequired: true',
   'dependencyLockGovernancePreflightRegistrationRequired: true'
 ]);
 requireMarkers('preview-activation-governance-check.js', [
