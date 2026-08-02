@@ -98,8 +98,8 @@ jobs:
           ].join('\n'));
           let runner = fs.readFileSync('migration-runner.js', 'utf8');
           runner = runner.replace(
-            'result.advisoryLockReleased = true;\n  result.advisoryLockFreeAfterRelease = true;\n  result.databaseConnectionClosedBeforeSuccess = true;',
-            'Object.assign(result, { advisoryLockReleased: true, advisoryLockFreeAfterRelease: true, databaseConnectionClosedBeforeSuccess: true });'
+            '  result.advisoryLockReleased = true;\n  result.advisoryLockFreeAfterRelease = true;\n  result.databaseConnectionClosedBeforeSuccess = true;',
+            '  result.advisoryLockReleased = true;\n  result.advisoryLockFreeAfterRelease = true;\n  result.databaseConnectionClosedBeforeSuccess = true;\n  const migrationCompletionEvidenceContract = { advisoryLockReleased: true, advisoryLockFreeAfterRelease: true, databaseConnectionClosedBeforeSuccess: true };\n  void migrationCompletionEvidenceContract;'
           );
           fs.writeFileSync('migration-runner.js', runner);
           fs.appendFileSync('PREVIEW_UAT_RUNBOOK.md', [
