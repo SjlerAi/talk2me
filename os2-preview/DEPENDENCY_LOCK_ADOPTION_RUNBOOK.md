@@ -4,7 +4,7 @@
 
 This runbook governs how a verified dependency-lock review artifact is materialized into the controlled branch and how the resulting two-file adoption commit is independently verified.
 
-Production at `talk2me.uent.co.za` remains untouched. This process does not deploy, migrate, restart, modify a database, or enable customer-merge execution.
+production at `talk2me.uent.co.za` remains untouched. This process does not deploy, migrate, restart, modify a database, or enable customer-merge execution.
 
 ## Fixed identity
 
