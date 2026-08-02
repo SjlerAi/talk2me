@@ -7,6 +7,7 @@ Selected review target: exact Multer 2.2.0
 Version review: `MULTER_2_VERSION_REVIEW.md`
 Generation approval: `MULTER_2_GENERATION_APPROVAL.md` — status `not approved`
 Candidate manifest plan: `MULTER_2_CANDIDATE_MANIFEST_PLAN.md` — planned, not authorized, not applied
+Candidate evidence schema: `MULTER_2_CANDIDATE_EVIDENCE_SCHEMA.md` — schema version `1`, no evidence emitted
 
 ## Purpose
 
@@ -103,8 +104,12 @@ Before changing the Multer dependency:
 10. Treat generation approval, dependency adoption, preview activation and production activation as separate gates.
 11. Require the candidate manifest to change exactly one value: Multer from `^1.4.5-lts.1` to exact `2.2.0`.
 12. Preserve the scripts object and every non-Multer dependency exactly.
+13. Require candidate evidence schema version `1` with exactly 28 top-level keys.
+14. Bind source manifest, candidate manifest, candidate lock and protected source inventory with SHA-256 digests.
+15. Require constant-time digest comparison, approval freshness within 24 hours and completed rollback evidence when rollback is required.
+16. Prohibit credentials, environment dumps, private paths, sessions, cookies, authorization headers and database values from candidate evidence.
 
-Items 1 through 7 are enforced in committed source-level validation. Item 8 is governed by `MULTER_2_VERSION_REVIEW.md` and `multer-upgrade-governance-check.js`. Items 9 and 10 are governed by `MULTER_2_GENERATION_APPROVAL.md` and `multer-generation-approval-check.js`. Items 11 and 12 are governed by `MULTER_2_CANDIDATE_MANIFEST_PLAN.md` and `multer-candidate-manifest-plan-check.js`. Deployed-route regression and preview UAT remain required after controlled dependency adoption.
+Items 1 through 7 are enforced in committed source-level validation. Item 8 is governed by `MULTER_2_VERSION_REVIEW.md` and `multer-upgrade-governance-check.js`. Items 9 and 10 are governed by `MULTER_2_GENERATION_APPROVAL.md` and `multer-generation-approval-check.js`. Items 11 and 12 are governed by `MULTER_2_CANDIDATE_MANIFEST_PLAN.md` and `multer-candidate-manifest-plan-check.js`. Items 13 through 16 are governed by `MULTER_2_CANDIDATE_EVIDENCE_SCHEMA.md` and `multer-candidate-evidence-schema-check.js`. Deployed-route regression and preview UAT remain required after controlled dependency adoption.
 
 ## Upgrade procedure
 
@@ -113,13 +118,14 @@ Items 1 through 7 are enforced in committed source-level validation. Item 8 is g
 3. Obtain the exact owner approval phrase recorded in `MULTER_2_GENERATION_APPROVAL.md` before dependency evidence generation.
 4. Record the approved 40-character source commit, canonical UTC timestamp and approving owner identity.
 5. Create the candidate manifest only in a private temporary workspace according to `MULTER_2_CANDIDATE_MANIFEST_PLAN.md`.
-6. Regenerate the dependency lock through the controlled generation workflow.
-7. Review artifact checksum, provenance and source-inventory continuity.
-8. Adopt `package.json` and `package-lock.json` only through the controlled two-file adoption process.
-9. Run syntax, governance and focused upload regression checks.
-10. Review all error-code and size-boundary differences against the recorded 1.x baseline.
-11. Run preview-only authenticated upload tests after explicit activation approval.
-12. Perform browser and mobile UAT for customer documents, staff documents and monthly import preview.
+6. Emit candidate evidence only in the exact schema defined by `MULTER_2_CANDIDATE_EVIDENCE_SCHEMA.md`.
+7. Regenerate the dependency lock through the controlled generation workflow.
+8. Review artifact checksum, provenance and source-inventory continuity.
+9. Adopt `package.json` and `package-lock.json` only through the controlled two-file adoption process.
+10. Run syntax, governance and focused upload regression checks.
+11. Review all error-code and size-boundary differences against the recorded 1.x baseline.
+12. Run preview-only authenticated upload tests after explicit activation approval.
+13. Perform browser and mobile UAT for customer documents, staff documents and monthly import preview.
 
 ## Regression matrix
 
@@ -148,6 +154,11 @@ The upgrade is accepted only when:
 - exact Multer `2.2.0` and its controlled lock provenance are verified;
 - the exact generation approval record is complete for the approved source commit;
 - the candidate manifest differs from the active manifest only by the exact Multer value;
+- candidate evidence uses schema version `1` and exactly 28 top-level keys;
+- all four required SHA-256 bindings verify independently with constant-time comparison;
+- generation occurs no more than 24 hours after approval;
+- rollback completion is proven when rollback is required;
+- candidate evidence contains no prohibited secret or private operational data;
 - dependency adoption remains separately approved and provenance-bound;
 - all current size and file-count limits remain enforced;
 - authorization still executes before multipart parsing;
