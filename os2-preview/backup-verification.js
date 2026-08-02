@@ -22,7 +22,13 @@ function validatePort(value) {
   return port;
 }
 function secureRead(filePath, expectedOwner) {
-  const stat = fs.lstatSync(filePath);
+  let stat;
+  try {
+    stat = fs.lstatSync(filePath);
+  } catch (error) {
+    if (error && error.code === 'ENOENT') throw new Error('BACKUP_FILE_MISSING');
+    throw new Error('BACKUP_FILE_STAT_FAILED');
+  }
   if (!stat.isFile() || stat.isSymbolicLink()) throw new Error('BACKUP_FILE_NOT_REGULAR');
   if (stat.nlink !== 1) throw new Error('BACKUP_HARD_LINK_PROHIBITED');
   if (stat.size <= 1024 || stat.size > MAX_BACKUP_BYTES) throw new Error('BACKUP_FILE_SIZE_INVALID');
