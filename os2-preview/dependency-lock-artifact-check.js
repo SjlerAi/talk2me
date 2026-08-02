@@ -171,6 +171,7 @@ console.log(JSON.stringify({
   secretFieldsProhibited: true,
   readOnlyVerificationRequired: true,
   artifactVerificationBeforeUploadRequired: true,
+  environmentBoundArtifactVerifierExcludedFromNormalExecution: true,
   productionMutationEnabled: false,
   mergeExecutionEnabled: false
 }, null, 2));
