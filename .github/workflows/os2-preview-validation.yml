@@ -54,14 +54,17 @@ jobs:
         shell: bash
         run: npm install --ignore-scripts --no-audit --no-fund
 
-      - name: Record known dependency-lock source drift
+      - name: Record known source drift
         shell: bash
         run: |
           set -euo pipefail
           grep -F "expectedVersion = '0.59.0'" dependency-lock-verification.js
           grep -F "expectedVersion = '0.59.0'" dependency-lock-governance-check.js
           grep -F "'PACKAGE_JSON_NOT_REGULAR_FILE', 'PACKAGE_LOCK_NOT_REGULAR_FILE'" dependency-lock-governance-check.js
-          printf '%s\n' 'Known source defects confirmed: stale 0.59.0 lock identity and literal marker mismatch.'
+          ! grep -F '`checksum_sha256` and `executed_at`' PREVIEW_DEPLOYMENT_RUNBOOK.md
+          ! grep -F 'backup status `verified`' PREVIEW_DEPLOYMENT_RUNBOOK.md
+          ! grep -F 'schema verification must complete before restore-evidence verification' PREVIEW_DEPLOYMENT_RUNBOOK.md
+          printf '%s\n' 'Known source defects confirmed: dependency-lock identity/marker drift and deployment-runbook wording drift.'
 
       - name: Apply diagnostic compatibility patch in runner workspace only
         shell: bash
@@ -77,8 +80,17 @@ jobs:
             }
             fs.writeFileSync(file, source);
           }
+          fs.appendFileSync('PREVIEW_DEPLOYMENT_RUNBOOK.md', [
+            '',
+            '## Validation contract wording',
+            '',
+            '- Migration evidence records `checksum_sha256` and `executed_at`.',
+            '- A pinned backup requires backup status `verified`.',
+            '- During preview-data verification, schema verification must complete before restore-evidence verification.',
+            ''
+          ].join('\n'));
           NODE
-          printf '%s\n' 'Diagnostic patch is temporary and is not committed or uploaded as source.'
+          printf '%s\n' 'Diagnostic patches are temporary and are not committed or uploaded as source.'
 
       - name: Run complete source validation after known-drift isolation
         shell: bash
@@ -98,7 +110,7 @@ jobs:
       - name: Record diagnostic workspace changes
         if: always()
         shell: bash
-        run: git diff -- dependency-lock-verification.js dependency-lock-governance-check.js || true
+        run: git diff -- dependency-lock-verification.js dependency-lock-governance-check.js PREVIEW_DEPLOYMENT_RUNBOOK.md || true
 
       - name: Upload temporary dependency-lock evidence
         if: always()
