@@ -1,3 +1,5 @@
+'use strict';
+
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const multer = require('multer');
@@ -8,46 +10,35 @@ const crypto = require('crypto');
 module.exports = function createAdministrationRouter({ pool, requireAuth, requestIp }) {
   const router = express.Router();
   const uploadDir = path.join(__dirname, 'runtime', 'admin-uploads');
-  fs.mkdirSync(uploadDir, { recursive: true });
+  fs.mkdirSync(uploadDir, { recursive: true, mode: 0o700 });
   const upload = multer({
     storage: multer.diskStorage({
       destination: uploadDir,
       filename: (req, file, cb) => cb(null, `${Date.now()}-${crypto.randomBytes(8).toString('hex')}${path.extname(file.originalname).toLowerCase()}`)
     }),
-    limits: { fileSize: 8 * 1024 * 1024 },
+    limits: { fileSize: 8 * 1024 * 1024, files: 1, fields: 4, parts: 5 },
     fileFilter: (req, file, cb) => cb(null, ['image/jpeg','image/png','image/webp','application/pdf'].includes(file.mimetype))
   });
   const canManage = user => ['owner','manager'].includes(user.role);
   const isOwner = user => user.role === 'owner';
+  function removeUploadedFile(file) {
+    if (!file || !file.path) return;
+    try { fs.unlinkSync(file.path); } catch (_) {}
+  }
 
-  async function ensureTables() {
-    await pool.execute(`CREATE TABLE IF NOT EXISTS os2_launcher_links (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      link_name VARCHAR(80) NOT NULL,
-      link_url VARCHAR(500) NOT NULL,
-      icon_text VARCHAR(8) NOT NULL DEFAULT '↗',
-      sort_order INT NOT NULL DEFAULT 0,
-      is_active TINYINT(1) NOT NULL DEFAULT 1,
-      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
-    await pool.execute(`CREATE TABLE IF NOT EXISTS os2_staff_documents (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      staff_id INT NOT NULL,
-      document_type ENUM('photo','id_document') NOT NULL,
-      original_name VARCHAR(255) NOT NULL,
-      stored_name VARCHAR(255) NOT NULL,
-      mime_type VARCHAR(100) NOT NULL,
-      file_size INT NOT NULL,
-      uploaded_by INT NOT NULL,
-      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      INDEX(staff_id), INDEX(document_type)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
-    const [[count]] = await pool.execute('SELECT COUNT(*) total FROM os2_launcher_links');
-    if (!Number(count.total)) {
-      await pool.execute(`INSERT INTO os2_launcher_links (link_name,link_url,icon_text,sort_order) VALUES
-        ('Vodacom','https://www.vodacom.co.za/','V',10),('MTN','https://www.mtn.co.za/','M',20),
-        ('Telkom','https://www.telkom.co.za/','T',30),('Sage','https://www.sage.com/en-za/','S',40)`);
+  async function assertTables() {
+    const required = ['os2_launcher_links','os2_staff_documents'];
+    const [rows] = await pool.execute(`SELECT TABLE_NAME name
+      FROM INFORMATION_SCHEMA.TABLES
+      WHERE TABLE_SCHEMA=DATABASE()
+        AND TABLE_NAME IN ('os2_launcher_links','os2_staff_documents')`);
+    const available = new Set(rows.map(row => row.name));
+    const missing = required.filter(name => !available.has(name));
+    if (missing.length) {
+      const error = new Error('ADMINISTRATION_SCHEMA_MIGRATION_REQUIRED');
+      error.code = 'ADMINISTRATION_SCHEMA_MIGRATION_REQUIRED';
+      error.missingTables = missing;
+      throw error;
     }
   }
 
@@ -65,7 +56,7 @@ module.exports = function createAdministrationRouter({ pool, requireAuth, reques
 
   router.get('/api/administration', requireAuth, requireManager, async (req,res) => {
     try {
-      await ensureTables();
+      await assertTables();
       const [staff] = await pool.execute(`SELECT id,full_name,username,email,role,is_active,last_login_at,created_at
         FROM staff_users ORDER BY is_active DESC,full_name`);
       const [launchers] = await pool.execute('SELECT * FROM os2_launcher_links ORDER BY sort_order,link_name');
@@ -92,7 +83,7 @@ module.exports = function createAdministrationRouter({ pool, requireAuth, reques
           activeClients:Number(clients.total||0)
         }
       });
-    } catch(error) { console.error('Administration load failed',error); res.status(500).json({ok:false,error:error.code||'ADMINISTRATION_LOAD_FAILED'}); }
+    } catch(error) { console.error('Administration load failed',error.code||error.message); res.status(500).json({ok:false,error:error.code||'ADMINISTRATION_LOAD_FAILED'}); }
   });
 
   router.post('/api/administration/staff', requireAuth, requireManager, async (req,res) => {
@@ -159,31 +150,34 @@ module.exports = function createAdministrationRouter({ pool, requireAuth, reques
 
   router.post('/api/administration/staff/:id/document', requireAuth, requireManager, upload.single('file'), async (req,res) => {
     const staffId=Number(req.params.id), type=String(req.body.type||'photo');
-    if(!req.file||!Number.isInteger(staffId)||staffId<1||!['photo','id_document'].includes(type))return res.status(400).json({ok:false,error:'INVALID_DOCUMENT_UPLOAD'});
+    if(!req.file||!Number.isInteger(staffId)||staffId<1||!['photo','id_document'].includes(type)){
+      removeUploadedFile(req.file);
+      return res.status(400).json({ok:false,error:'INVALID_DOCUMENT_UPLOAD'});
+    }
     try{
-      await ensureTables();
+      await assertTables();
       const [result]=await pool.execute(`INSERT INTO os2_staff_documents (staff_id,document_type,original_name,stored_name,mime_type,file_size,uploaded_by)
         VALUES (:staffId,:type,:original,:stored,:mime,:size,:uploadedBy)`,{staffId,type,original:req.file.originalname,stored:req.file.filename,mime:req.file.mimetype,size:req.file.size,uploadedBy:req.user.id});
       await audit(req,'staff_document_uploaded','os2_staff_documents',result.insertId,`Uploaded ${type} for staff #${staffId}`,null,{staffId,type,original:req.file.originalname});
       res.status(201).json({ok:true,id:Number(result.insertId)});
-    }catch(error){try{fs.unlinkSync(req.file.path);}catch{}res.status(500).json({ok:false,error:error.code||'DOCUMENT_UPLOAD_FAILED'});}
+    }catch(error){removeUploadedFile(req.file);res.status(500).json({ok:false,error:error.code||'DOCUMENT_UPLOAD_FAILED'});}
   });
 
   router.post('/api/administration/launchers', requireAuth, requireOwner, async (req,res) => {
-    await ensureTables(); const name=String(req.body.name||'').trim().slice(0,80), url=String(req.body.url||'').trim().slice(0,500), icon=String(req.body.icon||'↗').trim().slice(0,8), order=Number(req.body.order||0);
+    await assertTables(); const name=String(req.body.name||'').trim().slice(0,80), url=String(req.body.url||'').trim().slice(0,500), icon=String(req.body.icon||'↗').trim().slice(0,8), order=Number(req.body.order||0);
     if(!name||!/^https:\/\//i.test(url))return res.status(400).json({ok:false,error:'ENTER_VALID_HTTPS_LINK'});
     const [result]=await pool.execute('INSERT INTO os2_launcher_links (link_name,link_url,icon_text,sort_order,is_active) VALUES (:name,:url,:icon,:order,1)',{name,url,icon,order});
     await audit(req,'launcher_created','os2_launcher_links',result.insertId,`Created launcher ${name}`,null,{name,url,icon,order}); res.status(201).json({ok:true,id:Number(result.insertId)});
   });
 
   router.put('/api/administration/launchers/:id', requireAuth, requireOwner, async (req,res) => {
-    await ensureTables(); const id=Number(req.params.id),name=String(req.body.name||'').trim().slice(0,80),url=String(req.body.url||'').trim().slice(0,500),icon=String(req.body.icon||'↗').trim().slice(0,8),order=Number(req.body.order||0),active=req.body.isActive?1:0;
+    await assertTables(); const id=Number(req.params.id),name=String(req.body.name||'').trim().slice(0,80),url=String(req.body.url||'').trim().slice(0,500),icon=String(req.body.icon||'↗').trim().slice(0,8),order=Number(req.body.order||0),active=req.body.isActive?1:0;
     if(!Number.isInteger(id)||id<1||!name||!/^https:\/\//i.test(url))return res.status(400).json({ok:false,error:'INVALID_LAUNCHER'});
     const [[before]]=await pool.execute('SELECT * FROM os2_launcher_links WHERE id=:id',{id}); if(!before)return res.status(404).json({ok:false,error:'LAUNCHER_NOT_FOUND'});
     await pool.execute('UPDATE os2_launcher_links SET link_name=:name,link_url=:url,icon_text=:icon,sort_order=:order,is_active=:active WHERE id=:id',{id,name,url,icon,order,active});
     await audit(req,'launcher_updated','os2_launcher_links',id,`Updated launcher ${name}`,before,{name,url,icon,order,is_active:active}); res.json({ok:true});
   });
 
-  router.get('/api/launchers', requireAuth, async (req,res) => { try{await ensureTables();const [items]=await pool.execute('SELECT id,link_name,link_url,icon_text FROM os2_launcher_links WHERE is_active=1 ORDER BY sort_order,link_name');res.json({ok:true,items});}catch(error){res.status(500).json({ok:false,error:error.code||'LAUNCHERS_FAILED'});} });
+  router.get('/api/launchers', requireAuth, async (req,res) => { try{await assertTables();const [items]=await pool.execute('SELECT id,link_name,link_url,icon_text FROM os2_launcher_links WHERE is_active=1 ORDER BY sort_order,link_name');res.json({ok:true,items});}catch(error){res.status(500).json({ok:false,error:error.code||'LAUNCHERS_FAILED'});} });
   return router;
 };

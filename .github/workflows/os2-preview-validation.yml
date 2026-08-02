@@ -1,0 +1,93 @@
+name: OS2 Preview Validation
+
+on:
+  push:
+    branches:
+      - agent/talk2me-os2-integrated-rebuild
+    paths:
+      - 'os2-preview/**'
+      - '.github/workflows/os2-preview-validation.yml'
+  pull_request:
+    branches:
+      - agent/talk2me-os2-foundation
+    paths:
+      - 'os2-preview/**'
+      - '.github/workflows/os2-preview-validation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: os2-preview-validation-${{ github.event.pull_request.head.ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source-validation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: os2-preview
+    steps:
+      - name: Check out controlled branch
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: os2-preview/package.json
+
+      - name: Confirm controlled source identity
+        shell: bash
+        env:
+          CONTROLLED_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
+        run: |
+          set -euo pipefail
+          test "$CONTROLLED_BRANCH" = "agent/talk2me-os2-integrated-rebuild"
+          test "$(node -p "require('./package.json').version")" = "0.60.0"
+          git diff --exit-code -- . ../.github/workflows/os2-preview-validation.yml
+          printf 'branch=%s\ncommit=%s\nnode=%s\nnpm=%s\n' "$CONTROLLED_BRANCH" "$GITHUB_SHA" "$(node --version)" "$(npm --version)"
+
+      - name: Install dependencies without lifecycle scripts
+        shell: bash
+        run: npm install --ignore-scripts --no-audit --no-fund
+
+      - name: Run complete committed-source validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run check
+          git diff --exit-code -- . ../.github/workflows/os2-preview-validation.yml
+
+      - name: Record generated dependency lock metadata
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if test -f package-lock.json; then
+            node -e "const fs=require('fs');const crypto=require('crypto');const b=fs.readFileSync('package-lock.json');console.log(JSON.stringify({file:'package-lock.json',bytes:b.length,sha256:crypto.createHash('sha256').update(b).digest('hex')},null,2))" | tee dependency-lock-metadata.json
+          else
+            printf '%s\n' '{"file":"package-lock.json","generated":false}' | tee dependency-lock-metadata.json
+          fi
+
+      - name: Upload temporary dependency-lock evidence
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: os2-preview-dependency-lock-evidence-${{ github.sha }}
+          path: |
+            os2-preview/package-lock.json
+            os2-preview/dependency-lock-metadata.json
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Confirm no database or deployment execution
+        if: always()
+        shell: bash
+        run: |
+          printf '%s\n' 'Source validation only: no database credentials supplied, no migrations executed, no worker started, no deployment or restart performed.'

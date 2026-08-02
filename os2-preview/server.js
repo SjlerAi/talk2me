@@ -1,3 +1,5 @@
+'use strict';
+
 const express = require('express');
 const path = require('path');
 const crypto = require('crypto');
@@ -12,9 +14,22 @@ const createOpportunityRouter = require('./opportunity-routes');
 const createReportRouter = require('./report-routes');
 const createImportRouter = require('./import-routes');
 const createAdministrationRouter = require('./administration-routes');
+const createIntegratedRouter = require('./integrated-routes');
+const createDocumentRouter = require('./document-routes');
+const createOperationalRouter = require('./operational-routes');
+const createControlledImportRouter = require('./controlled-import-routes');
+const createIntelligenceRouter = require('./intelligence-routes');
+const createCollaborationRouter = require('./collaboration-routes');
+const createServiceLifecycleRouter = require('./service-lifecycle-routes');
+const createCommunicationsRouter = require('./communications-routes');
+const createSecurityRouter = require('./security-routes');
+const createCustomerAccessRouter = require('./customer-access-routes');
+const { createCustomerAccessGuard } = require('./customer-access-control');
+const { permissionsFor } = require('./core/permissions');
+const { requestId, securityHeaders, sameOrigin, rateLimit, hashIdentity, recordSecurityEvent } = require('./security-controls');
 
 const app = express();
-const port = process.env.PORT || 3000;
+const port = Number(process.env.PORT || 3000);
 const publicDir = path.join(__dirname, '..', 'public', 'os2');
 const sessionHours = 8;
 const sessionCookie = 'os2_session';
@@ -33,8 +48,13 @@ const pool = dbConfigured ? mysql.createPool({
 }) : null;
 
 app.disable('x-powered-by');
+app.set('trust proxy', 1);
+app.use(requestId);
+app.use(securityHeaders);
+app.use(rateLimit({ windowMs: 60_000, max: 240, keyPrefix: 'app' }));
 app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: false }));
+app.use(sameOrigin);
 app.use(express.static(publicDir, { index: false, etag: true, maxAge: process.env.NODE_ENV === 'production' ? '5m' : 0 }));
 
 function parseCookies(req) {
@@ -42,15 +62,16 @@ function parseCookies(req) {
     const index = item.indexOf('=');
     if (index < 0) return cookies;
     const key = item.slice(0, index).trim();
-    const value = item.slice(index + 1).trim();
-    if (key) cookies[key] = decodeURIComponent(value);
+    if (key) cookies[key] = decodeURIComponent(item.slice(index + 1).trim());
     return cookies;
   }, {});
 }
-function requestIp(req) { return String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim().slice(0, 64); }
+function requestIp(req) {
+  return String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim().slice(0, 64);
+}
 function sessionExpiresAt() { return new Date(Date.now() + sessionHours * 60 * 60 * 1000); }
 function setSessionCookie(res, token, expires) {
-  const parts = [`${sessionCookie}=${encodeURIComponent(token)}`, 'Path=/', 'HttpOnly', 'SameSite=Lax', `Expires=${expires.toUTCString()}`, `Max-Age=${sessionHours * 60 * 60}`];
+  const parts = [`${sessionCookie}=${encodeURIComponent(token)}`, 'Path=/', 'HttpOnly', 'SameSite=Lax', `Expires=${expires.toUTCString()}`, `Max-Age=${sessionHours * 3600}`];
   if (process.env.NODE_ENV === 'production') parts.push('Secure');
   res.setHeader('Set-Cookie', parts.join('; '));
 }
@@ -59,104 +80,192 @@ function clearSessionCookie(res) {
   if (process.env.NODE_ENV === 'production') parts.push('Secure');
   res.setHeader('Set-Cookie', parts.join('; '));
 }
-async function writeAudit(req, user, actionType, description) {
+async function writeSessionAudit(req, user, actionType, description) {
   if (!pool || !user) return;
   try {
-    await pool.execute(`INSERT INTO audit_log (staff_id,action_type,entity_type,entity_id,description,ip_address,user_agent,created_at)
+    await pool.execute(`INSERT INTO audit_log
+      (staff_id,action_type,entity_type,entity_id,description,ip_address,user_agent,created_at)
       VALUES (:staffId,:actionType,'session',:entityId,:description,:ip,:userAgent,NOW())`, {
-      staffId:user.id, actionType, entityId:user.id, description, ip:requestIp(req), userAgent:String(req.headers['user-agent'] || '').slice(0,255)
+      staffId: Number(user.id), actionType, entityId: Number(user.id), description,
+      ip: requestIp(req), userAgent: String(req.headers['user-agent'] || '').slice(0, 255)
     });
-  } catch (error) { console.error('OS2 audit write failed', error.code || error.message); }
+  } catch (error) { console.error('Session audit failed', error.code || error.message); }
 }
 async function loadSession(req, res, next) {
-  req.user = null; req.sessionToken = null;
+  req.user = null;
+  req.sessionToken = null;
   if (!pool) return next();
   const token = parseCookies(req)[sessionCookie];
   if (!/^[a-f0-9]{64}$/i.test(String(token || ''))) return next();
   try {
-    const [[row]] = await pool.execute('SELECT session_data FROM app_sessions WHERE session_id=:token AND expires_at>NOW() LIMIT 1', { token });
+    const [[row]] = await pool.execute(`SELECT session_data FROM app_sessions
+      WHERE session_id=:token AND expires_at>NOW() AND revoked_at IS NULL LIMIT 1`, { token });
     if (!row) { clearSessionCookie(res); return next(); }
     const data = JSON.parse(row.session_data || '{}');
     if (!data.os2 || !data.user?.id) { clearSessionCookie(res); return next(); }
-    req.user = data.user; req.sessionToken = token;
-  } catch (error) { console.error('OS2 session load failed', error.code || error.message); }
-  next();
+    req.user = data.user;
+    req.sessionToken = token;
+    pool.execute(`UPDATE app_sessions SET last_seen_at=NOW(),updated_at=NOW() WHERE session_id=:token AND (last_seen_at IS NULL OR last_seen_at<NOW()-INTERVAL 5 MINUTE)`, { token })
+      .catch(error => console.error('Session touch failed', error.code || error.message));
+  } catch (error) { console.error('Session load failed', error.code || error.message); }
+  return next();
 }
 function requireAuth(req, res, next) {
   if (req.user) return next();
   if (req.path.startsWith('/api/')) return res.status(401).json({ ok:false, error:'AUTHENTICATION_REQUIRED' });
   return res.redirect('/login');
 }
-function requireRole(...roles) { return (req,res,next) => req.user && roles.includes(req.user.role) ? next() : res.status(req.user ? 403 : 401).json({ ok:false, error:req.user ? 'INSUFFICIENT_PERMISSION' : 'AUTHENTICATION_REQUIRED' }); }
-async function count(sql, params={}) { const [[row]] = await pool.execute(sql, params); return Number(row.total || 0); }
+function requireRole(...roles) {
+  return (req, res, next) => req.user && roles.includes(String(req.user.role).toLowerCase())
+    ? next()
+    : res.status(req.user ? 403 : 401).json({ ok:false, error:req.user ? 'INSUFFICIENT_PERMISSION' : 'AUTHENTICATION_REQUIRED' });
+}
+async function count(sql, params = {}) {
+  const [[row]] = await pool.execute(sql, params);
+  return Number(row.total || 0);
+}
 
 app.use(loadSession);
-app.get('/health', async (req,res) => {
-  let database={ configured:dbConfigured, connected:false };
-  if (pool) { try { await pool.query('SELECT 1'); database.connected=true; database.name=process.env.DB_NAME; } catch(error) { database.error=error.code || 'DB_CONNECTION_FAILED'; } }
-  res.status(database.configured && !database.connected ? 503 : 200).json({ ok:!database.configured || database.connected, application:'Talk2Me OS2', environment:process.env.NODE_ENV || 'development', authentication:{enabled:true,signedIn:Boolean(req.user)}, database, time:new Date().toISOString() });
+app.get('/health', async (req, res) => {
+  const database = { configured: dbConfigured, connected: false };
+  if (pool) {
+    try { await pool.query('SELECT 1'); database.connected = true; database.name = process.env.DB_NAME; }
+    catch (error) { database.error = error.code || 'DB_CONNECTION_FAILED'; }
+  }
+  res.status(database.configured && !database.connected ? 503 : 200).json({
+    ok: !database.configured || database.connected,
+    application: 'Talk2Me OS2 integrated rebuild',
+    version: require('./package.json').version,
+    environment: process.env.NODE_ENV || 'development',
+    authentication: { enabled:true, signedIn:Boolean(req.user) },
+    database,
+    requestId:req.requestId,
+    time: new Date().toISOString()
+  });
 });
-app.get('/login', (req,res) => req.user ? res.redirect('/') : res.sendFile(path.join(publicDir,'login.html')));
-app.post('/api/auth/login', async (req,res) => {
-  if (!pool) return res.status(503).json({ok:false,error:'DATABASE_NOT_CONFIGURED'});
-  const identity=String(req.body.identity || '').trim(); const password=String(req.body.password || '');
-  if (!identity || !password) return res.status(400).json({ok:false,error:'ENTER_USERNAME_AND_PASSWORD'});
+app.get('/login', (req, res) => req.user ? res.redirect('/') : res.sendFile(path.join(publicDir, 'login.html')));
+app.post('/api/auth/login', rateLimit({ windowMs: 15 * 60_000, max: 12, keyPrefix: 'login' }), async (req, res) => {
+  if (!pool) return res.status(503).json({ ok:false, error:'DATABASE_NOT_CONFIGURED' });
+  const identity = String(req.body.identity || '').trim();
+  const password = String(req.body.password || '');
+  if (!identity || !password) return res.status(400).json({ ok:false, error:'ENTER_USERNAME_AND_PASSWORD' });
+  const identityHash = hashIdentity(identity);
   try {
-    const [[user]]=await pool.execute(`SELECT id,full_name,username,email,role,password_hash FROM staff_users WHERE is_active=1 AND (LOWER(username)=LOWER(:identity) OR LOWER(email)=LOWER(:identity)) LIMIT 1`,{identity});
-    const valid=Boolean(user?.password_hash) && await bcrypt.compare(password,user.password_hash);
-    if (!valid) return res.status(401).json({ok:false,error:'INVALID_LOGIN'});
-    const token=crypto.randomBytes(32).toString('hex'); const expires=sessionExpiresAt();
-    const sessionUser={id:Number(user.id),full_name:user.full_name,username:user.username,email:user.email,role:user.role};
-    await pool.execute(`INSERT INTO app_sessions (session_id,session_data,expires_at,created_at,updated_at) VALUES (:token,:sessionData,:expires,NOW(),NOW())`,{token,sessionData:JSON.stringify({os2:true,user:sessionUser,createdAt:new Date().toISOString()}),expires});
-    await pool.execute('UPDATE staff_users SET last_login_at=NOW() WHERE id=:id',{id:user.id});
-    setSessionCookie(res,token,expires); await writeAudit(req,sessionUser,'os2_login',`Signed in to Talk2Me OS2 as ${sessionUser.role}`);
-    res.json({ok:true,user:sessionUser});
-  } catch(error) { console.error('OS2 login failed',error); res.status(500).json({ok:false,error:error.code || 'LOGIN_FAILED'}); }
+    const [[recent]] = await pool.execute(`SELECT COUNT(*) total FROM os2_login_attempts
+      WHERE identity_hash=:identityHash AND was_successful=0 AND attempted_at>NOW()-INTERVAL 15 MINUTE`, { identityHash });
+    if (Number(recent.total) >= 8) {
+      await recordSecurityEvent(pool, req, { eventType:'login_temporarily_blocked', severity:'high', details:{ identityHash } });
+      return res.status(429).json({ ok:false, error:'LOGIN_TEMPORARILY_BLOCKED' });
+    }
+    const [[user]] = await pool.execute(`SELECT id,full_name,username,email,role,password_hash
+      FROM staff_users WHERE is_active=1 AND
+      (LOWER(username)=LOWER(:identity) OR LOWER(email)=LOWER(:identity)) LIMIT 1`, { identity });
+    const valid = Boolean(user?.password_hash) && await bcrypt.compare(password, user.password_hash);
+    if (!valid) {
+      await pool.execute(`INSERT INTO os2_login_attempts(identity_hash,ip_address,was_successful,failure_reason,attempted_at)
+        VALUES(:identityHash,:ip,0,'invalid_credentials',NOW())`, { identityHash, ip:requestIp(req) });
+      await recordSecurityEvent(pool, req, { eventType:'login_failed', severity:'warning', details:{ identityHash } });
+      return res.status(401).json({ ok:false, error:'INVALID_LOGIN' });
+    }
+    const token = crypto.randomBytes(32).toString('hex');
+    const expires = sessionExpiresAt();
+    const sessionUser = {
+      id: Number(user.id), full_name:user.full_name, username:user.username,
+      email:user.email, role:String(user.role || 'staff').toLowerCase()
+    };
+    await pool.execute(`INSERT INTO app_sessions
+      (session_id,session_data,expires_at,created_at,updated_at,last_seen_at,ip_address,user_agent)
+      VALUES (:token,:sessionData,:expires,NOW(),NOW(),NOW(),:ip,:userAgent)`, {
+      token, sessionData:JSON.stringify({ os2:true, user:sessionUser, createdAt:new Date().toISOString() }), expires,
+      ip:requestIp(req), userAgent:String(req.headers['user-agent'] || '').slice(0,255)
+    });
+    await pool.execute(`INSERT INTO os2_login_attempts(identity_hash,ip_address,was_successful,attempted_at)
+      VALUES(:identityHash,:ip,1,NOW())`, { identityHash, ip:requestIp(req) });
+    await pool.execute('UPDATE staff_users SET last_login_at=NOW() WHERE id=:id', { id:user.id });
+    setSessionCookie(res, token, expires);
+    await writeSessionAudit(req, sessionUser, 'os2_login', `Signed in to Talk2Me OS2 as ${sessionUser.role}`);
+    await recordSecurityEvent(pool, req, { eventType:'login_succeeded', severity:'info', staffId:user.id });
+    return res.json({ ok:true, user:sessionUser, permissions:[...permissionsFor(sessionUser.role)] });
+  } catch (error) {
+    console.error('Login failed', error.code || error.message);
+    return res.status(500).json({ ok:false, error:'LOGIN_FAILED' });
+  }
 });
-app.post('/api/auth/logout', requireAuth, async (req,res) => { try { if(req.sessionToken) await pool.execute('DELETE FROM app_sessions WHERE session_id=:token',{token:req.sessionToken}); await writeAudit(req,req.user,'os2_logout','Signed out of Talk2Me OS2'); } finally { clearSessionCookie(res); } res.json({ok:true}); });
-app.get('/api/auth/me', requireAuth, (req,res) => res.json({ok:true,user:req.user,permissions:{canManage:['owner','manager'].includes(req.user.role),canDelete:req.user.role==='owner',canWrite:true}}));
+app.post('/api/auth/logout', requireAuth, async (req, res) => {
+  try {
+    if (req.sessionToken) await pool.execute(`UPDATE app_sessions SET revoked_at=NOW(),revoked_reason='logout' WHERE session_id=:token`, { token:req.sessionToken });
+    await writeSessionAudit(req, req.user, 'os2_logout', 'Signed out of Talk2Me OS2');
+    await recordSecurityEvent(pool, req, { eventType:'logout', severity:'info' });
+  } finally { clearSessionCookie(res); }
+  res.json({ ok:true });
+});
+app.get('/api/auth/me', requireAuth, (req, res) => res.json({
+  ok:true, user:req.user, permissions:[...permissionsFor(req.user.role, req.user.permissions)], requestId:req.requestId
+}));
 
-app.get('/api/dashboard', requireAuth, async (req,res) => {
+app.get('/api/dashboard', requireAuth, async (req, res) => {
   try {
-    const [approvals,overdue,unassigned,clockedIn,activeStaff,upgrades,birthdays,callbacks,prospects]=await Promise.all([
-      count("SELECT COUNT(*) total FROM data_change_requests WHERE status IN ('pending','pending_manager','pending_owner')"),
-      count("SELECT COUNT(*) total FROM inquiries WHERE status IN ('open','follow_up','waiting_customer','waiting_network','waiting_supplier') AND follow_up_at IS NOT NULL AND follow_up_at<NOW()"),
-      count(`SELECT COUNT(DISTINCT COALESCE(NULLIF(c.account_number,''),CONCAT('client:',c.id))) total FROM clients c LEFT JOIN client_assignments a ON a.is_active=1 AND (a.client_id=c.id OR (a.account_number<>'' AND a.account_number=c.account_number)) WHERE c.is_active=1 AND a.id IS NULL`),
-      count("SELECT COUNT(DISTINCT staff_id) total FROM attendance_sessions WHERE work_date=CURRENT_DATE() AND status='active' AND clock_out_at IS NULL"),
-      count('SELECT COUNT(*) total FROM staff_users WHERE is_active=1'),
-      count("SELECT COUNT(DISTINCT id) total FROM clients WHERE is_active=1 AND next_upgrade_date IS NOT NULL AND DATE(next_upgrade_date) BETWEEN CURRENT_DATE() AND DATE_ADD(CURRENT_DATE(),INTERVAL 7 DAY)"),
-      count("SELECT COUNT(DISTINCT id) total FROM clients WHERE is_active=1 AND birthday IS NOT NULL AND MONTH(birthday)=MONTH(CURRENT_DATE()) AND DAY(birthday)=DAY(CURRENT_DATE())"),
-      count("SELECT COUNT(*) total FROM inquiries WHERE status IN ('open','follow_up','waiting_customer','waiting_network','waiting_supplier') AND follow_up_at IS NOT NULL AND DATE(follow_up_at)=CURRENT_DATE()"),
-      count("SELECT COUNT(*) total FROM clients WHERE is_active=1 AND lifecycle_status='prospect' AND COALESCE(lead_status,'new') IN ('new','contacted','qualified')")
+    const managementDashboard = ['owner','manager','admin'].includes(String(req.user.role || '').toLowerCase());
+    const staffId = Number(req.user.id);
+    if (managementDashboard) {
+      const [approvals, overdue, clockedIn, activeStaff, customers, openWork] = await Promise.all([
+        count("SELECT COUNT(*) total FROM os2_approval_requests WHERE status IN ('pending','deferred')"),
+        count("SELECT COUNT(*) total FROM os2_work_items WHERE lifecycle_state NOT IN ('accepted','archived') AND due_at<NOW()"),
+        count("SELECT COUNT(DISTINCT staff_id) total FROM attendance_sessions WHERE work_date=CURRENT_DATE() AND status='active' AND clock_out_at IS NULL"),
+        count('SELECT COUNT(*) total FROM staff_users WHERE is_active=1'),
+        count('SELECT COUNT(*) total FROM os2_master_customers WHERE archived_at IS NULL AND id IS NOT NULL'),
+        count("SELECT COUNT(*) total FROM os2_work_items WHERE lifecycle_state NOT IN ('accepted','archived')")
+      ]);
+      const [activity] = await pool.execute(`SELECT action_type,entity_type,entity_id,description,created_at
+        FROM os2_audit_log WHERE actor_staff_id IS NOT NULL ORDER BY created_at DESC LIMIT 10`);
+      return res.json({ ok:true, scope:'management', user:req.user, metrics:{ approvals,overdue,clockedIn,activeStaff,customers,openWork }, activity });
+    }
+
+    const [accessibleRows] = await pool.execute(`SELECT DISTINCT master_customer_id FROM (
+      SELECT master_customer_id FROM os2_customer_ownership
+        WHERE assigned_staff_id=:staffId AND is_current=1
+          AND (access_expires_at IS NULL OR access_expires_at>NOW())
+      UNION
+      SELECT master_customer_id FROM os2_customer_access_grants
+        WHERE staff_id=:staffId AND revoked_at IS NULL
+          AND (expires_at IS NULL OR expires_at>NOW())
+    ) accessible_customers`, { staffId:req.user.id });
+    const customerIds = accessibleRows.map(row => Number(row.master_customer_id)).filter(id => Number.isInteger(id) && id > 0);
+    const customerParams = { staffId:req.user.id, customerIds:customerIds.length ? customerIds : [0] };
+    const [approvals, overdue, customers, openWork] = await Promise.all([
+      count("SELECT COUNT(*) total FROM os2_approval_requests WHERE requested_by=:staffId AND status IN ('pending','deferred')", customerParams),
+      count("SELECT COUNT(*) total FROM os2_work_items WHERE assignee_staff_id=:staffId AND lifecycle_state NOT IN ('accepted','archived') AND due_at<NOW()", customerParams),
+      count('SELECT COUNT(*) total FROM os2_master_customers WHERE archived_at IS NULL AND id IN (:customerIds)', customerParams),
+      count("SELECT COUNT(*) total FROM os2_work_items WHERE assignee_staff_id=:staffId AND lifecycle_state NOT IN ('accepted','archived') AND (master_customer_id IS NULL OR master_customer_id IN (:customerIds))", customerParams)
     ]);
-    const [activity]=await pool.execute(`SELECT COALESCE(s.full_name,'Unassigned') staff_member,COALESCE(i.action_taken,i.query_text,'Inquiry updated') latest_action,COALESCE(i.client_name,'Unknown customer') customer,i.status,DATE_FORMAT(i.updated_at,'%H:%i') activity_time FROM inquiries i LEFT JOIN staff_users s ON s.id=COALESCE(i.assigned_staff_id,i.staff_id) ORDER BY i.updated_at DESC LIMIT 5`);
-    res.json({ok:true,user:req.user,metrics:{approvals,overdue,unassigned,clockedIn,activeStaff,upgrades,birthdays,callbacks,prospects},activity});
-  } catch(error) { console.error('Dashboard query failed',error); res.status(500).json({ok:false,error:error.code || 'DASHBOARD_QUERY_FAILED'}); }
+    const [activity] = await pool.execute(`SELECT action_type,entity_type,entity_id,description,created_at
+      FROM os2_audit_log WHERE actor_staff_id=:staffId
+        AND (master_customer_id IS NULL OR master_customer_id IN (:customerIds))
+      ORDER BY created_at DESC LIMIT 10`, customerParams);
+    return res.json({
+      ok:true,
+      scope:'staff',
+      user:req.user,
+      metrics:{ approvals,overdue,clockedIn:null,activeStaff:null,customers,openWork },
+      activity
+    });
+  } catch (error) {
+    console.error('Dashboard failed', error.code || error.message);
+    res.status(500).json({ ok:false, error:'DASHBOARD_QUERY_FAILED' });
+  }
 });
 
-app.get('/api/customers/search', requireAuth, async (req,res) => {
-  const query=String(req.query.q || '').trim(); if(query.length<2) return res.json({ok:true,customers:[]});
-  try { const like=`%${query}%`; const [rows]=await pool.execute(`SELECT id,client_name,account_number,cell_number,email,city_town FROM clients WHERE is_active=1 AND (client_name LIKE :like OR account_number LIKE :like OR cell_number LIKE :like OR cell_number_normalised LIKE :like OR alt_number LIKE :like OR email LIKE :like OR city_town LIKE :like OR id_number LIKE :like OR package_name LIKE :like OR handset LIKE :like OR main_contact_name LIKE :like OR main_contact_number LIKE :like) ORDER BY client_name,account_number LIMIT 10`,{like}); res.json({ok:true,customers:rows}); }
-  catch(error){ console.error('Customer search failed',error); res.status(500).json({ok:false,error:error.code || 'CUSTOMER_SEARCH_FAILED'}); }
-});
-app.get('/api/inquiry-options', requireAuth, async (req,res) => { try { const [categories]=await pool.execute('SELECT id,category_name FROM inquiry_categories WHERE is_active=1 ORDER BY sort_order,category_name'); res.json({ok:true,categories,statuses:['open','resolved','follow_up','waiting_customer','waiting_network','waiting_supplier'],contactTypes:['walk_in','phone_call','whatsapp','email','other']}); } catch(error){ res.status(500).json({ok:false,error:error.code || 'INQUIRY_OPTIONS_FAILED'}); } });
-app.post('/api/inquiries', requireAuth, async (req,res) => {
-  const clientId=Number(req.body.clientId), categoryId=Number(req.body.categoryId); const status=String(req.body.status || 'resolved'), contactType=String(req.body.contactType || 'walk_in'), priority=String(req.body.priority || 'normal');
-  const queryText=String(req.body.queryText || '').trim().slice(0,5000), resultFound=String(req.body.resultFound || '').trim().slice(0,5000), actionTaken=String(req.body.actionTaken || '').trim().slice(0,5000), categoryOther=String(req.body.categoryOther || '').trim().slice(0,120) || null, followUpRaw=String(req.body.followUpAt || '').trim();
-  const validStatuses=new Set(['open','resolved','follow_up','waiting_customer','waiting_network','waiting_supplier']), validContactTypes=new Set(['walk_in','phone_call','whatsapp','email','other']);
-  if(!Number.isInteger(clientId)||clientId<1)return res.status(400).json({ok:false,error:'SELECT_A_CUSTOMER'}); if(!Number.isInteger(categoryId)||categoryId<1)return res.status(400).json({ok:false,error:'SELECT_A_CATEGORY'}); if(!validStatuses.has(status))return res.status(400).json({ok:false,error:'INVALID_STATUS'}); if(!validContactTypes.has(contactType))return res.status(400).json({ok:false,error:'INVALID_CONTACT_TYPE'}); if(!queryText&&!resultFound&&!actionTaken)return res.status(400).json({ok:false,error:'ENTER_INQUIRY_DETAILS'}); if(status==='follow_up'&&!followUpRaw)return res.status(400).json({ok:false,error:'FOLLOW_UP_DATE_REQUIRED'});
-  const connection=await pool.getConnection();
-  try { await connection.beginTransaction(); const [[customer]]=await connection.execute('SELECT id,client_name,cell_number,email FROM clients WHERE id=:clientId AND is_active=1 LIMIT 1',{clientId}); if(!customer){await connection.rollback();return res.status(404).json({ok:false,error:'CUSTOMER_NOT_FOUND'});} const [[category]]=await connection.execute('SELECT id,category_name FROM inquiry_categories WHERE id=:categoryId AND is_active=1 LIMIT 1',{categoryId}); if(!category){await connection.rollback();return res.status(400).json({ok:false,error:'INVALID_CATEGORY'});} const followUpAt=followUpRaw?new Date(followUpRaw):null; if(followUpRaw&&Number.isNaN(followUpAt.getTime())){await connection.rollback();return res.status(400).json({ok:false,error:'INVALID_FOLLOW_UP_DATE'});} const completedAt=status==='resolved'?new Date():null, completedBy=status==='resolved'?req.user.id:null;
-    const [result]=await connection.execute(`INSERT INTO inquiries (client_id,service_type,staff_id,assigned_staff_id,walkin_or_call,client_name,cell_number,email,category_id,category_other,query_text,result_found,action_taken,status,follow_up_at,completed_at,completed_by,owner_visible,priority,created_at,updated_at) VALUES (:clientId,'mobile',:staffId,:staffId,:contactType,:clientName,:cellNumber,:email,:categoryId,:categoryOther,:queryText,:resultFound,:actionTaken,:status,:followUpAt,:completedAt,:completedBy,1,:priority,NOW(),NOW())`,{clientId,staffId:req.user.id,contactType,clientName:customer.client_name,cellNumber:customer.cell_number||null,email:customer.email||null,categoryId,categoryOther,queryText:queryText||null,resultFound:resultFound||null,actionTaken:actionTaken||null,status,followUpAt,completedAt,completedBy,priority:priority==='urgent'?'urgent':'normal'});
-    const inquiryId=Number(result.insertId); await connection.execute(`INSERT INTO audit_log (staff_id,action_type,entity_type,entity_id,description,before_json,after_json,ip_address,user_agent,created_at) VALUES (:staffId,'inquiry_created','inquiries',:inquiryId,:description,NULL,:afterJson,:ip,:userAgent,NOW())`,{staffId:req.user.id,inquiryId,description:`Created inquiry for ${customer.client_name}`,afterJson:JSON.stringify({client_id:clientId,category_id:categoryId,status,follow_up_at:followUpAt,priority,contact_type:contactType}),ip:requestIp(req),userAgent:String(req.headers['user-agent']||'').slice(0,255)}); await connection.commit(); res.status(201).json({ok:true,inquiryId,customerId:clientId,message:'Inquiry saved successfully.'});
-  } catch(error){await connection.rollback();console.error('Inquiry creation failed',error);res.status(500).json({ok:false,error:error.code||'INQUIRY_CREATE_FAILED'});} finally{connection.release();}
-});
-app.get('/api/customers/:id', requireAuth, async (req,res) => {
-  const id=Number(req.params.id); if(!Number.isInteger(id)||id<1)return res.status(400).json({ok:false,error:'INVALID_CUSTOMER_ID'});
-  try { const [[customer]]=await pool.execute(`SELECT c.*,COALESCE(sa.full_name,su.full_name,'Unassigned') assigned_staff FROM clients c LEFT JOIN customer_accounts ca ON ca.id=c.account_id LEFT JOIN staff_users sa ON sa.id=ca.assigned_staff_id LEFT JOIN client_assignments a ON a.is_active=1 AND (a.client_id=c.id OR (a.account_number<>'' AND a.account_number=c.account_number)) LEFT JOIN staff_users su ON su.id=a.assigned_staff_id WHERE c.id=:id LIMIT 1`,{id}); if(!customer)return res.status(404).json({ok:false,error:'CUSTOMER_NOT_FOUND'}); const accountNumber=customer.account_number||''; const [lines]=await pool.execute(`SELECT id,cell_number,package_name,handset,line_status,previous_upgrade_date,next_upgrade_date,monthly_invoice_amount FROM clients WHERE is_active=1 AND ((:accountNumber<>'' AND account_number=:accountNumber) OR id=:id) ORDER BY next_upgrade_date,id`,{accountNumber,id}); const lineIds=lines.map(line=>line.id); let inquiries=[]; if(lineIds.length){const placeholders=lineIds.map(()=>'?').join(','); const [rows]=await pool.query(`SELECT i.id,i.created_at,i.status,i.priority,i.service_type,i.query_text,i.result_found,i.action_taken,i.follow_up_at,COALESCE(ic.category_name,i.category_other,'Other') category,COALESCE(s.full_name,'Unassigned') staff_member FROM inquiries i LEFT JOIN inquiry_categories ic ON ic.id=i.category_id LEFT JOIN staff_users s ON s.id=COALESCE(i.assigned_staff_id,i.staff_id) WHERE i.client_id IN (${placeholders}) ORDER BY i.created_at DESC LIMIT 20`,lineIds); inquiries=rows;} res.json({ok:true,customer,lines,inquiries}); }
-  catch(error){console.error('Customer 360 query failed',error);res.status(500).json({ok:false,error:error.code||'CUSTOMER_360_FAILED'});}
-});
-
+app.use(createCustomerAccessGuard({ pool }));
+app.use(createCustomerAccessRouter({ pool, requireAuth }));
+app.use(createIntegratedRouter({ pool, requireAuth }));
+app.use(createDocumentRouter({ pool, requireAuth }));
+app.use(createOperationalRouter({ pool, requireAuth }));
+app.use(createServiceLifecycleRouter({ pool, requireAuth }));
+app.use(createControlledImportRouter({ pool, requireAuth }));
+app.use(createIntelligenceRouter({ pool, requireAuth }));
+app.use(createCollaborationRouter({ pool, requireAuth }));
+app.use(createCommunicationsRouter({ pool, requireAuth }));
+app.use(createSecurityRouter({ pool, requireAuth }));
 app.use(createMyWorkRouter({ pool, requireAuth, requestIp }));
 app.use(createAssignmentRouter({ pool, requireAuth, requestIp }));
 app.use(createApprovalRouter({ pool, requireAuth, requestIp }));
@@ -166,8 +275,20 @@ app.use(createOpportunityRouter({ pool, requireAuth, requestIp }));
 app.use(createReportRouter({ pool, requireAuth, requestIp }));
 app.use(createImportRouter({ pool, requireAuth, requestIp }));
 app.use(createAdministrationRouter({ pool, requireAuth, requestIp }));
-app.get('/api/admin/session-check', requireRole('owner','manager'), (req,res)=>res.json({ok:true,role:req.user.role}));
-app.get('/', requireAuth, (req,res)=>res.sendFile(path.join(publicDir,'index.html')));
-app.get('*', (req,res)=>req.user?res.redirect('/'):res.redirect('/login'));
-setInterval(()=>{if(pool)pool.execute('DELETE FROM app_sessions WHERE expires_at<=NOW()').catch(error=>console.error('Session cleanup failed',error.code||error.message));},60*60*1000).unref();
-app.listen(port,()=>console.log(`Talk2Me OS2 running on port ${port}; administration enabled; database ${dbConfigured?'configured':'not configured'}`));
+
+app.get('/api/admin/session-check', requireRole('owner','manager'), (req, res) => res.json({ ok:true, role:req.user.role }));
+app.get('/', requireAuth, (req, res) => res.sendFile(path.join(publicDir, 'index.html')));
+app.use(async (error, req, res, next) => {
+  console.error('Unhandled OS2 error', req.requestId, error.code || error.message);
+  await recordSecurityEvent(pool, req, { eventType:'unhandled_application_error', severity:'high', details:{ code:error.code || null, message:error.message || null } });
+  if (res.headersSent) return next(error);
+  res.status(500).json({ ok:false, error:'UNEXPECTED_SYSTEM_ERROR', requestId:req.requestId });
+});
+app.get('*', (req, res) => req.user ? res.redirect('/') : res.redirect('/login'));
+
+setInterval(() => {
+  if (pool) pool.execute(`DELETE FROM app_sessions WHERE expires_at<=NOW() OR revoked_at<NOW()-INTERVAL 30 DAY`)
+    .catch(error => console.error('Session cleanup failed', error.code || error.message));
+}, 60 * 60 * 1000).unref();
+
+app.listen(port, () => console.log(`Talk2Me OS2 ${require('./package.json').version} running on port ${port}; database ${dbConfigured ? 'configured' : 'not configured'}`));

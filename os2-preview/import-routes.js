@@ -5,7 +5,7 @@ const XLSX = require('xlsx');
 
 module.exports = function createImportRouter({ pool, requireAuth, requestIp }) {
   const router = express.Router();
-  const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 12 * 1024 * 1024 } });
+  const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 12 * 1024 * 1024, files: 1, fields: 8, parts: 9 } });
   const previews = new Map();
   const allowedFields = [
     'client_name','account_number','cell_number','email','city_town','id_number',
