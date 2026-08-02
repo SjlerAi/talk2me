@@ -24,12 +24,35 @@ function required(name) {
   if (!value || value.length > 4096 || /[\u0000-\u001f\u007f]/.test(value)) fail(`INVALID_${name}`);
   return value;
 }
+function sameFile(left, right) {
+  return left.dev === right.dev && left.ino === right.ino;
+}
 function readRegular(file, maxBytes, label) {
   if (!path.isAbsolute(file) || path.normalize(file) !== file) fail(`${label}_PATH_INVALID`);
-  const stat = fs.lstatSync(file);
-  if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1) fail(`${label}_NOT_REGULAR_FILE`);
-  if (stat.size <= 0 || stat.size > maxBytes) fail(`${label}_SIZE_INVALID`);
-  return fs.readFileSync(file);
+  let before;
+  let descriptor;
+  try {
+    before = fs.lstatSync(file);
+    if (!before.isFile() || before.isSymbolicLink() || before.nlink !== 1) fail(`${label}_NOT_REGULAR_FILE`);
+    if (before.size <= 0 || before.size > maxBytes) fail(`${label}_SIZE_INVALID`);
+    const flags = fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0);
+    descriptor = fs.openSync(file, flags);
+    const opened = fs.fstatSync(descriptor);
+    if (!opened.isFile() || opened.nlink !== 1 || !sameFile(before, opened)) fail(`${label}_FILE_CHANGED`);
+    if (opened.size <= 0 || opened.size > maxBytes) fail(`${label}_SIZE_INVALID`);
+    const bytes = fs.readFileSync(descriptor);
+    const after = fs.fstatSync(descriptor);
+    if (!after.isFile() || after.nlink !== 1 || !sameFile(opened, after) || after.size !== opened.size || bytes.length !== opened.size) fail(`${label}_FILE_CHANGED`);
+    if (bytes.length <= 0 || bytes.length > maxBytes) fail(`${label}_SIZE_INVALID`);
+    return bytes;
+  } catch (error) {
+    if (error && error.message && /^[A-Z0-9_]+$/.test(error.message)) throw error;
+    fail(`${label}_READ_FAILED`);
+  } finally {
+    if (descriptor !== undefined) {
+      try { fs.closeSync(descriptor); } catch { /* fail closed on the verified read result */ }
+    }
+  }
 }
 function parseCanonicalJson(bytes, label) {
   const text = bytes.toString('utf8');
@@ -105,6 +128,9 @@ function main() {
     approvalBound: true,
     approvalWindowHours: 24,
     digestsVerified: 4,
+    descriptorBoundReads: true,
+    noFollowOpenRequired: true,
+    inodeContinuityVerified: true,
     onlyMulterDependencyChanged: true,
     adoptionAuthorized: false,
     previewActivationAuthorized: false,
