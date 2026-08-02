@@ -41,8 +41,8 @@ requireMarkers('restore-test-governance-check.js', [
 ]);
 requireMarkers('BACKUP_AND_RECOVERY_RUNBOOK.md', [
   'Controlled isolated restore test', 'pre-created empty isolated database', 'must never create or drop the target database',
-  'ALLOW_PREVIEW_RESTORE_TEST=true', 'RESTORE_TARGET_DATABASE', 'RESTORE_REVIEWER_ID', '20-minute total import timeout',
-  'backup checksum is reverified before import', 'exactly 25 migration-ledger rows', 'targetDatabaseDroppedAutomatically: false',
+  'ALLOW_PREVIEW_RESTORE_TEST=true', 'RESTORE_TARGET_DATABASE', 'RESTORE_REVIEWER_ID', 'Import timeout is 20 minutes',
+  'backup checksum is reverified before import', 'Exactly 25 migration-ledger rows are required', 'targetDatabaseDroppedAutomatically: false',
   'failedChecks: 0', 'Manual cleanup after evidence retention'
 ]);
 requireMarkers('migrations/20260801_011_backup_recovery_and_operations.sql', [
