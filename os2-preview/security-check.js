@@ -27,6 +27,8 @@ const multerGovernance=read('multer-upgrade-governance-check.js');
 const multerRegression=read('multer-request-regression-check.js');
 const multerRunbook=read('MULTER_2_UPGRADE_RUNBOOK.md');
 const multerVersionReview=read('MULTER_2_VERSION_REVIEW.md');
+const multerGenerationApproval=read('MULTER_2_GENERATION_APPROVAL.md');
+const multerGenerationApprovalCheck=read('multer-generation-approval-check.js');
 
 assert(server.includes("require('./security-controls')"),'Security controls not imported');
 assert(server.includes("require('./security-routes')"),'Security router not imported');
@@ -52,6 +54,9 @@ assert(multerRunbook.includes('Status: target selected, dependency change not ex
 assert(multerRunbook.includes('Selected review target: exact Multer 2.2.0'),'Multer runbook target missing');
 assert(multerVersionReview.includes('Exact target version: `2.2.0`'),'Multer version review target missing');
 assert(multerVersionReview.includes('Pre-release versions are prohibited'),'Multer prerelease prohibition missing');
+assert(multerGenerationApproval.includes('Status: not approved'),'Multer generation approval must remain fail-closed');
+assert(multerGenerationApproval.includes('APPROVE_MULTER_2_2_0_DEPENDENCY_EVIDENCE_GENERATION'),'Exact Multer generation approval phrase missing');
+assert(multerGenerationApprovalCheck.includes("check: 'multer-generation-approval'"),'Multer generation approval evidence contract missing');
 
 const evidence=runJsonCheck('multer-upgrade-governance-check.js','Multer governance');
 assert(evidence.ok===true&&evidence.check==='multer-upgrade-governance','Multer governance evidence invalid');
@@ -76,6 +81,18 @@ assert(evidence.malformedRequestRegressionRequired===true,'Malformed upload regr
 assert(evidence.controlledErrorDisclosureRequired===true,'Controlled upload error disclosure governance missing');
 assert(evidence.multer2UpgradeExecuted===false,'Multer 2 upgrade must not execute during source validation');
 assert(evidence.productionMutationEnabled===false,'Multer governance must prohibit production mutation');
+
+const approval=runJsonCheck('multer-generation-approval-check.js','Multer generation approval');
+assert(approval.ok===true&&approval.check==='multer-generation-approval','Multer generation approval evidence invalid');
+assert(approval.currentMulter==='^1.4.5-lts.1','Multer generation approval current version invalid');
+assert(approval.selectedCandidate==='2.2.0','Multer generation approval candidate invalid');
+assert(approval.exactApprovalPhraseRequired===true,'Exact Multer generation approval phrase evidence missing');
+assert(approval.ownerGenerationApprovalGranted===false,'Multer generation unexpectedly approved');
+assert(approval.candidateManifestCreationAuthorized===false,'Candidate manifest unexpectedly authorized');
+assert(approval.dependencyLockGenerationAuthorized===false,'Dependency lock generation unexpectedly authorized');
+assert(approval.dependencyLockAdoptionAuthorized===false,'Dependency lock adoption unexpectedly authorized');
+assert(approval.previewActivationAuthorized===false,'Preview activation unexpectedly authorized');
+assert(approval.productionMutationEnabled===false,'Multer generation approval must prohibit production mutation');
 
 const regression=runJsonCheck('multer-request-regression-check.js','Multer request regression');
 assert(regression.ok===true&&regression.check==='multer-request-regression','Multer request regression evidence invalid');
