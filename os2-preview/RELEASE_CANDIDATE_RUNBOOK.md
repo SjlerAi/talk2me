@@ -75,7 +75,7 @@ The freeze must fail when the lock is absent, exact identity is missing, approve
 Post-freeze verification does not accept a manifest merely because its checksum is valid. The manifest must satisfy the complete semantic contract below.
 
 1. Application identity is exactly `talk2me-os2-preview`.
-2. Version is exactly `0.59.0`.
+2. Version is exactly `0.60.0`.
 3. Branch is exactly `agent/talk2me-os2-integrated-rebuild`.
 4. Commit identity is a full 40-character SHA and matches the verified checkout.
 5. Approver evidence is present, trimmed, bounded and control-character free.
@@ -110,12 +110,12 @@ Post-freeze verification does not accept a manifest merely because its checksum 
 34. Required-file and required-script inventories contain no duplicates.
 35. `migrationCount` equals the actual ordered migration count.
 36. The frozen migration inventory length equals the actual migration count.
-37. Migration filenames are unique.
+37. migration filenames are unique.
 38. Migration filenames remain in exact sorted order.
-39. Every migration checksum has valid SHA-256 syntax.
+39. migration checksum formats are valid SHA-256.
 40. Every migration checksum matches the secure descriptor read.
 41. The restore-pin migration exists in the checked-out inventory.
-42. Package name and version match the manifest.
+42. package name and version match the manifest.
 43. Every required package script exists in the checked-out package.
 44. The dependency-lock name and version match the package.
 45. `lockfileVersion` is supported and at least 2.
