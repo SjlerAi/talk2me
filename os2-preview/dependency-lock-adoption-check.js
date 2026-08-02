@@ -101,8 +101,8 @@ if (!materializer.includes('fs.linkSync(temporary, file)')) failures.push('Mater
 requireMarkers(workflow, [
   'name: OS2 Dependency Lock Adoption', 'push:', 'workflow_dispatch:', 'contents: read',
   'cancel-in-progress: false', 'timeout-minutes: 20', 'fetch-depth: 2', 'persist-credentials: false',
-  'actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955',
-  'actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020',
+  'actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd',
+  'actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e',
   "PROVENANCE_MAX_AGE_HOURS: '168'", "ALLOW_PRODUCTION_MUTATION: 'false'", "ENABLE_CUSTOMER_MERGE_EXECUTION: 'false'",
   'set -euo pipefail', 'test "$GITHUB_REPOSITORY" = "SjlerAi/talk2me"',
   'test "$(git rev-list --count "$source_commit..$GITHUB_SHA")" = "1"',
@@ -114,7 +114,7 @@ requireMarkers(workflow, [
   'npm audit --omit=dev --audit-level=high', 'rm -rf node_modules',
   'status --porcelain --untracked-files=all', "check: 'dependency-lock-adoption'",
   'exactTwoFileCommit: true', 'highSeverityAuditPassed: true', 'sha256sum *.json > SHA256SUMS',
-  'sha256sum --check SHA256SUMS', 'actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02',
+  'sha256sum --check SHA256SUMS', 'actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f',
   'if-no-files-found: error', 'retention-days: 30'
 ], 'adoption workflow');
 requireOrder(workflow, [
