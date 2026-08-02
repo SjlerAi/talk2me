@@ -5,6 +5,7 @@ Related issue: #85
 Preview version: 0.60.0
 Selected review target: exact Multer 2.2.0
 Version review: `MULTER_2_VERSION_REVIEW.md`
+Generation approval: `MULTER_2_GENERATION_APPROVAL.md` — status `not approved`
 
 ## Purpose
 
@@ -97,21 +98,24 @@ Before changing the Multer dependency:
 6. Confirm malformed and truncated multipart requests fail closed.
 7. Confirm authorization middleware remains before Multer middleware.
 8. Keep exact target `2.2.0`; no range and no pre-release substitution.
+9. Keep `MULTER_2_GENERATION_APPROVAL.md` at `Status: not approved` until the owner supplies the exact approval phrase.
+10. Treat generation approval, dependency adoption, preview activation and production activation as separate gates.
 
-Items 1 through 7 are enforced in committed source-level validation. Item 8 is governed by `MULTER_2_VERSION_REVIEW.md` and `multer-upgrade-governance-check.js`. Deployed-route regression and preview UAT remain required after controlled dependency adoption.
+Items 1 through 7 are enforced in committed source-level validation. Item 8 is governed by `MULTER_2_VERSION_REVIEW.md` and `multer-upgrade-governance-check.js`. Items 9 and 10 are governed by `MULTER_2_GENERATION_APPROVAL.md` and `multer-generation-approval-check.js`. Deployed-route regression and preview UAT remain required after controlled dependency adoption.
 
 ## Upgrade procedure
 
 1. Work only on the controlled preview branch.
 2. Use exact Multer `2.2.0` as the reviewed candidate.
-3. Obtain explicit approval before dependency evidence generation.
-4. Regenerate the dependency lock through the controlled generation workflow.
-5. Review artifact checksum, provenance and source-inventory continuity.
-6. Adopt `package.json` and `package-lock.json` only through the controlled two-file adoption process.
-7. Run syntax, governance and focused upload regression checks.
-8. Review all error-code and size-boundary differences against the recorded 1.x baseline.
-9. Run preview-only authenticated upload tests after explicit activation approval.
-10. Perform browser and mobile UAT for customer documents, staff documents and monthly import preview.
+3. Obtain the exact owner approval phrase recorded in `MULTER_2_GENERATION_APPROVAL.md` before dependency evidence generation.
+4. Record the approved 40-character source commit, canonical UTC timestamp and approving owner identity.
+5. Regenerate the dependency lock through the controlled generation workflow.
+6. Review artifact checksum, provenance and source-inventory continuity.
+7. Adopt `package.json` and `package-lock.json` only through the controlled two-file adoption process.
+8. Run syntax, governance and focused upload regression checks.
+9. Review all error-code and size-boundary differences against the recorded 1.x baseline.
+10. Run preview-only authenticated upload tests after explicit activation approval.
+11. Perform browser and mobile UAT for customer documents, staff documents and monthly import preview.
 
 ## Regression matrix
 
@@ -138,6 +142,8 @@ Each upload surface must test:
 The upgrade is accepted only when:
 
 - exact Multer `2.2.0` and its controlled lock provenance are verified;
+- the exact generation approval record is complete for the approved source commit;
+- dependency adoption remains separately approved and provenance-bound;
 - all current size and file-count limits remain enforced;
 - authorization still executes before multipart parsing;
 - no rejected upload remains on disk;
