@@ -44,17 +44,17 @@ requireMarkers(runner, [
   'BOOTSTRAP_OPERATOR',
   'BOOTSTRAP_CHANGE_REFERENCE',
   'BOOTSTRAP_REFUSES_EXISTING_LEDGER_TABLE',
-  'ledgerSchemaVerified: true',
-  'ledgerEmpty: true',
-  'advisoryLockOwnerVerified: true'
+  'ledgerSchemaVerified',
+  'ledgerEmpty: ledgerRowCount === 0',
+  'advisoryLockOwnerVerified'
 ], 'Bootstrap runner');
 
 requireMarkers(runbook, [
   'MIGRATION_LEDGER_BOOTSTRAP_EVIDENCE_PATH',
   'migration-ledger-bootstrap-evidence-verification.js',
-  'bootstrap evidence checksum',
-  'ledger table was absent before execution',
-  'advisory lock lifecycle'
+  'SHA-256 sidecar',
+  'refuses an existing ledger table',
+  'advisory-lock lifecycle'
 ], 'Deployment runbook');
 
 if (pkg.scripts['bootstrap:migration-ledger'] !== 'node migration-ledger-bootstrap-runner.js') {
