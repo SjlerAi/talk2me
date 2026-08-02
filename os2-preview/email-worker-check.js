@@ -159,7 +159,7 @@ supporting('worker governance command is exact', pkg.scripts['check:email-worker
 supporting('worker syntax and governance run in normal validation', pkg.scripts.check.includes('node --check email-worker.js') && pkg.scripts.check.includes('node --check email-worker-runner.js') && pkg.scripts.check.includes('node email-worker-check.js'));
 supporting('runbook declares all sixty controls', runbook.includes('## Sixty governed controls') && runbook.includes('60. Graceful shutdown waits for the current delivery cycle.'));
 supporting('runbook states production remains untouched', runbook.includes('Production at `talk2me.uent.co.za` remains untouched'));
-supporting('email transport has no invalid certificate bypass', !worker.includes('SMTP_ALLOW_INVALID_CERT ||') && !worker.includes('rejectUnauthorized: String'));
+supporting('email transport has no invalid certificate bypass', worker.includes('INVALID_SMTP_CERTIFICATE_OVERRIDE_PROHIBITED') && worker.includes('rejectUnauthorized: true') && !worker.includes('rejectUnauthorized: String'));
 supporting('old setInterval scheduler removed', !worker.includes('setInterval('));
 supporting('old recipient email property removed', !worker.includes('name:row.recipient_name,email:row.recipient_email'));
 
