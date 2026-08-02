@@ -9,12 +9,15 @@ const topology = fs.readFileSync(path.join(root, 'workspace-topology-verificatio
 const topologyGovernance = fs.readFileSync(path.join(root, 'workspace-topology-governance-check.js'), 'utf8');
 const dependencyLock = fs.readFileSync(path.join(root, 'dependency-lock-verification.js'), 'utf8');
 const dependencyLockGovernance = fs.readFileSync(path.join(root, 'dependency-lock-governance-check.js'), 'utf8');
+const dependencyLockGenerator = fs.readFileSync(path.join(root, 'dependency-lock-generator.js'), 'utf8');
+const dependencyLockGeneratorGovernance = fs.readFileSync(path.join(root, 'dependency-lock-generator-check.js'), 'utf8');
 const sourceIntegrity = fs.readFileSync(path.join(root, 'workspace-source-integrity.js'), 'utf8');
 const sourceIntegrityGovernance = fs.readFileSync(path.join(root, 'workspace-source-integrity-check.js'), 'utf8');
 const releaseSourceGovernance = fs.readFileSync(path.join(root, 'release-source-integrity-check.js'), 'utf8');
 const recoveryReadiness = fs.readFileSync(path.join(root, 'recovery-readiness-check.js'), 'utf8');
 const recoveryRelease = fs.readFileSync(path.join(root, 'recovery-release-gate.js'), 'utf8');
 const runbook = fs.readFileSync(path.join(root, 'PREVIEW_ACTIVATION_RUNBOOK.md'), 'utf8');
+const lockRunbook = fs.readFileSync(path.join(root, 'DEPENDENCY_LOCK_GENERATION_RUNBOOK.md'), 'utf8');
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 
 function requireMarkers(source, markers, label) {
@@ -36,30 +39,34 @@ requireMarkers(preflight, [
   'gitWorkTreeOverrideInherited: false', 'npmPrefixOverrideInherited: false', 'npmUserConfigOverrideInherited: false',
   'productionNodeEnvironmentForced: true', 'previewRootForced: true', 'previewDatabaseForced: true', 'releaseBranchForced: true',
   'productionMutationDisabledInChildren: true', 'mergeExecutionDisabledInChildren: true',
-  'dependencyLockVerified: true', 'dependencyLockGovernanceVerified: true', 'packageLockRequired: true',
+  'dependencyLockVerified: true', 'dependencyLockGovernanceVerified: true',
+  'dependencyLockGeneratorGovernanceVerified: true', 'packageLockRequired: true',
   'restoreTestGovernanceVerified: true', 'restoreTestIntegrationVerified: true', 'recoveryReadinessVerified: true',
-  'recoveryReleaseGateVerified: true', 'dependencyInstallationExecuted: false', 'backupRuntimeExecuted: false',
-  'backupVerificationExecuted: false', 'restoreTestExecuted: false', 'databaseBackedVerificationExecuted: false',
-  'migrationsExecuted: false', 'previewRestartExecuted: false', 'productionMutationEnabled: false', 'mergeExecutionEnabled: false'
+  'recoveryReleaseGateVerified: true', 'dependencyLockGenerationExecuted: false', 'dependencyInstallationExecuted: false',
+  'backupRuntimeExecuted: false', 'backupVerificationExecuted: false', 'restoreTestExecuted: false',
+  'databaseBackedVerificationExecuted: false', 'migrationsExecuted: false', 'previewRestartExecuted: false',
+  'productionMutationEnabled: false', 'mergeExecutionEnabled: false'
 ], 'Preview activation preflight');
 
 if (preflight.includes('...process.env')) throw new Error('Preview activation must not inherit the complete parent environment');
-for (const prohibited of ['NODE_OPTIONS', 'NODE_PATH', 'BASH_ENV', 'GIT_DIR', 'GIT_WORK_TREE', 'NPM_CONFIG_USERCONFIG']) {
+for (const prohibited of ['NODE_OPTIONS', 'NODE_PATH', 'BASH_ENV', 'ENV', 'CDPATH', 'GIT_DIR', 'GIT_WORK_TREE', 'NPM_CONFIG_PREFIX', 'NPM_CONFIG_USERCONFIG']) {
   if (!preflight.includes(`'${prohibited}'`)) throw new Error(`Preview activation prohibited environment list missing ${prohibited}`);
 }
 
 const orderedScripts = [
   "'workspace-topology-verification.js'", "'dependency-lock-verification.js'", "'dependency-lock-governance-check.js'",
-  "'workspace-source-integrity.js'", "'workspace-source-integrity-check.js'", "'workspace-topology-governance-check.js'",
-  "'migration-ledger-bootstrap-governance-check.js'", "'migration-ledger-bootstrap-runner-check.js'",
-  "'migration-ledger-bootstrap-evidence-check.js'", "'migration-runner-security-check.js'",
-  "'restore-test-governance-check.js'", "'restore-test-integration-check.js'", "'recovery-readiness-check.js'",
-  "'recovery-release-gate.js'", "'runtime-release-identity-check.js'", "'readiness-check.js'",
-  "'deployment-check.js'", "'uat-gate-check.js'", "'release-evidence-security-check.js'",
-  "'release-source-integrity-check.js'", "'release-manifest-check.js'"
+  "'dependency-lock-generator-check.js'", "'workspace-source-integrity.js'", "'workspace-source-integrity-check.js'",
+  "'workspace-topology-governance-check.js'", "'migration-ledger-bootstrap-governance-check.js'",
+  "'migration-ledger-bootstrap-runner-check.js'", "'migration-ledger-bootstrap-evidence-check.js'",
+  "'migration-runner-security-check.js'", "'restore-test-governance-check.js'", "'restore-test-integration-check.js'",
+  "'recovery-readiness-check.js'", "'recovery-release-gate.js'", "'runtime-release-identity-check.js'",
+  "'readiness-check.js'", "'deployment-check.js'", "'uat-gate-check.js'",
+  "'release-evidence-security-check.js'", "'release-source-integrity-check.js'", "'release-manifest-check.js'"
 ];
 for (const script of orderedScripts) if (!preflight.includes(script)) throw new Error(`Preview activation preflight missing ordered script ${script}`);
-for (let index = 1; index < orderedScripts.length; index += 1) if (preflight.indexOf(orderedScripts[index - 1]) >= preflight.indexOf(orderedScripts[index])) throw new Error(`Preview activation preflight order is invalid at ${orderedScripts[index]}`);
+for (let index = 1; index < orderedScripts.length; index += 1) {
+  if (preflight.indexOf(orderedScripts[index - 1]) >= preflight.indexOf(orderedScripts[index])) throw new Error(`Preview activation preflight order is invalid at ${orderedScripts[index]}`);
+}
 
 requireMarkers(topology, [
   'O_NOFOLLOW and O_DIRECTORY are required for workspace topology verification',
@@ -73,7 +80,7 @@ requireMarkers(topologyGovernance, [
 ], 'Workspace topology governance');
 requireMarkers(dependencyLock, [
   "check: 'dependency-lock-verification'", 'meaningfulControls: 60', 'packageLockPresent: true',
-  'lockfileVersionThreeRequired: true', 'npmRegistryHttpsOnlyRequired: true', 'sha512IntegrityRequired: true',
+  'lockfileVersionThreeRequired: true', 'registryHttpsOnlyRequired: true', 'sha512IntegrityRequired: true',
   'dependencyEdgesResolved: true', 'productionMutationEnabled: false', 'mergeExecutionEnabled: false'
 ], 'Dependency lock verification');
 requireMarkers(dependencyLockGovernance, [
@@ -81,21 +88,33 @@ requireMarkers(dependencyLockGovernance, [
   'activationPreflightRegistrationRequired: true', 'sourceInventoryProtectionRequired: true',
   'productionMutationEnabled: false', 'mergeExecutionEnabled: false', 'dependencyInstallationExecuted: false'
 ], 'Dependency lock governance');
+requireMarkers(dependencyLockGenerator, [
+  "check: 'dependency-lock-generation'", 'expectedNodeMajor = 20', 'expectedNpmMajor = 10',
+  "expectedRegistry = 'https://registry.npmjs.org/'", 'process.env.ALLOW_DEPENDENCY_LOCK_GENERATION',
+  'publishExclusive(lockPath, candidate.bytes, 0o644', 'DEPENDENCY_LOCK_VERIFICATION',
+  'packageLockVerifiedAfterPublication: true', 'fullParentEnvironmentInherited: false',
+  'productionMutationEnabled: false', 'mergeExecutionEnabled: false'
+], 'Dependency lock generator');
+requireMarkers(dependencyLockGeneratorGovernance, [
+  "check: 'dependency-lock-generator-governance'", 'meaningfulControls: 60',
+  'generatorSyntaxVerified: true', 'npm10Required: true', 'npmRegistryPinned: true',
+  'exclusiveNoOverwritePublicationRequired: true', 'environmentChangingGeneratorExcludedFromNormalValidation: true'
+], 'Dependency lock generator governance');
 requireMarkers(sourceIntegrity, [
   "check: 'workspace-source-integrity'", 'inventorySha256', 'packageLockPresent: true',
   'dependencyLockVerifierProtected: files.some', 'dependencyLockGovernanceProtected: files.some',
-  'recoveryReadinessProtected: files.some', 'recoveryReleaseGateProtected: files.some',
-  'secureDescriptorReads: true', 'canonicalPathBinding: true', 'hardLinkRejection: true',
-  'ownershipConsistency: true', 'boundedReads: true'
+  'dependencyLockGeneratorProtected: files.some', 'dependencyLockGeneratorGovernanceProtected: files.some',
+  'dependencyLockGenerationRunbookProtected: files.some', 'recoveryReadinessProtected: files.some',
+  'recoveryReleaseGateProtected: files.some', 'secureDescriptorReads: true', 'canonicalPathBinding: true',
+  'hardLinkRejection: true', 'ownershipConsistency: true', 'boundedReads: true'
 ], 'Workspace source integrity');
 requireMarkers(sourceIntegrityGovernance, [
   "check: 'workspace-source-integrity-governance'", 'deterministicInventoryRequired: true',
-  'packageLockRequired: true', 'dependencyLockVerifierProtected: verifier.includes',
-  'dependencyLockGovernanceProtected: verifier.includes', 'dependencyLockVerificationPreflightRegistrationRequired: true',
-  'dependencyLockGovernancePreflightRegistrationRequired: true', 'recoveryReadinessProtectionRequired: true',
-  'recoveryReleaseGateProtectionRequired: true', 'recoveryReleaseGatePreflightRegistrationRequired: true',
-  'packageCommandRegistered: true', 'normalSyntaxValidationRegistered: true', 'normalGovernanceValidationRegistered: true',
-  'environmentBoundVerifierExcludedFromNormalExecution: true'
+  'packageLockRequired: true', 'dependencyLockGeneratorProtected: verifier.includes',
+  'dependencyLockGeneratorGovernanceProtected: verifier.includes',
+  'dependencyLockGenerationRunbookProtected: verifier.includes',
+  'dependencyLockGeneratorGovernancePreflightRegistrationRequired: true',
+  'environmentChangingLockGeneratorExcludedFromNormalExecution: true'
 ], 'Workspace source integrity governance');
 requireMarkers(releaseSourceGovernance, [
   "check: 'release-source-integrity-governance'", 'boundedExecutionRequired: true',
@@ -116,13 +135,19 @@ requireMarkers(recoveryRelease, [
 
 requireMarkers(runbook, [
   'talk2me.kloka.co.za', 'talk2me.uent.co.za', 'kloka_talk2me', 'agent/talk2me-os2-integrated-rebuild',
-  'Dependency lock verification', 'package-lock.json', 'lockfileVersion` must be `3`',
-  'sanitized allowlisted child environment', '`NODE_OPTIONS`', '`NODE_PATH`', '`BASH_ENV`',
-  '`GIT_DIR`', '`GIT_WORK_TREE`', '`NPM_CONFIG_USERCONFIG`', '`NODE_ENV=production`',
-  'production mutation and merge execution are forced off', '30-second execution limit',
-  'forced `SIGKILL` termination', 'shell execution disabled', 'npm run verify:preview-activation-preflight',
-  'npm ci --ignore-scripts --no-audit --no-fund', 'npm run check', 'Restart only the preview Node.js application'
+  'Dependency lock generation', 'dependency-lock-generator-check.js', 'Dependency lock verification',
+  'package-lock.json', '`lockfileVersion` must be `3`', 'sanitized allowlisted child environment',
+  'NODE_OPTIONS', 'NODE_PATH', 'BASH_ENV', 'GIT_DIR', 'GIT_WORK_TREE', 'NPM_CONFIG_USERCONFIG',
+  'NODE_ENV=production', 'Production mutation and merge execution are forced off',
+  '30-second execution limit', 'forced `SIGKILL` termination', 'shell execution disabled',
+  'npm run verify:preview-activation-preflight', 'npm ci --ignore-scripts --no-audit --no-fund',
+  'npm audit --omit=dev --audit-level=high', 'Restart only the preview Node.js application'
 ], 'Preview activation runbook');
+requireMarkers(lockRunbook, [
+  'Controlled Dependency Lock Generation', 'Node.js 20', 'npm 10', 'ALLOW_DEPENDENCY_LOCK_GENERATION=true',
+  'DEPENDENCY_LOCK_TEMP_ROOT=', 'DEPENDENCY_LOCK_EVIDENCE_PATH=', 'package-lock.json must not already exist',
+  'private evidence pair', 'Production at `talk2me.uent.co.za` remains untouched'
+], 'Dependency lock generation runbook');
 
 const exactScripts = {
   'verify:preview-activation-preflight': 'node preview-activation-preflight.js',
@@ -142,6 +167,7 @@ for (const marker of [
   'node restore-test-integration-check.js', 'node recovery-readiness-check.js',
   'node recovery-release-gate.js', 'node preview-activation-governance-check.js'
 ]) if (!pkg.scripts.check.includes(marker)) throw new Error(`Normal validation missing ${marker}`);
+if (pkg.scripts.check.includes('&& node dependency-lock-generator.js &&')) throw new Error('Environment-changing dependency lock generation must not execute in normal validation');
 if (pkg.scripts.check.includes('&& node restore-test-runner.js &&')) throw new Error('Environment-bound restore runner must not execute in normal validation');
 if (pkg.scripts.check.includes('&& node backup-runner.js &&')) throw new Error('Environment-bound backup runner must not execute in normal validation');
 if (pkg.scripts.check.includes('&& node backup-verification.js &&')) throw new Error('Environment-bound backup verification must not execute in normal validation');
@@ -179,6 +205,8 @@ console.log(JSON.stringify({
   workspaceTopologyVerificationRequired: true,
   dependencyLockVerificationRequired: true,
   dependencyLockGovernanceRequired: true,
+  dependencyLockGeneratorGovernanceRequired: true,
+  dependencyLockGenerationExecuted: false,
   packageLockRequired: true,
   dependencyInstallationExecuted: false,
   workspaceSourceIntegrityRequired: true,
@@ -186,9 +214,6 @@ console.log(JSON.stringify({
   restoreTestIntegrationRequired: true,
   recoveryReadinessRequired: true,
   recoveryReleaseGateRequired: true,
-  recoveryPackageCommandsRequired: true,
-  recoverySyntaxValidationRequired: true,
-  recoveryGovernanceExecutionRequired: true,
   environmentChangingRecoveryExecutionExcluded: true,
   releaseSourceIntegrityGovernanceRequired: true,
   releaseManifestGovernanceRequired: true,
