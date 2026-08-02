@@ -26,7 +26,7 @@ module.exports = function createDocumentRouter({ pool, requireAuth }) {
   const router = express.Router();
   const privateRoot = path.resolve(process.env.OS2_PRIVATE_DOCUMENT_ROOT || path.join(__dirname, '..', 'private-data', 'os2-documents'));
   fs.mkdirSync(privateRoot, { recursive:true, mode:0o700 });
-  const upload = multer({ storage:multer.memoryStorage(), limits:{ fileSize:10*1024*1024, files:1 } });
+  const upload = multer({ storage:multer.memoryStorage(), limits:{ fileSize:10*1024*1024, files:1, fields:4, parts:5 } });
 
   router.post('/api/os2/customers/:id/documents', requireAuth, requirePermission('document.upload'), upload.single('document'), async (req,res) => {
     const masterCustomerId = Number(req.params.id);
