@@ -1,0 +1,19 @@
+{
+  "name": "talk2me-one-product",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Clean integrated Talk2Me product",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "check": "node --check server.js && node --check src/customer-service.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "mysql2": "^3.14.0"
+  }
+}
