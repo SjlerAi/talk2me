@@ -13,7 +13,6 @@ function fail(message) {
   console.error(JSON.stringify({ ok: false, check: 'workspace-source-integrity', error: message, productionMutationEnabled: false, mergeExecutionEnabled: false }, null, 2));
   process.exit(1);
 }
-
 function secureHash(relativePath, maxBytes, expectedOwner) {
   const file = path.join(root, relativePath);
   let pathStat;
@@ -38,9 +37,7 @@ function secureHash(relativePath, maxBytes, expectedOwner) {
     const bytes = fs.readFileSync(descriptor);
     if (bytes.length !== descriptorStat.size) fail(`Protected source byte count changed during read: ${relativePath}`);
     return { file: relativePath, bytes: descriptorStat.size, sha256: crypto.createHash('sha256').update(bytes).digest('hex') };
-  } finally {
-    fs.closeSync(descriptor);
-  }
+  } finally { fs.closeSync(descriptor); }
 }
 
 const configuredRoot = String(process.env.PREVIEW_APP_ROOT || '').trim();
@@ -57,43 +54,23 @@ const rootStat = fs.lstatSync(root);
 if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) fail('Workspace root must be a real directory');
 const owner = rootStat.uid;
 const protectedFiles = [
-  ['../.github/workflows/os2-preview-ci.yml', 1024 * 1024],
-  ['server.js', 4 * 1024 * 1024],
-  ['package.json', 1024 * 1024],
-  ['MIGRATION_LEDGER_BOOTSTRAP.sql', 256 * 1024],
-  ['migration-ledger-bootstrap-runner.js', 2 * 1024 * 1024],
-  ['migration-ledger-bootstrap-evidence-verification.js', 2 * 1024 * 1024],
-  ['migration-runner.js', 2 * 1024 * 1024],
-  ['backup-runner.js', 2 * 1024 * 1024],
-  ['backup-verification.js', 2 * 1024 * 1024],
-  ['restore-test-runner.js', 2 * 1024 * 1024],
-  ['restore-test-governance-check.js', 2 * 1024 * 1024],
-  ['restore-test-integration-check.js', 2 * 1024 * 1024],
-  ['workspace-topology-verification.js', 2 * 1024 * 1024],
-  ['workspace-topology-governance-check.js', 2 * 1024 * 1024],
-  ['workspace-source-integrity.js', 2 * 1024 * 1024],
-  ['workspace-source-integrity-check.js', 2 * 1024 * 1024],
-  ['preview-activation-preflight.js', 2 * 1024 * 1024],
-  ['preview-activation-governance-check.js', 2 * 1024 * 1024],
-  ['readiness-check.js', 2 * 1024 * 1024],
-  ['deployment-check.js', 2 * 1024 * 1024],
-  ['uat-gate-check.js', 2 * 1024 * 1024],
-  ['build-evidence.js', 2 * 1024 * 1024],
-  ['ci-governance-check.js', 2 * 1024 * 1024],
-  ['release-evidence-security-check.js', 2 * 1024 * 1024],
-  ['release-source-integrity-verification.js', 2 * 1024 * 1024],
-  ['release-source-integrity-check.js', 2 * 1024 * 1024],
-  ['release-candidate-gate.js', 4 * 1024 * 1024],
-  ['release-manifest-verification.js', 4 * 1024 * 1024],
-  ['release-manifest-check.js', 2 * 1024 * 1024],
-  ['BACKUP_AND_RECOVERY_RUNBOOK.md', 2 * 1024 * 1024],
-  ['PREVIEW_ACTIVATION_RUNBOOK.md', 2 * 1024 * 1024],
-  ['PREVIEW_DEPLOYMENT_RUNBOOK.md', 2 * 1024 * 1024],
-  ['PREVIEW_UAT_RUNBOOK.md', 2 * 1024 * 1024],
-  ['RELEASE_CANDIDATE_RUNBOOK.md', 2 * 1024 * 1024],
-  ['CI_AND_BUILD_EVIDENCE_RUNBOOK.md', 2 * 1024 * 1024]
+  ['../.github/workflows/os2-preview-ci.yml', 1024 * 1024], ['server.js', 4 * 1024 * 1024], ['package.json', 1024 * 1024],
+  ['MIGRATION_LEDGER_BOOTSTRAP.sql', 256 * 1024], ['migration-ledger-bootstrap-runner.js', 2 * 1024 * 1024],
+  ['migration-ledger-bootstrap-evidence-verification.js', 2 * 1024 * 1024], ['migration-runner.js', 2 * 1024 * 1024],
+  ['backup-runner.js', 2 * 1024 * 1024], ['backup-verification.js', 2 * 1024 * 1024],
+  ['restore-test-runner.js', 2 * 1024 * 1024], ['restore-test-governance-check.js', 2 * 1024 * 1024],
+  ['restore-test-integration-check.js', 2 * 1024 * 1024], ['recovery-readiness-check.js', 2 * 1024 * 1024],
+  ['workspace-topology-verification.js', 2 * 1024 * 1024], ['workspace-topology-governance-check.js', 2 * 1024 * 1024],
+  ['workspace-source-integrity.js', 2 * 1024 * 1024], ['workspace-source-integrity-check.js', 2 * 1024 * 1024],
+  ['preview-activation-preflight.js', 2 * 1024 * 1024], ['preview-activation-governance-check.js', 2 * 1024 * 1024],
+  ['readiness-check.js', 2 * 1024 * 1024], ['deployment-check.js', 2 * 1024 * 1024], ['uat-gate-check.js', 2 * 1024 * 1024],
+  ['build-evidence.js', 2 * 1024 * 1024], ['ci-governance-check.js', 2 * 1024 * 1024], ['release-evidence-security-check.js', 2 * 1024 * 1024],
+  ['release-source-integrity-verification.js', 2 * 1024 * 1024], ['release-source-integrity-check.js', 2 * 1024 * 1024],
+  ['release-candidate-gate.js', 4 * 1024 * 1024], ['release-manifest-verification.js', 4 * 1024 * 1024], ['release-manifest-check.js', 2 * 1024 * 1024],
+  ['BACKUP_AND_RECOVERY_RUNBOOK.md', 2 * 1024 * 1024], ['PREVIEW_ACTIVATION_RUNBOOK.md', 2 * 1024 * 1024],
+  ['PREVIEW_DEPLOYMENT_RUNBOOK.md', 2 * 1024 * 1024], ['PREVIEW_UAT_RUNBOOK.md', 2 * 1024 * 1024],
+  ['RELEASE_CANDIDATE_RUNBOOK.md', 2 * 1024 * 1024], ['CI_AND_BUILD_EVIDENCE_RUNBOOK.md', 2 * 1024 * 1024]
 ];
-
 if (fs.existsSync(path.join(root, 'package-lock.json'))) protectedFiles.push(['package-lock.json', 16 * 1024 * 1024]);
 const migrationDirectory = path.join(root, 'migrations');
 const entries = fs.readdirSync(migrationDirectory, { withFileTypes: true });
@@ -104,25 +81,15 @@ for (const entry of entries) {
 protectedFiles.sort((a, b) => a[0].localeCompare(b[0]));
 const names = protectedFiles.map(item => item[0]);
 if (new Set(names).size !== names.length) fail('Protected source inventory contains duplicate paths');
-
 const files = protectedFiles.map(([file, maxBytes]) => secureHash(file, maxBytes, owner));
 const canonicalInventory = files.map(item => `${item.file}\0${item.bytes}\0${item.sha256}`).join('\n');
 const inventorySha256 = crypto.createHash('sha256').update(canonicalInventory).digest('hex');
 
 console.log(JSON.stringify({
-  ok: true,
-  check: 'workspace-source-integrity',
-  application: 'talk2me-os2-preview',
-  version: require('./package.json').version,
-  applicationRoot: root,
-  database: expectedDatabase,
-  branch: expectedBranch,
-  nodeVersion: process.versions.node,
-  protectedFileCount: files.length,
-  migrationCount: files.filter(item => item.file.startsWith('migrations/')).length,
-  packageLockPresent: files.some(item => item.file === 'package-lock.json'),
-  inventorySha256,
-  files,
+  ok: true, check: 'workspace-source-integrity', application: 'talk2me-os2-preview', version: require('./package.json').version,
+  applicationRoot: root, database: expectedDatabase, branch: expectedBranch, nodeVersion: process.versions.node,
+  protectedFileCount: files.length, migrationCount: files.filter(item => item.file.startsWith('migrations/')).length,
+  packageLockPresent: files.some(item => item.file === 'package-lock.json'), inventorySha256, files,
   selfProtected: files.some(item => item.file === 'workspace-source-integrity.js'),
   governanceProtected: files.some(item => item.file === 'workspace-source-integrity-check.js'),
   activationGovernanceProtected: files.some(item => item.file === 'preview-activation-governance-check.js'),
@@ -134,15 +101,9 @@ console.log(JSON.stringify({
   restoreRunnerProtected: files.some(item => item.file === 'restore-test-runner.js'),
   restoreGovernanceProtected: files.some(item => item.file === 'restore-test-governance-check.js'),
   restoreIntegrationProtected: files.some(item => item.file === 'restore-test-integration-check.js'),
+  recoveryReadinessProtected: files.some(item => item.file === 'recovery-readiness-check.js'),
   recoveryRunbookProtected: files.some(item => item.file === 'BACKUP_AND_RECOVERY_RUNBOOK.md'),
-  duplicatePathsRejected: true,
-  secureDescriptorReads: true,
-  pathAndDescriptorMetadataBound: true,
-  exactReadByteCountRequired: true,
-  canonicalPathBinding: true,
-  hardLinkRejection: true,
-  ownershipConsistency: true,
-  boundedReads: true,
-  productionMutationEnabled: false,
-  mergeExecutionEnabled: false
+  duplicatePathsRejected: true, secureDescriptorReads: true, pathAndDescriptorMetadataBound: true,
+  exactReadByteCountRequired: true, canonicalPathBinding: true, hardLinkRejection: true,
+  ownershipConsistency: true, boundedReads: true, productionMutationEnabled: false, mergeExecutionEnabled: false
 }, null, 2));
