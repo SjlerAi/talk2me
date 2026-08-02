@@ -7,7 +7,7 @@ const { TextDecoder } = require('util');
 
 const root = __dirname;
 const expectedApplication = 'talk2me-os2-preview';
-const expectedVersion = '0.59.0';
+const expectedVersion = '0.60.0';
 const expectedDatabase = 'kloka_talk2me';
 const expectedBranch = 'agent/talk2me-os2-integrated-rebuild';
 const expectedNodeMajor = 20;
