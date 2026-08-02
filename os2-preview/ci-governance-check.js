@@ -5,23 +5,27 @@ const path = require('path');
 
 const repoRoot = path.join(__dirname, '..');
 const workflowPath = path.join(repoRoot, '.github', 'workflows', 'os2-preview-ci.yml');
+const lockWorkflowPath = path.join(repoRoot, '.github', 'workflows', 'os2-dependency-lock-generation.yml');
 const packagePath = path.join(__dirname, 'package.json');
 const evidencePath = path.join(__dirname, 'build-evidence.js');
 const lockVerifierPath = path.join(__dirname, 'dependency-lock-verification.js');
 const lockGovernancePath = path.join(__dirname, 'dependency-lock-governance-check.js');
+const lockWorkflowGovernancePath = path.join(__dirname, 'dependency-lock-workflow-check.js');
 const sourceIntegrityPath = path.join(__dirname, 'workspace-source-integrity.js');
 const sourceIntegrityGovernancePath = path.join(__dirname, 'workspace-source-integrity-check.js');
 const runbookPath = path.join(__dirname, 'CI_AND_BUILD_EVIDENCE_RUNBOOK.md');
 
-for (const file of [workflowPath, packagePath, evidencePath, lockVerifierPath, lockGovernancePath, sourceIntegrityPath, sourceIntegrityGovernancePath, runbookPath]) {
+for (const file of [workflowPath, lockWorkflowPath, packagePath, evidencePath, lockVerifierPath, lockGovernancePath, lockWorkflowGovernancePath, sourceIntegrityPath, sourceIntegrityGovernancePath, runbookPath]) {
   if (!fs.existsSync(file)) throw new Error(`Missing CI governance file: ${file}`);
 }
 
 const workflow = fs.readFileSync(workflowPath, 'utf8');
+const lockWorkflow = fs.readFileSync(lockWorkflowPath, 'utf8');
 const pkg = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
 const evidence = fs.readFileSync(evidencePath, 'utf8');
 const lockVerifier = fs.readFileSync(lockVerifierPath, 'utf8');
 const lockGovernance = fs.readFileSync(lockGovernancePath, 'utf8');
+const lockWorkflowGovernance = fs.readFileSync(lockWorkflowGovernancePath, 'utf8');
 const sourceIntegrity = fs.readFileSync(sourceIntegrityPath, 'utf8');
 const sourceIntegrityGovernance = fs.readFileSync(sourceIntegrityGovernancePath, 'utf8');
 const runbook = fs.readFileSync(runbookPath, 'utf8');
@@ -59,7 +63,8 @@ requireMarkers(workflow, [
   'GITHUB_WORKFLOW_REF: ${{ github.workflow_ref }}', 'GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}',
   'GITHUB_ACTOR: ${{ github.actor }}', 'Generate build evidence with pre-install source continuity',
   'npm run evidence:build', 'os2-preview-build-evidence-${{ github.run_number }}-attempt-${{ github.run_attempt }}',
-  'os2-preview/**', 'public/os2/**'
+  'os2-preview/**', 'public/os2/**', '.github/workflows/os2-preview-ci.yml',
+  '.github/workflows/os2-dependency-lock-generation.yml'
 ], 'CI workflow');
 
 if (/^\s*pull_request\s*:/m.test(workflow)) throw new Error('Release-evidence workflow must not run on pull_request merge refs');
@@ -96,6 +101,18 @@ const orderedPositions = [eventGuardPosition, lockVerifyPosition, lockGovernance
 if (orderedPositions.some(position => position < 0)) throw new Error('CI workflow is missing a required ordered stage');
 for (let index = 1; index < orderedPositions.length; index += 1) if (orderedPositions[index - 1] >= orderedPositions[index]) throw new Error(`CI workflow stage order invalid at index ${index}`);
 
+requireMarkers(lockWorkflow, [
+  'name: OS2 Dependency Lock Generation', 'workflow_dispatch:', 'permissions:', 'contents: read',
+  'actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955',
+  'actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020',
+  'actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02',
+  'node dependency-lock-generator.js', 'node dependency-lock-workflow-check.js',
+  'npm ci --ignore-scripts --no-audit --no-fund', 'npm audit --omit=dev --audit-level=high',
+  'retention-days: 7'
+], 'Dependency lock generation workflow');
+if (/^\s*push\s*:/m.test(lockWorkflow) || /^\s*pull_request\s*:/m.test(lockWorkflow)) throw new Error('Dependency lock generation workflow must remain manual-only');
+if (lockWorkflow.includes('contents: write')) throw new Error('Dependency lock generation workflow must remain read-only');
+
 if (!pkg.scripts?.['evidence:build']) throw new Error('Missing evidence:build package script');
 if (pkg.scripts?.['verify:workspace-source-integrity'] !== 'node workspace-source-integrity.js') throw new Error('Missing exact verify:workspace-source-integrity package script');
 if (!pkg.scripts?.['check:ci-governance']) throw new Error('Missing check:ci-governance package script');
@@ -110,6 +127,11 @@ requireMarkers(lockGovernance, [
   "check: 'dependency-lock-governance'", 'ciLockVerificationRequired: true', 'npmCiRequired: true',
   'npmInstallSubstitutionProhibited: true', 'dependencyAuditRequired: true', 'dependencyInstallationExecuted: false'
 ], 'Dependency lock governance');
+requireMarkers(lockWorkflowGovernance, [
+  "check: 'dependency-lock-workflow-governance'", 'meaningfulControls: 60',
+  'manualDispatchOnly: true', 'repositoryReadOnlyPermissionRequired: true',
+  'packageLockOnlyWorkspaceChangeRequired: true', 'automaticCommitProhibited: true'
+], 'Dependency lock workflow governance');
 requireMarkers(evidence, [
   'validateCiIdentity()', "expectedRepository = 'SjlerAi/talk2me'", "expectedBranch = 'agent/talk2me-os2-integrated-rebuild'",
   'Unexpected GitHub repository identity', 'GITHUB_SHA must be a full 40-character hexadecimal commit SHA',
@@ -123,13 +145,17 @@ requireMarkers(evidence, [
 requireMarkers(sourceIntegrity, [
   "check: 'workspace-source-integrity'", 'inventorySha256', 'packageLockPresent: true',
   'dependencyLockVerifierProtected: files.some', 'dependencyLockGovernanceProtected: files.some',
-  'secureDescriptorReads: true', 'canonicalPathBinding: true', 'hardLinkRejection: true',
-  'ownershipConsistency: true', 'boundedReads: true', "['../.github/workflows/os2-preview-ci.yml', 1024 * 1024]"
+  'dependencyLockWorkflowProtected: files.some', 'repositoryRootContainmentRequired: true',
+  'parentWorkflowPathsResolvedCanonically: true', 'secureDescriptorReads: true',
+  'canonicalPathBinding: true', 'hardLinkRejection: true', 'ownershipConsistency: true', 'boundedReads: true',
+  "['../.github/workflows/os2-preview-ci.yml', 1024 * 1024]",
+  "['../.github/workflows/os2-dependency-lock-generation.yml', 1024 * 1024]"
 ], 'Workspace source integrity');
 requireMarkers(sourceIntegrityGovernance, [
-  "check: 'workspace-source-integrity-governance'", 'dependencyLockVerifierProtected: files.some',
-  'dependencyLockGovernanceProtected: files.some', 'ciWorkflowProtectionRequired: true',
-  'environmentBoundVerifierExcludedFromNormalExecution: true'
+  "check: 'workspace-source-integrity-governance'", 'dependencyLockVerifierProtected: verifier.includes',
+  'dependencyLockGovernanceProtected: verifier.includes', 'dependencyLockWorkflowProtected: verifier.includes',
+  'repositoryRootContainmentRequired: true', 'parentWorkflowPathsResolvedCanonically: true',
+  'ciWorkflowProtectionRequired: true', 'environmentBoundVerifierExcludedFromNormalExecution: true'
 ], 'Workspace source integrity governance');
 requireMarkers(runbook, [
   'controlled branch only', 'pull_request merge refs are prohibited', 'push and manual `workflow_dispatch`',
@@ -155,6 +181,10 @@ console.log(JSON.stringify({
   eventAndRefGuardRunsBeforeDependencyVerification: true,
   dependencyLockVerificationRequired: true,
   dependencyLockGovernanceRequired: true,
+  dependencyLockWorkflowGovernanceRequired: true,
+  lockWorkflowChangesTriggerCi: true,
+  lockWorkflowManualOnly: true,
+  lockWorkflowRepositoryWriteProhibited: true,
   missingLockIsHardFailure: true,
   npmCiRequired: true,
   npmInstallProhibited: true,
@@ -173,6 +203,7 @@ console.log(JSON.stringify({
   artifactNameBoundToRunAttempt: true,
   workspaceSourceIntegrityRunsBeforeDependencyInstall: true,
   sourceIntegrityStableAcrossDependencyInstallRequired: true,
+  parentWorkflowPathsResolvedCanonically: true,
   buildEvidenceBoundToWorkspaceSourceInventory: true,
   productionMutationEnabled: false,
   mergeExecutionEnabled: false
