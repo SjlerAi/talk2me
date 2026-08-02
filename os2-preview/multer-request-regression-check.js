@@ -27,17 +27,18 @@ function multipart(parts) {
   return { boundary, body: Buffer.concat(chunks) };
 }
 
-function request(server, path, payload) {
+function request(server, path, payload, options = {}) {
   return new Promise((resolve, reject) => {
     const address = server.address();
+    const body = Buffer.isBuffer(payload.body) ? payload.body : Buffer.from(payload.body || '');
     const req = http.request({
       host: '127.0.0.1',
       port: address.port,
       path,
       method: 'POST',
       headers: {
-        'content-type': `multipart/form-data; boundary=${payload.boundary}`,
-        'content-length': payload.body.length
+        'content-type': options.contentType || `multipart/form-data; boundary=${payload.boundary}`,
+        'content-length': body.length
       },
       timeout: 5000
     }, res => {
@@ -53,7 +54,8 @@ function request(server, path, payload) {
       });
       res.on('end', () => {
         try {
-          resolve({ status: res.statusCode, body: JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}') });
+          const text = Buffer.concat(chunks).toString('utf8');
+          resolve({ status: res.statusCode, text, body: JSON.parse(text || '{}') });
         } catch (error) {
           reject(error);
         }
@@ -61,7 +63,7 @@ function request(server, path, payload) {
     });
     req.on('timeout', () => req.destroy(new Error('REQUEST_TIMEOUT')));
     req.on('error', reject);
-    req.end(payload.body);
+    req.end(body);
   });
 }
 
@@ -79,6 +81,13 @@ function route(upload) {
       fields: Object.keys(req.body || {}).sort()
     });
   });
+}
+
+function assertControlledError(response, label) {
+  assert(response.status === 400, `${label} must return 400`);
+  assert(response.body && response.body.ok === false, `${label} must return controlled JSON`);
+  assert(typeof response.body.code === 'string' && response.body.code.length <= 64, `${label} must return bounded code`);
+  assert(!/\/home\/|node_modules|Error:|at\s+\w+|\\/.test(response.text), `${label} must not expose paths or stacks`);
 }
 
 async function main() {
@@ -112,28 +121,54 @@ async function main() {
     ]));
     assert(valid.status === 200 && valid.body.ok === true, 'valid single file must pass');
     assert(valid.body.file && valid.body.file.size === 5, 'valid file metadata missing');
+    assert(valid.body.file.originalname === 'sample.txt', 'valid original filename missing');
+    assert(valid.body.file.mimetype === 'text/plain', 'valid MIME metadata missing');
 
     const missing = await request(server, '/upload', multipart([{ name: 'type', value: 'sample' }]));
     assert(missing.status === 200 && missing.body.file === null, 'missing file must remain visible to route validation');
+
+    const empty = await request(server, '/upload', multipart([]));
+    assert(empty.status === 200 && empty.body.file === null, 'empty multipart request must remain visible to route validation');
 
     const duplicate = await request(server, '/upload', multipart([
       { name: 'file', filename: 'one.txt', contentType: 'text/plain', value: 'one' },
       { name: 'file', filename: 'two.txt', contentType: 'text/plain', value: 'two' }
     ]));
     const duplicateCodes = new Set(['LIMIT_FILE_COUNT', 'LIMIT_UNEXPECTED_FILE']);
-    assert(duplicate.status === 400 && duplicateCodes.has(duplicate.body.code), 'multiple files must fail closed');
+    assertControlledError(duplicate, 'multiple files');
+    assert(duplicateCodes.has(duplicate.body.code), 'multiple files must use reviewed rejection code');
+
+    const wrongField = await request(server, '/upload', multipart([
+      { name: 'attachment', filename: 'one.txt', contentType: 'text/plain', value: 'one' }
+    ]));
+    assertControlledError(wrongField, 'wrong file field');
+    assert(wrongField.body.code === 'LIMIT_UNEXPECTED_FILE', 'wrong file field must fail closed');
 
     const oversized = await request(server, '/upload', multipart([
       { name: 'file', filename: 'large.txt', contentType: 'text/plain', value: Buffer.alloc(33, 65) }
     ]));
-    assert(oversized.status === 400 && oversized.body.code === 'LIMIT_FILE_SIZE', 'oversized file must fail closed');
+    assertControlledError(oversized, 'oversized file');
+    assert(oversized.body.code === 'LIMIT_FILE_SIZE', 'oversized file must fail closed');
+
+    const exactLimit = await request(server, '/upload', multipart([
+      { name: 'file', filename: 'exact.txt', contentType: 'text/plain', value: Buffer.alloc(32, 65) }
+    ]));
+    assert(exactLimit.status === 200 && exactLimit.body.file.size === 32, 'exact file-size limit must pass');
 
     const excessiveFields = await request(server, '/upload', multipart([
       { name: 'a', value: '1' },
       { name: 'b', value: '2' },
       { name: 'c', value: '3' }
     ]));
-    assert(excessiveFields.status === 400 && excessiveFields.body.code === 'LIMIT_FIELD_COUNT', 'field overflow must fail closed');
+    assertControlledError(excessiveFields, 'field overflow');
+    assert(excessiveFields.body.code === 'LIMIT_FIELD_COUNT', 'field overflow must fail closed');
+
+    const duplicateFields = await request(server, '/upload', multipart([
+      { name: 'type', value: 'one' },
+      { name: 'type', value: 'two' }
+    ]));
+    assert(duplicateFields.status === 200, 'duplicate fields within count limit must remain visible to route validation');
+    assert(duplicateFields.body.fields.includes('type'), 'duplicate field name must remain visible');
 
     const excessiveParts = await request(server, '/upload', multipart([
       { name: 'a', value: '1' },
@@ -141,27 +176,67 @@ async function main() {
       { name: 'file', filename: 'one.txt', contentType: 'text/plain', value: 'one' },
       { name: 'extra', value: '4' }
     ]));
-    assert(excessiveParts.status === 400 && excessiveParts.body.code === 'LIMIT_PART_COUNT', 'part overflow must fail closed');
+    assertControlledError(excessiveParts, 'part overflow');
+    assert(excessiveParts.body.code === 'LIMIT_PART_COUNT', 'part overflow must fail closed');
 
     const unsupported = await request(server, '/upload', multipart([
       { name: 'file', filename: 'sample.bin', contentType: 'application/octet-stream', value: 'data' }
     ]));
-    assert(unsupported.status === 400 && unsupported.body.code === 'UNSUPPORTED_UPLOAD_TYPE', 'unsupported MIME must fail closed');
+    assertControlledError(unsupported, 'unsupported MIME');
+    assert(unsupported.body.code === 'UNSUPPORTED_UPLOAD_TYPE', 'unsupported MIME must fail closed');
+
+    const malformed = multipart([
+      { name: 'file', filename: 'sample.txt', contentType: 'text/plain', value: 'hello' }
+    ]);
+    const wrongBoundary = await request(server, '/upload', malformed, {
+      contentType: 'multipart/form-data; boundary=----different-boundary'
+    });
+    assertControlledError(wrongBoundary, 'wrong boundary');
+    assert(wrongBoundary.body.code === 'UPLOAD_REJECTED', 'wrong boundary must fail closed');
+
+    const truncatedPayload = multipart([
+      { name: 'file', filename: 'sample.txt', contentType: 'text/plain', value: 'hello' }
+    ]);
+    const truncated = await request(server, '/upload', {
+      boundary: truncatedPayload.boundary,
+      body: truncatedPayload.body.subarray(0, Math.max(0, truncatedPayload.body.length - 8))
+    });
+    assertControlledError(truncated, 'truncated body');
+    assert(truncated.body.code === 'UPLOAD_REJECTED', 'truncated body must fail closed');
+
+    const missingBoundary = await request(server, '/upload', { body: Buffer.from('invalid') }, {
+      contentType: 'multipart/form-data'
+    });
+    assertControlledError(missingBoundary, 'missing boundary');
+    assert(missingBoundary.body.code === 'UPLOAD_REJECTED', 'missing boundary must fail closed');
 
     const serialized = JSON.stringify({
       ok: true,
       check: 'multer-request-regression',
       isolatedLoopbackOnly: true,
+      externalNetworkUsed: false,
       databaseConfigured: false,
       persistentStorageUsed: false,
+      responseBytesBounded: true,
+      requestTimeoutBounded: true,
+      controlledErrorsRequired: true,
+      privatePathDisclosureDetected: false,
+      stackDisclosureDetected: false,
       cases: {
         validSingleFile: true,
+        exactFileSizeLimitAccepted: true,
         missingFileVisibleToRoute: true,
+        emptyMultipartVisibleToRoute: true,
         multipleFilesRejected: true,
+        wrongFieldRejected: true,
         oversizedFileRejected: true,
         excessiveFieldsRejected: true,
+        duplicateFieldsVisibleToRoute: true,
         excessivePartsRejected: true,
-        unsupportedMimeRejected: true
+        unsupportedMimeRejected: true,
+        wrongBoundaryRejected: true,
+        truncatedBodyRejected: true,
+        missingBoundaryRejected: true
       },
       productionMutationEnabled: false
     });
