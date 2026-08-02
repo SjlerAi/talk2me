@@ -1,0 +1,79 @@
+name: OS2 Preview Validation
+
+on:
+  push:
+    branches:
+      - agent/talk2me-os2-integrated-rebuild
+    paths:
+      - 'os2-preview/**'
+      - '.github/workflows/os2-preview-validation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: os2-preview-validation-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  source-validation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: os2-preview
+    steps:
+      - name: Check out controlled branch
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: os2-preview/package.json
+
+      - name: Confirm controlled source identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${GITHUB_REF_NAME}" = "agent/talk2me-os2-integrated-rebuild"
+          test "$(node -p "require('./package.json').version")" = "0.60.0"
+          printf 'branch=%s\ncommit=%s\nnode=%s\nnpm=%s\n' "$GITHUB_REF_NAME" "$GITHUB_SHA" "$(node --version)" "$(npm --version)"
+
+      - name: Install dependencies without lifecycle scripts
+        shell: bash
+        run: npm install --ignore-scripts --no-audit --no-fund
+
+      - name: Run complete source validation
+        shell: bash
+        run: npm run check
+
+      - name: Record generated dependency lock metadata
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if test -f package-lock.json; then
+            node -e "const fs=require('fs');const crypto=require('crypto');const b=fs.readFileSync('package-lock.json');console.log(JSON.stringify({file:'package-lock.json',bytes:b.length,sha256:crypto.createHash('sha256').update(b).digest('hex')},null,2))" | tee dependency-lock-metadata.json
+          else
+            printf '%s\n' '{"file":"package-lock.json","generated":false}' | tee dependency-lock-metadata.json
+          fi
+
+      - name: Upload temporary dependency-lock evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: os2-preview-dependency-lock-evidence-${{ github.sha }}
+          path: |
+            os2-preview/package-lock.json
+            os2-preview/dependency-lock-metadata.json
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Confirm no database or deployment execution
+        if: always()
+        shell: bash
+        run: |
+          printf '%s\n' 'Source validation only: no database credentials supplied, no migrations executed, no worker started, no deployment or restart performed.'
