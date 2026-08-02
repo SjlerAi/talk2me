@@ -75,8 +75,8 @@ requireMarkers('migration-ledger-bootstrap-evidence-verification.js', [
 ]);
 requireMarkers('migration-runner.js', [
   "required('MIGRATION_LEDGER_BOOTSTRAP_EVIDENCE_PATH')", 'bootstrapEvidenceVerifiedBeforeDatabaseConnection: true',
-  'ledgerStrictPrefixVerified: true', 'advisoryLockReleased: true', 'advisoryLockFreeAfterRelease: true',
-  'databaseConnectionClosedBeforeSuccess: true', 'productionMutationEnabled: false', 'mergeExecutionEnabled: false'
+  'ledgerStrictPrefixVerified: true', 'result.advisoryLockReleased = true', 'result.advisoryLockFreeAfterRelease = true',
+  'result.databaseConnectionClosedBeforeSuccess = true', 'productionMutationEnabled: false', 'mergeExecutionEnabled: false'
 ]);
 requireMarkers('preview-data-verification.js', [
   "expectedDatabase = 'kloka_talk2me'", "expectedBranch = 'agent/talk2me-os2-integrated-rebuild'",
@@ -90,8 +90,8 @@ requireMarkers('customer-merge-execution-readiness-routes.js', ['executionAvaila
 
 requireMarkers('PREVIEW_UAT_RUNBOOK.md', [
   'UAT_EXPECTED_COMMIT_SHA', 'RELEASE_SOURCE_INVENTORY_SHA256', '15-second request timeout', '2 MiB response limit',
-  'redirects are prohibited', 'cross-origin responses are prohibited', 'invalid-login attempt', '`HttpOnly`', '`Secure`', '`SameSite`',
-  'logout must clear the session cookie', 'the old session must return `401`', 'UAT run UUID', 'mutation work-item ID',
+  'HTTP redirects are prohibited', 'Cross-origin responses are prohibited', 'invalid-login attempt', '`HttpOnly`', '`Secure`', '`SameSite=Lax` or `SameSite=Strict`',
+  'Logout must clear the session cookie', 'Reuse of the old session after logout must return `401`', 'UAT run UUID', 'mutation work-item ID',
   'DB_NAME=kloka_talk2me', 'schema-verification.js` first', 'merge-restore-evidence-verification.js` second',
   'Running only `npm run verify:schema` is not sufficient', 'mergeExecutionEnabled: false', 'exact commit SHA and preview version'
 ]);
