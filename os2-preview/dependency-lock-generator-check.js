@@ -2,57 +2,74 @@
 
 const fs = require('fs');
 const path = require('path');
+const { spawnSync } = require('child_process');
 const root = __dirname;
 const failures = [];
 function read(file) { const full = path.join(root, file); if (!fs.existsSync(full)) { failures.push(`Missing ${file}`); return ''; } return fs.readFileSync(full, 'utf8'); }
 function requireMarkers(file, markers) { const source = read(file); for (const marker of markers) if (!source.includes(marker)) failures.push(`${file} missing ${marker}`); return source; }
+function syntaxCheck(file) {
+  const result = spawnSync(process.execPath, ['--check', path.join(root, file)], { cwd: root, encoding: 'utf8', maxBuffer: 1024 * 1024, timeout: 15000, killSignal: 'SIGKILL', shell: false, windowsHide: true });
+  if (result.error && result.error.code === 'ETIMEDOUT') failures.push(`${file} syntax check timed out`);
+  else if (result.error) failures.push(`${file} syntax check failed to start: ${result.error.message}`);
+  else if (result.signal) failures.push(`${file} syntax check ended by ${result.signal}`);
+  else if (result.status !== 0) failures.push(`${file} syntax check failed: ${String(result.stderr || '').trim()}`);
+}
+
+for (const file of ['dependency-lock-generator.js', 'dependency-lock-verification.js', 'dependency-lock-governance-check.js']) syntaxCheck(file);
 
 const generator = requireMarkers('dependency-lock-generator.js', [
   "expectedDatabase = 'kloka_talk2me'", "expectedBranch = 'agent/talk2me-os2-integrated-rebuild'",
   "expectedApplication = 'talk2me-os2-preview'", "expectedVersion = '0.59.0'", 'expectedNodeMajor = 20',
   'expectedNpmMajor = 10', "expectedRegistry = 'https://registry.npmjs.org/'", 'maxPackageBytes = 1024 * 1024',
   'maxLockBytes = 16 * 1024 * 1024', 'generationTimeoutMs = 10 * 60 * 1000', 'verifierTimeoutMs = 60 * 1000',
-  'PREVIEW_APP_ROOT_MUST_MATCH', 'DB_NAME_MISMATCH', 'RELEASE_BRANCH_MISMATCH', 'DEPENDENCY_LOCK_GENERATION_NOT_ENABLED',
-  'PRODUCTION_MUTATION_FLAG_PROHIBITED', 'MERGE_EXECUTION_FLAG_PROHIBITED', 'NODE_MAJOR_MUST_BE_', 'PACKAGE_LOCK_ALREADY_EXISTS',
-  'APPLICATION_ROOT_NOT_SECURE_DIRECTORY', 'APPLICATION_ROOT_NOT_CANONICAL', 'APPLICATION_ROOT_PERMISSIONS_INVALID',
-  'PACKAGE_JSON_NOT_REGULAR_FILE', 'PACKAGE_JSON_HARD_LINK_PROHIBITED', 'PACKAGE_JSON_SIZE_INVALID',
-  'PACKAGE_JSON_WRITABLE_BY_GROUP_OR_WORLD', 'PACKAGE_JSON_OWNER_MISMATCH', 'PACKAGE_JSON_PATH_NOT_CANONICAL',
-  'O_NOFOLLOW_UNAVAILABLE', 'PACKAGE_JSON_IDENTITY_CHANGED_DURING_OPEN', 'PACKAGE_JSON_METADATA_CHANGED_DURING_OPEN',
-  'PACKAGE_JSON_SECURITY_METADATA_CHANGED_DURING_OPEN', 'PACKAGE_JSON_READ_SIZE_MISMATCH', 'PACKAGE_JSON_INVALID_UTF8',
-  'PACKAGE_JSON_BOM_PROHIBITED', 'PACKAGE_JSON_CANONICAL_TEXT_REQUIRED', 'PACKAGE_JSON_INVALID_JSON',
-  'PACKAGE_JSON_ROOT_OBJECT_REQUIRED', 'PACKAGE_IDENTITY_INVALID', 'PACKAGE_DEPENDENCIES_INVALID',
-  'PACKAGE_LIFECYCLE_SCRIPT_PROHIBITED', 'NPM_BIN_PATH_INVALID', 'NPM_BIN_NOT_SECURE_FILE', 'NPM_BIN_NOT_CANONICAL',
-  'NPM_BIN_WRITABLE_BY_GROUP_OR_WORLD', 'NPM_BIN_NOT_EXECUTABLE', 'NODE_BIN_PATH_INVALID', 'NODE_BIN_NOT_SECURE_FILE',
-  'NODE_BIN_NOT_CANONICAL', 'NODE_BIN_PROCESS_MISMATCH', 'NPM_VERSION_TIMEOUT', 'NPM_MAJOR_MUST_BE_',
-  'TEMP_ROOT_LOCATION_PROHIBITED', 'TEMP_ROOT_NOT_SECURE_DIRECTORY', 'TEMP_ROOT_NOT_CANONICAL', 'TEMP_ROOT_OWNER_MISMATCH',
-  'TEMP_ROOT_PERMISSIONS_INVALID', 'EVIDENCE_PATH_INVALID', 'EVIDENCE_PATH_EXTENSION_INVALID', 'EVIDENCE_ALREADY_EXISTS',
-  'EVIDENCE_PARENT_NOT_SECURE_DIRECTORY', 'EVIDENCE_PARENT_NOT_CANONICAL', 'EVIDENCE_PARENT_OWNER_MISMATCH',
-  'EVIDENCE_PARENT_PERMISSIONS_INVALID', "fs.mkdtempSync(path.join(tempRoot, 'talk2me-lock-'))", 'fs.chmodSync(temporaryDirectory, 0o700)',
-  'Object.freeze(env)', 'fullParentEnvironmentInherited: false', "npm_config_registry: expectedRegistry", "npm_config_ignore_scripts: 'true'",
-  "npm_config_audit: 'false'", "npm_config_fund: 'false'", "npm_config_package_lock: 'true'", "npm_config_lockfile_version: '3'",
-  "npm_config_update_notifier: 'false'", "npm_config_userconfig: '/dev/null'", "'--package-lock-only'", "'--ignore-scripts'",
-  "'--no-audit'", "'--no-fund'", "'--package-lock=true'", "'--lockfile-version=3'", 'shell: false',
-  "killSignal: 'SIGKILL'", 'maxBuffer: 4 * 1024 * 1024', 'NODE_MODULES_GENERATED_UNEXPECTEDLY',
-  'GENERATED_PACKAGE_LOCK_NOT_REGULAR_FILE', 'GENERATED_PACKAGE_LOCK_HARD_LINK_PROHIBITED', 'GENERATED_PACKAGE_LOCK_SIZE_INVALID',
-  'GENERATED_PACKAGE_LOCK_IDENTITY_CHANGED_DURING_OPEN', 'GENERATED_LOCK_IDENTITY_INVALID', 'GENERATED_LOCK_PACKAGES_INVALID',
-  'GENERATED_LOCK_ROOT_INVALID', 'GENERATED_LOCK_DEPENDENCIES_MISMATCH', 'APPLICATION_ROOT_IDENTITY_CHANGED',
-  'PACKAGE_JSON_CHANGED_DURING_GENERATION', 'atomicWrite(lockPath, candidate.bytes, 0o644', 'DEPENDENCY_LOCK_VERIFICATION',
-  'DEPENDENCY_LOCK_VERIFIER_INVALID_JSON', 'DEPENDENCY_LOCK_VERIFIER_EVIDENCE_INVALID', 'packageLockVerifiedAfterPublication: true',
+  'function secureRead(file, maxBytes, expectedOwner, label)', 'pathStat.isSymbolicLink()', 'pathStat.nlink !== 1',
+  '(pathStat.mode & 0o022) !== 0', 'fs.realpathSync.native(file) !== file', 'fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW',
+  'descriptorStat.dev !== pathStat.dev || descriptorStat.ino !== pathStat.ino',
+  'descriptorStat.size !== pathStat.size || descriptorStat.mtimeMs !== pathStat.mtimeMs',
+  'descriptorStat.mode !== pathStat.mode || descriptorStat.uid !== pathStat.uid',
+  "new TextDecoder('utf-8', { fatal: true })", 'text.charCodeAt(0) === 0xfeff', "text.includes('\\u0000')",
+  "text.includes('\\r')", "!text.endsWith('\\n')", 'function secureDirectory(directory, label, expectedOwner, requirePrivate)',
+  'fs.constants.O_RDONLY | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW', 'function validateExecutable(file, label)',
+  '(stat.mode & 0o111) === 0', 'function atomicWrite(file, bytes, mode, expectedParentOwner)',
+  'fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY | fs.constants.O_NOFOLLOW',
+  'fs.fsyncSync(fd)', 'fs.fchmodSync(fd, mode)', 'fs.renameSync(temporary, file)',
+  'function safeRemoveGeneratedLock(expectedDigest)', 'current.sha256 === expectedDigest',
+  'function sanitizedEnvironment(tempDirectory, npmBin, nodeBin)', 'Object.freeze(env)',
+  "npm_config_registry: expectedRegistry", "npm_config_ignore_scripts: 'true'", "npm_config_audit: 'false'",
+  "npm_config_fund: 'false'", "npm_config_package_lock: 'true'", "npm_config_lockfile_version: '3'",
+  "npm_config_update_notifier: 'false'", "npm_config_userconfig: '/dev/null'", 'function runBounded(command, args, options, timeoutMs, label)',
+  'spawnSync(command, args', 'maxBuffer: 4 * 1024 * 1024', "killSignal: 'SIGKILL'", 'shell: false', 'windowsHide: true',
+  "required('PREVIEW_APP_ROOT')", "required('DB_NAME', 128)", "required('RELEASE_BRANCH', 200)",
+  "process.env.ALLOW_DEPENDENCY_LOCK_GENERATION !== 'true'", "ALLOW_PRODUCTION_MUTATION", "ENABLE_CUSTOMER_MERGE_EXECUTION",
+  "fs.existsSync(lockPath)", "secureDirectory(root, 'APPLICATION_ROOT'", "secureRead(packagePath, maxPackageBytes",
+  "pkg.name !== expectedApplication", "Object.keys(pkg.dependencies).length !== 6", "PACKAGE_LIFECYCLE_SCRIPT_PROHIBITED",
+  "validateExecutable(required('NPM_BIN')", "validateExecutable(required('NODE_BIN')", 'NODE_BIN_PROCESS_MISMATCH',
+  "runBounded(npmBin, ['--version']", 'NPM_MAJOR_MUST_BE_', "required('DEPENDENCY_LOCK_TEMP_ROOT')",
+  "tempRoot.startsWith(`${root}${path.sep}`)", '/public_html/i.test(tempRoot)', "required('DEPENDENCY_LOCK_EVIDENCE_PATH')",
+  "path.extname(evidencePath) !== '.json'", 'EVIDENCE_ALREADY_EXISTS', "fs.mkdtempSync(path.join(tempRoot, 'talk2me-lock-'))",
+  'fs.chmodSync(temporaryDirectory, 0o700)', "atomicWrite(path.join(temporaryDirectory, 'package.json')",
+  "'install','--package-lock-only','--ignore-scripts','--no-audit','--no-fund','--package-lock=true','--lockfile-version=3'",
+  'DEPENDENCY_LOCK_GENERATION', 'NODE_MODULES_GENERATED_UNEXPECTEDLY', "secureRead(candidatePath, maxLockBytes",
+  'candidateJson.lockfileVersion !== 3', "candidateJson.packages['']", 'GENERATED_LOCK_DEPENDENCIES_MISMATCH',
+  "secureDirectory(root, 'APPLICATION_ROOT_POST_GENERATION'", "secureRead(packagePath, maxPackageBytes, rootIdentity.uid, 'PACKAGE_JSON_POST_GENERATION')",
+  'PACKAGE_JSON_CHANGED_DURING_GENERATION', 'atomicWrite(lockPath, candidate.bytes, 0o644',
+  'dependency-lock-verification.js', 'DEPENDENCY_LOCK_VERIFICATION', 'DEPENDENCY_LOCK_VERIFIER_INVALID_JSON',
+  'DEPENDENCY_LOCK_VERIFIER_EVIDENCE_INVALID', "check: 'dependency-lock-generation'", 'packageLockVerifiedAfterPublication: true',
   'packageJsonUnchangedDuringGeneration: true', 'packageLockPublishedAtomically: true', 'packageLockOverwriteAllowed: false',
-  'lifecycleScriptsExecuted: false', 'nodeModulesGenerated: false', 'registryPinned: true', 'evidencePrivate: true',
-  'atomicWrite(evidencePath, evidenceBytes, 0o600', 'atomicWrite(`${evidencePath}.sha256`', 'safeRemoveGeneratedLock',
-  'fs.rmSync(temporaryDirectory, { recursive: true, force: true })', 'productionMutationEnabled: false', 'mergeExecutionEnabled: false'
+  'lifecycleScriptsExecuted: false', 'nodeModulesGenerated: false', 'registryPinned: true', 'fullParentEnvironmentInherited: false',
+  'evidencePrivate: true', 'atomicWrite(evidencePath, evidenceBytes, 0o600', 'atomicWrite(`${evidencePath}.sha256`',
+  'if (publishedDigest) safeRemoveGeneratedLock(publishedDigest)', 'fs.rmSync(temporaryDirectory, { recursive: true, force: true })',
+  'productionMutationEnabled: false', 'mergeExecutionEnabled: false'
 ]);
 
 if (generator.includes('...process.env')) failures.push('Generator must not inherit the full parent environment');
-if (generator.includes('npm install --')) failures.push('Generator must use argument-array process execution, not a shell command string');
-if (!generator.includes('spawnSync(command, args')) failures.push('Generator must use bounded spawnSync argument arrays');
-if (!generator.includes('fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY | fs.constants.O_NOFOLLOW')) failures.push('Atomic writes must use exclusive no-follow descriptors');
-if (!generator.includes('if (fs.existsSync(file)) fail(`REFUSING_TO_OVERWRITE:${file}`)')) failures.push('Generator must refuse evidence and lock overwrites');
-if (!generator.includes('if (fs.existsSync(lockPath)) fail(\'PACKAGE_LOCK_ALREADY_EXISTS\')')) failures.push('Generator must refuse an existing package lock');
-if (!generator.includes("if (publishedDigest) safeRemoveGeneratedLock(publishedDigest)")) failures.push('Generator must roll back only its own failed publication');
-if (!generator.includes('candidate.sha256 === expectedDigest') && !generator.includes('current.sha256 === expectedDigest')) failures.push('Rollback must be checksum-bound');
-if (!generator.includes('dependency-lock-verification.js')) failures.push('Published lock must pass the independent verifier');
+if (generator.includes('execSync(') || generator.includes('execFileSync(')) failures.push('Generator must use bounded spawnSync only');
+if (generator.includes('shell: true')) failures.push('Generator must never enable shell execution');
+if (generator.includes('npm install --')) failures.push('Generator must not construct a shell command string');
+if (!generator.includes('if (fs.existsSync(file)) fail(`REFUSING_TO_OVERWRITE:${file}`)')) failures.push('Atomic publication must refuse overwrites');
+if (!generator.includes("if (fs.existsSync(lockPath)) fail('PACKAGE_LOCK_ALREADY_EXISTS')")) failures.push('Existing lockfiles must be rejected');
+if (!generator.includes('current.sha256 === expectedDigest')) failures.push('Rollback must be checksum-bound');
+if (!generator.includes('verifierEvidence.packageLockSha256 !== candidate.sha256')) failures.push('Independent verifier evidence must bind the exact generated digest');
 
 requireMarkers('dependency-lock-verification.js', [
   "check: 'dependency-lock-verification'", 'meaningfulControls: 60', 'packageLockPresent: true',
@@ -64,11 +81,11 @@ requireMarkers('dependency-lock-governance-check.js', [
   'npmInstallSubstitutionProhibited: true', 'dependencyAuditRequired: true', 'dependencyInstallationExecuted: false'
 ]);
 requireMarkers('DEPENDENCY_LOCK_GENERATION_RUNBOOK.md', [
-  'controlled lock generation', 'ALLOW_DEPENDENCY_LOCK_GENERATION=true', 'NPM_BIN=', 'NODE_BIN=',
+  'Controlled Dependency Lock Generation', 'ALLOW_DEPENDENCY_LOCK_GENERATION=true', 'NPM_BIN=', 'NODE_BIN=',
   'DEPENDENCY_LOCK_TEMP_ROOT=', 'DEPENDENCY_LOCK_EVIDENCE_PATH=', 'Node.js 20', 'npm 10',
   'https://registry.npmjs.org/', 'package-lock.json must not already exist', 'lifecycle scripts are disabled',
   'node_modules must not be created', 'dependency-lock-verification.js', 'private evidence pair',
-  'production remains untouched', 'not executed by npm run check'
+  'Production at `talk2me.uent.co.za` remains untouched', 'not executed by `npm run check`'
 ]);
 
 if (failures.length) {
@@ -81,6 +98,9 @@ console.log(JSON.stringify({
   ok: true,
   check: 'dependency-lock-generator-governance',
   meaningfulControls: 60,
+  generatorSyntaxVerified: true,
+  independentVerifierSyntaxVerified: true,
+  dependencyGovernanceSyntaxVerified: true,
   exactPreviewRootRequired: true,
   exactPreviewDatabaseRequired: true,
   exactControlledBranchRequired: true,
