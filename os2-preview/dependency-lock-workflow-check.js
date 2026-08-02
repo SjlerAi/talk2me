@@ -47,7 +47,7 @@ requireMarkers(workflow, [
   'cancel-in-progress: false',
   'timeout-minutes: 20',
   'working-directory: os2-preview',
-  "DB_NAME: kloka_talk2me",
+  'DB_NAME: kloka_talk2me',
   'RELEASE_BRANCH: agent/talk2me-os2-integrated-rebuild',
   "ALLOW_DEPENDENCY_LOCK_GENERATION: 'true'",
   "ALLOW_PRODUCTION_MUTATION: 'false'",
@@ -97,13 +97,14 @@ requireMarkers(workflow, [
   'npm audit --omit=dev --audit-level=high',
   'evidence.inventorySha256 !== process.env.EXPECTED_INVENTORY_SHA256',
   'rm -rf node_modules',
+  'git -C "$GITHUB_WORKSPACE" status --porcelain --untracked-files=all',
   'test "$status" = "?? os2-preview/package-lock.json"',
   'source_inventory_sha256=',
   'package_lock_sha256=',
   'production_mutation_enabled=false',
   'merge_execution_enabled=false',
   'sha256sum package-lock.json *.json manifest.txt > SHA256SUMS',
-  'sha256sum --check "$artifact/SHA256SUMS"',
+  '(cd "$artifact" && sha256sum --check SHA256SUMS)',
   'actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02',
   'if-no-files-found: error',
   'retention-days: 7'
@@ -134,7 +135,8 @@ if (workflow.includes('shell: pwsh') || workflow.includes('shell: cmd')) failure
 if (workflow.includes('continue-on-error: true')) failures.push('Workflow must fail closed');
 if (workflow.includes('cancel-in-progress: true')) failures.push('Lock generation must not be cancelled by a later run');
 if (workflow.includes('retention-days: 30')) failures.push('Lock review artifact retention must remain short');
-if (!workflow.includes('git status --porcelain --untracked-files=all')) failures.push('Workflow must prove only package-lock.json changed');
+if (!workflow.includes('git -C "$GITHUB_WORKSPACE" status --porcelain --untracked-files=all')) failures.push('Workflow must prove only package-lock.json changed from repository root');
+if (!workflow.includes('(cd "$artifact" && sha256sum --check SHA256SUMS)')) failures.push('Artifact checksums must be verified from the artifact directory');
 if (!workflow.includes('dependency-lock-workflow-check.js')) failures.push('Workflow must self-govern before artifact publication');
 
 requireMarkers(generator, [
@@ -231,6 +233,7 @@ console.log(JSON.stringify({
   postinstallSourceIntegrityRequired: true,
   sourceInventoryContinuityRequired: true,
   nodeModulesCleanupRequired: true,
+  repositoryRootStatusRequired: true,
   packageLockOnlyWorkspaceChangeRequired: true,
   artifactManifestRequired: true,
   repositoryIdentityInManifestRequired: true,
@@ -238,6 +241,7 @@ console.log(JSON.stringify({
   sourceDigestInManifestRequired: true,
   lockDigestInManifestRequired: true,
   artifactChecksumsRequired: true,
+  artifactChecksumDirectoryBindingRequired: true,
   artifactChecksumVerificationRequired: true,
   uploadArtifactActionPinned: true,
   missingArtifactFilesAreFatal: true,
