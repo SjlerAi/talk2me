@@ -178,7 +178,7 @@ jobs:
           NODE
           rm -rf node_modules
           test ! -e node_modules
-          status="$(git status --porcelain --untracked-files=all)"
+          status="$(git -C "$GITHUB_WORKSPACE" status --porcelain --untracked-files=all)"
           test "$status" = "?? os2-preview/package-lock.json"
 
       - name: Build review artifact
@@ -204,7 +204,7 @@ jobs:
           merge_execution_enabled=false
           MANIFEST
           (cd "$artifact" && sha256sum package-lock.json *.json manifest.txt > SHA256SUMS)
-          sha256sum --check "$artifact/SHA256SUMS"
+          (cd "$artifact" && sha256sum --check SHA256SUMS)
 
       - name: Upload dependency lock review artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
