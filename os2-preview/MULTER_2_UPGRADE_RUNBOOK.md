@@ -104,6 +104,8 @@ The normal security-validation chain verifies one valid canonical input set plus
 
 The fixture uses isolated temporary files only. It performs no external networking, database access, dependency adoption, preview activation, production mutation or source-tree mutation.
 
+Latest complete source validation: workflow run `289`, validated head `da9be358f53e5c45c6c51a385175dabb2cafc388`.
+
 ## Required pre-upgrade controls
 
 Before changing the Multer dependency:
