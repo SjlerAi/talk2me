@@ -194,12 +194,16 @@ async function main() {
     assertControlledError(wrongBoundary, 'wrong boundary');
     assert(wrongBoundary.body.code === 'UPLOAD_REJECTED', 'wrong boundary must fail closed');
 
-    const truncatedPayload = multipart([
-      { name: 'file', filename: 'sample.txt', contentType: 'text/plain', value: 'hello' }
-    ]);
+    const truncatedBoundary = `----os2-${crypto.randomBytes(12).toString('hex')}`;
+    const truncatedBody = Buffer.from(
+      `--${truncatedBoundary}\r\n` +
+      'Content-Disposition: form-data; name="file"; filename="sample.txt"\r\n' +
+      'Content-Type: text/plain\r\n\r\n' +
+      'hel'
+    );
     const truncated = await request(server, '/upload', {
-      boundary: truncatedPayload.boundary,
-      body: truncatedPayload.body.subarray(0, Math.max(0, truncatedPayload.body.length - 8))
+      boundary: truncatedBoundary,
+      body: truncatedBody
     });
     assertControlledError(truncated, 'truncated body');
     assert(truncated.body.code === 'UPLOAD_REJECTED', 'truncated body must fail closed');
