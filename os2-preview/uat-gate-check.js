@@ -67,7 +67,7 @@ requireMarkers('release-source-integrity-check.js', [
   'normalGovernanceValidationRegistered: true', 'environmentBoundVerifierExcludedFromNormalExecution: true'
 ]);
 requireMarkers('runtime-release-identity-check.js', [
-  "expectedApplication = 'talk2me-os2-preview'", "expectedVersion = '0.59.0'", 'expectedNodeMajor = 20',
+  "expectedApplication = 'talk2me-os2-preview'", "expectedVersion = '0.60.0'", 'expectedNodeMajor = 20',
   "expectedDatabase = 'kloka_talk2me'", 'productionMutationEnabled: false', 'mergeExecutionEnabled: false'
 ]);
 requireMarkers('migration-ledger-bootstrap-evidence-verification.js', [
