@@ -45,15 +45,15 @@ forbid(migration025,'MAX(rt.id)','non-chronological restore-test backfill');
 need(authorisation,'restore_test_id','authorisation stores pinned restore-test evidence');
 need(authorisation,'PINNED_RESTORE_TEST_REQUIRED','authorisation rejects missing pinned restore evidence');
 need(readiness,'rt.id=a.restore_test_id','readiness joins exact pinned restore test');
-need(readiness,'restorePinned','readiness confirms pinned restore identity');
-need(readiness,'restoreMatchesBackup','readiness confirms restore belongs to linked backup');
-need(readiness,"restore_status='passed'",'passed restore requirement');
-need(readiness,"target_environment='isolated_preview_restore'",'isolated restore requirement');
-need(readiness,"actual_database_name='kloka_talk2me'",'preview restore database requirement');
-need(readiness,'failed_checks=0','zero failed restore checks');
+need(readiness,'restoreEvidencePinned','readiness confirms pinned restore identity');
+need(readiness,'restoreBelongsToBackup','readiness confirms restore belongs to linked backup');
+need(readiness,"row.restore_status==='passed'",'passed restore requirement');
+need(readiness,"row.restore_target_environment==='isolated_preview_restore'",'isolated restore requirement');
+need(readiness,"row.restore_actual_database_name==='kloka_talk2me'",'preview restore database requirement');
+need(readiness,'Number(row.restore_failed_checks||0)===0','zero failed restore checks');
 need(readiness,'executionAvailable:false','execution lock');
 need(schemaVerification,"'restore_test_id'",'schema verification requires restore-test pin column');
-need(schemaVerification,'migrations.length < 25','schema verification requires migration 025');
+need(schemaVerification,'EXPECTED_MIGRATION_COUNT = 25','schema verification requires exact migration inventory');
 need(schemaVerification,'restore_test_id IS NULL','schema verification rejects unpinned authorisations');
 need(restoreEvidenceVerification,"database !== 'kloka_talk2me'",'preview database refusal guard');
 need(restoreEvidenceVerification,'LEFT JOIN os2_backup_runs b ON b.id = a.backup_run_id','exact backup evidence join');
@@ -78,8 +78,8 @@ need(packageSource,'"verify:release-manifest": "node release-manifest-verificati
 need(packageSource,'node --check merge-restore-evidence-verification.js','restore evidence verifier syntax registration');
 need(packageSource,'node --check preview-data-verification.js','preview data verifier syntax registration');
 need(packageSource,'node --check release-manifest-verification.js','release manifest verifier syntax registration');
-need(packageSource,'"version": "0.59.0"','preview release version');
-need(releaseManifestVerification,"const expectedPreviewVersion = '0.59.0'",'release manifest expected preview version');
+need(packageSource,'"version": "0.60.0"','preview release version');
+need(releaseManifestVerification,"const expectedPreviewVersion = '0.60.0'",'release manifest expected preview version');
 need(releaseManifestVerification,'manifest.version !== expectedPreviewVersion','release manifest version verification');
 need(releaseManifestVerification,'crypto.timingSafeEqual','timing-safe manifest checksum comparison');
 need(releaseManifestVerification,"manifest.branch !== 'agent/talk2me-os2-integrated-rebuild'",'release manifest branch identity verification');
@@ -109,7 +109,7 @@ need(releaseCandidateGate,'preview-data-verification.js','release-candidate data
 need(releaseCandidateGate,"'verify:preview-data'",'release-candidate data verification command requirement');
 need(releaseCandidateGate,"previewDataVerificationOrder: ['schema-verification.js','merge-restore-evidence-verification.js']",'release-candidate exact data verification order evidence');
 need(releaseCandidateGate,'rt.id=a.restore_test_id','release-candidate exact restore pin evidence');
-need(releaseCandidateGate,'restoreMatchesBackup','release-candidate restore-to-backup evidence');
+need(releaseCandidateGate,'restoreBelongsToBackup','release-candidate restore-to-backup evidence');
 need(releaseCandidateGate,'executionAvailable:false','release-candidate merge execution lock');
 need(releaseCandidateGate,'mergeExecutionEnabled: false','release manifest merge execution lock');
 need(releaseCandidateGate,"package-lock.json is required before release-candidate freeze",'release-candidate dependency lock requirement');
@@ -119,4 +119,4 @@ need(releaseManifestCheck,'mergeExecutionEnabled:false','release manifest output
 need(releaseManifestCheck,"pkg.scripts.check.includes('release-manifest-check.js')",'release manifest normal validation registration');
 forbid(releaseManifestCheck,"pkg.scripts.check.includes('release-candidate-gate.js') === false",'inverted release-candidate normal-chain assertion');
 
-console.log(JSON.stringify({ok:true,check:'schema-source-consistency',version:'0.59.0',previewDataVerificationRequired:true,previewDataVerificationOrder:['schema-verification.js','merge-restore-evidence-verification.js'],mergeExecutionEnabled:false},null,2));
+console.log(JSON.stringify({ok:true,check:'schema-source-consistency',version:'0.60.0',previewDataVerificationRequired:true,previewDataVerificationOrder:['schema-verification.js','merge-restore-evidence-verification.js'],mergeExecutionEnabled:false},null,2));
