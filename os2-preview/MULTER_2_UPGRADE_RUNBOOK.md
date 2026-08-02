@@ -6,6 +6,7 @@ Preview version: 0.60.0
 Selected review target: exact Multer 2.2.0
 Version review: `MULTER_2_VERSION_REVIEW.md`
 Generation approval: `MULTER_2_GENERATION_APPROVAL.md` — status `not approved`
+Candidate manifest plan: `MULTER_2_CANDIDATE_MANIFEST_PLAN.md` — planned, not authorized, not applied
 
 ## Purpose
 
@@ -100,8 +101,10 @@ Before changing the Multer dependency:
 8. Keep exact target `2.2.0`; no range and no pre-release substitution.
 9. Keep `MULTER_2_GENERATION_APPROVAL.md` at `Status: not approved` until the owner supplies the exact approval phrase.
 10. Treat generation approval, dependency adoption, preview activation and production activation as separate gates.
+11. Require the candidate manifest to change exactly one value: Multer from `^1.4.5-lts.1` to exact `2.2.0`.
+12. Preserve the scripts object and every non-Multer dependency exactly.
 
-Items 1 through 7 are enforced in committed source-level validation. Item 8 is governed by `MULTER_2_VERSION_REVIEW.md` and `multer-upgrade-governance-check.js`. Items 9 and 10 are governed by `MULTER_2_GENERATION_APPROVAL.md` and `multer-generation-approval-check.js`. Deployed-route regression and preview UAT remain required after controlled dependency adoption.
+Items 1 through 7 are enforced in committed source-level validation. Item 8 is governed by `MULTER_2_VERSION_REVIEW.md` and `multer-upgrade-governance-check.js`. Items 9 and 10 are governed by `MULTER_2_GENERATION_APPROVAL.md` and `multer-generation-approval-check.js`. Items 11 and 12 are governed by `MULTER_2_CANDIDATE_MANIFEST_PLAN.md` and `multer-candidate-manifest-plan-check.js`. Deployed-route regression and preview UAT remain required after controlled dependency adoption.
 
 ## Upgrade procedure
 
@@ -109,13 +112,14 @@ Items 1 through 7 are enforced in committed source-level validation. Item 8 is g
 2. Use exact Multer `2.2.0` as the reviewed candidate.
 3. Obtain the exact owner approval phrase recorded in `MULTER_2_GENERATION_APPROVAL.md` before dependency evidence generation.
 4. Record the approved 40-character source commit, canonical UTC timestamp and approving owner identity.
-5. Regenerate the dependency lock through the controlled generation workflow.
-6. Review artifact checksum, provenance and source-inventory continuity.
-7. Adopt `package.json` and `package-lock.json` only through the controlled two-file adoption process.
-8. Run syntax, governance and focused upload regression checks.
-9. Review all error-code and size-boundary differences against the recorded 1.x baseline.
-10. Run preview-only authenticated upload tests after explicit activation approval.
-11. Perform browser and mobile UAT for customer documents, staff documents and monthly import preview.
+5. Create the candidate manifest only in a private temporary workspace according to `MULTER_2_CANDIDATE_MANIFEST_PLAN.md`.
+6. Regenerate the dependency lock through the controlled generation workflow.
+7. Review artifact checksum, provenance and source-inventory continuity.
+8. Adopt `package.json` and `package-lock.json` only through the controlled two-file adoption process.
+9. Run syntax, governance and focused upload regression checks.
+10. Review all error-code and size-boundary differences against the recorded 1.x baseline.
+11. Run preview-only authenticated upload tests after explicit activation approval.
+12. Perform browser and mobile UAT for customer documents, staff documents and monthly import preview.
 
 ## Regression matrix
 
@@ -143,6 +147,7 @@ The upgrade is accepted only when:
 
 - exact Multer `2.2.0` and its controlled lock provenance are verified;
 - the exact generation approval record is complete for the approved source commit;
+- the candidate manifest differs from the active manifest only by the exact Multer value;
 - dependency adoption remains separately approved and provenance-bound;
 - all current size and file-count limits remain enforced;
 - authorization still executes before multipart parsing;
