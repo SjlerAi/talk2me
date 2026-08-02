@@ -8,6 +8,7 @@ on:
       - 'os2-preview/**'
       - 'public/os2/**'
       - '.github/workflows/os2-preview-ci.yml'
+      - '.github/workflows/os2-dependency-lock-generation.yml'
   workflow_dispatch:
 
 permissions:
