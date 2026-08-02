@@ -37,7 +37,7 @@ const gate = requireMarkers('release-candidate-gate.js', [
   'migrationConnectionClosedBeforeSuccess: true',
   "fs.openSync(file, 'wx', 0o600)", 'restorePinMigration',
   'previewDataVerificationRequired: true', 'productionMutationEnabled: false',
-  'mergeExecutionEnabled: false'
+  'mergeExecutionEnabled: false', 'env: Object.freeze(allowedEnv)'
 ]);
 if (gate.includes('env: { ...process.env')) failures.push('release-candidate-gate.js must not inherit the complete parent environment');
 
@@ -126,9 +126,9 @@ requireMarkers('RELEASE_CANDIDATE_RUNBOOK.md', [
 ]);
 requireMarkers('PREVIEW_ACTIVATION_RUNBOOK.md', [
   'RELEASE_SOURCE_INVENTORY_SHA256', 'npm run verify:release-source-integrity',
-  'Re-run approved source-integrity verification immediately before formal UAT',
-  'Re-run approved source-integrity verification immediately before release freeze',
-  'Any source change after CI approval invalidates the candidate',
+  'Re-run approved source-integrity verification before formal UAT',
+  'Re-run source-integrity verification before release freeze',
+  'Any protected source change invalidates earlier CI approval and requires a new CI run and approved digest',
   'databaseBackedVerificationExecuted: false', 'migrationsExecuted: false',
   'previewRestartExecuted: false', 'productionMutationEnabled: false',
   'mergeExecutionEnabled: false'
@@ -137,7 +137,7 @@ requireMarkers('PREVIEW_UAT_RUNBOOK.md', [
   'RELEASE_SOURCE_INVENTORY_SHA256', 'npm run verify:release-source-integrity',
   'exactApprovedInventoryMatched: true', 'packageLockPresent: true',
   'Re-run approved source-integrity verification immediately before UAT starts',
-  'Any source change after the retained CI evidence was produced invalidates that UAT attempt'
+  'successful immediate pre-UAT source-integrity verification output'
 ]);
 
 const exactScripts = {
