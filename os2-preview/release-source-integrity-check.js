@@ -83,7 +83,7 @@ requireMarkers(runbook, [
   'node release-source-integrity-verification.js',
   'CI source inventory and approved digest',
   'package-lock.json to be included in the protected inventory',
-  '30-second execution limit',
+  '30-second timeout',
   'shell execution disabled'
 ], 'Release candidate runbook');
 
