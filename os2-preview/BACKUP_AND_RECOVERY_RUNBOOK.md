@@ -92,6 +92,8 @@ ENABLE_CUSTOMER_MERGE_EXECUTION=false \
 node restore-test-runner.js
 ```
 
+Before import, the backup checksum is reverified against the recorded SHA-256 value using constant-time comparison. The import process has a strict 20-minute timeout and is force-terminated if that limit is exceeded.
+
 ### Restore-test controls
 
 The runner enforces the following controls:
