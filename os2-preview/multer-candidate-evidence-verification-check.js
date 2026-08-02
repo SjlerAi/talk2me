@@ -113,6 +113,10 @@ requireMarkers(inputRegression, [
   'nonNormalizedPathRejected',
   'symlinkRejected',
   'hardLinkRejected',
+  'missingFileRejected',
+  'directoryRejected',
+  'overlongEnvironmentPathRejected',
+  'controlCharacterEnvironmentPathRejected',
   'emptyFileRejected',
   'oversizedJsonRejected',
   'oversizedLockRejected',
@@ -125,6 +129,10 @@ requireMarkers(inputRegression, [
   'absoluteNormalizedPathsRequired: true',
   'singleLinkRegularFilesRequired: true',
   'boundedInputsRequired: true',
+  'descriptorBoundReadsRequired: true',
+  'missingAndDirectoryInputsRejected: true',
+  'boundedEnvironmentPathsRequired: true',
+  'controlCharactersProhibited: true',
   'isolatedTemporaryFilesOnly: true',
   'externalNetworkUsed: false',
   'databaseConfigured: false',
@@ -151,9 +159,9 @@ if (regressionEvidence.isolatedTemporaryFilesOnly !== true) failures.push('Negat
 
 const inputEvidence = runJsonCheck('multer-candidate-evidence-input-regression-check.js', 'Multer candidate evidence input regression');
 if (inputEvidence.ok !== true || inputEvidence.check !== 'multer-candidate-evidence-input-regression') failures.push('Input regression evidence identity invalid');
-if (inputEvidence.caseCount !== 13) failures.push('Input regression must execute exactly 13 cases');
+if (inputEvidence.caseCount !== 17) failures.push('Input regression must execute exactly 17 cases');
 for (const [name, passed] of Object.entries(inputEvidence.cases || {})) if (passed !== true) failures.push(`Input regression case failed: ${name}`);
-for (const key of ['canonicalJsonRequired','absoluteNormalizedPathsRequired','singleLinkRegularFilesRequired','boundedInputsRequired','isolatedTemporaryFilesOnly']) if (inputEvidence[key] !== true) failures.push(`Input regression required flag must remain true: ${key}`);
+for (const key of ['canonicalJsonRequired','absoluteNormalizedPathsRequired','singleLinkRegularFilesRequired','boundedInputsRequired','descriptorBoundReadsRequired','missingAndDirectoryInputsRejected','boundedEnvironmentPathsRequired','controlCharactersProhibited','isolatedTemporaryFilesOnly']) if (inputEvidence[key] !== true) failures.push(`Input regression required flag must remain true: ${key}`);
 for (const key of ['externalNetworkUsed','databaseConfigured','sourceTreeMutationEnabled','dependencyAdoptionAuthorized','previewActivationAuthorized','productionMutationEnabled']) if (inputEvidence[key] !== false) failures.push(`Input regression safety flag must remain false: ${key}`);
 
 if (failures.length) {
@@ -174,7 +182,7 @@ console.log(JSON.stringify({
   negativeRegressionRequired: true,
   negativeRegressionCases: 14,
   inputRegressionRequired: true,
-  inputRegressionCases: 13,
+  inputRegressionCases: 17,
   descriptorBoundReadsRequired: true,
   noFollowOpenRequired: true,
   inodeContinuityRequired: true,
