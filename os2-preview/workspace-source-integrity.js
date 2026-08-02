@@ -54,11 +54,15 @@ const rootStat = fs.lstatSync(root);
 if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) fail('Workspace root must be a real directory');
 const owner = rootStat.uid;
 const protectedFiles = [
-  ['../.github/workflows/os2-preview-ci.yml', 1024 * 1024], ['server.js', 4 * 1024 * 1024],
+  ['../.github/workflows/os2-preview-ci.yml', 1024 * 1024],
+  ['../.github/workflows/os2-dependency-lock-generation.yml', 1024 * 1024],
+  ['server.js', 4 * 1024 * 1024],
   ['package.json', 1024 * 1024], ['package-lock.json', 16 * 1024 * 1024],
   ['dependency-lock-verification.js', 2 * 1024 * 1024], ['dependency-lock-governance-check.js', 2 * 1024 * 1024],
   ['dependency-lock-generator.js', 2 * 1024 * 1024], ['dependency-lock-generator-check.js', 2 * 1024 * 1024],
+  ['dependency-lock-workflow-check.js', 2 * 1024 * 1024],
   ['DEPENDENCY_LOCK_GENERATION_RUNBOOK.md', 2 * 1024 * 1024],
+  ['DEPENDENCY_LOCK_WORKFLOW_RUNBOOK.md', 2 * 1024 * 1024],
   ['MIGRATION_LEDGER_BOOTSTRAP.sql', 256 * 1024], ['migration-ledger-bootstrap-runner.js', 2 * 1024 * 1024],
   ['migration-ledger-bootstrap-evidence-verification.js', 2 * 1024 * 1024], ['migration-runner.js', 2 * 1024 * 1024],
   ['backup-runner.js', 2 * 1024 * 1024], ['backup-verification.js', 2 * 1024 * 1024],
@@ -100,7 +104,10 @@ console.log(JSON.stringify({
   dependencyLockGovernanceProtected: files.some(item => item.file === 'dependency-lock-governance-check.js'),
   dependencyLockGeneratorProtected: files.some(item => item.file === 'dependency-lock-generator.js'),
   dependencyLockGeneratorGovernanceProtected: files.some(item => item.file === 'dependency-lock-generator-check.js'),
+  dependencyLockWorkflowGovernanceProtected: files.some(item => item.file === 'dependency-lock-workflow-check.js'),
   dependencyLockGenerationRunbookProtected: files.some(item => item.file === 'DEPENDENCY_LOCK_GENERATION_RUNBOOK.md'),
+  dependencyLockWorkflowRunbookProtected: files.some(item => item.file === 'DEPENDENCY_LOCK_WORKFLOW_RUNBOOK.md'),
+  dependencyLockWorkflowProtected: files.some(item => item.file === '../.github/workflows/os2-dependency-lock-generation.yml'),
   activationGovernanceProtected: files.some(item => item.file === 'preview-activation-governance-check.js'),
   ciWorkflowProtected: files.some(item => item.file === '../.github/workflows/os2-preview-ci.yml'),
   ciEvidenceControlsProtected: files.some(item => item.file === 'build-evidence.js') && files.some(item => item.file === 'ci-governance-check.js'),
