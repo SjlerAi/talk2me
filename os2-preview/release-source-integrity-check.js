@@ -62,11 +62,12 @@ requireMarkers(preflight, [
   'releaseSourceIntegrityGovernanceVerified: true'
 ], 'Preview activation preflight');
 
+const gateVerifierCall = "runVerifier('release-source-integrity-verification.js',{ RELEASE_SOURCE_INVENTORY_SHA256: approvedSourceInventorySha256 },'Release source integrity verifier')";
 requireMarkers(releaseGate, [
   'RELEASE_SOURCE_INVENTORY_SHA256',
-  'verifyReleaseSourceIntegrity(approvedSourceInventorySha256)',
+  gateVerifierCall,
   'approvedSourceInventorySha256',
-  'releaseSourceIntegrityVerified: Boolean(releaseSourceIntegrityEvidence)'
+  'releaseSourceIntegrityVerified: Boolean(sourceIntegrityEvidence'
 ], 'Release candidate gate');
 
 requireMarkers(manifestVerifier, [
@@ -105,7 +106,7 @@ if (preflight.includes("'release-source-integrity-verification.js'")) {
   throw new Error('Environment-bound release source verification must not execute during source-only activation preflight');
 }
 
-const gateVerifyPosition = releaseGate.indexOf('verifyReleaseSourceIntegrity(approvedSourceInventorySha256)');
+const gateVerifyPosition = releaseGate.indexOf(gateVerifierCall);
 const gatePublishPosition = releaseGate.indexOf('publishEvidencePair(output');
 if (gateVerifyPosition === -1 || gatePublishPosition === -1 || gateVerifyPosition >= gatePublishPosition) {
   throw new Error('Release source integrity must be verified before release evidence publication');
