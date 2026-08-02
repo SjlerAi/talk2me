@@ -21,10 +21,14 @@ A committed `package-lock.json` is mandatory. A missing lockfile is a hard stop 
 
 Generate the initial lock only through the separately governed procedure in `DEPENDENCY_LOCK_GENERATION_RUNBOOK.md`. That procedure requires Node.js 20, npm 10, the exact controlled branch, a canonical private temporary root, a private evidence path, the exact npm registry, lifecycle scripts disabled, package-lock-only execution and independent post-publication verification.
 
-The source-only activation preflight runs `dependency-lock-generator-check.js`; it never runs `dependency-lock-generator.js`. Successful source governance must retain:
+A controlled manual GitHub Actions path is documented in `DEPENDENCY_LOCK_WORKFLOW_RUNBOOK.md`. The workflow is protected by `dependency-lock-workflow-check.js`, runs only through `workflow_dispatch`, has read-only repository permission, does not commit automatically and publishes a seven-day review artifact containing `package-lock.json`, evidence, manifest and checksums.
+
+The source-only activation preflight runs `dependency-lock-generator-check.js` and `dependency-lock-workflow-check.js`; it never runs `dependency-lock-generator.js` or the GitHub Actions workflow. Successful source governance must retain:
 
 ```text
 dependencyLockGeneratorGovernanceVerified: true
+dependencyLockWorkflowGovernanceVerified: true
+dependencyLockGenerationWorkflowExecuted: false
 dependencyLockGenerationExecuted: false
 ```
 
@@ -66,24 +70,25 @@ The preflight must execute these controls in this exact order:
 2. `dependency-lock-verification.js`
 3. `dependency-lock-governance-check.js`
 4. `dependency-lock-generator-check.js`
-5. `workspace-source-integrity.js`
-6. `workspace-source-integrity-check.js`
-7. `workspace-topology-governance-check.js`
-8. `migration-ledger-bootstrap-governance-check.js`
-9. `migration-ledger-bootstrap-runner-check.js`
-10. `migration-ledger-bootstrap-evidence-check.js`
-11. `migration-runner-security-check.js`
-12. `restore-test-governance-check.js`
-13. `restore-test-integration-check.js`
-14. `recovery-readiness-check.js`
-15. `recovery-release-gate.js`
-16. `runtime-release-identity-check.js`
-17. `readiness-check.js`
-18. `deployment-check.js`
-19. `uat-gate-check.js`
-20. `release-evidence-security-check.js`
-21. `release-source-integrity-check.js`
-22. `release-manifest-check.js`
+5. `dependency-lock-workflow-check.js`
+6. `workspace-source-integrity.js`
+7. `workspace-source-integrity-check.js`
+8. `workspace-topology-governance-check.js`
+9. `migration-ledger-bootstrap-governance-check.js`
+10. `migration-ledger-bootstrap-runner-check.js`
+11. `migration-ledger-bootstrap-evidence-check.js`
+12. `migration-runner-security-check.js`
+13. `restore-test-governance-check.js`
+14. `restore-test-integration-check.js`
+15. `recovery-readiness-check.js`
+16. `recovery-release-gate.js`
+17. `runtime-release-identity-check.js`
+18. `readiness-check.js`
+19. `deployment-check.js`
+20. `uat-gate-check.js`
+21. `release-evidence-security-check.js`
+22. `release-source-integrity-check.js`
+23. `release-manifest-check.js`
 
 Every child control has a 30-second execution limit, forced `SIGKILL` termination on timeout, shell execution disabled, inherited output and fixed preview-only safety flags. The preflight stops when a child cannot start, times out, is interrupted or returns non-zero.
 
@@ -133,7 +138,7 @@ ALLOW_PRODUCTION_MUTATION=false
 ENABLE_CUSTOMER_MERGE_EXECUTION=false
 ```
 
-The environment object is frozen, its key count is bounded, and the same immutable values are supplied to all 22 controls. Production mutation and merge execution are forced off in every child.
+The environment object is frozen, its key count is bounded, and the same immutable values are supplied to all 23 controls. Production mutation and merge execution are forced off in every child.
 
 ## Workspace topology verification
 
@@ -148,15 +153,17 @@ Immediately after dependency governance, `workspace-source-integrity.js` creates
 The inventory includes:
 
 - `.github/workflows/os2-preview-ci.yml`;
+- `.github/workflows/os2-dependency-lock-generation.yml`;
 - `package.json` and `package-lock.json`;
-- dependency lock verification, generation and governance controls;
+- dependency lock verification, generation, workflow and governance controls;
 - `DEPENDENCY_LOCK_GENERATION_RUNBOOK.md`;
+- `DEPENDENCY_LOCK_WORKFLOW_RUNBOOK.md`;
 - server, migration, recovery, activation, readiness, deployment, UAT and release controls;
 - all protected governance files;
 - every ordered migration;
 - all activation, deployment, UAT, release, backup and CI runbooks.
 
-The CI workflow file itself is part of the protected source inventory. Any workflow change changes the source inventory digest.
+The CI workflow file itself is part of the protected source inventory. The dependency-lock workflow is also part of the protected source inventory. Any workflow change changes the source inventory digest.
 
 Each protected file is read through secure descriptor-based reads using `O_NOFOLLOW`, canonical path binding, device and inode comparison, additional hard-link rejection, owner consistency, safe permissions and bounded reads.
 
@@ -198,11 +205,12 @@ Any protected source change invalidates prior CI approval and requires a new CI 
 
 ## Source-only limitations
 
-A successful activation preflight proves source governance only. It does not prove dependency installation, backup execution, backup verification, restore testing, database migration, preview data verification, deployment, restart, smoke testing or UAT.
+A successful activation preflight proves source governance only. It does not prove dependency-lock workflow execution, dependency-lock generation, dependency installation, backup execution, backup verification, restore testing, database migration, preview data verification, deployment, restart, smoke testing or UAT.
 
 Successful preflight evidence must retain:
 
 ```text
+dependencyLockGenerationWorkflowExecuted: false
 dependencyLockGenerationExecuted: false
 dependencyInstallationExecuted: false
 backupRuntimeExecuted: false
@@ -218,30 +226,31 @@ mergeExecutionEnabled: false
 ## Activation sequence
 
 1. Confirm the controlled branch and exact intended commit.
-2. When absent, generate `package-lock.json` only through `dependency-lock-generator.js` and retain the private evidence pair.
-3. Review and commit the generated lockfile.
-4. Repeat the source-only activation preflight.
-5. Run `npm ci --ignore-scripts --no-audit --no-fund` from the committed lockfile.
-6. Run `npm run check`, readiness, deployment, UAT and recovery governance checks.
-7. Run `npm audit --omit=dev --audit-level=high` and stop on unresolved high or critical findings.
-8. Retain the exact CI workspace source inventory and build-evidence artifact.
-9. Run approved release-source integrity verification.
-10. Generate and verify the preview database backup.
-11. Pre-create an empty isolated restore database.
-12. Run the isolated restore test and require zero failed checks.
-13. Create the private bootstrap-evidence directory.
-14. Execute the one-time migration-ledger bootstrap.
-15. Verify the bootstrap evidence pair.
-16. Apply the 25 ordered preview migrations.
-17. Require advisory-lock release and database closure evidence.
-18. Run preview-data verification.
-19. Re-run approved source-integrity verification before formal UAT.
-20. Complete automated and manual preview UAT.
-21. Re-run source-integrity verification before release freeze.
-22. Freeze and verify the release manifest.
-23. Restart only the preview Node.js application.
-24. Run technical smoke testing.
-25. Record all evidence in GitHub Issue #83.
+2. When absent, generate `package-lock.json` either through the controlled server-side generator procedure or the manual read-only GitHub workflow.
+3. Verify the private evidence pair or downloaded workflow artifact and `SHA256SUMS`.
+4. Review and commit only the generated lockfile.
+5. Repeat the source-only activation preflight.
+6. Run `npm ci --ignore-scripts --no-audit --no-fund` from the committed lockfile.
+7. Run `npm run check`, readiness, deployment, UAT and recovery governance checks.
+8. Run `npm audit --omit=dev --audit-level=high` and stop on unresolved high or critical findings.
+9. Retain the exact CI workspace source inventory and build-evidence artifact.
+10. Run approved release-source integrity verification.
+11. Generate and verify the preview database backup.
+12. Pre-create an empty isolated restore database.
+13. Run the isolated restore test and require zero failed checks.
+14. Create the private bootstrap-evidence directory.
+15. Execute the one-time migration-ledger bootstrap.
+16. Verify the bootstrap evidence pair.
+17. Apply the 25 ordered preview migrations.
+18. Require advisory-lock release and database closure evidence.
+19. Run preview-data verification.
+20. Re-run approved source-integrity verification before formal UAT.
+21. Complete automated and manual preview UAT.
+22. Re-run source-integrity verification before release freeze.
+23. Freeze and verify the release manifest.
+24. Restart only the preview Node.js application.
+25. Run technical smoke testing.
+26. Record all evidence in GitHub Issue #83.
 
 ## Dependency installation policy
 
@@ -252,7 +261,7 @@ npm ci --ignore-scripts --no-audit --no-fund
 npm audit --omit=dev --audit-level=high
 ```
 
-Dependency installation and auditing occur only after dependency-lock verification, generator governance, workspace topology and source integrity pass for the exact candidate.
+Dependency installation and auditing occur only after dependency-lock verification, generator governance, workflow governance, workspace topology and source integrity pass for the exact candidate.
 
 ## Recovery controls
 
@@ -284,6 +293,8 @@ Do not proceed when:
 - `package-lock.json` is absent;
 - dependency-lock verification fails;
 - dependency-lock generator governance fails;
+- dependency-lock workflow governance fails;
+- the workflow artifact source commit or checksums do not match;
 - Node.js is not 20.x;
 - production mutation or merge execution is enabled;
 - the source inventory differs from the approved CI digest;
@@ -295,4 +306,4 @@ Do not proceed when:
 - release-manifest verification fails;
 - the exact deployed commit cannot be proven.
 
-The dependency lock has not been generated or committed. The migration-ledger bootstrap, migration 025, preview data verification, deployment, restart and formal UAT have not yet been executed.
+The dependency lock has not been generated or committed. The dependency-lock workflow has not been executed. The migration-ledger bootstrap, migration 025, preview data verification, deployment, restart and formal UAT have not yet been executed.
