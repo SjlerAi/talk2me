@@ -69,9 +69,22 @@ function publishEvidencePair(manifestPath, manifestText, checksumText) {
   }
 }
 function runVerifier(script, extraEnv, label) {
+  const allowedEnv = {};
+  for (const key of ['PATH','HOME','USER','LOGNAME','TMPDIR','TEMP','TMP','LANG','LC_ALL','TZ','CI','GITHUB_ACTIONS']) {
+    if (typeof process.env[key] === 'string' && process.env[key]) allowedEnv[key] = process.env[key];
+  }
+  Object.assign(allowedEnv, {
+    DB_NAME: expectedDatabase,
+    PREVIEW_APP_ROOT: root,
+    RELEASE_BRANCH: expectedBranch,
+    ALLOW_PRODUCTION_MUTATION: 'false',
+    ENABLE_CUSTOMER_MERGE_EXECUTION: 'false',
+    NODE_ENV: 'production',
+    ...extraEnv
+  });
   const result = spawnSync(process.execPath, [path.join(root, script)], {
     cwd: root,
-    env: { ...process.env, DB_NAME: expectedDatabase, PREVIEW_APP_ROOT: root, RELEASE_BRANCH: expectedBranch, ALLOW_PRODUCTION_MUTATION: 'false', ENABLE_CUSTOMER_MERGE_EXECUTION: 'false', ...extraEnv },
+    env: Object.freeze(allowedEnv),
     encoding: 'utf8',
     maxBuffer: 16 * 1024 * 1024,
     timeout: verifierTimeoutMs,
@@ -105,7 +118,7 @@ const approvedSourceInventorySha256 = requireValue('RELEASE_SOURCE_INVENTORY_SHA
 validateReleaseText(approvedBy, 'RELEASE_APPROVED_BY', 160);
 validateReleaseText(changeReference, 'RELEASE_CHANGE_REFERENCE', 240);
 if (pkg.name !== 'talk2me-os2-preview') fail(`Unexpected preview package name: ${pkg.name}`);
-if (pkg.version !== '0.59.0') fail(`Unexpected preview package version: ${pkg.version}`);
+if (pkg.version !== '0.60.0') fail(`Unexpected preview package version: ${pkg.version}`);
 if (!exists('package-lock.json')) fail('package-lock.json is required before release-candidate freeze');
 if (!releaseCommitSha) fail('RELEASE_COMMIT_SHA or GITHUB_SHA is required');
 else if (!/^[0-9a-f]{40}$/i.test(releaseCommitSha)) fail('Release commit SHA must be a full 40-character hexadecimal SHA');
