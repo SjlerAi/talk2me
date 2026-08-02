@@ -53,12 +53,12 @@ requireMarkers(bootstrap, ['CREATE TABLE os2_schema_migrations','UNIQUE KEY uq_o
 requireMarkers(verifier, ['bootstrapMatchesWorkspace: true','verifiedBackupEvidencePresent: true','ledgerAbsentBeforeBootstrap: true','advisoryLockLifecycleVerified: true'], 'Bootstrap evidence verifier');
 
 const ordering = [
-  ['verifyBootstrapEvidence()', 'secureMigrationDirectory()', 'Bootstrap evidence must be verified before source inventory'],
-  ['secureMigrationDirectory()', 'mysql.createConnection', 'Migration source inventory must be frozen before database connection'],
-  ['verifySessionIdentity(connection)', 'acquireMigrationLock(connection, connectionId)', 'Database identity must be verified before lock acquisition'],
-  ['acquireMigrationLock(connection, connectionId)', 'verifyLedgerSchema(connection)', 'Migration lock must be acquired before ledger verification'],
-  ['verifyLedgerSchema(connection)', 'validateAppliedLedger(appliedRows, migrationSources)', 'Ledger schema must be verified before ledger contents'],
-  ['validateAppliedLedger(finalRows, migrationSources)', 'MIGRATION_FINAL_LEDGER_INCOMPLETE', 'Final ledger rows must be validated before completeness acceptance'],
+  ['const bootstrap = verifyBootstrapEvidence()', 'const directoryIdentity = secureMigrationDirectory()', 'Bootstrap evidence must be verified before source inventory'],
+  ['const directoryIdentity = secureMigrationDirectory()', 'const connection = await mysql.createConnection', 'Migration source inventory must be frozen before database connection'],
+  ['connectionId = await verifySessionIdentity(connection)', 'await acquireMigrationLock(connection, connectionId)', 'Database identity must be verified before lock acquisition'],
+  ['await acquireMigrationLock(connection, connectionId)', 'await verifyLedgerSchema(connection)', 'Migration lock must be acquired before ledger verification'],
+  ['await verifyLedgerSchema(connection)', 'const applied = validateAppliedLedger(appliedRows, migrationSources)', 'Ledger schema must be verified before ledger contents'],
+  ['validateAppliedLedger(finalRows, migrationSources)', "throw new Error('MIGRATION_FINAL_LEDGER_INCOMPLETE')", 'Final ledger rows must be validated before completeness acceptance'],
   ['await releaseMigrationLock(connection, connectionId)', 'await connection.end()', 'Advisory lock must be released before connection close'],
   ['await connection.end()', 'console.log(JSON.stringify(result, null, 2))', 'Migration success must be reported only after connection close']
 ];
