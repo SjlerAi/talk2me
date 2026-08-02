@@ -25,6 +25,15 @@ function requireOrder(source, markers, label) {
     if (left === -1 || right === -1 || left >= right) failures.push(`${label} order invalid at ${markers[index]}`);
   }
 }
+function routeSegment(source, marker, label) {
+  const start = source.indexOf(marker);
+  if (start === -1) {
+    failures.push(`${label} missing ${marker}`);
+    return '';
+  }
+  const next = source.indexOf('\n  router.', start + marker.length);
+  return source.slice(start, next === -1 ? source.length : next);
+}
 
 const pkg = JSON.parse(read('package.json'));
 const documents = read('document-routes.js');
@@ -50,7 +59,7 @@ requireMarkers(documents, [
   "mode:0o600, flag:'wx'",
   'fs.unlinkSync(absolutePath)'
 ], 'customer document upload');
-requireOrder(documents, [
+requireOrder(routeSegment(documents, "router.post('/api/os2/customers/:id/documents'", 'customer document route'), [
   "requireAuth, requirePermission('document.upload')",
   "upload.single('document')",
   'async (req,res)'
@@ -68,7 +77,7 @@ requireMarkers(imports, [
   'createdBy:req.user.id',
   'createdAt:Date.now()'
 ], 'monthly import upload');
-requireOrder(imports, [
+requireOrder(routeSegment(imports, "router.post('/api/imports/preview'", 'monthly import route'), [
   "requireAuth, ownerOnly",
   "upload.single('file')",
   'async (req,res)'
@@ -83,7 +92,7 @@ requireMarkers(administration, [
   "upload.single('file')",
   'fs.unlinkSync(req.file.path)'
 ], 'staff document upload');
-requireOrder(administration, [
+requireOrder(routeSegment(administration, "router.post('/api/administration/staff/:id/document'", 'staff document route'), [
   'requireAuth, requireManager',
   "upload.single('file')",
   'async (req,res)'
