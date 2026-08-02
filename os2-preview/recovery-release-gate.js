@@ -75,10 +75,35 @@ requireMarkers('BACKUP_AND_RECOVERY_RUNBOOK.md', [
 
 const previewData = read('preview-data-verification.js');
 if (previewData.indexOf("'schema-verification.js'") >= previewData.indexOf("'merge-restore-evidence-verification.js'")) failures.push('Schema verification must precede merge/restore evidence verification');
-const restoreOrder = [
-  'secureFile(filePath', 'RESTORE_TARGET_NOT_EMPTY', 'RESTORE_TEST_RECORD_NOT_CREATED', 'await importDump', 'tableCountMatchesBackup', 'failedChecks.length'
-];
+const restoreOrder = ['secureFile(filePath', 'RESTORE_TARGET_NOT_EMPTY', 'RESTORE_TEST_RECORD_NOT_CREATED', 'await importDump', 'tableCountMatchesBackup', 'failedChecks.length'];
 for (let i = 1; i < restoreOrder.length; i += 1) if (restoreRunner.indexOf(restoreOrder[i - 1]) >= restoreRunner.indexOf(restoreOrder[i])) failures.push(`Restore execution order invalid at ${restoreOrder[i]}`);
+
+let pkg = {};
+try { pkg = JSON.parse(read('package.json') || '{}'); } catch (error) { failures.push(`package.json invalid JSON: ${error.message}`); }
+const exactScripts = {
+  'backup:preview': 'node backup-runner.js',
+  'verify:backup': 'node backup-verification.js',
+  'restore:test': 'node restore-test-runner.js',
+  'check:restore-test-governance': 'node restore-test-governance-check.js',
+  'check:restore-test-integration': 'node restore-test-integration-check.js',
+  'check:recovery-readiness': 'node recovery-readiness-check.js',
+  'check:recovery-release': 'node recovery-release-gate.js',
+  'verify:merge-restore-evidence': 'node merge-restore-evidence-verification.js',
+  'verify:preview-data': 'node preview-data-verification.js'
+};
+for (const [name, command] of Object.entries(exactScripts)) if (pkg.scripts?.[name] !== command) failures.push(`package.json missing exact ${name}`);
+const normalCheck = String(pkg.scripts?.check || '');
+for (const marker of [
+  'node --check backup-runner.js', 'node --check backup-verification.js', 'node --check restore-test-runner.js',
+  'node --check restore-test-governance-check.js', 'node --check restore-test-integration-check.js',
+  'node --check recovery-readiness-check.js', 'node --check recovery-release-gate.js',
+  'node restore-test-governance-check.js', 'node restore-test-integration-check.js',
+  'node recovery-readiness-check.js', 'node recovery-release-gate.js'
+]) if (!normalCheck.includes(marker)) failures.push(`Normal validation missing ${marker}`);
+for (const prohibited of ['node backup-runner.js', 'node backup-verification.js', 'node restore-test-runner.js']) {
+  const executionPattern = `&& ${prohibited} &&`;
+  if (normalCheck.includes(executionPattern)) failures.push(`Environment-changing command must not execute during normal validation: ${prohibited}`);
+}
 
 if (failures.length) { console.error('RECOVERY RELEASE GATE FAILED'); failures.forEach(item => console.error(`- ${item}`)); process.exit(1); }
 console.log(JSON.stringify({
@@ -140,6 +165,10 @@ console.log(JSON.stringify({
   deploymentGateIntegrationRequired: true,
   uatGateIntegrationRequired: true,
   runbookControlsRequired: true,
+  exactPackageCommandsRequired: true,
+  normalSyntaxValidationRequired: true,
+  normalGovernanceExecutionRequired: true,
+  environmentChangingRecoveryCommandsExcludedFromNormalValidation: true,
   runtimeRecoveryOperationsExecuted: false,
   productionMutationEnabled: false,
   mergeExecutionEnabled: false
