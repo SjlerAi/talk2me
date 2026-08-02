@@ -26,6 +26,7 @@ const migration=read('migrations/20260801_008_security_controls.sql');
 const multerGovernance=read('multer-upgrade-governance-check.js');
 const multerRegression=read('multer-request-regression-check.js');
 const multerRunbook=read('MULTER_2_UPGRADE_RUNBOOK.md');
+const multerVersionReview=read('MULTER_2_VERSION_REVIEW.md');
 
 assert(server.includes("require('./security-controls')"),'Security controls not imported');
 assert(server.includes("require('./security-routes')"),'Security router not imported');
@@ -43,13 +44,26 @@ assert(migration.includes('os2_security_events'),'Security event table missing')
 assert(migration.includes('os2_login_attempts'),'Login attempt table missing');
 assert(!routes.match(/CREATE\s+TABLE/i),'Runtime table creation is prohibited');
 assert(multerGovernance.includes("check: 'multer-upgrade-governance'"),'Multer governance evidence contract missing');
+assert(multerGovernance.includes("const selectedTargetVersion = '2.2.0'"),'Exact Multer 2 review target missing');
 assert(multerGovernance.includes('uploadSurfaces: 3'),'Multer upload inventory count missing');
 assert(multerRegression.includes("check: 'multer-request-regression'"),'Multer request regression evidence contract missing');
 assert(multerRegression.includes("server.listen(0, '127.0.0.1'"),'Multer regression must bind only to an ephemeral loopback port');
-assert(multerRunbook.includes('Status: planned, not executed'),'Multer upgrade must remain explicitly unexecuted');
+assert(multerRunbook.includes('Status: target selected, dependency change not executed'),'Multer dependency change must remain explicitly unexecuted');
+assert(multerRunbook.includes('Selected review target: exact Multer 2.2.0'),'Multer runbook target missing');
+assert(multerVersionReview.includes('Exact target version: `2.2.0`'),'Multer version review target missing');
+assert(multerVersionReview.includes('Pre-release versions are prohibited'),'Multer prerelease prohibition missing');
 
 const evidence=runJsonCheck('multer-upgrade-governance-check.js','Multer governance');
 assert(evidence.ok===true&&evidence.check==='multer-upgrade-governance','Multer governance evidence invalid');
+assert(evidence.currentReviewedVersion==='^1.4.5-lts.1','Current reviewed Multer version evidence invalid');
+assert(evidence.selectedTargetVersion==='2.2.0','Selected Multer 2 target evidence invalid');
+assert(evidence.stableReleaseChannelRequired===true,'Stable Multer release channel evidence missing');
+assert(evidence.prereleaseCandidatesProhibited===true,'Multer prerelease prohibition evidence missing');
+assert(evidence.exactVersionRequiredForAdoption===true,'Exact Multer adoption version evidence missing');
+assert(evidence.explicitGenerationApprovalRequired===true,'Multer generation approval evidence missing');
+assert(evidence.controlledTwoFileAdoptionRequired===true,'Controlled Multer two-file adoption evidence missing');
+assert(evidence.activeDependencyChanged===false,'Multer dependency changed during source-only review');
+assert(evidence.packageLockChanged===false,'Multer package lock changed during source-only review');
 assert(evidence.uploadSurfaces===3,'Multer upload inventory evidence invalid');
 assert(evidence.singleFileLimitsRequired===true,'Multer single-file limits evidence missing');
 assert(evidence.multipartFieldAndPartLimitsRequired===true,'Multer multipart metadata limits evidence missing');
@@ -58,6 +72,8 @@ assert(evidence.privateDocumentStorageRequired===true,'Private customer document
 assert(evidence.privateStaffUploadDirectoryRequired===true,'Private staff upload directory evidence missing');
 assert(evidence.validationFailureCleanupRequired===true,'Rejected upload cleanup evidence missing');
 assert(evidence.persistenceFailureCleanupRequired===true,'Persistence failure cleanup evidence missing');
+assert(evidence.malformedRequestRegressionRequired===true,'Malformed upload regression governance missing');
+assert(evidence.controlledErrorDisclosureRequired===true,'Controlled upload error disclosure governance missing');
 assert(evidence.multer2UpgradeExecuted===false,'Multer 2 upgrade must not execute during source validation');
 assert(evidence.productionMutationEnabled===false,'Multer governance must prohibit production mutation');
 
