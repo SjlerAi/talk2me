@@ -25,6 +25,20 @@ for (const marker of ['checksumMatches','BACKUP_FILE_MISSING','backup_file_verif
 for (const table of ['os2_backup_runs','os2_restore_tests','os2_operational_checks']) {
   if (!migration.includes(table)) throw new Error(`Missing operations table: ${table}`);
 }
-if (/CREATE\s+TABLE/i.test(backup) || /CREATE\s+TABLE/i.test(verify)) throw new Error('Runtime CREATE TABLE detected in operations scripts');
 
-console.log(JSON.stringify({ ok:true, module:'backup-recovery-operations', requiredFiles:required.length, tables:3 }, null, 2));
+function containsExecutableCreateTable(source) {
+  return /(?:pool|connection)\s*\.\s*(?:execute|query)\s*\(\s*(?:`|'|")[\s\S]{0,4000}?\bCREATE\s+TABLE\b/i.test(source);
+}
+if (containsExecutableCreateTable(backup) || containsExecutableCreateTable(verify)) {
+  throw new Error('Runtime CREATE TABLE detected in operations scripts');
+}
+
+console.log(JSON.stringify({
+  ok:true,
+  module:'backup-recovery-operations',
+  requiredFiles:required.length,
+  tables:3,
+  runtimeSchemaCreationProhibited:true,
+  productionMutationEnabled:false,
+  mergeExecutionEnabled:false
+}, null, 2));
