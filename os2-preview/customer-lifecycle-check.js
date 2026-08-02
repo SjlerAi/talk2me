@@ -27,7 +27,7 @@ requireText(routes,"customer_access_grants",'grant revocation on archive');
 requireText(routes,"customer_reactivation",'ownership restoration on reactivation');
 requireText(routes,"os2_customer_lifecycle_history",'lifecycle history');
 requireText(approvals,"'customer_archive'",'approved archive action');
-requireText(access,"/\\/customer-lifecycle\\/(\\d+)/",'central lifecycle customer resolution');
+requireText(access,"/\\/customer-lifecycle\\/(\\d+)(?:\\/|$)/",'central lifecycle customer resolution');
 requireText(security,"createCustomerLifecycleRouter",'router mount');
 requireText(permissions,"customer.archive",'archive permission');
 requireText(migration,"archive_reason",'archive evidence columns');
