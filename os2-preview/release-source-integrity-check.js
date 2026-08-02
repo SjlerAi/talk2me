@@ -81,7 +81,7 @@ requireMarkers(manifestVerifier, [
 requireMarkers(runbook, [
   'RELEASE_SOURCE_INVENTORY_SHA256',
   'node release-source-integrity-verification.js',
-  'exact approved workspace source digest',
+  'CI source inventory and approved digest',
   'package-lock.json to be included in the protected inventory',
   '30-second execution limit',
   'shell execution disabled'
