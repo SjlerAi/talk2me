@@ -50,8 +50,8 @@ requireMarkers(workflow, [
   'RELEASE_BRANCH: agent/talk2me-os2-integrated-rebuild', "ALLOW_DEPENDENCY_LOCK_GENERATION: 'true'",
   "ALLOW_PRODUCTION_MUTATION: 'false'", "ENABLE_CUSTOMER_MERGE_EXECUTION: 'false'",
   'LOCK_ARTIFACT_ROOT: ${{ runner.temp }}/os2-dependency-lock-artifact',
-  'actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955', 'persist-credentials: false', 'fetch-depth: 1',
-  'actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020', "node-version: '20'",
+  'actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd', 'persist-credentials: false', 'fetch-depth: 1',
+  'actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e', "node-version: '20'",
   'set -euo pipefail', 'test "$GITHUB_EVENT_NAME" = "workflow_dispatch"',
   'test "$LOCK_CONFIRMATION" = "GENERATE_OS2_LOCK"', 'test "$GITHUB_REPOSITORY" = "SjlerAi/talk2me"',
   'test "$GITHUB_REF" = "refs/heads/agent/talk2me-os2-integrated-rebuild"',
@@ -89,7 +89,7 @@ requireMarkers(workflow, [
   'EXPECTED_COMMIT_SHA: ${{ github.sha }}', 'EXPECTED_WORKFLOW: ${{ github.workflow }}',
   'EXPECTED_RUN_ID: ${{ github.run_id }}', 'EXPECTED_RUN_ATTEMPT: ${{ github.run_attempt }}',
   'node dependency-lock-artifact-verification.js',
-  'actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02',
+  'actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f',
   'path: ${{ env.LOCK_ARTIFACT_ROOT }}', 'if-no-files-found: error', 'retention-days: 7'
 ], 'dependency lock workflow');
 
