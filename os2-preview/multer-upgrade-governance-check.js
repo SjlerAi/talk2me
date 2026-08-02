@@ -99,13 +99,18 @@ requireMarkers(administration, [
   'parts: 5',
   "'image/jpeg','image/png','image/webp','application/pdf'",
   "upload.single('file')",
-  'fs.unlinkSync(req.file.path)'
+  'function removeUploadedFile(file)',
+  'removeUploadedFile(req.file);'
 ], 'staff document upload');
-requireOrder(routeSegment(administration, "router.post('/api/administration/staff/:id/document'", 'staff document route'), [
+const staffRoute = routeSegment(administration, "router.post('/api/administration/staff/:id/document'", 'staff document route');
+requireOrder(staffRoute, [
   'requireAuth, requireManager',
   "upload.single('file')",
   'async (req,res)'
 ], 'staff document authorization');
+if ((staffRoute.match(/removeUploadedFile\(req\.file\);/g) || []).length < 2) {
+  failures.push('staff document route must clean rejected and failed uploads');
+}
 
 requireMarkers(runbook, [
   'Controlled Multer 2 Upgrade Runbook',
@@ -138,6 +143,8 @@ console.log(JSON.stringify({
   privateDocumentStorageRequired: true,
   privateStaffUploadDirectoryRequired: true,
   rejectedUploadCleanupRequired: true,
+  validationFailureCleanupRequired: true,
+  persistenceFailureCleanupRequired: true,
   multer2UpgradeExecuted: false,
   dependencyInstallationExecuted: false,
   productionMutationEnabled: false
