@@ -5,12 +5,26 @@ const path=require('path');
 const { spawnSync }=require('child_process');
 function read(file){return fs.readFileSync(path.join(__dirname,file),'utf8');}
 function assert(ok,message){if(!ok)throw new Error(message);}
+function runJsonCheck(file,label){
+  const result=spawnSync(process.execPath,[file],{
+    cwd:__dirname,
+    encoding:'utf8',
+    timeout:30000,
+    maxBuffer:256*1024,
+    shell:false,
+    env:Object.freeze({PATH:process.env.PATH||'',NODE_ENV:'test'})
+  });
+  assert(!result.error,`${label} execution failed: ${result.error&&result.error.message}`);
+  assert(result.status===0,`${label} failed: ${String(result.stderr||result.stdout).trim()}`);
+  return JSON.parse(String(result.stdout||'{}'));
+}
 
 const server=read('server.js');
 const controls=read('security-controls.js');
 const routes=read('security-routes.js');
 const migration=read('migrations/20260801_008_security_controls.sql');
 const multerGovernance=read('multer-upgrade-governance-check.js');
+const multerRegression=read('multer-request-regression-check.js');
 const multerRunbook=read('MULTER_2_UPGRADE_RUNBOOK.md');
 
 assert(server.includes("require('./security-controls')"),'Security controls not imported');
@@ -30,11 +44,11 @@ assert(migration.includes('os2_login_attempts'),'Login attempt table missing');
 assert(!routes.match(/CREATE\s+TABLE/i),'Runtime table creation is prohibited');
 assert(multerGovernance.includes("check: 'multer-upgrade-governance'"),'Multer governance evidence contract missing');
 assert(multerGovernance.includes('uploadSurfaces: 3'),'Multer upload inventory count missing');
+assert(multerRegression.includes("check: 'multer-request-regression'"),'Multer request regression evidence contract missing');
+assert(multerRegression.includes("server.listen(0, '127.0.0.1'"),'Multer regression must bind only to an ephemeral loopback port');
 assert(multerRunbook.includes('Status: planned, not executed'),'Multer upgrade must remain explicitly unexecuted');
-const result=spawnSync(process.execPath,['multer-upgrade-governance-check.js'],{cwd:__dirname,encoding:'utf8',timeout:30000,shell:false,env:Object.freeze({PATH:process.env.PATH||'',NODE_ENV:'test'})});
-assert(!result.error,`Multer governance execution failed: ${result.error&&result.error.message}`);
-assert(result.status===0,`Multer governance failed: ${String(result.stderr||result.stdout).trim()}`);
-const evidence=JSON.parse(String(result.stdout||'{}'));
+
+const evidence=runJsonCheck('multer-upgrade-governance-check.js','Multer governance');
 assert(evidence.ok===true&&evidence.check==='multer-upgrade-governance','Multer governance evidence invalid');
 assert(evidence.uploadSurfaces===3,'Multer upload inventory evidence invalid');
 assert(evidence.singleFileLimitsRequired===true,'Multer single-file limits evidence missing');
@@ -46,4 +60,18 @@ assert(evidence.validationFailureCleanupRequired===true,'Rejected upload cleanup
 assert(evidence.persistenceFailureCleanupRequired===true,'Persistence failure cleanup evidence missing');
 assert(evidence.multer2UpgradeExecuted===false,'Multer 2 upgrade must not execute during source validation');
 assert(evidence.productionMutationEnabled===false,'Multer governance must prohibit production mutation');
+
+const regression=runJsonCheck('multer-request-regression-check.js','Multer request regression');
+assert(regression.ok===true&&regression.check==='multer-request-regression','Multer request regression evidence invalid');
+assert(regression.isolatedLoopbackOnly===true,'Multer request regression must remain loopback-only');
+assert(regression.databaseConfigured===false,'Multer request regression must not configure a database');
+assert(regression.persistentStorageUsed===false,'Multer request regression must not publish files');
+assert(regression.cases&&regression.cases.validSingleFile===true,'Valid single-file regression missing');
+assert(regression.cases&&regression.cases.missingFileVisibleToRoute===true,'Missing-file regression missing');
+assert(regression.cases&&regression.cases.multipleFilesRejected===true,'Multiple-file regression missing');
+assert(regression.cases&&regression.cases.oversizedFileRejected===true,'Oversized-file regression missing');
+assert(regression.cases&&regression.cases.excessiveFieldsRejected===true,'Field-count regression missing');
+assert(regression.cases&&regression.cases.excessivePartsRejected===true,'Part-count regression missing');
+assert(regression.cases&&regression.cases.unsupportedMimeRejected===true,'Unsupported-MIME regression missing');
+assert(regression.productionMutationEnabled===false,'Multer regression must prohibit production mutation');
 console.log('Security controls validation passed');
