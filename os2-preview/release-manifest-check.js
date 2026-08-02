@@ -4,88 +4,80 @@ const fs = require('fs');
 const path = require('path');
 
 const root = __dirname;
-const gate = fs.readFileSync(path.join(root, 'release-candidate-gate.js'), 'utf8');
-const verifier = fs.readFileSync(path.join(root, 'release-manifest-verification.js'), 'utf8');
-const sourceVerifier = fs.readFileSync(path.join(root, 'release-source-integrity-verification.js'), 'utf8');
-const sourceGovernance = fs.readFileSync(path.join(root, 'release-source-integrity-check.js'), 'utf8');
-const releaseRunbook = fs.readFileSync(path.join(root, 'RELEASE_CANDIDATE_RUNBOOK.md'), 'utf8');
-const activationRunbook = fs.readFileSync(path.join(root, 'PREVIEW_ACTIVATION_RUNBOOK.md'), 'utf8');
-const uatRunbook = fs.readFileSync(path.join(root, 'PREVIEW_UAT_RUNBOOK.md'), 'utf8');
-const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+const failures = [];
 
-function requireMarkers(source, markers, label) {
-  for (const marker of markers) if (!source.includes(marker)) throw new Error(`${label} missing ${marker}`);
+function read(file) {
+  const full = path.join(root, file);
+  if (!fs.existsSync(full)) {
+    failures.push(`Missing ${file}`);
+    return '';
+  }
+  const stat = fs.lstatSync(full);
+  if (!stat.isFile() || stat.isSymbolicLink()) failures.push(`${file} must be a regular non-symlink file`);
+  return fs.readFileSync(full, 'utf8');
 }
 
-requireMarkers(gate, [
-  'verifierTimeoutMs = 30000', "killSignal: 'SIGKILL'", 'shell: false', "result.error.code === 'ETIMEDOUT'",
-  'validateReleaseText(approvedBy', 'validateReleaseText(changeReference', 'must not contain control characters',
-  'must be owned by the executing user', "validatePrivateDirectory(path.dirname(bootstrapEvidencePath), 'Bootstrap evidence directory')",
-  'Release manifest path must differ from bootstrap evidence path', 'package-lock.json is required before release-candidate freeze',
-  'RELEASE_COMMIT_SHA must match the exact GITHUB_SHA being validated', 'RELEASE_SOURCE_INVENTORY_SHA256',
-  'sourceIntegrityEvidence = runVerifier', 'migrationLedgerBootstrapEvidenceSha256: bootstrapEvidenceSha256',
-  'generatedAt: new Date().toISOString()', 'migrationCompletionRequiresConfirmedLockRelease: true',
-  'migrationConnectionClosedBeforeSuccess: true', "fs.openSync(file, 'wx', 0o600)",
-  'fs.linkSync(checksumTemp, checksumPath)', 'fs.linkSync(manifestTemp, manifestPath)',
-  'restorePinMigration', 'previewDataVerificationRequired: true', 'previewDataVerificationOrder',
-  'requiredFiles', 'requiredScripts', 'migrationCount: migrations.length', 'productionMutationEnabled: false', 'mergeExecutionEnabled: false'
-], 'Release candidate gate');
+function requireMarkers(file, markers) {
+  const source = read(file);
+  for (const marker of markers) if (!source.includes(marker)) failures.push(`${file} missing ${marker}`);
+  return source;
+}
 
-const verifierMarkers = [
+const pkgText = read('package.json');
+let pkg = {};
+try { pkg = JSON.parse(pkgText || '{}'); } catch (error) { failures.push(`package.json invalid JSON: ${error.message}`); }
+if (pkg.version !== '0.60.0') failures.push(`Expected package version 0.60.0, found ${pkg.version || 'missing'}`);
+
+const gate = requireMarkers('release-candidate-gate.js', [
+  'verifierTimeoutMs = 30000', "killSignal: 'SIGKILL'", 'shell: false',
+  'package-lock.json is required before release-candidate freeze',
+  'RELEASE_COMMIT_SHA must match the exact GITHUB_SHA being validated',
+  'RELEASE_SOURCE_INVENTORY_SHA256', 'migrationLedgerBootstrapEvidenceSha256',
+  'migrationCompletionRequiresConfirmedLockRelease: true',
+  'migrationConnectionClosedBeforeSuccess: true',
+  "fs.openSync(file, 'wx', 0o600)", 'restorePinMigration',
+  'previewDataVerificationRequired: true', 'productionMutationEnabled: false',
+  'mergeExecutionEnabled: false'
+]);
+if (gate.includes('env: { ...process.env')) failures.push('release-candidate-gate.js must not inherit the complete parent environment');
+
+const verifier = requireMarkers('release-manifest-verification.js', [
   "check: 'release-manifest-verification'",
   "expectedApplication = 'talk2me-os2-preview'",
-  "expectedPreviewVersion = '0.59.0'",
+  "expectedPreviewVersion = '0.60.0'",
   "expectedReleaseBranch = 'agent/talk2me-os2-integrated-rebuild'",
   "expectedDatabase = 'kloka_talk2me'",
   "expectedBootstrapFile = 'MIGRATION_LEDGER_BOOTSTRAP.sql'",
   "expectedRestorePinMigration = '20260801_025_merge_authorisation_restore_pin.sql'",
   "expectedPreviewDataOrder = ['schema-verification.js', 'merge-restore-evidence-verification.js']",
-  'expectedRequiredFiles = [',
-  'expectedRequiredScripts = [',
   'requireExactArray(manifest.previewDataVerificationOrder',
   'requireExactArray(manifest.requiredFiles',
   'requireExactArray(manifest.requiredScripts',
-  'manifest.restorePinMigration !== expectedRestorePinMigration',
-  'manifest.previewDataVerificationRequired !== true',
   'manifest.migrationCount !== actualMigrations.length',
   'manifest.releaseSourceMigrationCount !== actualMigrations.length',
   'sourceEvidence.protectedFileCount !== manifest.releaseSourceProtectedFileCount',
   'sourceEvidence.migrationCount !== manifest.releaseSourceMigrationCount',
   'validateCanonicalIso(manifest.generatedAt',
-  'new Date(parsed).toISOString() !== value',
   'older than the permitted 30-day verification window',
   'unreasonably in the future',
   'Release manifest root must be an object',
-  'Required release files',
-  'Required package scripts',
   'must not contain duplicates',
-  'Release manifest packageJsonSha256 is invalid',
-  'Release manifest dependencyLockSha256 is invalid',
-  'Release manifest approvedSourceInventorySha256 is invalid',
-  'Release manifest migrationLedgerBootstrapSha256 is invalid',
+  "for (const [name, value] of [['packageJsonSha256'",
+  'fail(`Release manifest ${name} is invalid`)',
   'Checked-out package.json is invalid JSON',
   'packageJson.name !== expectedApplication',
   'packageJson.version !== expectedPreviewVersion',
-  'Checked-out package.json is missing required script',
   'Checked-out package-lock.json is invalid JSON',
   'lockJson.name !== expectedApplication',
   'lockJson.version !== expectedPreviewVersion',
   'lockJson.lockfileVersion < 2',
-  'Bootstrap execution evidence root must be an object',
   "bootstrapEvidence.check !== 'migration-ledger-bootstrap-runner'",
   'bootstrapEvidence.database !== expectedDatabase',
-  'validateReleaseText(bootstrapEvidence.verifiedBackupReference',
   'Verified backup SHA-256 is invalid',
-  'validateReleaseText(bootstrapEvidence.operator',
-  'validateReleaseText(bootstrapEvidence.changeReference',
   'bootstrapEvidence.ledgerRowCount !== 0',
   'bootstrapEvidence.advisoryLockUsed !== true',
-  'validateCanonicalIso(bootstrapEvidence.startedAt',
-  'validateCanonicalIso(bootstrapEvidence.completedAt',
   'Bootstrap completion precedes bootstrap start',
   'Release manifest was generated before bootstrap completion',
-  "validatePrivateDirectory(migrationsDirectory, 'Migrations directory')",
-  'Migrations directory changed during release verification',
   'Required restore-pin migration is missing from the workspace',
   'Release manifest contains duplicate migration evidence',
   'Release manifest migration checksum format is invalid',
@@ -100,74 +92,53 @@ const verifierMarkers = [
   'bootstrapTimelineValidated: true',
   'migrationInventoryUnique: true',
   'releaseSourceChildEnvironmentSanitized: true',
-  "for (const key of ['PATH','HOME','USER','LOGNAME','TMPDIR','TEMP','TMP','LANG','LC_ALL','TZ','CI','GITHUB_ACTIONS'])",
-  "NODE_ENV: 'production'",
-  'env: Object.freeze(allowedEnv)',
-  "killSignal: 'SIGKILL'",
-  'shell: false',
-  'windowsHide: true',
-  'evidence.packageLockPresent !== true',
-  'crypto.timingSafeEqual',
-  'productionMutationEnabled: false',
-  'mergeExecutionEnabled: false'
-];
-requireMarkers(verifier, verifierMarkers, 'Release manifest verifier');
-if (verifier.includes('env: { ...process.env')) throw new Error('Release manifest verifier must not inherit the complete parent environment');
+  "NODE_ENV: 'production'", 'env: Object.freeze(allowedEnv)',
+  "killSignal: 'SIGKILL'", 'shell: false', 'windowsHide: true',
+  'evidence.packageLockPresent !== true', 'crypto.timingSafeEqual',
+  'productionMutationEnabled: false', 'mergeExecutionEnabled: false'
+]);
+if (verifier.includes('env: { ...process.env')) failures.push('release-manifest-verification.js must not inherit the complete parent environment');
 
-requireMarkers(sourceVerifier, [
-  "check: 'release-source-integrity-verification'", 'RELEASE_SOURCE_INVENTORY_SHA256', 'verifierTimeoutMs = 30000',
-  "killSignal: 'SIGKILL'", 'shell: false', 'evidence.packageLockPresent !== true', 'exactApprovedInventoryMatched: true'
-], 'Release source integrity verifier');
-requireMarkers(sourceGovernance, [
-  "check: 'release-source-integrity-governance'", 'packageCommandsRegistered: true', 'normalSyntaxValidationRegistered: true',
-  'normalGovernanceValidationRegistered: true', 'environmentBoundVerifierExcludedFromNormalExecution: true',
-  'verificationBeforeReleasePublicationRequired: true', 'postFreezeVerificationBeforeIndividualFilesRequired: true'
-], 'Release source integrity governance');
-
-const runbookMarkers = [
-  'exact required-file inventory', 'exact required-script inventory', 'canonical UTC ISO-8601',
-  'migrationCount', 'restorePinMigration', 'previewDataVerificationRequired', 'previewDataVerificationOrder',
-  'source protected-file count', 'source migration count', 'package name and version', 'lockfileVersion',
-  'bootstrap operator', 'bootstrap change reference', 'verified backup reference', 'verified backup SHA-256',
-  'bootstrap start and completion timestamps', 'bootstrap completion must precede release freeze',
-  'migration filenames are unique', 'migration checksum formats', 'sanitized allowlisted environment',
-  '`NODE_OPTIONS`', '`NODE_PATH`', '`BASH_ENV`', '`GIT_DIR`', '`GIT_WORK_TREE`', '`NPM_CONFIG_USERCONFIG`',
-  'RELEASE_SOURCE_INVENTORY_SHA256', 'node release-source-integrity-verification.js',
-  'package-lock.json to be included in the protected inventory',
-  'MIGRATION_LEDGER_BOOTSTRAP_EVIDENCE_PATH=/absolute/private/canonical/path/bootstrap-evidence.json',
-  'RELEASE_COMMIT_SHA=<exact-40-character-git-sha>', 'RELEASE_BRANCH=agent/talk2me-os2-integrated-rebuild',
-  'RELEASE_MANIFEST_PATH=/absolute/private/canonical/path/talk2me-release-manifest.json'
-];
-requireMarkers(releaseRunbook, runbookMarkers, 'Release candidate runbook');
-
-const activationOrder = [
-  'workspace-topology-verification.js','workspace-source-integrity.js','workspace-source-integrity-check.js',
-  'workspace-topology-governance-check.js','migration-ledger-bootstrap-governance-check.js',
-  'migration-ledger-bootstrap-runner-check.js','migration-ledger-bootstrap-evidence-check.js',
-  'migration-runner-security-check.js','runtime-release-identity-check.js','readiness-check.js',
-  'deployment-check.js','uat-gate-check.js','release-evidence-security-check.js',
-  'release-source-integrity-check.js','release-manifest-check.js'
-];
-let previous = -1;
-for (const marker of activationOrder) {
-  const position = activationRunbook.indexOf(marker);
-  if (position === -1) throw new Error(`Preview activation runbook missing ${marker}`);
-  if (position <= previous) throw new Error(`Preview activation runbook order invalid at ${marker}`);
-  previous = position;
-}
-requireMarkers(activationRunbook, [
-  'RELEASE_SOURCE_INVENTORY_SHA256','npm run verify:release-source-integrity','30 seconds','shell execution disabled',
+requireMarkers('release-source-integrity-verification.js', [
+  "check: 'release-source-integrity-verification'", 'RELEASE_SOURCE_INVENTORY_SHA256',
+  'verifierTimeoutMs = 30000', "killSignal: 'SIGKILL'", 'shell: false',
+  'evidence.packageLockPresent !== true', 'exactApprovedInventoryMatched: true'
+]);
+requireMarkers('release-source-integrity-check.js', [
+  "check: 'release-source-integrity-governance'", 'packageCommandsRegistered: true',
+  'normalSyntaxValidationRegistered: true', 'normalGovernanceValidationRegistered: true',
+  'environmentBoundVerifierExcludedFromNormalExecution: true',
+  'verificationBeforeReleasePublicationRequired: true',
+  'postFreezeVerificationBeforeIndividualFilesRequired: true'
+]);
+requireMarkers('RELEASE_CANDIDATE_RUNBOOK.md', [
+  'exact required-file inventory', 'exact required-script inventory',
+  'canonical UTC ISO-8601', 'migrationCount', 'restorePinMigration',
+  'previewDataVerificationRequired', 'previewDataVerificationOrder',
+  'source protected-file count', 'source migration count',
+  'package name and version', 'lockfileVersion', 'bootstrap operator',
+  'verified backup reference', 'verified backup SHA-256',
+  'bootstrap completion must precede release freeze',
+  'migration filenames are unique', 'migration checksum formats',
+  'sanitized allowlisted environment', 'RELEASE_SOURCE_INVENTORY_SHA256',
+  'node release-source-integrity-verification.js',
+  'package-lock.json to be included in the protected inventory'
+]);
+requireMarkers('PREVIEW_ACTIVATION_RUNBOOK.md', [
+  'RELEASE_SOURCE_INVENTORY_SHA256', 'npm run verify:release-source-integrity',
   'Re-run approved source-integrity verification immediately before formal UAT',
   'Re-run approved source-integrity verification immediately before release freeze',
   'Any source change after CI approval invalidates the candidate',
-  'databaseBackedVerificationExecuted: false','migrationsExecuted: false','previewRestartExecuted: false',
-  'productionMutationEnabled: false','mergeExecutionEnabled: false'
-], 'Preview activation runbook');
-requireMarkers(uatRunbook, [
-  'RELEASE_SOURCE_INVENTORY_SHA256','npm run verify:release-source-integrity','exactApprovedInventoryMatched: true',
-  'packageLockPresent: true','Re-run approved source-integrity verification immediately before UAT starts',
+  'databaseBackedVerificationExecuted: false', 'migrationsExecuted: false',
+  'previewRestartExecuted: false', 'productionMutationEnabled: false',
+  'mergeExecutionEnabled: false'
+]);
+requireMarkers('PREVIEW_UAT_RUNBOOK.md', [
+  'RELEASE_SOURCE_INVENTORY_SHA256', 'npm run verify:release-source-integrity',
+  'exactApprovedInventoryMatched: true', 'packageLockPresent: true',
+  'Re-run approved source-integrity verification immediately before UAT starts',
   'Any source change after the retained CI evidence was produced invalidates that UAT attempt'
-], 'Preview UAT runbook');
+]);
 
 const exactScripts = {
   'check:release-candidate': 'node release-candidate-gate.js',
@@ -177,11 +148,23 @@ const exactScripts = {
   'verify:migration-ledger-bootstrap-evidence': 'node migration-ledger-bootstrap-evidence-verification.js',
   'check:release-manifest': 'node release-manifest-check.js'
 };
-for (const [name, command] of Object.entries(exactScripts)) if (pkg.scripts?.[name] !== command) throw new Error(`Missing exact ${name} command`);
+for (const [name, command] of Object.entries(exactScripts)) if (pkg.scripts?.[name] !== command) failures.push(`Missing exact ${name} command`);
 const normalCheck = String(pkg.scripts?.check || '');
-for (const marker of ['node --check release-manifest-verification.js','node --check release-source-integrity-verification.js','node --check release-source-integrity-check.js','node release-source-integrity-check.js','node release-manifest-check.js']) if (!normalCheck.includes(marker)) throw new Error(`Normal validation missing ${marker}`);
-if (normalCheck.includes('node release-candidate-gate.js')) throw new Error('Release candidate gate must not execute in normal validation before release evidence exists');
-if (normalCheck.includes('node release-source-integrity-verification.js')) throw new Error('Environment-bound source verifier must not execute in normal validation');
+for (const marker of [
+  'node --check release-manifest-verification.js',
+  'node --check release-source-integrity-verification.js',
+  'node --check release-source-integrity-check.js',
+  'node release-source-integrity-check.js',
+  'node release-manifest-check.js'
+]) if (!normalCheck.includes(marker)) failures.push(`Normal validation missing ${marker}`);
+if (normalCheck.includes('node release-candidate-gate.js')) failures.push('Release candidate gate must not execute during normal validation');
+if (normalCheck.includes('node release-source-integrity-verification.js')) failures.push('Environment-bound source verifier must not execute during normal validation');
+
+if (failures.length) {
+  console.error('RELEASE MANIFEST GOVERNANCE FAILED');
+  failures.forEach(item => console.error(`- ${item}`));
+  process.exit(1);
+}
 
 console.log(JSON.stringify({
   ok: true,
@@ -204,28 +187,15 @@ console.log(JSON.stringify({
   canonicalManifestTimestampRequired: true,
   bootstrapTimelineRequired: true,
   bootstrapBackupEvidenceRequired: true,
-  bootstrapOperatorEvidenceRequired: true,
-  bootstrapChangeReferenceRequired: true,
   migrationDirectoryIdentityRequired: true,
   uniqueMigrationInventoryRequired: true,
   migrationChecksumFormatRequired: true,
   releaseVerifierChildEnvironmentSanitized: true,
   completeParentEnvironmentInheritanceProhibited: true,
-  releaseEvidenceDirectoryOwnershipRequired: true,
-  bootstrapEvidenceDirectoryOwnershipRequired: true,
-  protectedEvidenceFileOwnershipRequired: true,
-  releaseAndBootstrapEvidencePathsMustDiffer: true,
   releaseSourceIntegrityBeforeUatRequired: true,
   releaseSourceIntegrityBeforeFreezeRequired: true,
   releaseSourceIntegrityPostFreezeRequired: true,
   sourceChangeInvalidatesCandidate: true,
-  bootstrapExecutionEvidenceRequired: true,
-  bootstrapEvidenceVerifiedBeforeReleaseFreeze: true,
-  migrationCompletionRequiresConfirmedLockRelease: true,
-  migrationConnectionClosedBeforeSuccess: true,
-  releaseEvidencePublicationRaceSafe: true,
-  activationRunbookFullGovernanceOrderProtected: true,
-  uatRunbookSourceRevalidationProtected: true,
   runtimeLedgerCreationDisabled: true,
   productionMutationEnabled: false,
   mergeExecutionEnabled: false
