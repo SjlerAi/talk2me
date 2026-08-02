@@ -69,7 +69,7 @@ for (const [before, after, message] of ordering) {
 
 requireMarkers(runbook, [
   'sanitized allowlisted environment', '30-second timeout', 'full parent environment is prohibited',
-  'exact controlled branch', 'contiguous sequence beginning at `001`', 'hidden files', 'non-file directory entries',
+  'exact controlled branch', 'contiguous sequence beginning at `001`', 'Hidden files', 'non-file directory entries',
   'UTF-8 BOM', 'CRLF', 'final newline', 'ledger self-mutation', 'destructive database-level SQL',
   '10-second connection timeout', 'UTC session', 'autocommit', 'positional placeholders',
   'final ledger inventory', 'IS_FREE_LOCK()', 'database connection closes before final success'
