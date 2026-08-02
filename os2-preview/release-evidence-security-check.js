@@ -45,10 +45,13 @@ const protectedTargets = [
 ];
 requireMarkers(verifier, protectedTargets, 'Protected read coverage');
 requireMarkers(governance, [
-  'releaseEvidenceVerifierNoFollowReads: true',
-  'releaseEvidenceVerifierDescriptorIdentityRequired: true',
-  'releaseEvidenceVerifierSizeLimitsRequired: true',
-  'workspaceProtectedReadsUseNoFollow: true'
+  "'evidenceReadByteCountVerified: true'",
+  "'migrationDirectoryIdentityRequired: true'",
+  "'migrationChecksumFormatRequired: true'",
+  "'releaseVerifierChildEnvironmentSanitized: true'",
+  "'completeParentEnvironmentInheritanceProhibited: true'",
+  "'fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW)'",
+  "'expectedMode: 0o600'"
 ], 'Release governance');
 requireMarkers(activationRunbook, [
   'open protected files with `O_NOFOLLOW`',
@@ -71,6 +74,7 @@ console.log(JSON.stringify({
   boundedReadsRequired: true,
   checksumPairCoverageRequired: true,
   bootstrapEvidenceCoverageRequired: true,
+  governanceSecureReadAssertionsRequired: true,
   protectedTargets: protectedTargets.length,
   independentlyExecutable: true,
   packageCommandRegistered: true,
