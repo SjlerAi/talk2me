@@ -20,8 +20,10 @@ const MAX_FILE = 16 * 1024 * 1024;
 
 function fail(code) { throw new Error(code); }
 function required(name) {
-  const value = String(process.env[name] || '').trim();
-  if (!value || value.length > 4096 || /[\u0000-\u001f\u007f]/.test(value)) fail(`INVALID_${name}`);
+  const raw = String(process.env[name] || '');
+  if (!raw || raw.length > 4096 || /[\u0000-\u001f\u007f]/.test(raw)) fail(`INVALID_${name}`);
+  const value = raw.trim();
+  if (!value || value !== raw) fail(`INVALID_${name}`);
   return value;
 }
 function sameFile(left, right) {
@@ -131,6 +133,7 @@ function main() {
     descriptorBoundReads: true,
     noFollowOpenRequired: true,
     inodeContinuityVerified: true,
+    rawEnvironmentControlCharactersRejected: true,
     onlyMulterDependencyChanged: true,
     adoptionAuthorized: false,
     previewActivationAuthorized: false,
