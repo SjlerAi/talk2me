@@ -31,10 +31,12 @@ function secureHash(relativePath, maxBytes, expectedOwner) {
     if (!descriptorStat.isFile()) fail(`Protected source descriptor is not a regular file: ${relativePath}`);
     if (descriptorStat.dev !== pathStat.dev || descriptorStat.ino !== pathStat.ino) fail(`Protected source changed during secure open: ${relativePath}`);
     if (descriptorStat.nlink !== 1) fail(`Protected source descriptor has additional hard links: ${relativePath}`);
+    if (descriptorStat.size !== pathStat.size || descriptorStat.mtimeMs !== pathStat.mtimeMs) fail(`Protected source metadata changed during secure open: ${relativePath}`);
     if (descriptorStat.size > maxBytes) fail(`Protected source descriptor exceeds the permitted size: ${relativePath}`);
     if (process.platform !== 'win32' && (descriptorStat.mode & 0o022) !== 0) fail(`Protected source descriptor is writable by group or world: ${relativePath}`);
     if (Number.isInteger(expectedOwner) && descriptorStat.uid !== expectedOwner) fail(`Protected source descriptor owner mismatch: ${relativePath}`);
     const bytes = fs.readFileSync(descriptor);
+    if (bytes.length !== descriptorStat.size) fail(`Protected source byte count changed during read: ${relativePath}`);
     return { file: relativePath, bytes: descriptorStat.size, sha256: crypto.createHash('sha256').update(bytes).digest('hex') };
   } finally {
     fs.closeSync(descriptor);
@@ -52,6 +54,7 @@ if (String(process.env.ALLOW_PRODUCTION_MUTATION || '').toLowerCase() === 'true'
 if (String(process.env.ENABLE_CUSTOMER_MERGE_EXECUTION || '').toLowerCase() === 'true') fail('ENABLE_CUSTOMER_MERGE_EXECUTION=true is prohibited');
 
 const rootStat = fs.lstatSync(root);
+if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) fail('Workspace root must be a real directory');
 const owner = rootStat.uid;
 const protectedFiles = [
   ['../.github/workflows/os2-preview-ci.yml', 1024 * 1024],
@@ -61,6 +64,11 @@ const protectedFiles = [
   ['migration-ledger-bootstrap-runner.js', 2 * 1024 * 1024],
   ['migration-ledger-bootstrap-evidence-verification.js', 2 * 1024 * 1024],
   ['migration-runner.js', 2 * 1024 * 1024],
+  ['backup-runner.js', 2 * 1024 * 1024],
+  ['backup-verification.js', 2 * 1024 * 1024],
+  ['restore-test-runner.js', 2 * 1024 * 1024],
+  ['restore-test-governance-check.js', 2 * 1024 * 1024],
+  ['restore-test-integration-check.js', 2 * 1024 * 1024],
   ['workspace-topology-verification.js', 2 * 1024 * 1024],
   ['workspace-topology-governance-check.js', 2 * 1024 * 1024],
   ['workspace-source-integrity.js', 2 * 1024 * 1024],
@@ -78,6 +86,7 @@ const protectedFiles = [
   ['release-candidate-gate.js', 4 * 1024 * 1024],
   ['release-manifest-verification.js', 4 * 1024 * 1024],
   ['release-manifest-check.js', 2 * 1024 * 1024],
+  ['BACKUP_AND_RECOVERY_RUNBOOK.md', 2 * 1024 * 1024],
   ['PREVIEW_ACTIVATION_RUNBOOK.md', 2 * 1024 * 1024],
   ['PREVIEW_DEPLOYMENT_RUNBOOK.md', 2 * 1024 * 1024],
   ['PREVIEW_UAT_RUNBOOK.md', 2 * 1024 * 1024],
@@ -93,6 +102,8 @@ for (const entry of entries) {
   protectedFiles.push([path.join('migrations', entry.name), 4 * 1024 * 1024]);
 }
 protectedFiles.sort((a, b) => a[0].localeCompare(b[0]));
+const names = protectedFiles.map(item => item[0]);
+if (new Set(names).size !== names.length) fail('Protected source inventory contains duplicate paths');
 
 const files = protectedFiles.map(([file, maxBytes]) => secureHash(file, maxBytes, owner));
 const canonicalInventory = files.map(item => `${item.file}\0${item.bytes}\0${item.sha256}`).join('\n');
@@ -118,7 +129,16 @@ console.log(JSON.stringify({
   ciWorkflowProtected: files.some(item => item.file === '../.github/workflows/os2-preview-ci.yml'),
   ciEvidenceControlsProtected: files.some(item => item.file === 'build-evidence.js') && files.some(item => item.file === 'ci-governance-check.js'),
   releaseGovernanceProtected: files.some(item => item.file === 'release-manifest-check.js'),
+  backupRunnerProtected: files.some(item => item.file === 'backup-runner.js'),
+  backupVerificationProtected: files.some(item => item.file === 'backup-verification.js'),
+  restoreRunnerProtected: files.some(item => item.file === 'restore-test-runner.js'),
+  restoreGovernanceProtected: files.some(item => item.file === 'restore-test-governance-check.js'),
+  restoreIntegrationProtected: files.some(item => item.file === 'restore-test-integration-check.js'),
+  recoveryRunbookProtected: files.some(item => item.file === 'BACKUP_AND_RECOVERY_RUNBOOK.md'),
+  duplicatePathsRejected: true,
   secureDescriptorReads: true,
+  pathAndDescriptorMetadataBound: true,
+  exactReadByteCountRequired: true,
   canonicalPathBinding: true,
   hardLinkRejection: true,
   ownershipConsistency: true,
