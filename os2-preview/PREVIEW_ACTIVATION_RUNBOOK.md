@@ -15,6 +15,38 @@ This runbook controls source validation before any deployment, migration, restar
 - Production: `talk2me.uent.co.za` must remain untouched
 - Customer-merge execution: disabled
 
+## Dependency lock generation
+
+A committed `package-lock.json` is mandatory. A missing lockfile is a hard stop for activation, CI, dependency audit, source approval and release freeze.
+
+Generate the initial lock only through the separately governed procedure in `DEPENDENCY_LOCK_GENERATION_RUNBOOK.md`. That procedure requires Node.js 20, npm 10, the exact controlled branch, a canonical private temporary root, a private evidence path, the exact npm registry, lifecycle scripts disabled, package-lock-only execution and independent post-publication verification.
+
+The source-only activation preflight runs `dependency-lock-generator-check.js`; it never runs `dependency-lock-generator.js`. Successful source governance must retain:
+
+```text
+dependencyLockGeneratorGovernanceVerified: true
+dependencyLockGenerationExecuted: false
+```
+
+After generation, review and commit only `package-lock.json`. Private generation evidence and temporary npm data must stay outside the repository and outside `public_html`.
+
+## Dependency lock verification
+
+Before source hashing, `dependency-lock-verification.js` must securely verify:
+
+- exact package and application identity;
+- exact reviewed direct dependencies;
+- canonical regular package files;
+- one-link ownership and safe permissions;
+- `lockfileVersion` must be `3`;
+- npm-registry HTTPS tarball URLs;
+- SHA-512 package integrity;
+- resolved dependency graph edges;
+- absence of development, linked, bundled, extraneous and install-script packages;
+- production mutation and customer-merge execution disabled.
+
+`dependency-lock-governance-check.js` then confirms CI, source protection and activation wiring. Neither dependency installation nor dependency-lock generation occurs during these source-only checks.
+
 ## Mandatory source-only preflight
 
 Run from `/home/kloka/repositories/talk2me/os2-preview`:
@@ -33,70 +65,62 @@ The preflight must execute these controls in this exact order:
 1. `workspace-topology-verification.js`
 2. `dependency-lock-verification.js`
 3. `dependency-lock-governance-check.js`
-4. `workspace-source-integrity.js`
-5. `workspace-source-integrity-check.js`
-6. `workspace-topology-governance-check.js`
-7. `migration-ledger-bootstrap-governance-check.js`
-8. `migration-ledger-bootstrap-runner-check.js`
-9. `migration-ledger-bootstrap-evidence-check.js`
-10. `migration-runner-security-check.js`
-11. `restore-test-governance-check.js`
-12. `restore-test-integration-check.js`
-13. `recovery-readiness-check.js`
-14. `recovery-release-gate.js`
-15. `runtime-release-identity-check.js`
-16. `readiness-check.js`
-17. `deployment-check.js`
-18. `uat-gate-check.js`
-19. `release-evidence-security-check.js`
-20. `release-source-integrity-check.js`
-21. `release-manifest-check.js`
+4. `dependency-lock-generator-check.js`
+5. `workspace-source-integrity.js`
+6. `workspace-source-integrity-check.js`
+7. `workspace-topology-governance-check.js`
+8. `migration-ledger-bootstrap-governance-check.js`
+9. `migration-ledger-bootstrap-runner-check.js`
+10. `migration-ledger-bootstrap-evidence-check.js`
+11. `migration-runner-security-check.js`
+12. `restore-test-governance-check.js`
+13. `restore-test-integration-check.js`
+14. `recovery-readiness-check.js`
+15. `recovery-release-gate.js`
+16. `runtime-release-identity-check.js`
+17. `readiness-check.js`
+18. `deployment-check.js`
+19. `uat-gate-check.js`
+20. `release-evidence-security-check.js`
+21. `release-source-integrity-check.js`
+22. `release-manifest-check.js`
 
-Every child control has a 30-second execution limit, forced `SIGKILL` termination on timeout, shell execution disabled, inherited output, and fixed preview-only safety flags. The preflight stops immediately when a child cannot start, times out, is interrupted, or returns a non-zero status.
+Every child control has a 30-second execution limit, forced `SIGKILL` termination on timeout, shell execution disabled, inherited output and fixed preview-only safety flags. The preflight stops when a child cannot start, times out, is interrupted or returns non-zero.
 
-## Dependency lock verification
-
-A committed `package-lock.json` is mandatory before activation source hashing. A missing lockfile is a hard stop; it is not a warning and cannot be bypassed with `npm install`, `--package-lock=false`, conditional auditing, or manual acceptance.
-
-`dependency-lock-verification.js` securely reads `package.json` and `package-lock.json` using canonical path checks, single-link regular-file checks, owner and permission controls, `O_NOFOLLOW`, descriptor identity, metadata stability, bounded reads, fatal UTF-8 decoding, LF line endings and final newline.
-
-The verifier requires:
-
-- package name `talk2me-os2-preview` and version `0.59.0`;
-- a private package with main entrypoint `server.js`;
-- the exact reviewed six direct dependencies;
-- semantic direct dependency specifications;
-- no root development, optional, bundled or workspace dependencies;
-- no dangerous npm lifecycle scripts;
-- `lockfileVersion` must be `3`;
-- the lock root must match package identity and direct dependencies exactly;
-- normalized paths contained under `node_modules/`;
-- no linked, bundled, extraneous, development or install-script packages;
-- HTTPS tarballs from `registry.npmjs.org` only;
-- SHA-512 integrity for every installed package;
-- resolvable dependency graph edges;
-- a lock entry for every direct dependency.
-
-The verifier calculates SHA-256 for both package files and reports `packageLockPresent: true`. It is read-only and performs no dependency installation.
-
-`dependency-lock-governance-check.js` confirms that the verifier, CI workflow, activation order, protected source inventory and runbooks enforce the same policy.
-
-After the lock passes verification, dependency installation must use:
-
-```bash
-npm ci --ignore-scripts --no-audit --no-fund
-npm audit --omit=dev --audit-level=high
-```
-
-`npm install` is not an approved substitute.
-
-## Sanitized child environment
+## Sanitized allowlisted child environment
 
 Each preflight child runs in a sanitized allowlisted child environment. The complete parent environment is never copied into a child process.
 
-Only these operational variables may be inherited when present: `PATH`, `HOME`, `USER`, `LOGNAME`, `TMPDIR`, `TEMP`, `TMP`, `LANG`, `LC_ALL`, `TZ`, `CI`, and `GITHUB_ACTIONS`.
+Only these operational values may be inherited when present:
 
-These startup hooks and path overrides are explicitly prohibited from inheritance: `NODE_OPTIONS`, `NODE_PATH`, `BASH_ENV`, `ENV`, `CDPATH`, `GIT_DIR`, `GIT_WORK_TREE`, `NPM_CONFIG_PREFIX`, and `NPM_CONFIG_USERCONFIG`.
+```text
+PATH
+HOME
+USER
+LOGNAME
+TMPDIR
+TEMP
+TMP
+LANG
+LC_ALL
+TZ
+CI
+GITHUB_ACTIONS
+```
+
+These startup hooks and path overrides are prohibited:
+
+```text
+NODE_OPTIONS
+NODE_PATH
+BASH_ENV
+ENV
+CDPATH
+GIT_DIR
+GIT_WORK_TREE
+NPM_CONFIG_PREFIX
+NPM_CONFIG_USERCONFIG
+```
 
 The preflight always forces:
 
@@ -109,46 +133,38 @@ ALLOW_PRODUCTION_MUTATION=false
 ENABLE_CUSTOMER_MERGE_EXECUTION=false
 ```
 
-The resulting environment object is frozen before the first child starts, its key count is bounded, and the same immutable environment is supplied to all 21 ordered controls. Production mutation and merge execution are forced off in every child.
-
-Successful preflight evidence must report `childEnvironmentSanitized: true`, `childEnvironmentAllowlistApplied: true`, `childEnvironmentFrozen: true`, and false inheritance markers for all prohibited variables.
+The environment object is frozen, its key count is bounded, and the same immutable values are supplied to all 22 controls. Production mutation and merge execution are forced off in every child.
 
 ## Workspace topology verification
 
-Before other activation controls, the workspace verifier must prove that the executing directory is the configured preview application root.
+The workspace verifier must prove that the executing directory is the configured preview application root. It rejects a missing, relative, non-normalized or mismatched root; validates application and migration directories as real non-symlink directories; uses `O_DIRECTORY | O_NOFOLLOW`; compares path and descriptor identity; rejects unsafe permissions; requires owner consistency; rejects symbolic links and additional hard links; bounds protected file sizes; requires 25 ordered migrations and migration 025; and rechecks directory identity after inventory validation.
 
-It must reject a missing, relative, non-normalized, or mismatched `PREVIEW_APP_ROOT`; validate the application root and migrations directory as real non-symlink directories; open directory descriptors with `O_DIRECTORY | O_NOFOLLOW`; compare path and descriptor device/inode identities; reject unsafe write permissions; require protected source files to share the preview-root owner; reject symbolic links and additional hard links; enforce bounded file sizes; require at least 25 ordered migration files and migration 025; and re-check directory identity after inventory validation.
+`package-lock.json` is mandatory and receives the same path, ownership, mode, link and descriptor checks.
 
-## Deterministic source integrity inventory
+## Deterministic SHA-256 inventory
 
-After dependency lock verification, `workspace-source-integrity.js` creates a deterministic SHA-256 inventory in memory. It must not modify the workspace or write evidence files.
+Immediately after dependency governance, `workspace-source-integrity.js` creates a deterministic SHA-256 inventory in memory. It must not modify the workspace.
 
-The inventory requires and protects:
+The inventory includes:
 
+- `.github/workflows/os2-preview-ci.yml`;
 - `package.json` and `package-lock.json`;
-- dependency lock verification and governance;
-- the CI workflow;
-- package and server entrypoints;
-- bootstrap and migration controls;
-- backup generation and verification;
-- isolated restore testing;
-- recovery readiness and recovery release gates;
-- activation, readiness, deployment and UAT gates;
-- release source verification and release freeze;
-- related governance checks and runbooks;
-- every ordered migration.
+- dependency lock verification, generation and governance controls;
+- `DEPENDENCY_LOCK_GENERATION_RUNBOOK.md`;
+- server, migration, recovery, activation, readiness, deployment, UAT and release controls;
+- all protected governance files;
+- every ordered migration;
+- all activation, deployment, UAT, release, backup and CI runbooks.
 
-The inventory is self-protecting and includes `workspace-source-integrity.js` and `workspace-source-integrity-check.js`. The CI workflow file itself is part of the protected source inventory. Any change to `.github/workflows/os2-preview-ci.yml`, dependency controls, package files, code, migrations or runbooks changes `inventorySha256` and invalidates earlier CI source evidence.
+The CI workflow file itself is part of the protected source inventory. Any workflow change changes the source inventory digest.
 
-Each source is read through secure descriptor-based reads using `O_NOFOLLOW`, canonical path binding, device/inode comparison, additional hard-link rejection, ownership consistency, safe permission checks and bounded reads.
+Each protected file is read through secure descriptor-based reads using `O_NOFOLLOW`, canonical path binding, device and inode comparison, additional hard-link rejection, owner consistency, safe permissions and bounded reads.
 
-The canonical inventory record contains the relative filename, byte length and SHA-256 checksum for each protected file. Records are sorted by filename and hashed again to produce one source inventory digest named `inventorySha256`.
-
-Retain the full source inventory output with activation evidence. A different source inventory digest means the source surface changed and previous activation evidence is no longer applicable.
+The canonical record contains relative filename, byte length and SHA-256. Sorted records are hashed into one source inventory digest named `inventorySha256`.
 
 ## Governed recovery commands
 
-The package exposes these exact commands:
+The package exposes these recovery commands:
 
 ```text
 backup:preview                  node backup-runner.js
@@ -160,11 +176,11 @@ check:recovery-readiness        node recovery-readiness-check.js
 check:recovery-release          node recovery-release-gate.js
 ```
 
-`npm run check` syntax-checks backup, verification, restore and recovery files. It executes source-governance checks but must not execute `backup-runner.js`, `backup-verification.js`, or `restore-test-runner.js`, because those commands require explicit preview identity and may change recovery evidence.
+`npm run check` may syntax-check recovery files and execute source-only governance. It must not execute backup generation, backup verification or restore testing.
 
 ## Approved release source integrity
 
-After successful CI for the exact candidate commit, retain the approved workspace inventory digest as `RELEASE_SOURCE_INVENTORY_SHA256`.
+After successful CI for the exact candidate commit, retain the approved `inventorySha256` as `RELEASE_SOURCE_INVENTORY_SHA256` and run:
 
 ```bash
 PREVIEW_APP_ROOT=/home/kloka/repositories/talk2me/os2-preview \
@@ -176,17 +192,18 @@ ENABLE_CUSTOMER_MERGE_EXECUTION=false \
 npm run verify:release-source-integrity
 ```
 
-The verifier must complete within 30 seconds, run with shell execution disabled, require the committed lockfile in the protected inventory, and report `exactApprovedInventoryMatched: true` and `packageLockPresent: true`.
+The verifier must complete within 30 seconds, use shell execution disabled, require the committed lockfile and report exact approved inventory matching.
 
-Any source change after CI approval invalidates the candidate. Re-run approved source-integrity verification immediately before formal UAT and again immediately before release freeze.
+Any protected source change invalidates prior CI approval and requires a new CI run and approved digest.
 
-## Preflight limitations
+## Source-only limitations
 
-A successful preflight proves source-governance readiness only. It does not install dependencies, connect to the database, create backups, verify backups, run restore tests, bootstrap the migration ledger, apply migrations, restart preview, execute UAT, or deploy.
+A successful activation preflight proves source governance only. It does not prove dependency installation, backup execution, backup verification, restore testing, database migration, preview data verification, deployment, restart, smoke testing or UAT.
 
-Successful output must retain:
+Successful preflight evidence must retain:
 
 ```text
+dependencyLockGenerationExecuted: false
 dependencyInstallationExecuted: false
 backupRuntimeExecuted: false
 backupVerificationExecuted: false
@@ -198,60 +215,84 @@ productionMutationEnabled: false
 mergeExecutionEnabled: false
 ```
 
-## Activation sequence after source preflight
+## Activation sequence
 
 1. Confirm the controlled branch and exact intended commit.
-2. Generate and commit `package-lock.json` in a trusted Node.js 20 and npm 10 environment.
-3. Run dependency lock verification and dependency lock governance.
-4. Repeat source-only preflight so the committed lock is included in the protected digest.
-5. Run `npm ci --ignore-scripts --no-audit --no-fund`.
-6. Run `npm audit --omit=dev --audit-level=high`.
-7. Run `npm run check`, `npm run check:readiness`, `npm run check:deployment`, `npm run check:uat-gate`, `npm run check:recovery-readiness`, and `npm run check:recovery-release`.
-8. Retain the approved CI source inventory and set `RELEASE_SOURCE_INVENTORY_SHA256`.
-9. Run approved release-source verification.
-10. Run `npm run backup:preview` against `kloka_talk2me` with preview-only flags.
-11. Run `npm run verify:backup -- <backup-id>` and retain verified backup evidence.
-12. Pre-create an empty isolated restore database using the governed naming pattern.
-13. Run `npm run restore:test -- <backup-id>` with explicit restore-test approval and reviewer identity.
-14. Retain a passed restore-test record proving checksum reverification, target emptiness, required tables, exactly 25 migration rows and zero failed checks.
-15. Create a private canonical bootstrap-evidence directory.
-16. Execute the one-time migration-ledger bootstrap with verified backup evidence.
-17. Verify the bootstrap evidence pair.
-18. Apply migrations with the same evidence path and preview-only flags.
-19. Accept completion only when lock release and database closure are proven.
-20. Run `DB_NAME=kloka_talk2me npm run verify:preview-data`.
-21. Re-run source verification before formal UAT.
-22. Complete automated and manual preview UAT.
-23. Re-run source verification before release freeze.
-24. Freeze and verify the release manifest.
-25. Restart only the preview Node.js application.
-26. Run technical smoke testing.
-27. Record all results in GitHub Issue #83.
+2. When absent, generate `package-lock.json` only through `dependency-lock-generator.js` and retain the private evidence pair.
+3. Review and commit the generated lockfile.
+4. Repeat the source-only activation preflight.
+5. Run `npm ci --ignore-scripts --no-audit --no-fund` from the committed lockfile.
+6. Run `npm run check`, readiness, deployment, UAT and recovery governance checks.
+7. Run `npm audit --omit=dev --audit-level=high` and stop on unresolved high or critical findings.
+8. Retain the exact CI workspace source inventory and build-evidence artifact.
+9. Run approved release-source integrity verification.
+10. Generate and verify the preview database backup.
+11. Pre-create an empty isolated restore database.
+12. Run the isolated restore test and require zero failed checks.
+13. Create the private bootstrap-evidence directory.
+14. Execute the one-time migration-ledger bootstrap.
+15. Verify the bootstrap evidence pair.
+16. Apply the 25 ordered preview migrations.
+17. Require advisory-lock release and database closure evidence.
+18. Run preview-data verification.
+19. Re-run approved source-integrity verification before formal UAT.
+20. Complete automated and manual preview UAT.
+21. Re-run source-integrity verification before release freeze.
+22. Freeze and verify the release manifest.
+23. Restart only the preview Node.js application.
+24. Run technical smoke testing.
+25. Record all evidence in GitHub Issue #83.
+
+## Dependency installation policy
+
+A missing lockfile is a hard stop. `npm install` is not an approved release installation method. The exact committed lock must drive:
+
+```bash
+npm ci --ignore-scripts --no-audit --no-fund
+npm audit --omit=dev --audit-level=high
+```
+
+Dependency installation and auditing occur only after dependency-lock verification, generator governance, workspace topology and source integrity pass for the exact candidate.
 
 ## Recovery controls
 
-Backup generation must be preview-only, branch-bound, private-directory restricted, descriptor-based, checksum-backed, bounded and fail-closed. Backup verification must re-open the exact private file, bind path and descriptor identity, recompute SHA-256 and record passed operational evidence.
+Backup generation is preview-only, branch-bound, private-directory restricted, checksum-backed, bounded and fail-closed. Backup verification reopens the exact private file, binds path and descriptor identity, recalculates SHA-256 and records operational evidence.
 
-The restore test must use a pre-created empty isolated database. It must never create or drop databases, must reverify the backup checksum before import, run the import with a sanitized bounded child process, create running evidence before import, record the authorised reviewer, compare restored table count, require the core tables, require exactly 25 valid migration-ledger entries and finish with `failedChecks: 0`.
-
-Recovery governance passing is not recovery execution evidence.
+Restore testing requires a pre-created empty isolated database, checksum reverification, a sanitized bounded import process, running evidence before import, an authorised reviewer, matching table counts, core tables, exactly 25 valid migration rows and zero failed checks.
 
 ## Bootstrap and migration controls
 
-The bootstrap runner must refuse every database except `kloka_talk2me`, require verified backup evidence, refuse an existing migration ledger, securely read the reviewed bootstrap source, acquire and verify the preview advisory lock, verify the created schema and empty ledger, confirm lock release, close MySQL before publishing evidence, and atomically publish private JSON evidence and its SHA-256 sidecar.
+The bootstrap runner refuses every database except `kloka_talk2me`, requires verified backup evidence, refuses an existing migration ledger, securely reads the reviewed bootstrap source, verifies the advisory-lock lifecycle, confirms the exact empty ledger and publishes private evidence only after MySQL closes.
 
-The migration runner must re-run the bootstrap evidence verifier before opening MySQL. It must securely freeze migration sources, validate the ledger as an exact checksum-matching strict prefix, apply only remaining ordered migrations, confirm lock release, close MySQL and only then print final success.
+The migration runner reverifies bootstrap evidence before opening MySQL, freezes migration sources, requires a checksum-matching strict ledger prefix, applies remaining migrations in order, confirms lock release and closes MySQL before final success.
 
 Individual `applied <migration>` lines are not completion evidence.
 
-## Secure release-evidence verification
+## Secure release evidence
 
-After release freeze, `release-manifest-verification.js` must receive the exact commit SHA, controlled branch, approved source digest and absolute canonical manifest path. It must first rerun approved source-integrity verification, then securely verify the release manifest and checksum sidecar, package files, bootstrap source, every migration source, and the private bootstrap evidence pair.
+After release freeze, release-manifest verification receives the exact commit, controlled branch, approved source digest and canonical manifest path. It first reruns source-integrity verification and then securely verifies the manifest, checksum sidecar, package files, bootstrap source, every migration and the private bootstrap evidence pair.
 
-Protected reads must reject symbolic links, additional hard links, non-canonical paths, descriptor identity changes, invalid private permissions and oversized files. They must use `O_NOFOLLOW` and descriptor-based reads. Checksums must use constant-time comparison where applicable.
+Protected reads reject symbolic links, additional hard links, non-canonical paths, descriptor changes, unsafe permissions and oversized files. Checksums use constant-time comparison where applicable.
 
 ## Hard-stop conditions
 
-Do not proceed when preview identity differs, protected paths are unsafe, a preflight child fails, `package-lock.json` is absent, dependency lock verification fails, lockfile version is not 3, package and lock dependencies differ, a package uses an unapproved source or invalid integrity, `npm ci` or dependency audit fails, source inventory differs from approved CI evidence, recovery commands differ, database or branch identity is wrong, Node.js is not 20.x, production mutation or merge execution is enabled, verified backup or passed restore evidence is missing, bootstrap evidence is missing, migration completion cannot prove lock release and connection closure, preview-data verification fails, UAT evidence is incomplete, release-manifest verification fails, or the exact deployed commit cannot be proven.
+Do not proceed when:
 
-The committed `package-lock.json`, dependency installation, migration-ledger bootstrap, migration 025, preview-data verification, deployment, restart and formal UAT have not yet been completed.
+- preview root identity differs;
+- protected paths are unsafe;
+- a source-only child exceeds 30 seconds;
+- `package-lock.json` is absent;
+- dependency-lock verification fails;
+- dependency-lock generator governance fails;
+- Node.js is not 20.x;
+- production mutation or merge execution is enabled;
+- the source inventory differs from the approved CI digest;
+- the dependency audit has unresolved high or critical findings;
+- verified backup or restore evidence is missing;
+- bootstrap or migration evidence is incomplete;
+- preview-data verification fails;
+- UAT evidence is incomplete;
+- release-manifest verification fails;
+- the exact deployed commit cannot be proven.
+
+The dependency lock has not been generated or committed. The migration-ledger bootstrap, migration 025, preview data verification, deployment, restart and formal UAT have not yet been executed.
