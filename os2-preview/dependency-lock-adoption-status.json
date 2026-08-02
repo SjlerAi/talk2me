@@ -1,0 +1,22 @@
+{
+  "application": "talk2me-os2-preview",
+  "version": "0.59.0",
+  "branch": "agent/talk2me-os2-integrated-rebuild",
+  "database": "kloka_talk2me",
+  "batch": "dependency-lock-adoption",
+  "meaningfulControls": 60,
+  "sourceGovernanceImplemented": true,
+  "generationWorkflowExecuted": false,
+  "artifactVerificationExecuted": false,
+  "adoptionMaterializationExecuted": false,
+  "provenanceVerificationExecuted": false,
+  "adoptionWorkflowExecuted": false,
+  "dependencyInstallationExecuted": false,
+  "dependencyAuditExecuted": false,
+  "previewDeploymentExecuted": false,
+  "previewRestartExecuted": false,
+  "automatedUatExecuted": false,
+  "formalUatStarted": false,
+  "productionMutationEnabled": false,
+  "mergeExecutionEnabled": false
+}
