@@ -19,7 +19,7 @@ for (const file of ['dependency-lock-generator.js', 'dependency-lock-verificatio
 
 const generator = requireMarkers('dependency-lock-generator.js', [
   "expectedDatabase = 'kloka_talk2me'", "expectedBranch = 'agent/talk2me-os2-integrated-rebuild'",
-  "expectedApplication = 'talk2me-os2-preview'", "expectedVersion = '0.59.0'", 'expectedNodeMajor = 20',
+  "expectedApplication = 'talk2me-os2-preview'", "expectedVersion = '0.60.0'", 'expectedNodeMajor = 20',
   'expectedNpmMajor = 10', "expectedRegistry = 'https://registry.npmjs.org/'", 'maxPackageBytes = 1024 * 1024',
   'maxLockBytes = 16 * 1024 * 1024', 'generationTimeoutMs = 10 * 60 * 1000', 'verifierTimeoutMs = 60 * 1000',
   'const expectedDirectDependencies = Object.freeze({', "bcryptjs: '^2.4.3'", "express: '^4.19.2'",
