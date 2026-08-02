@@ -40,7 +40,7 @@ const orderedMarkers = [
   '  validateEvidenceTarget(evidencePath);', '  const sql = secureReadBootstrap();', '  validateBootstrapSql(sql);', '  const connection = await mysql.createConnection',
   'DATABASE() AS database_name', 'SELECT GET_LOCK(?, ?) AS acquired', 'BOOTSTRAP_REFUSES_EXISTING_LEDGER_TABLE',
   'await connection.query(sql)', 'await verifyLedgerSchema(connection)', 'SELECT RELEASE_LOCK(?) AS released',
-  'SELECT IS_FREE_LOCK(?) AS is_free', 'await connection.end()', 'publishEvidencePair(evidencePath, evidence)'
+  'SELECT IS_FREE_LOCK(?) AS is_free', 'await connection.end()', 'const evidenceSha256 = publishEvidencePair(evidencePath, evidence)'
 ];
 let previous = -1;
 for (const marker of orderedMarkers) {
@@ -55,7 +55,7 @@ if (!/multipleStatements:\s*false/.test(runner)) throw new Error('Bootstrap data
 if (!/enableKeepAlive:\s*false/.test(runner)) throw new Error('Bootstrap database connection must disable keepalive');
 if (!/connectTimeout:\s*connectTimeoutMs/.test(runner)) throw new Error('Bootstrap database connection timeout must be explicit');
 if (!runner.includes("if ((sql.match(/;/g) || []).length !== 1)")) throw new Error('Bootstrap SQL single-statement enforcement missing');
-if (runner.indexOf('publishEvidencePair(evidencePath, evidence)') < runner.indexOf('await connection.end()')) throw new Error('Evidence publication must follow database closure');
+if (runner.indexOf('const evidenceSha256 = publishEvidencePair(evidencePath, evidence)') < runner.indexOf('await connection.end()')) throw new Error('Evidence publication must follow database closure');
 
 requireMarkers(verifier, [
   'preexistingLedgerTableCount !== 0', 'createdLedgerTableCount !== 1', 'advisoryLockReleased !== true',
