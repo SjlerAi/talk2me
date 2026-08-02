@@ -7,7 +7,7 @@ This runbook governs source validation and release preparation for `talk2me.klok
 ## Fixed preview identity
 
 - Application: `talk2me-os2-preview`
-- Version: `0.59.0`
+- Version: `0.60.0`
 - Branch: `agent/talk2me-os2-integrated-rebuild`
 - Application root: `/home/kloka/repositories/talk2me/os2-preview`
 - Database: `kloka_talk2me`
