@@ -40,32 +40,18 @@ requireAll(migration025, ['ADD COLUMN restore_test_id BIGINT NULL', 'idx_merge_e
 forbid(migration025, 'MAX(rt.id)', 'non-chronological restore-test backfill');
 
 requireAll(readiness, ['rt.id=a.restore_test_id', 'restoreEvidencePinned', 'restoreBelongsToBackup', "row.restore_status==='passed'", "row.restore_target_environment==='isolated_preview_restore'", "row.restore_actual_database_name==='kloka_talk2me'", 'Number(row.restore_failed_checks||0)===0', 'executionAvailable:false'], 'merge execution readiness');
-requireAll(schemaVerification, ["const EXPECTED_MIGRATION_COUNT = 25", "'restore_test_id'", 'restore_test_id IS NULL', 'INVALID_REPRESENTATIVE_PERMISSIONS', 'EXPIRED_ACTIVE_REPRESENTATIVES'], 'schema verification');
+requireAll(schemaVerification, ["const EXPECTED_MIGRATION_COUNT = 25", "'restore_test_id'", 'restore_test_id IS NULL', 'INVALID_REPRESENTATIVE_PERMISSIONS', 'EXPIRED_ACTIVE_REPRESENTATIVES', 'RESTORE_PIN_MIGRATION_NOT_APPLIED'], 'schema verification');
 requireAll(restoreEvidenceVerification, ["const PREVIEW_DATABASE = 'kloka_talk2me'", 'database !== PREVIEW_DATABASE', 'LEFT JOIN os2_backup_runs b ON b.id=a.backup_run_id', 'LEFT JOIN os2_restore_tests rt ON rt.id=a.restore_test_id', 'Number(row.restore_backup_run_id) !== Number(row.backup_run_id)', "row.backup_status !== 'verified'", "row.restore_status !== 'passed'", "row.target_environment !== 'isolated_preview_restore'", 'row.expected_database_name !== PREVIEW_DATABASE || row.actual_database_name !== PREVIEW_DATABASE', 'row.restore_completed_at > row.authorised_at', 'productionMutationEnabled: false', 'mergeExecutionEnabled: false'], 'restore evidence verification');
 requireAll(previewDataVerification, ["expectedDatabase = 'kloka_talk2me'", "{ file: 'schema-verification.js'", "{ file: 'merge-restore-evidence-verification.js'", "encoding: 'utf8'", 'maxBuffer: maxVerifierOutputBytes', 'timeout: verifierTimeoutMs', "killSignal: 'SIGKILL'", 'shell: false', 'result.error', 'result.signal', 'result.status !== 0', 'JSON.parse', 'schemaVerifiedBeforeRestoreEvidence: true', 'verifierEnvironmentSanitized: true', 'productionMutationEnabled: false', 'mergeExecutionEnabled: false'], 'preview data verifier');
 if (previewDataVerification.indexOf('schema-verification.js') > previewDataVerification.indexOf('merge-restore-evidence-verification.js')) throw new Error('Preview data verification order must remain schema then restore evidence');
 
 requireAll(packageSource, ['"version": "0.60.0"', '"verify:merge-restore-evidence": "node merge-restore-evidence-verification.js"', '"verify:preview-data": "node preview-data-verification.js"', '"verify:release-manifest": "node release-manifest-verification.js"', 'node --check merge-restore-evidence-verification.js', 'node --check preview-data-verification.js', 'node --check release-manifest-verification.js'], 'package registration');
-requireAll(releaseManifestVerification, [
-  "const expectedPreviewVersion = '0.60.0'",
-  "const expectedReleaseBranch = 'agent/talk2me-os2-integrated-rebuild'",
-  "const expectedRestorePinMigration = '20260801_025_merge_authorisation_restore_pin.sql'",
-  "const expectedPreviewDataOrder = ['schema-verification.js', 'merge-restore-evidence-verification.js']",
-  'manifest.version !== expectedPreviewVersion',
-  'crypto.timingSafeEqual',
-  'verifiedBranch !== expectedReleaseBranch',
-  'manifest.branch !== expectedReleaseBranch || manifest.branch !== verifiedBranch',
-  'manifest.previewDataVerificationRequired !== true',
-  "requireExactArray(manifest.previewDataVerificationOrder, expectedPreviewDataOrder, 'Preview data verification order')",
-  'manifest.productionMutationEnabled !== false || manifest.mergeExecutionEnabled !== false',
-  'manifest.restorePinMigration !== expectedRestorePinMigration'
-], 'release manifest verification');
+requireAll(releaseManifestVerification, ["const expectedPreviewVersion = '0.60.0'", "const expectedReleaseBranch = 'agent/talk2me-os2-integrated-rebuild'", "const expectedRestorePinMigration = '20260801_025_merge_authorisation_restore_pin.sql'", "const expectedPreviewDataOrder = ['schema-verification.js', 'merge-restore-evidence-verification.js']", 'manifest.version !== expectedPreviewVersion', 'crypto.timingSafeEqual', 'verifiedBranch !== expectedReleaseBranch', 'manifest.branch !== expectedReleaseBranch || manifest.branch !== verifiedBranch', 'manifest.previewDataVerificationRequired !== true', "requireExactArray(manifest.previewDataVerificationOrder, expectedPreviewDataOrder, 'Preview data verification order')", 'manifest.productionMutationEnabled !== false || manifest.mergeExecutionEnabled !== false', 'manifest.restorePinMigration !== expectedRestorePinMigration'], 'release manifest verification');
 
-for (const [source, label] of [[previewReadiness, 'preview readiness'], [deploymentCheck, 'deployment gate'], [uatGate, 'UAT gate'], [releaseCandidateGate, 'release candidate gate']]) requireAll(source, ['20260801_025_merge_authorisation_restore_pin.sql', 'preview-data-verification.js'], label);
-requireAll(previewReadiness, ["process.env.DB_NAME !== 'kloka_talk2me'", "scripts['verify:preview-data']"], 'preview readiness');
-requireAll(deploymentCheck, ["'verify:preview-data'", 'executionEnabled: false'], 'deployment gate');
-requireAll(uatGate, ["pkg.scripts['verify:preview-data']", 'executionAvailable:false'], 'UAT gate');
-requireAll(releaseCandidateGate, ["'verify:preview-data'", "previewDataVerificationOrder: ['schema-verification.js','merge-restore-evidence-verification.js']", 'rt.id=a.restore_test_id', 'restoreBelongsToBackup', 'executionAvailable:false', 'mergeExecutionEnabled: false', 'package-lock.json is required before release-candidate freeze'], 'release candidate gate');
+requireAll(previewReadiness, ["process.env.DB_NAME !== 'kloka_talk2me'", 'preview-data-verification.js', "scripts['verify:preview-data']", '20260801_025_merge_authorisation_restore_pin.sql'], 'preview readiness');
+requireAll(deploymentCheck, ['EXPECTED_MIGRATION_COUNT = 25', 'RESTORE_PIN_MIGRATION_NOT_APPLIED', 'preview-data-verification.js', "'verify:preview-data'", 'restorePinMigrationRequired: true', 'mergeExecutionEnabled: false'], 'deployment gate');
+requireAll(uatGate, ['EXPECTED_MIGRATION_COUNT = 25', 'RESTORE_PIN_MIGRATION_NOT_APPLIED', 'preview-data-verification.js', "pkg.scripts['verify:preview-data']", 'mergeExecutionEnabled: false'], 'UAT gate');
+requireAll(releaseCandidateGate, ['expectedRestorePinMigration', 'preview-data-verification.js', "'verify:preview-data'", 'expectedPreviewDataOrder', 'rt.id=a.restore_test_id', 'restoreBelongsToBackup', 'executionAvailable:false', 'mergeExecutionEnabled: false', 'package-lock.json is required before release-candidate freeze'], 'release candidate gate');
 requireAll(releaseManifestCheck, ['previewDataVerificationRequired:true', "previewDataVerificationOrder:['schema-verification.js','merge-restore-evidence-verification.js']", 'mergeExecutionEnabled:false', "pkg.scripts.check.includes('release-manifest-check.js')"], 'release manifest governance');
 forbid(releaseManifestCheck, "pkg.scripts.check.includes('release-candidate-gate.js') === false", 'inverted release-candidate normal-chain assertion');
 
