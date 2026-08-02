@@ -17,7 +17,7 @@ This runbook governs source validation and release preparation for `talk2me.klok
 
 ## Dependency lock generation
 
-A committed `package-lock.json` is mandatory. A missing lockfile is a hard stop for activation, CI, dependency audit, source approval, and release freeze.
+A committed `package-lock.json` is mandatory. A missing lockfile is a hard failure and a hard stop for activation, CI, dependency audit, source approval, and release freeze.
 
 Generate the initial lock only through `DEPENDENCY_LOCK_GENERATION_RUNBOOK.md` or the manual read-only GitHub workflow documented in `DEPENDENCY_LOCK_WORKFLOW_RUNBOOK.md`.
 
@@ -109,7 +109,7 @@ dependencyLockAdoptionMaterializationExecuted: false
 - exact reviewed direct dependencies;
 - canonical regular package files;
 - one-link ownership and safe permissions;
-- `lockfileVersion` equal to `3`;
+- lockfile version 3;
 - npm-registry HTTPS tarball URLs;
 - SHA-512 package integrity;
 - resolved dependency graph edges;
@@ -214,7 +214,7 @@ The same frozen environment is supplied to all 25 controls.
 
 The topology verifier proves the executing directory is the configured preview root. It rejects relative, non-normalized, mismatched, linked, unsafe, or owner-inconsistent paths; uses `O_DIRECTORY | O_NOFOLLOW`; compares path and descriptor identity; bounds protected source sizes; and requires all 25 ordered migrations including migration 025.
 
-`package-lock.json` is mandatory and receives the same ownership, path, mode, link, and descriptor controls.
+`package-lock.json` and `dependency-lock-provenance.json` are mandatory for activation and receive the same ownership, path, mode, link, and descriptor controls.
 
 ## Deterministic SHA-256 inventory
 
