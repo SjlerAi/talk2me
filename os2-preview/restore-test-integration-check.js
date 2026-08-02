@@ -42,7 +42,7 @@ requireMarkers('restore-test-governance-check.js', [
 requireMarkers('BACKUP_AND_RECOVERY_RUNBOOK.md', [
   'Controlled isolated restore test', 'pre-created empty isolated database', 'must never create or drop the target database',
   'ALLOW_PREVIEW_RESTORE_TEST=true', 'RESTORE_TARGET_DATABASE', 'RESTORE_REVIEWER_ID', 'Import timeout is 20 minutes',
-  'backup checksum is reverified before import', 'Exactly 25 migration-ledger rows are required', 'targetDatabaseDroppedAutomatically: false',
+  'Backup checksum is reverified before import', 'Exactly 25 migration-ledger rows are required', 'targetDatabaseDroppedAutomatically: false',
   'failedChecks: 0', 'Manual cleanup after evidence retention'
 ]);
 requireMarkers('migrations/20260801_011_backup_recovery_and_operations.sql', [
@@ -52,8 +52,12 @@ requireMarkers('migrations/20260801_011_backup_recovery_and_operations.sql', [
   'CONSTRAINT fk_restore_backup', 'CONSTRAINT fk_restore_reviewed_by'
 ]);
 requireMarkers('merge-restore-evidence-verification.js', [
-  "rt.status <> 'passed'", "rt.target_environment <> 'isolated_preview_restore'", 'rt.table_count <> b.table_count',
-  'rt.verified_checks IS NULL', 'rt.failed_checks <> 0', 'rt.evidence_json IS NULL', 'rt.reviewed_by IS NULL',
+  "row.restore_status !== 'passed'", "row.target_environment !== 'isolated_preview_restore'",
+  'Number(row.restore_table_count) !== Number(row.table_count)',
+  '!Number.isInteger(Number(row.verified_checks)) || Number(row.verified_checks) <= 0',
+  '!Number.isInteger(Number(row.failed_checks)) || Number(row.failed_checks) !== 0',
+  "row.evidence_json === null || typeof row.evidence_json !== 'object'",
+  '!Number.isInteger(Number(row.reviewed_by)) || Number(row.reviewed_by) <= 0',
   'restoreIdentityVerified: true', 'invalidAuthorisations: 0'
 ]);
 
