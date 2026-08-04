@@ -88,10 +88,16 @@
           <% if(item.kind==='change'){ %>
             <form method="post" action="<%= item.actionUrl %>" class="approval-decision-form" data-approval-action data-return-tab="<%= item.category %>">
               <% if(panelMode){ %><input type="hidden" name="panel" value="1"><% } %>
-              <% if(item.needsAccountNumber){ %><label>Official account number<input name="account_number" placeholder="Enter unique account number" required></label><% } %>
+              <% if(item.needsAccountNumber){ %>
+                <div class="approval-reason">
+                  <strong>Official account number required</strong>
+                  <p>This imported provisional mobile line or fixed service cannot be approved until the official account number has been entered.</p>
+                </div>
+                <label>Official account number<input name="account_number" placeholder="Enter official account number" required maxlength="80" autocomplete="off"></label>
+              <% } %>
               <textarea name="comment" rows="2" placeholder="Optional management comment"></textarea>
               <div>
-                <button class="btn primary" type="submit" name="decision" value="approve"><%= item.category==='client_claims'?'Approve & Assign Account':'Approve' %></button>
+                <button class="btn primary" type="submit" name="decision" value="approve"><%= item.needsAccountNumber?'Save account number and approve':(item.category==='client_claims'?'Approve & Assign Account':'Approve') %></button>
                 <button class="btn danger" type="submit" name="decision" value="reject" formnovalidate>Reject</button>
               </div>
             </form>

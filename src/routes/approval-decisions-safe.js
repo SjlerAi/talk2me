@@ -3,13 +3,18 @@ const crypto = require('crypto');
 const db = require('../config/db');
 const { requireAuth } = require('../middleware/auth');
 const { audit } = require('../services/audit');
+const {
+  applyProvisionalAccountApproval,
+  canAccessGeneralApprovals,
+  canAccessProvisionalApproval,
+  isProvisionalAccountRequest
+} = require('../services/provisional-account-approval');
 
 const router = express.Router();
-const MANAGEMENT_ROLES = new Set(['owner', 'admin', 'manager']);
 const PENDING_STATUSES = new Set(['pending_manager', 'pending_owner']);
 
 function isManagement(user) {
-  return Boolean(user && MANAGEMENT_ROLES.has(String(user.role || '').toLowerCase()));
+  return canAccessProvisionalApproval(user);
 }
 
 function clean(value, max = 5000) {
@@ -146,10 +151,25 @@ router.post('/approvals/:id/decision', requireAuth, async (req, res, next) => {
     await conn.beginTransaction();
     const [[request]] = await conn.execute('SELECT * FROM data_change_requests WHERE id=:id FOR UPDATE', { id: requestId });
     if (!request) throw new Error('Approval request not found.');
-    if (!PENDING_STATUSES.has(String(request.status || ''))) throw new Error('This request has already been reviewed.');
-
     const decision = clean(req.body.decision, 20).toLowerCase();
     const comment = clean(req.body.comment, 2000) || null;
+    const proposed = parseProposal(request.proposed_data_json);
+    const provisionalAccountApproval = isProvisionalAccountRequest(request, proposed);
+    if (!provisionalAccountApproval && !canAccessGeneralApprovals(req.session.user)) {
+      await conn.rollback();
+      return res.status(403).render('error', {
+        title: 'Access denied',
+        message: 'Administrators can only complete provisional mobile/fixed account-number approvals.'
+      });
+    }
+    if (!PENDING_STATUSES.has(String(request.status || ''))) {
+      if (provisionalAccountApproval && request.status === 'applied' && decision === 'approve') {
+        await conn.rollback();
+        return redirectBack(req, res, 'history', 'already-applied');
+      }
+      throw new Error('This request has already been reviewed.');
+    }
+
     if (decision === 'reject') {
       await conn.execute(`UPDATE data_change_requests SET status='rejected',reviewed_by=:reviewedBy,
         reviewed_at=NOW(),review_comment=:comment WHERE id=:requestId`, {
@@ -169,7 +189,20 @@ router.post('/approvals/:id/decision', requireAuth, async (req, res, next) => {
     }
     if (decision !== 'approve') throw new Error('Choose approve or reject.');
 
-    const proposed = parseProposal(request.proposed_data_json);
+    if (provisionalAccountApproval) {
+      await applyProvisionalAccountApproval(conn, {
+        request,
+        proposal: proposed,
+        officialAccountNumber: req.body.account_number,
+        comment,
+        user: req.session.user,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+        historyUrl: `${res.locals.basePath}/approvals?tab=history&q=${request.id}`
+      });
+      await conn.commit();
+      return redirectBack(req, res, 'account_changes');
+    }
 
     if (request.request_type === 'claim_account') {
       const result = await approveLegacyAccountClaim(conn, request, proposed, req);
