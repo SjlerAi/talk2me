@@ -1,13 +1,18 @@
 const express = require('express');
 const db = require('../config/db');
 const { requireAuth } = require('../middleware/auth');
+const {
+  canAccessGeneralApprovals,
+  canAccessProvisionalApproval,
+  isProvisionalAccountRequest,
+  provisionalRequestType
+} = require('../services/provisional-account-approval');
 
 const router = express.Router();
-const MANAGEMENT_ROLES = new Set(['owner', 'admin', 'manager']);
 const PENDING_STATUSES = "('pending_manager','pending_owner')";
 
 function isManagement(user) {
-  return Boolean(user && MANAGEMENT_ROLES.has(String(user.role || '').toLowerCase()));
+  return canAccessProvisionalApproval(user);
 }
 
 function clean(value, max = 5000) {
@@ -67,11 +72,15 @@ function displayTypeLabel(row, category) {
   return titleCase(row.request_type);
 }
 
-async function loadPendingCount() {
-  const [[changes]] = await db.query(`SELECT COUNT(*) total
+async function loadPendingCount(user) {
+  const [changeRows] = await db.query(`SELECT request_type,entity_type,proposed_data_json
     FROM data_change_requests WHERE status IN ${PENDING_STATUSES}`);
+  const changes = canAccessGeneralApprovals(user)
+    ? changeRows.length
+    : changeRows.filter(row => isProvisionalAccountRequest(row)).length;
   let tasks = 0;
   try {
+    if (!canAccessGeneralApprovals(user)) return changes;
     const [[taskRow]] = await db.query(`SELECT COUNT(*) total
       FROM staff_tasks t
       JOIN staff_task_workflow w ON w.task_id=t.id
@@ -80,10 +89,10 @@ async function loadPendingCount() {
   } catch (error) {
     if (error.code !== 'ER_NO_SUCH_TABLE') throw error;
   }
-  return Number(changes?.total || 0) + tasks;
+  return Number(changes || 0) + tasks;
 }
 
-async function loadPendingChanges(basePath) {
+async function loadPendingChanges(basePath, user) {
   const [rows] = await db.query(`SELECT r.id,r.request_type,r.entity_type,r.record_id,r.client_id,r.account_number,
       r.summary,r.reason,r.proposed_data_json,r.required_approval_role,r.status,r.created_at,
       requester.full_name requested_by_name,c.client_name,c.cell_number,c.email,c.city_town,
@@ -97,6 +106,7 @@ async function loadPendingChanges(basePath) {
 
   return rows.map(row => {
     const proposed = parseJson(row.proposed_data_json);
+    const provisionalAccountApproval = isProvisionalAccountRequest(row, proposed);
     const linkedIds = Array.isArray(proposed.linked_client_ids) ? proposed.linked_client_ids : [];
     const affectedCount = Number(proposed.linked_line_count || linkedIds.length || 1);
     const category = categoryFor(row.request_type, row.entity_type, proposed);
@@ -104,8 +114,11 @@ async function loadPendingChanges(basePath) {
       kind: 'change',
       category,
       id: Number(row.id),
+      requestId: Number(row.id),
       requestType: row.request_type,
-      typeLabel: displayTypeLabel(row, category),
+      typeLabel: provisionalAccountApproval
+        ? `Provisional ${provisionalRequestType(proposed)}`
+        : displayTypeLabel(row, category),
       title: row.summary || row.client_name || displayTypeLabel(row, category),
       customerName: row.client_name || null,
       cellphone: row.cell_number || null,
@@ -122,12 +135,14 @@ async function loadPendingChanges(basePath) {
       actionUrl: row.request_type === 'claim_client'
         ? `${basePath}/client-claims/${row.id}/decision`
         : `${basePath}/approvals/${row.id}/decision`,
-      needsAccountNumber: row.request_type === 'assign_account_number'
+      needsAccountNumber: row.request_type === 'assign_account_number',
+      provisionalAccountApproval
     };
-  });
+  }).filter(item => canAccessGeneralApprovals(user) || item.provisionalAccountApproval);
 }
 
-async function loadTaskApprovals(basePath) {
+async function loadTaskApprovals(basePath, user) {
+  if (!canAccessGeneralApprovals(user)) return [];
   try {
     const [rows] = await db.query(`SELECT t.id,t.type,t.title,t.message,t.completion_note,t.priority,t.created_at,t.completed_at,
         t.related_client_id,ass.full_name assigned_name,creator.full_name created_by_name,
@@ -173,7 +188,7 @@ async function loadTaskApprovals(basePath) {
   }
 }
 
-async function loadHistory(basePath) {
+async function loadHistory(basePath, user) {
   const [changeRows] = await db.query(`SELECT r.id,r.request_type,r.entity_type,r.client_id,r.account_number,r.summary,r.reason,
       r.proposed_data_json,r.status,r.created_at,r.reviewed_at,r.applied_at,r.review_comment,
       requester.full_name requested_by_name,reviewer.full_name reviewed_by_name,
@@ -188,12 +203,16 @@ async function loadHistory(basePath) {
 
   const changes = changeRows.map(row => {
     const proposed = parseJson(row.proposed_data_json);
+    const provisionalAccountApproval = isProvisionalAccountRequest(row, proposed);
     const category = categoryFor(row.request_type, row.entity_type, proposed);
     return {
       kind: 'history',
       category,
       id: `change-${row.id}`,
-      typeLabel: displayTypeLabel(row, category),
+      requestId: Number(row.id),
+      typeLabel: provisionalAccountApproval
+        ? `Provisional ${provisionalRequestType(proposed)}`
+        : displayTypeLabel(row, category),
       title: row.summary || row.client_name || displayTypeLabel(row, category),
       customerName: row.client_name || null,
       accountNumber: row.display_account_number || proposed.account_number || null,
@@ -204,12 +223,14 @@ async function loadHistory(basePath) {
       comment: row.review_comment || null,
       reason: row.reason || null,
       details: flattenDetails(proposed).slice(0, 10),
-      openUrl: row.client_id ? `${basePath}/customers/${row.client_id}/360` : null
+      openUrl: row.client_id ? `${basePath}/customers/${row.client_id}/360` : null,
+      provisionalAccountApproval
     };
-  });
+  }).filter(item => canAccessGeneralApprovals(user) || item.provisionalAccountApproval);
 
   let tasks = [];
   try {
+    if (!canAccessGeneralApprovals(user)) return changes.slice(0, 500);
     const [taskRows] = await db.query(`SELECT t.id,t.type,t.title,t.completion_note,t.related_client_id,
         ass.full_name assigned_name,creator.full_name created_by_name,reviewer.full_name reviewed_by_name,
         c.client_name,c.account_number,w.acknowledged_at,w.updated_at
@@ -252,7 +273,7 @@ async function loadHistory(basePath) {
 }
 
 function searchable(item) {
-  return [item.typeLabel,item.title,item.customerName,item.cellphone,item.accountNumber,item.town,
+  return [item.requestId,item.typeLabel,item.title,item.customerName,item.cellphone,item.accountNumber,item.town,
     item.requestedBy,item.sentBy,item.decidedBy,item.reason,item.comment,
     ...(item.details || []).flatMap(detail => [detail.label,detail.value])]
     .filter(Boolean).join(' ').toLowerCase();
@@ -264,7 +285,7 @@ router.use(async (req, res, next) => {
   res.locals.approvalCentreCount = 0;
   if (!isManagement(req.session?.user)) return next();
   try {
-    res.locals.approvalCentreCount = await loadPendingCount();
+    res.locals.approvalCentreCount = await loadPendingCount(req.session.user);
   } catch (error) {
     console.error('Could not load approval count', error);
   }
@@ -274,7 +295,7 @@ router.use(async (req, res, next) => {
 router.get('/api/approvals/status', requireAuth, async (req, res, next) => {
   if (!isManagement(req.session.user)) return res.json({ ok: true, count: 0 });
   try {
-    res.json({ ok: true, count: await loadPendingCount() });
+    res.json({ ok: true, count: await loadPendingCount(req.session.user) });
   } catch (error) {
     next(error);
   }
@@ -286,11 +307,17 @@ router.get('/approvals', requireAuth, async (req, res, next) => {
   }
 
   try {
-    const allowedTabs = new Set(['all','client_claims','account_changes','customer_changes','staff_requests','tasks','other_requests','history']);
+    const generalApprover = canAccessGeneralApprovals(req.session.user);
+    const allowedTabs = new Set(generalApprover
+      ? ['all','client_claims','account_changes','customer_changes','staff_requests','tasks','other_requests','history']
+      : ['all','account_changes','history']);
     const tab = allowedTabs.has(String(req.query.tab || '')) ? String(req.query.tab) : 'all';
     const q = clean(req.query.q, 200).toLowerCase();
     const basePath = res.locals.basePath || '';
-    const [changes, tasks] = await Promise.all([loadPendingChanges(basePath), loadTaskApprovals(basePath)]);
+    const [changes, tasks] = await Promise.all([
+      loadPendingChanges(basePath, req.session.user),
+      loadTaskApprovals(basePath, req.session.user)
+    ]);
     const pending = [...changes, ...tasks].sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
 
     const counts = {
@@ -305,7 +332,7 @@ router.get('/approvals', requireAuth, async (req, res, next) => {
 
     let items;
     if (tab === 'history') {
-      items = await loadHistory(basePath);
+      items = await loadHistory(basePath, req.session.user);
     } else {
       items = tab === 'all' ? pending : pending.filter(item => item.category === tab);
     }
@@ -319,7 +346,7 @@ router.get('/approvals', requireAuth, async (req, res, next) => {
       counts,
       totalPending: counts.all,
       updated: clean(req.query.updated, 40),
-      tabs: [
+      tabs: generalApprover ? [
         ['all','All Pending'],
         ['client_claims','Client Claims'],
         ['account_changes','Account Changes'],
@@ -327,6 +354,10 @@ router.get('/approvals', requireAuth, async (req, res, next) => {
         ['staff_requests','Staff Requests'],
         ['tasks','Task Approvals'],
         ['other_requests','Other Requests'],
+        ['history','History']
+      ] : [
+        ['all','Provisional Approvals'],
+        ['account_changes','Account Changes'],
         ['history','History']
       ]
     });
