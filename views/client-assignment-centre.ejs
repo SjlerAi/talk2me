@@ -4,13 +4,14 @@
   <div><div class="eyebrow">Shared customer ownership</div><h1>Client Assignment Centre</h1><p>Clients are grouped by their unique account number. One claim assigns the main account and every linked mobile line to the same staff member.</p></div>
   <a class="btn" href="<%= basePath %>/workspace">Return to Workspace</a>
 </section>
-<% if(requested){ %><div class="success-box"><%= requested==='existing'?'A claim for this account and its linked lines is already waiting in the Approval Centre.':'Your account claim was sent to the Approval Centre for management review.' %></div><% } %>
+<% if(claimed){ %><div class="success-box">Client claimed successfully.</div><% } %>
+<% if(conflict){ %><div class="warning-box">This client is already claimed by <%= conflictOwner||'another staff member' %>. A conflict has been sent to the owner for a decision.</div><% } %>
 <% if(reviewed){ %><div class="success-box">The account claim was <%= reviewed==='approved'?'approved, linked and assigned':'rejected' %>.</div><% } %>
 <nav class="assignment-centre-tabs" aria-label="Client assignment views">
   <a class="<%= view==='unassigned'?'active':'' %>" href="<%= viewUrl('unassigned') %>">Unassigned Accounts <b><%= counts.unassigned_count||0 %></b></a>
   <a class="<%= view==='mine'?'active':'' %>" href="<%= viewUrl('mine') %>">My Accounts <b><%= counts.mine_count||0 %></b></a>
-  <a class="<%= view==='requests'?'active':'' %>" href="<%= viewUrl('requests') %>">My Claim Requests <b><%= counts.requests_count||0 %></b></a>
-  <% if(isManagement){ %><a class="<%= counts.pending_count?'has-alert':'' %>" href="<%= basePath %>/approvals?tab=client_claims<%= panel %>">Approval Centre <b><%= counts.pending_count||0 %></b></a><a class="<%= view==='all'?'active':'' %>" href="<%= viewUrl('all') %>">All Assigned Accounts <b><%= counts.assigned_count||0 %></b></a><% } %>
+  <a class="<%= view==='requests'?'active':'' %>" href="<%= viewUrl('requests') %>">My Claim History <b><%= counts.requests_count||0 %></b></a>
+  <% if(isManagement){ %><a class="<%= counts.pending_count?'has-alert':'' %>" href="<%= basePath %>/approvals?tab=client_claims<%= panel %>">Owner Conflicts <b><%= counts.pending_count||0 %></b></a><a class="<%= view==='all'?'active':'' %>" href="<%= viewUrl('all') %>">All Assigned Accounts <b><%= counts.assigned_count||0 %></b></a><% } %>
 </nav>
 <% if(!['requests','pending'].includes(view)){ %>
 <section class="panel assignment-centre-filter"><form method="get"><input type="hidden" name="view" value="<%= view %>"><% if(panelMode){ %><input type="hidden" name="panel" value="1"><% } %><label>Search this account list<input type="search" name="q" value="<%= q %>" placeholder="Name, cellphone, email, unique account or town"></label><button class="btn primary" type="submit">Search</button></form></section>
@@ -18,7 +19,7 @@
   <% clients.forEach(c=>{ %><article class="assignment-client-card <%= c.pending_claim_id?'claim-pending':'' %>">
     <div class="assignment-client-main"><div class="assignment-client-title"><strong><%= c.client_name||'Unnamed client' %></strong><span class="client-status <%= c.lifecycle_status||'client' %>"><%= c.lifecycle_status||'client' %></span></div><p><%= [c.cell_number,c.email,c.account_number,c.city_town].filter(Boolean).join(' · ')||'No contact details captured' %></p><div class="assignment-client-meta"><span>Assignment: <b><%= c.assigned_staff_name||'Unassigned' %></b></span><span>Linked lines: <b><%= c.linked_line_count||1 %></b></span><span>Main record: #<%= c.id %></span><span>Added: <%= new Date(c.created_at).toLocaleDateString('en-ZA') %></span><% if(c.next_upgrade_date){ %><span>Upgrade: <%= new Date(c.next_upgrade_date).toLocaleDateString('en-ZA') %></span><% } %></div><% if((c.linked_mobile_numbers||[]).length>1){ %><small class="assignment-linked-lines">Linked mobile numbers: <%= c.linked_mobile_numbers.join(' · ') %></small><% } %></div>
     <div class="assignment-client-actions"><a class="btn" href="<%= basePath %>/customers/<%= c.id %>/360<%= panelMode?'?panel=1':'' %>">Open Main Account</a>
-      <% if(!c.assigned_staff_id){ %><% if(c.pending_claim_id){ %><span class="assignment-pending-label">Account claim pending: <%= c.pending_requested_by_name %></span><% } else { %><form method="post" action="<%= basePath %>/clients/<%= c.id %>/request-claim"><% if(panelMode){ %><input type="hidden" name="panel" value="1"><% } %><button class="btn primary" type="submit">Claim Account & <%= c.linked_line_count||1 %> Line<%= Number(c.linked_line_count||1)===1?'':'s' %></button></form><% } %><% } %>
+      <% if(!c.assigned_staff_id){ %><% if(c.pending_claim_id){ %><span class="assignment-pending-label">Ownership conflict awaiting owner decision: <%= c.pending_requested_by_name %></span><% } else { %><form method="post" action="<%= basePath %>/clients/<%= c.id %>/request-claim"><% if(panelMode){ %><input type="hidden" name="panel" value="1"><% } %><button class="btn primary" type="submit">Claim client</button></form><% } %><% } %>
     </div>
   </article><% }) %>
   <% if(!clients.length){ %><div class="panel empty-state"><h2>No matching accounts</h2><p><%= view==='unassigned'?'There are currently no unassigned account groups in this list.':'No accounts match this view.' %></p></div><% } %>
@@ -31,6 +32,6 @@
       <% if(view==='pending'){ %><form method="post" action="<%= basePath %>/client-claims/<%= r.id %>/decision" class="claim-decision-form"><% if(panelMode){ %><input type="hidden" name="panel" value="1"><% } %><textarea name="comment" rows="2" placeholder="Optional management note"></textarea><div><button class="btn primary" name="decision" value="approve" type="submit">Approve Entire Account</button><button class="btn danger" name="decision" value="reject" type="submit">Reject</button></div></form><% } %>
     </div>
   </article><% }) %>
-  <% if(!requests.length){ %><div class="panel empty-state"><h2>Nothing waiting</h2><p><%= view==='pending'?'There are no account claims waiting for management approval.':'You have not submitted any account claims yet.' %></p></div><% } %>
+  <% if(!requests.length){ %><div class="panel empty-state"><h2>Nothing to show</h2><p><%= view==='pending'?'There are no ownership conflicts awaiting an owner decision.':'You have no claim history yet.' %></p></div><% } %>
 </section>
 <% } %>
