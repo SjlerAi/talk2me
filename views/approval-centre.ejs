@@ -85,7 +85,7 @@
             <% if(item.openUrl){ %><a class="btn" href="<%= item.openUrl %>">Open related record</a><% } %>
           </div>
 
-          <% if(item.kind==='change'){ %>
+          <% if(item.kind==='change'&&(!item.ownershipConflict||currentUser.role==='owner')){ %>
             <form method="post" action="<%= item.actionUrl %>" class="approval-decision-form" data-approval-action data-return-tab="<%= item.category %>">
               <% if(panelMode){ %><input type="hidden" name="panel" value="1"><% } %>
               <% if(item.needsAccountNumber){ %>
@@ -97,10 +97,12 @@
               <% } %>
               <textarea name="comment" rows="2" placeholder="Optional management comment"></textarea>
               <div>
-                <button class="btn primary" type="submit" name="decision" value="approve"><%= item.needsAccountNumber?'Save account number and approve':(item.category==='client_claims'?'Approve & Assign Account':'Approve') %></button>
-                <button class="btn danger" type="submit" name="decision" value="reject" formnovalidate>Reject</button>
+                <button class="btn primary" type="submit" name="decision" value="approve"><%= item.ownershipConflict?'Assign to claimant':item.needsAccountNumber?'Save account number and approve':(item.category==='client_claims'?'Approve & Assign Account':'Approve') %></button>
+                <button class="btn danger" type="submit" name="decision" value="reject" formnovalidate><%= item.ownershipConflict?'Keep current assignment':'Reject' %></button>
               </div>
             </form>
+          <% } else if(item.kind==='change'&&item.ownershipConflict){ %>
+            <strong class="approval-role">Owner decision required</strong>
           <% } else if(item.kind==='task'){ %>
             <div class="approval-task-actions">
               <form method="post" action="<%= item.acceptUrl %>" data-approval-action data-return-tab="tasks">

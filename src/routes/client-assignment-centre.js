@@ -2,6 +2,7 @@ const express = require('express');
 const db = require('../config/db');
 const { requireAuth } = require('../middleware/auth');
 const { audit } = require('../services/audit');
+const { claimClient } = require('../services/client-claim');
 
 const router = express.Router();
 const MANAGEMENT_ROLES = ['owner', 'admin', 'manager'];
@@ -63,6 +64,15 @@ function requestDetails(row) {
     };
   } catch (_) {
     return { ...row, linked_line_count: 1, linked_client_ids: [] };
+  }
+}
+
+function parseProposal(value) {
+  try {
+    const parsed = JSON.parse(String(value || '{}'));
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch (_) {
+    return {};
   }
 }
 
@@ -292,6 +302,9 @@ router.get('/clients/assignment-centre', requireAuth, async (req, res, next) => 
       counts,
       isManagement: management,
       requested: req.query.requested,
+      claimed: req.query.claimed,
+      conflict: req.query.conflict,
+      conflictOwner: clean(req.query.owner, 255),
       reviewed: req.query.reviewed
     });
   } catch (error) {
@@ -302,75 +315,26 @@ router.get('/clients/assignment-centre', requireAuth, async (req, res, next) => 
 router.post('/clients/:id/request-claim', requireAuth, async (req, res, next) => {
   const requestedClientId = positiveId(req.params.id);
   if (!requestedClientId) return next();
-  const conn = await db.getConnection();
   try {
-    await conn.beginTransaction();
-    const [[requestedClient]] = await conn.execute(`SELECT id,account_id,client_name,account_number,cell_number,email
-      FROM clients WHERE id=:clientId AND is_active=1 FOR UPDATE`, { clientId: requestedClientId });
-    if (!requestedClient) throw new Error('Client not found.');
-
-    const scopeClients = await loadScopeClients(conn, requestedClient, true);
-    const mainClient = selectMainRecord(scopeClients);
-    const normalised = normaliseAccount(mainClient.account_number || requestedClient.account_number);
-    const assignment = await findGroupAssignment(conn, scopeClients, normalised, true);
-    if (assignment) throw new Error(`This account is already assigned to ${assignment.full_name}.`);
-
-    const existing = await findPendingGroupClaim(conn, scopeClients, normalised, null, true);
-    if (existing) {
-      await conn.rollback();
-      return res.redirect(`${res.locals.basePath}/clients/assignment-centre?view=unassigned&requested=existing${panelSuffix(req, '&')}`);
+    const result = await claimClient(requestedClientId, {
+      claimant: { id: req.session.user.id, name: req.session.user.full_name },
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      basePath: res.locals.basePath
+    });
+    if (result.status === 'conflict') {
+      const query = new URLSearchParams({
+        view: 'unassigned',
+        conflict: '1',
+        owner: result.currentAssigneeName
+      });
+      if (String(req.body.panel || '') === '1') query.set('panel', '1');
+      return res.redirect(`${res.locals.basePath}/clients/assignment-centre?${query.toString()}`);
     }
-
-    const accountNumber = scopeClients.map(row => clean(row.account_number)).find(Boolean) || null;
-    const proposed = {
-      client_id: mainClient.id,
-      linked_client_ids: scopeClients.map(row => Number(row.id)),
-      linked_line_count: scopeClients.length,
-      account_number: accountNumber,
-      assigned_staff_id: req.session.user.id,
-      assigned_staff_name: req.session.user.full_name,
-      scope: accountNumber || mainClient.account_id ? 'account' : 'client'
-    };
-    const displayName = mainClient.client_name || mainClient.cell_number || `client #${mainClient.id}`;
-    const summary = accountNumber
-      ? `Claim account ${accountNumber} - ${displayName} (${scopeClients.length} linked line${scopeClients.length === 1 ? '' : 's'})`
-      : `Claim ${displayName}`;
-
-    const [result] = await conn.execute(`INSERT INTO data_change_requests
-      (request_type,entity_type,record_id,client_id,account_number,summary,reason,proposed_data_json,required_approval_role,status,requested_by)
-      VALUES ('claim_client','clients',:clientId,:clientId,:account,:summary,:reason,:json,'manager','pending_manager',:requestedBy)`, {
-      clientId: mainClient.id,
-      account: accountNumber,
-      summary,
-      reason: clean(req.body.reason, 2000) || 'Staff member requested responsibility for this unassigned account.',
-      json: JSON.stringify(proposed),
-      requestedBy: req.session.user.id
-    });
-
-    await conn.execute(`INSERT INTO staff_tasks
-      (type,title,message,priority,status,assigned_to,created_by,due_at,related_client_id,email_status)
-      SELECT 'notification','Client claim awaiting approval',:message,'normal','unread',s.id,:createdBy,NOW(),:clientId,'not_configured'
-      FROM staff_users s WHERE s.is_active=1 AND s.role IN ('owner','admin','manager')`, {
-      message: `${req.session.user.full_name} requested assignment of ${displayName}${accountNumber ? ` under account ${accountNumber}` : ''}. The claim covers ${scopeClients.length} linked line${scopeClients.length === 1 ? '' : 's'}. Open the Client Assignment Centre to approve or reject request #${result.insertId}.`,
-      createdBy: req.session.user.id,
-      clientId: mainClient.id
-    });
-
-    await conn.commit();
-    await audit(req, {
-      actionType: 'client_claim_requested',
-      entityType: 'data_change_requests',
-      entityId: result.insertId,
-      description: `${req.session.user.full_name} requested assignment of ${displayName} and ${scopeClients.length} linked line${scopeClients.length === 1 ? '' : 's'}`,
-      after: proposed
-    });
-    res.redirect(`${res.locals.basePath}/clients/assignment-centre?view=requests&requested=1${panelSuffix(req, '&')}`);
+    res.redirect(`${res.locals.basePath}/clients/assignment-centre?view=mine&claimed=1${panelSuffix(req, '&')}`);
   } catch (error) {
-    await conn.rollback();
     if (!error.code) return res.status(409).render('error', { title: 'Client could not be claimed', message: error.message });
     next(error);
-  } finally {
-    conn.release();
   }
 });
 
@@ -386,6 +350,11 @@ router.post('/client-claims/:id/decision', requireAuth, async (req, res, next) =
     const [[request]] = await conn.execute(`SELECT * FROM data_change_requests
       WHERE id=:requestId AND request_type='claim_client' FOR UPDATE`, { requestId });
     if (!request || !['pending_manager', 'pending_owner'].includes(request.status)) throw new Error('This claim request has already been reviewed.');
+    const proposedRequest = parseProposal(request.proposed_data_json);
+    if (proposedRequest.ownership_conflict && String(req.session.user.role || '').toLowerCase() !== 'owner') {
+      await conn.rollback();
+      return res.status(403).render('error', { title: 'Owner decision required', message: 'Only an owner can resolve a client ownership conflict.' });
+    }
     const decision = String(req.body.decision || '');
     const comment = clean(req.body.comment, 2000) || null;
 
@@ -396,14 +365,15 @@ router.post('/client-claims/:id/decision', requireAuth, async (req, res, next) =
       });
       await conn.execute(`INSERT INTO staff_tasks
         (type,title,message,priority,status,assigned_to,created_by,due_at,related_client_id,email_status)
-        VALUES ('notification','Client claim not approved',:message,'normal','unread',:assignedTo,:createdBy,NOW(),:clientId,'not_configured')`, {
-        message: `Your request to claim this account was not approved${comment ? `: ${comment}` : '.'}`,
+        VALUES ('notification',:title,:message,'normal','unread',:assignedTo,:createdBy,NOW(),:clientId,'not_configured')`, {
+        title: proposedRequest.ownership_conflict ? 'Client ownership decision' : 'Client claim not approved',
+        message: `${proposedRequest.ownership_conflict ? 'The owner kept the current client assignment' : 'Your request to claim this account was not approved'}${comment ? `: ${comment}` : '.'}`,
         assignedTo: request.requested_by,
         createdBy: req.session.user.id,
         clientId: request.client_id
       });
       await conn.commit();
-      await audit(req, { actionType: 'client_claim_rejected', entityType: 'data_change_requests', entityId: requestId, description: 'Client account claim rejected', after: { comment } });
+      await audit(req, { actionType: proposedRequest.ownership_conflict ? 'client_claim_conflict_resolved' : 'client_claim_rejected', entityType: 'data_change_requests', entityId: requestId, description: proposedRequest.ownership_conflict ? 'Ownership conflict resolved by keeping the current assignment' : 'Client account claim rejected', after: { comment, decision: 'keep_current_assignment', ...proposedRequest } });
       return res.redirect(`${res.locals.basePath}/clients/assignment-centre?view=pending&reviewed=rejected${panelSuffix(req, '&')}`);
     }
 
@@ -418,7 +388,10 @@ router.post('/client-claims/:id/decision', requireAuth, async (req, res, next) =
     const normalised = normaliseAccount(accountNumber);
     const existingAssignment = await findGroupAssignment(conn, scopeClients, normalised, true);
     if (existingAssignment && Number(existingAssignment.assigned_staff_id) !== Number(request.requested_by)) {
-      throw new Error(`This account is already assigned to ${existingAssignment.full_name}.`);
+      if (String(req.session.user.role || '').toLowerCase() !== 'owner') {
+        await conn.rollback();
+        return res.status(403).render('error', { title: 'Owner decision required', message: 'Only an owner can reassign a client while resolving an ownership conflict.' });
+      }
     }
 
     const [[staff]] = await conn.execute(`SELECT id,full_name FROM staff_users WHERE id=:id AND is_active=1 LIMIT 1`, { id: request.requested_by });
@@ -460,7 +433,7 @@ router.post('/client-claims/:id/decision', requireAuth, async (req, res, next) =
 
     const duplicateClaim = await findPendingGroupClaim(conn, scopeClients, normalised, requestId, true);
     if (duplicateClaim) {
-      const pendingParams = [req.session.user.id, `Automatically closed because account claim #${requestId} was approved.`, ...scopeIds];
+      const pendingParams = [req.session.user.id, `Automatically closed because account claim #${requestId} was approved.`, request.requested_by, ...scopeIds];
       let pendingWhere = `client_id IN (${idPlaceholders(scopeClients)})`;
       if (normalised) {
         pendingWhere += ` OR UPPER(REPLACE(TRIM(COALESCE(account_number,'')),' ',''))=?`;
@@ -469,7 +442,7 @@ router.post('/client-claims/:id/decision', requireAuth, async (req, res, next) =
       pendingParams.push(requestId);
       await conn.query(`UPDATE data_change_requests SET status='rejected',reviewed_by=?,reviewed_at=NOW(),review_comment=?
         WHERE request_type='claim_client' AND status IN ('pending_manager','pending_owner')
-          AND (${pendingWhere}) AND id<>?`, pendingParams);
+          AND requested_by=? AND (${pendingWhere}) AND id<>?`, pendingParams);
     }
 
     await conn.execute(`UPDATE data_change_requests SET status='applied',reviewed_by=:reviewedBy,
@@ -479,19 +452,24 @@ router.post('/client-claims/:id/decision', requireAuth, async (req, res, next) =
       comment,
       requestId,
       proposed: JSON.stringify({
+        ...proposedRequest,
         client_id: mainClient.id,
         linked_client_ids: scopeIds,
         linked_line_count: scopeClients.length,
         account_number: accountNumber,
         assigned_staff_id: staff.id,
         assigned_staff_name: staff.full_name,
-        scope: accountNumber || mainClient.account_id ? 'account' : 'client'
+        scope: accountNumber || mainClient.account_id ? 'account' : 'client',
+        ownership_conflict: Boolean(proposedRequest.ownership_conflict || (existingAssignment && Number(existingAssignment.assigned_staff_id) !== Number(request.requested_by))),
+        previous_assignee_id: existingAssignment?.assigned_staff_id || null,
+        previous_assignee_name: existingAssignment?.full_name || null
       })
     });
 
     await conn.execute(`INSERT INTO staff_tasks
       (type,title,message,priority,status,assigned_to,created_by,due_at,related_client_id,email_status)
-      VALUES ('notification','Client claim approved',:message,'normal','unread',:assignedTo,:createdBy,NOW(),:clientId,'not_configured')`, {
+      VALUES ('notification',:title,:message,'normal','unread',:assignedTo,:createdBy,NOW(),:clientId,'not_configured')`, {
+      title: proposedRequest.ownership_conflict ? 'Client ownership decision' : 'Client claim approved',
       message: `${mainClient.client_name || 'The client account'} is now assigned to you. ${scopeClients.length} linked line${scopeClients.length === 1 ? ' was' : 's were'} assigned together.`,
       assignedTo: staff.id,
       createdBy: req.session.user.id,
@@ -500,17 +478,21 @@ router.post('/client-claims/:id/decision', requireAuth, async (req, res, next) =
 
     await conn.commit();
     await audit(req, {
-      actionType: 'client_claim_approved',
+      actionType: proposedRequest.ownership_conflict ? 'client_claim_conflict_resolved' : 'client_claim_approved',
       entityType: 'clients',
       entityId: mainClient.id,
-      description: `${mainClient.client_name || mainClient.id} and ${scopeClients.length} linked line${scopeClients.length === 1 ? '' : 's'} assigned to ${staff.full_name}`,
+      description: `${proposedRequest.ownership_conflict ? 'Ownership conflict resolved: ' : ''}${mainClient.client_name || mainClient.id} and ${scopeClients.length} linked line${scopeClients.length === 1 ? '' : 's'} assigned to ${staff.full_name}`,
       after: {
+        ...proposedRequest,
         assigned_staff_id: staff.id,
         assigned_staff_name: staff.full_name,
         account_number: accountNumber,
         linked_client_ids: scopeIds,
         linked_line_count: scopeClients.length,
-        scope: accountNumber || mainClient.account_id ? 'account' : 'client'
+        scope: accountNumber || mainClient.account_id ? 'account' : 'client',
+        previous_assignee_id: existingAssignment?.assigned_staff_id || null,
+        previous_assignee_name: existingAssignment?.full_name || null,
+        decision: proposedRequest.ownership_conflict ? 'reassign_to_claimant' : 'apply_legacy_claim'
       }
     });
     res.redirect(`${res.locals.basePath}/clients/assignment-centre?view=pending&reviewed=approved${panelSuffix(req, '&')}`);

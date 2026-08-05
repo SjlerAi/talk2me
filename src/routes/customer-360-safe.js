@@ -98,11 +98,11 @@ router.get('/customers/:id/360', requireAuth, async (req, res, next) => {
         `SELECT r.id,r.requested_by,u.full_name requested_by_name,r.created_at
          FROM data_change_requests r
          JOIN staff_users u ON u.id=r.requested_by
-         WHERE r.request_type='claim_account'
-           AND r.record_id=:accountId
+         WHERE r.request_type IN ('claim_account','claim_client')
+           AND (r.record_id=? OR r.client_id IN (${lineIds.map(() => '?').join(',')}))
            AND r.status IN ('pending_manager','pending_owner')
          ORDER BY r.created_at LIMIT 1`,
-        { accountId: accountRecord.id }
+        [accountRecord.id, ...lineIds]
       );
     }
 
@@ -143,6 +143,8 @@ router.get('/customers/:id/360', requireAuth, async (req, res, next) => {
       fixedAccounts,
       assigned: req.query.assigned,
       claimRequested: req.query.claim_requested,
+      claimConflict: req.query.claim_conflict,
+      claimOwner: String(req.query.claim_owner || '').trim().slice(0, 255),
       changeRequested: req.query.change_requested
     });
   } catch (error) {

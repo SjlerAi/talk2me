@@ -79,7 +79,9 @@ async function approveLegacyAccountClaim(conn, request, proposed, req) {
   }
   if (!account) throw new Error('Customer account not found.');
   if (account.assigned_staff_id && Number(account.assigned_staff_id) !== Number(request.requested_by)) {
-    throw new Error('This account has already been assigned.');
+    if (String(req.session.user?.role || '').toLowerCase() !== 'owner') {
+      throw new Error('Only an owner can reassign an account while resolving an ownership conflict.');
+    }
   }
 
   const [clients] = await conn.execute(`SELECT id,account_number FROM clients
@@ -155,6 +157,13 @@ router.post('/approvals/:id/decision', requireAuth, async (req, res, next) => {
     const comment = clean(req.body.comment, 2000) || null;
     const proposed = parseProposal(request.proposed_data_json);
     const provisionalAccountApproval = isProvisionalAccountRequest(request, proposed);
+    if (proposed.ownership_conflict && String(req.session.user.role || '').toLowerCase() !== 'owner') {
+      await conn.rollback();
+      return res.status(403).render('error', {
+        title: 'Owner decision required',
+        message: 'Only an owner can resolve a client ownership conflict.'
+      });
+    }
     if (!provisionalAccountApproval && !canAccessGeneralApprovals(req.session.user)) {
       await conn.rollback();
       return res.status(403).render('error', {
@@ -179,11 +188,13 @@ router.post('/approvals/:id/decision', requireAuth, async (req, res, next) => {
       });
       await conn.commit();
       await safeAudit(req, {
-        actionType: 'change_rejected',
+        actionType: proposed.ownership_conflict ? 'client_claim_conflict_resolved' : 'change_rejected',
         entityType: 'data_change_requests',
         entityId: request.id,
-        description: `${request.request_type || 'Change'} rejected`,
-        after: { comment }
+        description: proposed.ownership_conflict
+          ? 'Ownership conflict resolved by keeping the current assignment'
+          : `${request.request_type || 'Change'} rejected`,
+        after: proposed.ownership_conflict ? { ...proposed, comment, decision: 'keep_current_assignment' } : { comment }
       });
       return redirectBack(req, res, 'all', 'rejected');
     }
@@ -207,10 +218,10 @@ router.post('/approvals/:id/decision', requireAuth, async (req, res, next) => {
     if (request.request_type === 'claim_account') {
       const result = await approveLegacyAccountClaim(conn, request, proposed, req);
       auditPayload = {
-        actionType: 'account_claim_approved',
+        actionType: proposed.ownership_conflict ? 'client_claim_conflict_resolved' : 'account_claim_approved',
         entityType: 'customer_accounts',
         entityId: result.account.id,
-        description: `Claim approved for account ${result.account.account_number} and ${result.clients.length} linked line${result.clients.length === 1 ? '' : 's'}`,
+        description: `${proposed.ownership_conflict ? 'Ownership conflict resolved; claim applied' : 'Claim approved'} for account ${result.account.account_number} and ${result.clients.length} linked line${result.clients.length === 1 ? '' : 's'}`,
         after: result.appliedProposal
       };
       await conn.commit();

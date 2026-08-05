@@ -9,6 +9,7 @@ const { requireAuth } = require('../middleware/auth');
 const { sendTaskEmail } = require('../services/mailer');
 const { hasPermission, requirePermission, requireRole } = require('../middleware/permissions');
 const { audit } = require('../services/audit');
+const { claimClient } = require('../services/client-claim');
 
 const router = express.Router();
 
@@ -1540,17 +1541,17 @@ router.get('/approvals',requireAuth,requireRole('owner','manager'),async(req,res
 router.post('/customers/:id/request-claim',requireAuth,async(req,res,next)=>{
   try{
     if(req.session.user.role!=='staff')return res.status(403).render('error',{title:'Claim not available',message:'Owners and managers assign clients directly.'});
-    const clientId=Number(req.params.id);const [[client]]=await db.execute('SELECT id,client_name,account_number FROM clients WHERE id=:id',{id:clientId});
-    if(!client?.account_number)return res.status(400).render('error',{title:'Account required',message:'An account number must be captured before this customer can be claimed.'});
-    const [[account]]=await db.execute(`SELECT * FROM customer_accounts WHERE account_number_normalised=UPPER(REPLACE(TRIM(:account),' ',''))`,{account:client.account_number});
-    if(!account)return res.status(400).render('error',{title:'Account not migrated',message:'Run the v3.2.0 database migration before requesting a claim.'});
-    if(account.assigned_staff_id)return res.status(409).render('error',{title:'Already assigned',message:'This account is already assigned and cannot be claimed.'});
-    const [[existing]]=await db.execute(`SELECT id FROM data_change_requests WHERE request_type='claim_account' AND record_id=:accountId AND status IN ('pending_manager','pending_owner') LIMIT 1`,{accountId:account.id});
-    if(existing)return res.redirect(`${res.locals.basePath}/customers/${clientId}/360?claim_requested=existing`);
-    const proposed={account_id:account.id,account_number:account.account_number,assigned_staff_id:req.session.user.id,assigned_staff_name:req.session.user.full_name};
-    const [result]=await db.execute(`INSERT INTO data_change_requests (request_type,entity_type,record_id,client_id,account_number,summary,reason,proposed_data_json,required_approval_role,status,requested_by) VALUES ('claim_account','customer_accounts',:accountId,:clientId,:accountNumber,:summary,:reason,:json,'manager','pending_manager',:requestedBy)`,{accountId:account.id,clientId,accountNumber:account.account_number,summary:`Claim ${account.account_number} — ${client.client_name}`,reason:String(req.body.reason||'').trim()||'Staff requested responsibility for this account.',json:JSON.stringify(proposed),requestedBy:req.session.user.id});
-    await audit(req,{actionType:'account_claim_requested',entityType:'customer_accounts',entityId:account.id,description:`${req.session.user.full_name} requested claim of ${account.account_number}`,after:proposed});
-    res.redirect(`${res.locals.basePath}/customers/${clientId}/360?claim_requested=1`);
+    const clientId=Number(req.params.id);
+    const result=await claimClient(clientId,{
+      claimant:{id:req.session.user.id,name:req.session.user.full_name},
+      ipAddress:req.ip,userAgent:req.headers['user-agent'],basePath:res.locals.basePath
+    });
+    if(result.status==='conflict'){
+      const query=new URLSearchParams({claim_conflict:'1',claim_owner:result.currentAssigneeName});
+      if(String(req.body.panel||'')==='1')query.set('panel','1');
+      return res.redirect(`${res.locals.basePath}/customers/${clientId}/360?${query.toString()}`);
+    }
+    res.redirect(`${res.locals.basePath}/customers/${clientId}/360?claim_requested=claimed${String(req.body.panel||'')==='1'?'&panel=1':''}`);
   }catch(e){next(e)}
 });
 

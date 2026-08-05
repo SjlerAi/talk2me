@@ -67,7 +67,8 @@ function categoryFor(requestType, entityType, proposed = {}) {
   return 'other_requests';
 }
 
-function displayTypeLabel(row, category) {
+function displayTypeLabel(row, category, proposed = {}) {
+  if (proposed.ownership_conflict) return 'Ownership Conflict';
   if (category === 'client_claims') return 'Client Claim';
   return titleCase(row.request_type);
 }
@@ -118,8 +119,8 @@ async function loadPendingChanges(basePath, user) {
       requestType: row.request_type,
       typeLabel: provisionalAccountApproval
         ? `Provisional ${provisionalRequestType(proposed)}`
-        : displayTypeLabel(row, category),
-      title: row.summary || row.client_name || displayTypeLabel(row, category),
+        : displayTypeLabel(row, category, proposed),
+      title: row.summary || row.client_name || displayTypeLabel(row, category, proposed),
       customerName: row.client_name || null,
       cellphone: row.cell_number || null,
       accountNumber: row.display_account_number || proposed.account_number || null,
@@ -135,6 +136,7 @@ async function loadPendingChanges(basePath, user) {
       actionUrl: row.request_type === 'claim_client'
         ? `${basePath}/client-claims/${row.id}/decision`
         : `${basePath}/approvals/${row.id}/decision`,
+      ownershipConflict: Boolean(proposed.ownership_conflict),
       needsAccountNumber: row.request_type === 'assign_account_number',
       provisionalAccountApproval
     };
@@ -212,8 +214,8 @@ async function loadHistory(basePath, user) {
       requestId: Number(row.id),
       typeLabel: provisionalAccountApproval
         ? `Provisional ${provisionalRequestType(proposed)}`
-        : displayTypeLabel(row, category),
-      title: row.summary || row.client_name || displayTypeLabel(row, category),
+        : displayTypeLabel(row, category, proposed),
+      title: row.summary || row.client_name || displayTypeLabel(row, category, proposed),
       customerName: row.client_name || null,
       accountNumber: row.display_account_number || proposed.account_number || null,
       requestedBy: row.requested_by_name || 'Unknown staff member',
