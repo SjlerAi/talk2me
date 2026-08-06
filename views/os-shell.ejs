@@ -83,8 +83,9 @@
           <div class="t2m-os-widget-row"><button class="t2m-os-widget-view" type="button" data-os-route="<%= basePath %>/os/my-work/callbacks" data-route-title="Scheduled Callbacks" data-route-icon="☎" aria-label="Open scheduled callbacks"><span>Scheduled callbacks</span><strong data-status="callbacksTodayCount" data-positive="<%= status.callbacksTodayCount > 0 %>"><%= status.callbacksTodayCount %></strong></button><button class="t2m-os-widget-add" type="button" data-widget-add="callback" data-add-title="Schedule Callback" data-add-icon="☎" aria-label="Schedule a callback" title="Schedule a callback">+</button></div>
           <div class="t2m-os-widget-row"><button class="t2m-os-widget-view" type="button" data-os-route="<%= basePath %>/os/my-work/prospects" data-route-title="New Prospects" data-route-icon="+" aria-label="Open new prospects"><span>New prospects</span><strong data-status="newProspectsCount" data-positive="<%= status.newProspectsCount > 0 %>"><%= status.newProspectsCount %></strong></button><button class="t2m-os-widget-add" type="button" data-widget-add="prospect" data-add-title="Add Prospect" data-add-icon="+" aria-label="Add a prospect" title="Add a prospect">+</button></div>
         </div></article>
-      </section><div class="t2m-os-window-layer" id="os-window-layer"></div>
+      </section>
     </main>
+    <div class="t2m-os-window-layer" id="os-window-layer" aria-label="Floating application windows"></div>
     <footer class="t2m-os-taskbar" id="os-taskbar" aria-label="Open windows"><span class="t2m-os-taskbar-label">Open windows</span><div class="t2m-os-taskbar-items" id="os-taskbar-items"></div></footer>
   </div>
   <div class="t2m-os-toast-region" id="os-toast-region" aria-live="polite" aria-atomic="true"></div>
