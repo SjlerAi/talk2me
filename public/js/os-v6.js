@@ -11,8 +11,35 @@
   const searchResults = document.getElementById('os-search-results');
   const toastRegion = document.getElementById('os-toast-region');
   const taskbarItems = document.getElementById('os-taskbar-items');
+  const shell = document.getElementById('talk2me-os');
+  const sidebarToggle = document.getElementById('os-sidebar-toggle');
   const supplierKey = 'talk2me-os-v6-suppliers';
   const notesKey = `talk2me-os-v6-notes-${config.user?.id || 'user'}`;
+  const sidebarPreferenceKey = `talk2me-os-sidebar-collapsed-${config.user?.id || 'user'}`;
+
+  function renderSidebar(state) {
+    shell.classList.toggle('is-sidebar-collapsed', state.collapsed);
+    shell.classList.toggle('has-work-windows', state.hasOpenWindows);
+    shell.classList.toggle('has-maximized-window', state.maximized);
+    sidebarToggle.setAttribute('aria-expanded', String(!state.collapsed));
+    sidebarToggle.setAttribute('aria-label', state.collapsed ? 'Expand application sidebar' : 'Collapse application sidebar');
+    sidebarToggle.title = state.collapsed ? 'Expand application sidebar' : 'Collapse application sidebar';
+    sidebarToggle.querySelector('span').textContent = state.collapsed ? '»' : '«';
+    sidebarToggle.querySelector('strong').textContent = state.collapsed ? 'Expand sidebar' : 'Collapse sidebar';
+  }
+
+  const sidebarState = new window.Talk2MeSidebarState.SidebarState({
+    storage: window.localStorage,
+    preferenceKey: sidebarPreferenceKey,
+    onChange: renderSidebar
+  });
+
+  function availableWorkspaceWidth() {
+    const fullWidth = shell.clientWidth;
+    if (window.matchMedia('(max-width: 760px)').matches) return fullWidth;
+    const compact = shell.classList.contains('is-sidebar-collapsed') || window.matchMedia('(max-width: 1050px)').matches;
+    return Math.max(0, fullWidth - (compact ? 68 : 220));
+  }
 
   const suppliersDefault = {
     vodacom: { name: 'Vodacom', icon: 'V', url: '' },
@@ -55,6 +82,26 @@
       this.cascade = 0;
     }
 
+    syncSidebar() {
+      sidebarState.updateWindowCounts({
+        internal: this.windows.size,
+        maximized: [...this.windows.values()].filter(record => record.maximized).length
+      });
+    }
+
+    fitToArea() {
+      const area = layer.getBoundingClientRect();
+      const areaWidth = availableWorkspaceWidth();
+      for (const record of this.windows.values()) {
+        if (record.maximized) continue;
+        const left = Math.max(0, Math.min(record.node.offsetLeft, Math.max(0, areaWidth - 80)));
+        const top = Math.max(0, Math.min(record.node.offsetTop, Math.max(0, area.height - 47)));
+        const width = Math.min(record.node.offsetWidth, Math.max(360, areaWidth - left));
+        const height = Math.min(record.node.offsetHeight, Math.max(240, area.height - top));
+        Object.assign(record.node.style, { left: `${left}px`, top: `${top}px`, width: `${width}px`, height: `${height}px` });
+      }
+    }
+
     open(options) {
       const existing = this.windows.get(options.id);
       if (existing) {
@@ -63,8 +110,11 @@
         return existing;
       }
 
+      sidebarState.updateWindowCounts({ internal: this.windows.size + 1 });
       const area = layer.getBoundingClientRect();
-      const width = Math.min(options.width || 900, Math.max(360, area.width - 28));
+      const areaWidth = availableWorkspaceWidth();
+      const requestedWidth = options.url ? areaWidth - 28 : (options.width || 900);
+      const width = Math.min(requestedWidth, Math.max(360, areaWidth - 28));
       const height = Math.min(options.height || 620, Math.max(240, area.height - 28));
       const offset = (this.cascade++ % 7) * 24;
       const node = document.createElement('section');
@@ -74,7 +124,7 @@
       node.setAttribute('aria-label', options.title);
       Object.assign(node.style, {
         width: `${width}px`, height: `${height}px`,
-        left: `${Math.max(8, Math.min(36 + offset, area.width - width - 8))}px`,
+        left: `${Math.max(8, Math.min(36 + offset, areaWidth - width - 8))}px`,
         top: `${Math.max(8, Math.min(22 + offset, area.height - height - 8))}px`
       });
       node.innerHTML = `<header class="t2m-os-window-titlebar" data-drag>
@@ -88,6 +138,7 @@
       layer.appendChild(node);
       const record = { options, node, minimized: false, maximized: false, restore: null };
       this.windows.set(options.id, record);
+      this.syncSidebar();
       this.install(record);
       this.render(record);
       this.focus(options.id);
@@ -192,6 +243,7 @@
         Object.assign(record.node.style, record.restore || {});
         record.node.classList.remove('is-maximized'); record.maximized = false;
       }
+      this.syncSidebar();
       this.focus(id);
     }
 
@@ -199,6 +251,7 @@
       const record = this.windows.get(id); if (!record) return;
       const appKey = record.options.appKey || id;
       record.node.remove(); this.windows.delete(id); this.sync(appKey);
+      this.syncSidebar();
       this.renderTaskbar();
     }
 
@@ -283,6 +336,7 @@
   }
 
   document.addEventListener('click', event => {
+    if (event.target.closest('#os-sidebar-toggle')) { sidebarState.toggleManually(); windows.fitToArea(); }
     const app = event.target.closest('[data-os-app]'); if (app) openApp(app.dataset.osApp);
     const supplier = event.target.closest('[data-os-supplier]'); if (supplier) openSupplier(supplier.dataset.osSupplier);
     if (event.target.closest('[data-os-launch="customers"]')) openCustomers();
@@ -329,5 +383,8 @@
     } catch (_) {}
   }
   setInterval(refresh, 15000);
-  window.Talk2MeOS = { windows, openApp, openSupplier, openRoute, refresh };
+  window.Talk2MeOS = {
+    windows, openApp, openSupplier, openRoute, refresh, sidebarState,
+    setExternalWindowCount(count) { sidebarState.updateWindowCounts({ external: count }); }
+  };
 })();

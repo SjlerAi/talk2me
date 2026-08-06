@@ -12,6 +12,11 @@
   const companionWindows = new Map();
   let activeExternalKey = null;
 
+  function syncSidebar() {
+    const openCount = [...companionWindows.values()].filter(record => record.child && !record.child.closed).length;
+    window.Talk2MeOS.setExternalWindowCount?.(openCount);
+  }
+
   function esc(value) {
     return String(value ?? '')
       .replaceAll('&', '&amp;')
@@ -128,6 +133,7 @@
       name: windowName(key)
     });
     activeExternalKey = key;
+    syncSidebar();
     renderExternalTaskbar();
   }
 
@@ -135,6 +141,7 @@
     const record = companionWindows.get(key);
     if (!record || !record.child || record.child.closed) {
       companionWindows.delete(key);
+      syncSidebar();
       renderExternalTaskbar();
       const item = byKey[key];
       if (item) openCompanion(item, key);
@@ -163,6 +170,7 @@
 
     companionWindows.delete(key);
     if (activeExternalKey === key) activeExternalKey = null;
+    syncSidebar();
     renderExternalTaskbar();
     try { window.focus(); } catch (_) {}
   }
@@ -255,7 +263,7 @@
         changed = true;
       }
     }
-    if (changed) renderExternalTaskbar();
+    if (changed) { syncSidebar(); renderExternalTaskbar(); }
   }, 1000);
 
   window.addEventListener('focus', () => {
@@ -264,4 +272,5 @@
   });
 
   renderExternalTaskbar();
+  syncSidebar();
 })();
