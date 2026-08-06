@@ -7,6 +7,7 @@
   'use strict';
 
   const DEFAULT_INSET = 14;
+  const DEFAULT_FLOATING_RATIO = 0.95;
   const MIN_WIDTH = 360;
   const MIN_HEIGHT = 240;
 
@@ -27,26 +28,33 @@
   function defaultFloatingRect(layerRect, requestedInset = DEFAULT_INSET) {
     const area = layerSize(layerRect);
     const inset = safeInset(area, requestedInset);
+    const maximumWidth = Math.max(0, area.width - (inset * 2));
+    const maximumHeight = Math.max(0, area.height - (inset * 2));
+    const width = Math.min(maximumWidth, area.width * DEFAULT_FLOATING_RATIO);
+    const height = Math.min(maximumHeight, area.height * DEFAULT_FLOATING_RATIO);
     return {
-      left: inset,
-      top: inset,
-      width: Math.max(0, area.width - (inset * 2)),
-      height: Math.max(0, area.height - (inset * 2))
+      left: (area.width - width) / 2,
+      top: (area.height - height) / 2,
+      width,
+      height
     };
   }
 
   function clampFloatingRect(rect = {}, layerRect, requestedInset = DEFAULT_INSET) {
     const area = layerSize(layerRect);
-    const bounds = defaultFloatingRect(area, requestedInset);
-    const minimumWidth = Math.min(MIN_WIDTH, bounds.width);
-    const minimumHeight = Math.min(MIN_HEIGHT, bounds.height);
-    const width = clamp(finite(rect.width, bounds.width), minimumWidth, bounds.width);
-    const height = clamp(finite(rect.height, bounds.height), minimumHeight, bounds.height);
-    const maximumLeft = area.width - safeInset(area, requestedInset) - width;
-    const maximumTop = area.height - safeInset(area, requestedInset) - height;
+    const fallback = defaultFloatingRect(area, requestedInset);
+    const inset = safeInset(area, requestedInset);
+    const maximumWidth = Math.max(0, area.width - (inset * 2));
+    const maximumHeight = Math.max(0, area.height - (inset * 2));
+    const minimumWidth = Math.min(MIN_WIDTH, maximumWidth);
+    const minimumHeight = Math.min(MIN_HEIGHT, maximumHeight);
+    const width = clamp(finite(rect.width, fallback.width), minimumWidth, maximumWidth);
+    const height = clamp(finite(rect.height, fallback.height), minimumHeight, maximumHeight);
+    const maximumLeft = area.width - inset - width;
+    const maximumTop = area.height - inset - height;
     return {
-      left: clamp(finite(rect.left, bounds.left), bounds.left, maximumLeft),
-      top: clamp(finite(rect.top, bounds.top), bounds.top, maximumTop),
+      left: clamp(finite(rect.left, fallback.left), inset, maximumLeft),
+      top: clamp(finite(rect.top, fallback.top), inset, maximumTop),
       width,
       height
     };
@@ -57,5 +65,5 @@
     return { left: 0, top: 0, width: area.width, height: area.height };
   }
 
-  return { DEFAULT_INSET, MIN_WIDTH, MIN_HEIGHT, layerSize, defaultFloatingRect, clampFloatingRect, maximizedRect };
+  return { DEFAULT_INSET, DEFAULT_FLOATING_RATIO, MIN_WIDTH, MIN_HEIGHT, layerSize, defaultFloatingRect, clampFloatingRect, maximizedRect };
 });

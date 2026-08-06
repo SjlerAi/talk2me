@@ -79,7 +79,8 @@ assert(os.includes('windowGeometry.defaultFloatingRect(area, windowInset)'), 'ro
 assert(os.includes('layer.getBoundingClientRect()'), 'window geometry must re-read the rendered workspace layer');
 assert(!os.includes('availableWorkspaceWidth') && !os.includes('shell.clientWidth'), 'window geometry must not subtract the sidebar from the shell twice');
 assert(!os.includes("window.matchMedia('(max-width: 1050px)').matches"), 'tablet viewport must not override the rendered sidebar state');
-assert(os.includes('windows.scheduleFit()'), 'manual expansion must refit windows after the layout transition');
+assert(!os.includes("event.propertyName === 'grid-template-columns'") && !os.includes("shell.addEventListener('transitionend'"), 'sidebar transitions must not refit shell-level windows');
+assert(os.includes("if (event.target.closest('#os-sidebar-toggle')) sidebarState.toggleManually();"), 'manual sidebar changes must not resize or reposition shell-level windows');
 assert(launchers.includes('setExternalWindowCount') && launchers.includes('syncSidebar();'), 'companion lifecycle must drive sidebar state');
 assert(css.includes('--t2m-os-sidebar-rail:68px') && css.includes('minmax(0,1fr)'), 'compact rail and shrink-safe workspace are required');
 assert(css.includes('button>b[hidden]'), 'hidden counters must remain hidden while visible badges stay readable');

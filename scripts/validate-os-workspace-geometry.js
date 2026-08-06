@@ -24,20 +24,20 @@ function assertInside(rect, area, inset, message) {
 
 const viewports = [[943, 768], [1366, 768], [1440, 900], [1600, 900], [1920, 1080]];
 for (const [viewportWidth, viewportHeight] of viewports) {
-  const layer = { width: viewportWidth - 68, height: viewportHeight - 198 };
+  const layer = { width: viewportWidth, height: viewportHeight - 46 };
   const floating = geometry.defaultFloatingRect(layer);
   assertInside(floating, layer, geometry.DEFAULT_INSET, `${viewportWidth}x${viewportHeight} default window`);
-  assert(floating.width / layer.width >= 0.94 && floating.width < layer.width, `${viewportWidth}x${viewportHeight} window must be large but floating`);
-  assert(floating.height / layer.height >= 0.94 && floating.height < layer.height, `${viewportWidth}x${viewportHeight} window must expose dashboard edges`);
-  assert.strictEqual(floating.left, geometry.DEFAULT_INSET);
-  assert.strictEqual(floating.top, geometry.DEFAULT_INSET);
+  assert(Math.abs((floating.width / layer.width) - geometry.DEFAULT_FLOATING_RATIO) < 0.001, `${viewportWidth}x${viewportHeight} window width must be approximately 95%`);
+  assert(Math.abs((floating.height / layer.height) - geometry.DEFAULT_FLOATING_RATIO) < 0.001, `${viewportWidth}x${viewportHeight} window height must be approximately 95%`);
+  assert.strictEqual(floating.left, (layer.width - floating.width) / 2, `${viewportWidth}x${viewportHeight} window must be horizontally centered`);
+  assert.strictEqual(floating.top, (layer.height - floating.height) / 2, `${viewportWidth}x${viewportHeight} window must be vertically centered`);
 
   const maximized = geometry.maximizedRect(layer);
   assert.deepStrictEqual(maximized, { left: 0, top: 0, width: layer.width, height: layer.height }, `${viewportWidth}x${viewportHeight} maximize must fill the layer`);
 
-  const expandedLayer = { width: viewportWidth - 220, height: layer.height };
-  const expandedDefault = geometry.defaultFloatingRect(expandedLayer);
-  assertInside(expandedDefault, expandedLayer, geometry.DEFAULT_INSET, `${viewportWidth}x${viewportHeight} expanded-sidebar refit`);
+  const expandedSidebarLayer = { ...layer };
+  const expandedDefault = geometry.defaultFloatingRect(expandedSidebarLayer);
+  assert.deepStrictEqual(expandedDefault, floating, `${viewportWidth}x${viewportHeight} sidebar changes must not affect shell-overlay geometry`);
 
   const resizedLayer = { width: Math.max(400, layer.width - 180), height: Math.max(300, layer.height - 100) };
   const adjusted = geometry.clampFloatingRect({ left: 200, top: 120, width: floating.width, height: floating.height }, resizedLayer);
@@ -72,19 +72,25 @@ assert(client.indexOf('const existing = this.windows.get(options.id)') < client.
 assert(client.includes("const taskbar = event.target.closest('[data-taskbar-window]')"), 'taskbar restore path must remain wired');
 assert.strictEqual((client.match(/window\.addEventListener\('resize'/g) || []).length, 1, 'exactly one bounded viewport resize listener is required');
 assert(client.includes('if (this.fitFrame) return;') && client.includes('window.requestAnimationFrame'), 'resize refits must be animation-frame bounded');
-assert(client.includes("event.propertyName === 'grid-template-columns'"), 'sidebar transition completion must trigger a layer re-read');
+assert(!client.includes("event.propertyName === 'grid-template-columns'") && !client.includes("shell.addEventListener('transitionend'"), 'sidebar layout transitions must not refit shell-level windows');
+assert(client.includes("if (event.target.closest('#os-sidebar-toggle')) sidebarState.toggleManually();"), 'sidebar changes must not schedule shell-window geometry work');
 assert(client.includes('this.drag(record);') && client.includes('this.resize(record);'), 'drag and resize must remain installed');
 assert.strictEqual((client.match(/document\.addEventListener\('click'/g) || []).length, 1, 'authoritative click listener must not be duplicated');
 
 assert(css.includes('.t2m-os-body{overflow:hidden'), 'outer page overflow must remain disabled');
-assert(css.includes('.t2m-os-window-layer{min-height:0;max-height:100%;overflow:hidden}'), 'window layer must contain its windows');
+assert(css.includes('.t2m-os-window-layer{position:fixed;z-index:12000;inset:0 0 46px;'), 'window layer must be a fixed shell overlay above the shell chrome');
+assert(css.includes('overflow:hidden;pointer-events:none}'), 'window layer must contain windows without blocking exposed shell controls');
+assert(css.includes('.t2m-os-window{pointer-events:auto}'), 'floating windows must remain interactive inside the click-through overlay');
 assert(css.includes('.t2m-os-window-controls{flex:0 0 auto}'), 'title controls must remain fully visible');
 assert(css.includes('.t2m-os-window-title{min-width:0;overflow:hidden}'), 'long titles must truncate instead of displacing controls');
 assert(css.includes('.t2m-os-window-body iframe{display:block;width:100%;max-width:100%;height:100%;border:0}'), 'route iframe must stay inside the window body');
 assert(css.includes('.t2m-os-window-body{min-width:0;max-width:100%;overflow:auto}'), 'route content must scroll internally');
 assert(css.includes('.t2m-os-window.is-minimized{display:none}'), 'minimize must hide rather than destroy the window');
 
-assert(shell.includes('id="os-window-layer"'), 'authoritative window layer must remain present');
+const mainClose = shell.indexOf('</main>');
+const layerIndex = shell.indexOf('id="os-window-layer"');
+const taskbarIndex = shell.indexOf('id="os-taskbar"');
+assert(mainClose >= 0 && layerIndex > mainClose && layerIndex < taskbarIndex, 'authoritative window layer must be shell-level, outside the workspace main');
 assert(shell.includes('aria-label="Open windows"') && shell.includes('id="os-taskbar-items"'), 'Open Windows taskbar must remain present');
 ['messages', 'tasks', 'reports'].forEach(app => assert(shell.includes(`data-os-app="${app}"`), `${app} launcher must remain unchanged`));
 ['/approvals', '/clients/assignment-centre?view=unassigned', '/backoffice'].forEach(route => assert(shell.includes(route), `${route} must remain unchanged`));

@@ -77,11 +77,7 @@
       this.cascade = 0;
       this.fitFrame = 0;
       this.onViewportResize = () => this.scheduleFit();
-      this.onShellTransition = event => {
-        if (event.target === shell && event.propertyName === 'grid-template-columns') this.scheduleFit();
-      };
       window.addEventListener('resize', this.onViewportResize);
-      shell.addEventListener('transitionend', this.onShellTransition);
     }
 
     syncSidebar() {
@@ -89,7 +85,6 @@
         internal: this.windows.size,
         maximized: [...this.windows.values()].filter(record => record.maximized).length
       });
-      this.scheduleFit();
     }
 
     readLayer() {
@@ -110,7 +105,11 @@
         left: `${rect.left}px`,
         top: `${rect.top}px`,
         width: `${rect.width}px`,
-        height: `${rect.height}px`
+        height: `${rect.height}px`,
+        '--t2m-window-left': `${rect.left}px`,
+        '--t2m-window-top': `${rect.top}px`,
+        '--t2m-window-width': `${rect.width}px`,
+        '--t2m-window-height': `${rect.height}px`
       });
     }
 
@@ -408,7 +407,7 @@
   }
 
   document.addEventListener('click', event => {
-    if (event.target.closest('#os-sidebar-toggle')) { sidebarState.toggleManually(); windows.scheduleFit(); }
+    if (event.target.closest('#os-sidebar-toggle')) sidebarState.toggleManually();
     const app = event.target.closest('[data-os-app]'); if (app) openApp(app.dataset.osApp);
     const supplier = event.target.closest('[data-os-supplier]'); if (supplier) openSupplier(supplier.dataset.osSupplier);
     if (event.target.closest('[data-os-launch="customers"]')) openCustomers();
@@ -457,6 +456,6 @@
   setInterval(refresh, 15000);
   window.Talk2MeOS = {
     windows, openApp, openSupplier, openRoute, refresh, sidebarState,
-    setExternalWindowCount(count) { sidebarState.updateWindowCounts({ external: count }); windows.scheduleFit(); }
+    setExternalWindowCount(count) { sidebarState.updateWindowCounts({ external: count }); }
   };
 })();
