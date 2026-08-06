@@ -18,6 +18,7 @@
   <link rel="stylesheet" href="<%= basePath %>/public/css/attendance.css?v=<%= encodeURIComponent(appVersion) %>">
   <link rel="stylesheet" href="<%= basePath %>/public/css/client-assignment-centre.css?v=<%= encodeURIComponent(appVersion) %>">
   <link rel="stylesheet" href="<%= basePath %>/public/css/os-sidebar-collapse.css?v=<%= encodeURIComponent(appVersion) %>">
+  <link rel="stylesheet" href="<%= basePath %>/public/css/os-window-geometry.css?v=<%= encodeURIComponent(appVersion) %>">
 </head>
 <body class="t2m-os-body">
   <% const launchers = (typeof osLaunchers !== 'undefined' && Array.isArray(osLaunchers) ? osLaunchers : []).filter(item => item.is_enabled); %>
@@ -89,6 +90,7 @@
   <div class="t2m-os-toast-region" id="os-toast-region" aria-live="polite" aria-atomic="true"></div>
   <script id="talk2me-os-config" type="application/json"><%- JSON.stringify({basePath,appVersion,user:{id:currentUser.id,name:currentUser.full_name,role:currentUser.role},isManagement,status,launchers}).replace(/</g, '\u003c') %></script>
   <script defer src="<%= basePath %>/public/js/os-sidebar-state.js?v=<%= encodeURIComponent(appVersion) %>"></script>
+  <script defer src="<%= basePath %>/public/js/os-window-geometry.js?v=<%= encodeURIComponent(appVersion) %>"></script>
   <script defer src="<%= basePath %>/public/js/os-v6.js?v=<%= encodeURIComponent(appVersion) %>"></script>
   <script defer src="<%= basePath %>/public/js/os-launchers.js?v=<%= encodeURIComponent(appVersion) %>"></script>
   <script defer src="<%= basePath %>/public/js/os-launcher-strip.js?v=<%= encodeURIComponent(appVersion) %>"></script>
