@@ -1,6 +1,7 @@
 const express = require('express');
 const db = require('../config/db');
 const { requireAuth } = require('../middleware/auth');
+const { decorateLegacyClaimTasks } = require('../services/legacy-client-claim-decision');
 
 const router = express.Router();
 const ACTIVE = "('unread','seen','in_progress')";
@@ -195,7 +196,8 @@ router.get('/tasks',requireAuth,async(req,res,next)=>{
       ORDER BY sort_rank,t.due_at IS NULL,t.due_at ASC,t.created_at DESC LIMIT 1000`,params);
     const [staff]=isManager?await db.query('SELECT id,full_name FROM staff_users WHERE is_active=1 ORDER BY full_name'):[[]];
     const titles={active:'All Messages & Tasks',today:'Today',priority:'My Priority',progress:'In Progress',approval:'Awaiting My Approval',sent:'Sent by Me',archive:'Completed Archive',all:'All Staff Active'};
-    res.render('tasks-work-inbox',{title:titles[view]||'Tasks & Messages',tasks:tasks.map(t=>({...t,workflow_label:stateLabel(t)})),notifications:[],view,management:isManager,counts:tabCounts,staff,filters:{q,type,priority,staffFilter}});
+    const decoratedTasks=await decorateLegacyClaimTasks(tasks.map(t=>({...t,workflow_label:stateLabel(t)})),req.session.user);
+    res.render('tasks-work-inbox',{title:titles[view]||'Tasks & Messages',tasks:decoratedTasks,notifications:[],view,management:isManager,counts:tabCounts,staff,filters:{q,type,priority,staffFilter}});
   } catch(error){next(error)}
 });
 
@@ -271,7 +273,8 @@ router.get('/tasks/:id',requireAuth,async(req,res,next)=>{
     const waitingApproval=task.status==='completed'&&task.workflow_state==='awaiting_sender_ack',archived=task.status==='cancelled'||(task.status==='completed'&&task.workflow_state==='accepted');
     const canUpdate=(isManager||assignee)&&!waitingApproval&&!archived,canApprove=(isManager||creator)&&waitingApproval;
     const priorityToday=task.my_priority_date&&new Date(task.my_priority_date).toLocaleDateString('en-CA')===new Date().toLocaleDateString('en-CA');
-    res.render('task-work-detail',{title:`${task.type==='notification'?'Message':'Task'} #${taskId}`,task:{...task,workflow_label:stateLabel(task)},comments,management:isManager,isAssignee:assignee,isCreator:creator,waitingApproval,archived,canUpdate,canApprove,priorityToday});
+    const [decoratedTask]=await decorateLegacyClaimTasks([{...task,workflow_label:stateLabel(task)}],req.session.user);
+    res.render('task-work-detail',{title:`${task.type==='notification'?'Message':'Task'} #${taskId}`,task:decoratedTask,comments,management:isManager,isAssignee:assignee,isCreator:creator,waitingApproval,archived,canUpdate,canApprove,priorityToday,legacyClaim:decoratedTask.legacyClaim});
   }catch(error){next(error)}
 });
 

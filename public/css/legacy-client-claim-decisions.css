@@ -1,0 +1,13 @@
+/* Historical claim decisions stay readable inside the companion window. */
+.task-work-card{grid-template-columns:44px minmax(0,1fr) minmax(126px,220px)}
+.task-work-card-copy{min-width:0;color:inherit;text-decoration:none}
+.task-work-card-side{min-width:0}
+.task-work-card.legacy-claim-pending{border-left-color:#f79009}
+.legacy-claim-actions,.legacy-claim-detail-actions{display:grid;gap:8px;margin-top:8px}
+.legacy-claim-actions form{margin:0}
+.legacy-claim-actions .btn{width:100%;white-space:normal;text-align:center}
+.legacy-claim-actions details summary{cursor:pointer;color:#b42318;font-size:12px;font-weight:800}
+.legacy-claim-actions details form{display:grid;gap:6px;margin-top:7px}
+.legacy-claim-actions textarea{min-width:0;width:100%;font-size:12px}
+@media(max-width:900px){.task-work-card{grid-template-columns:38px minmax(0,1fr)}.task-work-card-side{grid-column:2}.task-work-card-date{text-align:left}.legacy-claim-actions{grid-template-columns:repeat(2,minmax(0,1fr))}.legacy-claim-actions details{grid-column:1/-1}}
+@media(max-width:600px){.legacy-claim-actions{grid-template-columns:1fr}}

@@ -6,7 +6,7 @@
 </section>
 <% if(claimed){ %><div class="success-box">Client claimed successfully.</div><% } %>
 <% if(conflict){ %><div class="warning-box">This client is already claimed by <%= conflictOwner||'another staff member' %>. A conflict has been sent to the owner for a decision.</div><% } %>
-<% if(reviewed){ %><div class="success-box">The account claim was <%= reviewed==='approved'?'approved, linked and assigned':'rejected' %>.</div><% } %>
+<% if(reviewed){ %><div class="<%= reviewed==='conflict'?'warning-box':'success-box' %>"><%= reviewed==='conflict'?'Ownership conflict - review required':(reviewed==='rejected'?'The account claim was rejected.':'The legacy claim decision was completed safely.') %></div><% } %>
 <nav class="assignment-centre-tabs" aria-label="Client assignment views">
   <a class="<%= view==='unassigned'?'active':'' %>" href="<%= viewUrl('unassigned') %>">Unassigned Accounts <b><%= counts.unassigned_count||0 %></b></a>
   <a class="<%= view==='mine'?'active':'' %>" href="<%= viewUrl('mine') %>">My Accounts <b><%= counts.mine_count||0 %></b></a>
@@ -26,10 +26,10 @@
 </section>
 <% } else { %>
 <section class="assignment-request-list">
-  <% requests.forEach(r=>{ %><article class="panel assignment-request-card">
+  <% requests.forEach(r=>{ %><article class="panel assignment-request-card <%= Number(focusRequest)===Number(r.id)?'focused-claim':'' %>" id="claim-<%= r.id %>">
     <div><div class="assignment-client-title"><strong><%= r.client_name||r.summary||'Account claim' %></strong><span class="status-pill <%= r.status %>"><%= String(r.status||'').replaceAll('_',' ') %></span></div><p><%= [r.cell_number,r.email,r.city_town,r.account_number].filter(Boolean).join(' · ') %></p><div class="assignment-client-meta"><span>Linked lines: <b><%= r.linked_line_count||1 %></b></span></div><small>Requested <%= new Date(r.created_at).toLocaleString('en-ZA') %><% if(r.requested_by_name){ %> by <%= r.requested_by_name %><% } %></small><% if(r.reason){ %><p class="assignment-reason"><strong>Reason:</strong> <%= r.reason %></p><% } %><% if(r.review_comment){ %><p><strong>Management note:</strong> <%= r.review_comment %></p><% } %></div>
     <div class="assignment-client-actions"><a class="btn" href="<%= basePath %>/customers/<%= r.client_id %>/360<%= panelMode?'?panel=1':'' %>">Open Main Account</a>
-      <% if(view==='pending'){ %><form method="post" action="<%= basePath %>/client-claims/<%= r.id %>/decision" class="claim-decision-form"><% if(panelMode){ %><input type="hidden" name="panel" value="1"><% } %><textarea name="comment" rows="2" placeholder="Optional management note"></textarea><div><button class="btn primary" name="decision" value="approve" type="submit">Approve Entire Account</button><button class="btn danger" name="decision" value="reject" type="submit">Reject</button></div></form><% } %>
+      <% if(view==='pending'){ %><div class="claim-decision-form"><form method="post" action="<%= basePath %>/legacy-client-claims/<%= r.id %>/decision"><input type="hidden" name="decision" value="approve"><% if(panelMode){ %><input type="hidden" name="panel" value="1"><% } %><button class="btn primary" type="submit">Approve safely</button></form><form method="post" action="<%= basePath %>/legacy-client-claims/<%= r.id %>/decision"><input type="hidden" name="decision" value="reject"><% if(panelMode){ %><input type="hidden" name="panel" value="1"><% } %><textarea name="reason" rows="2" required placeholder="Reason required for rejection"></textarea><button class="btn danger" type="submit">Reject claim</button></form></div><% } %>
     </div>
   </article><% }) %>
   <% if(!requests.length){ %><div class="panel empty-state"><h2>Nothing to show</h2><p><%= view==='pending'?'There are no ownership conflicts awaiting an owner decision.':'You have no claim history yet.' %></p></div><% } %>

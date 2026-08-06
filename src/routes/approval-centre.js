@@ -134,7 +134,7 @@ async function loadPendingChanges(basePath, user) {
       clientId: row.client_id ? Number(row.client_id) : null,
       openUrl: row.client_id ? `${basePath}/customers/${row.client_id}/360` : null,
       actionUrl: row.request_type === 'claim_client'
-        ? `${basePath}/client-claims/${row.id}/decision`
+        ? `${basePath}/client-claims/${row.id}/${proposed.ownership_conflict ? 'owner-decision' : 'decision'}`
         : `${basePath}/approvals/${row.id}/decision`,
       ownershipConflict: Boolean(proposed.ownership_conflict),
       needsAccountNumber: row.request_type === 'assign_account_number',
