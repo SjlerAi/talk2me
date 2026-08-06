@@ -72,6 +72,8 @@ class SafeClaimConnection {
     this.messages = [7, 8, 9].map(id => ({ id, title: task.title, message: task.message, status: 'unread', assigned_to: id, related_client_id: 4 }));
     this.assignments = [];
     this.audits = [];
+    this.comments = [];
+    this.notificationResolutions = 0;
     this.commits = 0;
     this.rollbacks = 0;
   }
@@ -106,8 +108,8 @@ class SafeClaimConnection {
     if (compact.startsWith("UPDATE data_change_requests SET status='applied'")) { this.request.status = 'applied'; return [{ affectedRows: 1 }]; }
     if (compact.startsWith('SELECT id,title,message,status,assigned_to,')) return [this.messages.map(row => ({ ...row }))];
     if (compact.startsWith("UPDATE staff_tasks SET status='completed'")) { this.messages.forEach(row => { row.status = 'completed'; }); return [{ affectedRows: 3 }]; }
-    if (compact.startsWith('UPDATE staff_task_notifications SET resolved_at=')) return [{ affectedRows: 0 }];
-    if (compact.startsWith('INSERT INTO staff_task_comments')) return [{ insertId: 1 }];
+    if (compact.startsWith('UPDATE staff_task_notifications SET resolved_at=')) { this.notificationResolutions += 1; return [{ affectedRows: 1 }]; }
+    if (compact.startsWith('INSERT INTO staff_task_comments')) { this.comments.push(params); return [{ insertId: this.comments.length }]; }
     if (compact.startsWith('INSERT INTO audit_log')) { this.audits.push(params); return [{ insertId: this.audits.length }]; }
     throw new Error(`Unhandled validation SQL: ${compact}`);
   }
@@ -126,13 +128,33 @@ async function validateDecisionTransaction() {
   assert.strictEqual(conn.assignments[0].assigned_staff_id, 12);
   assert(conn.messages.every(row => row.status === 'completed'));
   assert.strictEqual(conn.audits.length, 1);
+  assert.strictEqual(conn.comments.length, 3);
+  assert.strictEqual(conn.notificationResolutions, 1);
   assert.strictEqual(conn.audits[0].ip, '127.0.0.1');
   assert.strictEqual(conn.audits[0].userAgent, 'validation-agent');
   assert.strictEqual(conn.commits, 1);
   assert.strictEqual(conn.rollbacks, 0);
-  const retry = await decideLegacyClaim(7, 'approve', { user: { id: 2, full_name: 'Owner User', role: 'owner' } }, database);
-  assert.strictEqual(retry.idempotent, true);
+  const second = await decideLegacyClaim(7, 'approve', { user: { id: 2, full_name: 'Owner User', role: 'owner' } }, database);
+  const third = await decideLegacyClaim(7, 'approve', { user: { id: 2, full_name: 'Owner User', role: 'owner' } }, database);
+  assert.strictEqual(second.idempotent, true);
+  assert.strictEqual(third.idempotent, true);
+  assert.deepStrictEqual(second.repairedMessageIds, []);
+  assert.deepStrictEqual(third.repairedMessageIds, []);
   assert.strictEqual(conn.assignments.length, 1);
+  assert.strictEqual(conn.audits.length, 1);
+  assert.strictEqual(conn.comments.length, 3);
+  assert.strictEqual(conn.notificationResolutions, 1);
+  assert(conn.messages.every(row => row.status === 'completed'));
+  assert.strictEqual(conn.commits, 3);
+  assert.strictEqual(conn.rollbacks, 0);
+  conn.messages[0].status = 'unread';
+  const staleRepair = await decideLegacyClaim(7, 'approve', { user: { id: 2, full_name: 'Owner User', role: 'owner' } }, database);
+  assert.deepStrictEqual(staleRepair.repairedMessageIds, [7]);
+  assert.strictEqual(conn.assignments.length, 1);
+  assert.strictEqual(conn.audits.length, 1);
+  assert.strictEqual(conn.comments.length, 3);
+  assert.strictEqual(conn.notificationResolutions, 2);
+  assert(conn.messages.every(row => row.status === 'completed'));
   console.log(`Legacy claim decision validation passed (${templateFiles.length} EJS templates compiled).`);
 }
 

@@ -194,6 +194,23 @@ async function resolveMessages(conn, messages, note, actorId) {
   }
 }
 
+async function repairStaleMessages(conn, messages) {
+  const stale = messages.filter(row => ['unread', 'seen', 'in_progress'].includes(clean(row.status, 40).toLowerCase()));
+  if (!stale.length) return [];
+  const ids = stale.map(row => Number(row.id));
+  await conn.query(`UPDATE staff_tasks SET status='completed',seen_at=COALESCE(seen_at,NOW()),
+    started_at=COALESCE(started_at,NOW()),completed_at=COALESCE(completed_at,NOW()),
+    completion_note=COALESCE(completion_note,'Claim was already applied.')
+    WHERE id IN (${placeholders(ids)}) AND status IN ('unread','seen','in_progress')`, ids);
+  try {
+    await conn.query(`UPDATE staff_task_notifications SET resolved_at=NOW(),is_read=1,read_at=COALESCE(read_at,NOW())
+      WHERE task_id IN (${placeholders(ids)}) AND resolved_at IS NULL`, ids);
+  } catch (error) {
+    if (error.code !== 'ER_NO_SUCH_TABLE') throw error;
+  }
+  return ids;
+}
+
 async function applyScope(conn, scope, claimantId, decisionUserId) {
   const accountNumber = scope.accounts[0]?.account_number || scope.activeClients.map(row => clean(row.account_number, 120)).find(Boolean) || null;
   for (const client of scope.activeClients) {
@@ -248,17 +265,11 @@ async function decideLegacyClaim(requestIdValue, decisionValue, options = {}, da
     if (!canDecide(context.user, request)) throw decisionError('You do not have permission to decide this legacy claim.', 403);
     if (TERMINAL.has(request.status)) {
       if (request.status !== 'applied') throw decisionError(`This claim was already ${request.status}.`);
-      const [[appliedClaimant]] = await conn.execute(`SELECT id,full_name,is_active FROM staff_users WHERE id=:id FOR UPDATE`, { id: request.requested_by });
       const messages = await findLinkedMessages(conn, [request.id], uniqueIds([request.client_id]));
-      await resolveMessages(conn, messages, `Claim already applied. Confirmed by ${clean(context.user.full_name, 255)}.`, decisionUserId);
-      const before = { request_id: Number(request.id), message_id: positiveId(options.messageId), request_status: 'applied',
-        claimant: { id: Number(request.requested_by), name: appliedClaimant?.full_name || null } };
-      await auditDecision(conn, context, request, {}, before, { ...before,
-        decision_user: { id: decisionUserId, name: context.user.full_name }, decision_timestamp: new Date().toISOString(),
-        result_classification: 'already_correct', result: 'idempotent_retry', message_ids: messages.map(row => Number(row.id))
-      }, 'legacy_client_claim_idempotent');
+      const repairedMessageIds = await repairStaleMessages(conn, messages);
       await conn.commit();
-      return { status: 'completed', classification: 'already_correct', idempotent: true, requestId, messageIds: messages.map(row => Number(row.id)) };
+      return { status: 'completed', classification: 'already_correct', idempotent: true, requestId,
+        messageIds: messages.map(row => Number(row.id)), repairedMessageIds };
     }
     if (!PENDING.has(request.status)) throw decisionError('This claim is not awaiting a decision.');
     const proposal = parseProposal(request.proposed_data_json);
