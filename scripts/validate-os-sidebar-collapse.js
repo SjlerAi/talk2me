@@ -75,11 +75,11 @@ assert(shell.includes('data-badge="queue"') && shell.includes('data-approval-cou
 assert.strictEqual((os.match(/document\.addEventListener\('click'/g) || []).length, 1, 'sidebar control must reuse the authoritative click listener');
 assert(os.indexOf('const existing = this.windows.get(options.id)') < os.indexOf("document.createElement('section')"), 'existing windows must be reused before creation');
 assert(os.includes('this.syncSidebar();') && os.includes('maximized:'), 'window open/close/maximize lifecycle must drive sidebar state');
-assert(os.includes('const requestedWidth = options.url ? areaWidth - 28'), 'route work windows must use the collapsed workspace width');
-assert(os.includes("fullWidth - (compact ? 68 : 220)"), 'window geometry must use the final sidebar width during smooth transitions');
-assert(os.includes("const compact = shell.classList.contains('is-sidebar-collapsed');"), 'window geometry must follow the rendered sidebar state');
+assert(os.includes('windowGeometry.defaultFloatingRect(area, windowInset)'), 'route work windows must use the actual workspace layer');
+assert(os.includes('layer.getBoundingClientRect()'), 'window geometry must re-read the rendered workspace layer');
+assert(!os.includes('availableWorkspaceWidth') && !os.includes('shell.clientWidth'), 'window geometry must not subtract the sidebar from the shell twice');
 assert(!os.includes("window.matchMedia('(max-width: 1050px)').matches"), 'tablet viewport must not override the rendered sidebar state');
-assert(os.includes('windows.fitToArea()'), 'manual expansion must keep existing windows inside the resized workspace');
+assert(os.includes('windows.scheduleFit()'), 'manual expansion must refit windows after the layout transition');
 assert(launchers.includes('setExternalWindowCount') && launchers.includes('syncSidebar();'), 'companion lifecycle must drive sidebar state');
 assert(css.includes('--t2m-os-sidebar-rail:68px') && css.includes('minmax(0,1fr)'), 'compact rail and shrink-safe workspace are required');
 assert(css.includes('button>b[hidden]'), 'hidden counters must remain hidden while visible badges stay readable');
@@ -138,7 +138,7 @@ for (const [width, height] of [[1366,768],[1440,900],[1600,900],[1920,1080]]) {
   assert(available > 0 && height >= 768, `${width}x${height} must leave usable workspace dimensions`);
   assert(available >= 1298, `${width}x${height} must leave practical work width`);
 }
-assert(os.includes('Math.max(360, areaWidth - 28)'), 'window sizing must remain bounded by available workspace width');
+assert(os.includes('windowGeometry.clampFloatingRect'), 'window sizing must remain bounded by the actual workspace layer');
 
 const templates = [];
 function collect(dir) {

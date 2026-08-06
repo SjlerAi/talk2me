@@ -13,6 +13,8 @@
   const taskbarItems = document.getElementById('os-taskbar-items');
   const shell = document.getElementById('talk2me-os');
   const sidebarToggle = document.getElementById('os-sidebar-toggle');
+  const windowGeometry = window.Talk2MeWindowGeometry;
+  const windowInset = windowGeometry.DEFAULT_INSET;
   const supplierKey = 'talk2me-os-v6-suppliers';
   const notesKey = `talk2me-os-v6-notes-${config.user?.id || 'user'}`;
   const sidebarPreferenceKey = `talk2me-os-sidebar-collapsed-${config.user?.id || 'user'}`;
@@ -33,13 +35,6 @@
     preferenceKey: sidebarPreferenceKey,
     onChange: renderSidebar
   });
-
-  function availableWorkspaceWidth() {
-    const fullWidth = shell.clientWidth;
-    if (window.matchMedia('(max-width: 760px)').matches) return fullWidth;
-    const compact = shell.classList.contains('is-sidebar-collapsed');
-    return Math.max(0, fullWidth - (compact ? 68 : 220));
-  }
 
   const suppliersDefault = {
     vodacom: { name: 'Vodacom', icon: 'V', url: '' },
@@ -80,6 +75,13 @@
       this.windows = new Map();
       this.z = 100;
       this.cascade = 0;
+      this.fitFrame = 0;
+      this.onViewportResize = () => this.scheduleFit();
+      this.onShellTransition = event => {
+        if (event.target === shell && event.propertyName === 'grid-template-columns') this.scheduleFit();
+      };
+      window.addEventListener('resize', this.onViewportResize);
+      shell.addEventListener('transitionend', this.onShellTransition);
     }
 
     syncSidebar() {
@@ -87,19 +89,55 @@
         internal: this.windows.size,
         maximized: [...this.windows.values()].filter(record => record.maximized).length
       });
+      this.scheduleFit();
+    }
+
+    readLayer() {
+      return windowGeometry.layerSize(layer.getBoundingClientRect());
+    }
+
+    readRect(record) {
+      return {
+        left: record.node.offsetLeft,
+        top: record.node.offsetTop,
+        width: record.node.offsetWidth,
+        height: record.node.offsetHeight
+      };
+    }
+
+    applyRect(record, rect) {
+      Object.assign(record.node.style, {
+        left: `${rect.left}px`,
+        top: `${rect.top}px`,
+        width: `${rect.width}px`,
+        height: `${rect.height}px`
+      });
+    }
+
+    fitRecord(record, area = this.readLayer()) {
+      if (record.minimized) return;
+      if (record.maximized) {
+        if (record.restore) record.restore = windowGeometry.clampFloatingRect(record.restore, area, windowInset);
+        this.applyRect(record, windowGeometry.maximizedRect(area));
+        return;
+      }
+      const target = record.largeRouteWindow && !record.userAdjusted
+        ? windowGeometry.defaultFloatingRect(area, windowInset)
+        : windowGeometry.clampFloatingRect(this.readRect(record), area, windowInset);
+      this.applyRect(record, target);
     }
 
     fitToArea() {
-      const area = layer.getBoundingClientRect();
-      const areaWidth = availableWorkspaceWidth();
-      for (const record of this.windows.values()) {
-        if (record.maximized) continue;
-        const left = Math.max(0, Math.min(record.node.offsetLeft, Math.max(0, areaWidth - 80)));
-        const top = Math.max(0, Math.min(record.node.offsetTop, Math.max(0, area.height - 47)));
-        const width = Math.min(record.node.offsetWidth, Math.max(360, areaWidth - left));
-        const height = Math.min(record.node.offsetHeight, Math.max(240, area.height - top));
-        Object.assign(record.node.style, { left: `${left}px`, top: `${top}px`, width: `${width}px`, height: `${height}px` });
-      }
+      const area = this.readLayer();
+      for (const record of this.windows.values()) this.fitRecord(record, area);
+    }
+
+    scheduleFit() {
+      if (this.fitFrame) return;
+      this.fitFrame = window.requestAnimationFrame(() => {
+        this.fitFrame = 0;
+        this.fitToArea();
+      });
     }
 
     open(options) {
@@ -110,33 +148,40 @@
         return existing;
       }
 
-      sidebarState.updateWindowCounts({ internal: this.windows.size + 1 });
-      const area = layer.getBoundingClientRect();
-      const areaWidth = availableWorkspaceWidth();
-      const requestedWidth = options.url ? areaWidth - 28 : (options.width || 900);
-      const width = Math.min(requestedWidth, Math.max(360, areaWidth - 28));
-      const height = Math.min(options.height || 620, Math.max(240, area.height - 28));
+      const area = this.readLayer();
       const offset = (this.cascade++ % 7) * 24;
       const node = document.createElement('section');
       node.className = 't2m-os-window';
       node.dataset.windowId = options.id;
       node.setAttribute('role', 'dialog');
       node.setAttribute('aria-label', options.title);
-      Object.assign(node.style, {
-        width: `${width}px`, height: `${height}px`,
-        left: `${Math.max(8, Math.min(36 + offset, areaWidth - width - 8))}px`,
-        top: `${Math.max(8, Math.min(22 + offset, area.height - height - 8))}px`
-      });
       node.innerHTML = `<header class="t2m-os-window-titlebar" data-drag>
         <span class="t2m-os-window-app-icon">${esc(options.icon || '▣')}</span>
         <span class="t2m-os-window-title"><strong>${esc(options.title)}</strong><small>${esc(options.subtitle || 'Talk2Me OS')}</small></span>
         <span class="t2m-os-window-controls">
-          <button type="button" data-action="minimize" aria-label="Minimize">—</button>
-          <button type="button" data-action="maximize" aria-label="Maximize">□</button>
-          <button type="button" data-action="close" aria-label="Close">×</button>
+          <button type="button" data-action="minimize" aria-label="Minimize" title="Minimize">—</button>
+          <button type="button" data-action="maximize" aria-label="Maximize" title="Maximize">□</button>
+          <button type="button" data-action="close" aria-label="Close" title="Close">×</button>
         </span></header><div class="t2m-os-window-body"></div><span class="t2m-os-window-resize" data-resize></span>`;
       layer.appendChild(node);
-      const record = { options, node, minimized: false, maximized: false, restore: null };
+      const initialRect = options.url
+        ? windowGeometry.defaultFloatingRect(area, windowInset)
+        : windowGeometry.clampFloatingRect({
+          left: 36 + offset,
+          top: 22 + offset,
+          width: options.width || 900,
+          height: options.height || 620
+        }, area, windowInset);
+      const record = {
+        options,
+        node,
+        minimized: false,
+        maximized: false,
+        restore: null,
+        largeRouteWindow: Boolean(options.url),
+        userAdjusted: false
+      };
+      this.applyRect(record, initialRect);
       this.windows.set(options.id, record);
       this.syncSidebar();
       this.install(record);
@@ -183,13 +228,22 @@
         const x = event.clientX, y = event.clientY, left = record.node.offsetLeft, top = record.node.offsetTop;
         handle.setPointerCapture(event.pointerId);
         const move = e => {
-          const area = layer.getBoundingClientRect();
-          record.node.style.left = `${Math.min(Math.max(0, left + e.clientX - x), Math.max(0, area.width - 80))}px`;
-          record.node.style.top = `${Math.min(Math.max(0, top + e.clientY - y), Math.max(0, area.height - 47))}px`;
+          record.userAdjusted = true;
+          const target = windowGeometry.clampFloatingRect({
+            ...this.readRect(record),
+            left: left + e.clientX - x,
+            top: top + e.clientY - y
+          }, this.readLayer(), windowInset);
+          this.applyRect(record, target);
         };
-        const done = () => { handle.removeEventListener('pointermove', move); handle.removeEventListener('pointerup', done); };
+        const done = () => {
+          handle.removeEventListener('pointermove', move);
+          handle.removeEventListener('pointerup', done);
+          handle.removeEventListener('pointercancel', done);
+        };
         handle.addEventListener('pointermove', move);
         handle.addEventListener('pointerup', done);
+        handle.addEventListener('pointercancel', done);
       });
     }
 
@@ -201,13 +255,22 @@
         const x = event.clientX, y = event.clientY, width = record.node.offsetWidth, height = record.node.offsetHeight;
         handle.setPointerCapture(event.pointerId);
         const move = e => {
-          const area = layer.getBoundingClientRect();
-          record.node.style.width = `${Math.min(area.width - record.node.offsetLeft, Math.max(360, width + e.clientX - x))}px`;
-          record.node.style.height = `${Math.min(area.height - record.node.offsetTop, Math.max(240, height + e.clientY - y))}px`;
+          record.userAdjusted = true;
+          const target = windowGeometry.clampFloatingRect({
+            ...this.readRect(record),
+            width: width + e.clientX - x,
+            height: height + e.clientY - y
+          }, this.readLayer(), windowInset);
+          this.applyRect(record, target);
         };
-        const done = () => { handle.removeEventListener('pointermove', move); handle.removeEventListener('pointerup', done); };
+        const done = () => {
+          handle.removeEventListener('pointermove', move);
+          handle.removeEventListener('pointerup', done);
+          handle.removeEventListener('pointercancel', done);
+        };
         handle.addEventListener('pointermove', move);
         handle.addEventListener('pointerup', done);
+        handle.addEventListener('pointercancel', done);
       });
     }
 
@@ -229,19 +292,28 @@
     restore(id) {
       const record = this.windows.get(id); if (!record) return;
       record.minimized = false; record.node.classList.remove('is-minimized');
+      this.fitRecord(record);
       this.sync(record.options.appKey || id);
-      this.renderTaskbar(id);
+      this.focus(id);
     }
 
     maximize(id) {
       const record = this.windows.get(id); if (!record) return;
+      const button = record.node.querySelector('[data-action="maximize"]');
       if (!record.maximized) {
-        record.restore = { left: record.node.style.left, top: record.node.style.top, width: record.node.style.width, height: record.node.style.height };
-        Object.assign(record.node.style, { left: '0', top: '0', width: '100%', height: '100%' });
+        const area = this.readLayer();
+        record.restore = windowGeometry.clampFloatingRect(this.readRect(record), area, windowInset);
+        this.applyRect(record, windowGeometry.maximizedRect(area));
         record.node.classList.add('is-maximized'); record.maximized = true;
+        button.setAttribute('aria-label', 'Restore');
+        button.title = 'Restore';
+        button.textContent = '❐';
       } else {
-        Object.assign(record.node.style, record.restore || {});
         record.node.classList.remove('is-maximized'); record.maximized = false;
+        this.applyRect(record, windowGeometry.clampFloatingRect(record.restore || this.readRect(record), this.readLayer(), windowInset));
+        button.setAttribute('aria-label', 'Maximize');
+        button.title = 'Maximize';
+        button.textContent = '□';
       }
       this.syncSidebar();
       this.focus(id);
@@ -336,7 +408,7 @@
   }
 
   document.addEventListener('click', event => {
-    if (event.target.closest('#os-sidebar-toggle')) { sidebarState.toggleManually(); windows.fitToArea(); }
+    if (event.target.closest('#os-sidebar-toggle')) { sidebarState.toggleManually(); windows.scheduleFit(); }
     const app = event.target.closest('[data-os-app]'); if (app) openApp(app.dataset.osApp);
     const supplier = event.target.closest('[data-os-supplier]'); if (supplier) openSupplier(supplier.dataset.osSupplier);
     if (event.target.closest('[data-os-launch="customers"]')) openCustomers();
@@ -385,6 +457,6 @@
   setInterval(refresh, 15000);
   window.Talk2MeOS = {
     windows, openApp, openSupplier, openRoute, refresh, sidebarState,
-    setExternalWindowCount(count) { sidebarState.updateWindowCounts({ external: count }); }
+    setExternalWindowCount(count) { sidebarState.updateWindowCounts({ external: count }); windows.scheduleFit(); }
   };
 })();
