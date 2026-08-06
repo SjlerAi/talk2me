@@ -13,10 +13,14 @@
 .t2m-os-shell.is-sidebar-collapsed .t2m-os-sidebar button>b{position:absolute;display:grid;right:-2px;top:-3px;z-index:2;min-width:18px;height:18px;padding:0 4px}
 .t2m-os-shell.is-sidebar-collapsed .t2m-os-sidebar button>b[hidden]{display:none}
 .t2m-os-shell.is-sidebar-collapsed .t2m-os-sidebar-toggle>span{background:transparent;font-size:20px}
-@media(max-width:1050px){
-  .t2m-os-shell{grid-template-columns:var(--t2m-os-sidebar-rail) minmax(0,1fr)}
-  .t2m-os-sidebar button>b{position:absolute!important;display:grid!important;right:-2px;top:-3px;z-index:2}
-  .t2m-os-sidebar button>b[hidden]{display:none!important}
+@media(min-width:761px) and (max-width:1050px){
+  .t2m-os-shell{grid-template-columns:var(--t2m-os-sidebar-wide) minmax(0,1fr)}
+  .t2m-os-shell:not(.is-sidebar-collapsed) .t2m-os-sidebar-label,
+  .t2m-os-shell:not(.is-sidebar-collapsed) .t2m-os-sidebar button>strong{display:block}
+  .t2m-os-shell:not(.is-sidebar-collapsed) .t2m-os-sidebar button{grid-template-columns:28px 1fr auto;justify-items:stretch;padding:0 10px}
+  .t2m-os-shell:not(.is-sidebar-collapsed) .t2m-os-sidebar button>b{position:static;display:grid!important}
+  .t2m-os-shell:not(.is-sidebar-collapsed) .t2m-os-sidebar button>b[hidden]{display:none!important}
+  .t2m-os-shell.is-sidebar-collapsed{grid-template-columns:var(--t2m-os-sidebar-rail) minmax(0,1fr)}
 }
 @media(max-width:760px){.t2m-os-shell,.t2m-os-shell.is-sidebar-collapsed{grid-template-columns:1fr}}
 @media(prefers-reduced-motion:reduce){.t2m-os-shell{transition:none}}

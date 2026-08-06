@@ -37,7 +37,7 @@
   function availableWorkspaceWidth() {
     const fullWidth = shell.clientWidth;
     if (window.matchMedia('(max-width: 760px)').matches) return fullWidth;
-    const compact = shell.classList.contains('is-sidebar-collapsed') || window.matchMedia('(max-width: 1050px)').matches;
+    const compact = shell.classList.contains('is-sidebar-collapsed');
     return Math.max(0, fullWidth - (compact ? 68 : 220));
   }
 
