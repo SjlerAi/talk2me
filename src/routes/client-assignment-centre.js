@@ -305,7 +305,8 @@ router.get('/clients/assignment-centre', requireAuth, async (req, res, next) => 
       claimed: req.query.claimed,
       conflict: req.query.conflict,
       conflictOwner: clean(req.query.owner, 255),
-      reviewed: req.query.reviewed
+      reviewed: req.query.reviewed,
+      focusRequest: positiveId(req.query.focus_request)
     });
   } catch (error) {
     next(error);
@@ -338,7 +339,9 @@ router.post('/clients/:id/request-claim', requireAuth, async (req, res, next) =>
   }
 });
 
-router.post('/client-claims/:id/decision', requireAuth, async (req, res, next) => {
+// Existing owner-only reassignment mechanism. Ordinary legacy claim decisions use
+// legacy-client-claim-decisions.js and can never overwrite trusted ownership.
+router.post('/client-claims/:id/owner-decision', requireAuth, async (req, res, next) => {
   if (!isManagement(req.session.user)) {
     return res.status(403).render('error', { title: 'Access denied', message: 'Only management can approve or reject client claims.' });
   }
@@ -351,6 +354,9 @@ router.post('/client-claims/:id/decision', requireAuth, async (req, res, next) =
       WHERE id=:requestId AND request_type='claim_client' FOR UPDATE`, { requestId });
     if (!request || !['pending_manager', 'pending_owner'].includes(request.status)) throw new Error('This claim request has already been reviewed.');
     const proposedRequest = parseProposal(request.proposed_data_json);
+    if (!proposedRequest.ownership_conflict) {
+      throw new Error('This route is only for owner resolution of an ownership conflict.');
+    }
     if (proposedRequest.ownership_conflict && String(req.session.user.role || '').toLowerCase() !== 'owner') {
       await conn.rollback();
       return res.status(403).render('error', { title: 'Owner decision required', message: 'Only an owner can resolve a client ownership conflict.' });

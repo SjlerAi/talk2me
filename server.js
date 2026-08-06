@@ -167,6 +167,10 @@ const osLauncherSettings = require('./src/routes/os-launcher-settings');
 app.use('/', osLauncherSettings);
 if (BASE_PATH) app.use(BASE_PATH, osLauncherSettings);
 
+const legacyClientClaimDecisions = require('./src/routes/legacy-client-claim-decisions');
+app.use('/', legacyClientClaimDecisions);
+if (BASE_PATH) app.use(BASE_PATH, legacyClientClaimDecisions);
+
 const clientAssignmentCentre = require('./src/routes/client-assignment-centre');
 app.use('/', clientAssignmentCentre);
 if (BASE_PATH) app.use(BASE_PATH, clientAssignmentCentre);

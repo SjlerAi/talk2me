@@ -25,9 +25,9 @@
 </section>
 <section class="task-work-list" aria-label="<%= title %>">
   <% tasks.forEach(t=>{ const overdue=t.due_at&&new Date(t.due_at)<new Date()&&!['completed','cancelled'].includes(t.status); const dueToday=t.due_at&&new Date(t.due_at).toDateString()===new Date().toDateString(); const priorityToday=t.my_priority_date&&new Date(t.my_priority_date).toDateString()===new Date().toDateString(); %>
-  <a class="task-work-card <%= overdue?'is-overdue':'' %> <%= t.workflow_state==='awaiting_sender_ack'?'needs-approval':'' %>" href="<%= taskUrl(t.id) %>">
+  <article class="task-work-card <%= overdue?'is-overdue':'' %> <%= t.workflow_state==='awaiting_sender_ack'?'needs-approval':'' %> <%= t.legacyClaim?.pending?'legacy-claim-pending':'' %>" data-task-id="<%= t.id %>">
     <div class="task-work-card-mark"><span><%= t.type==='notification'?'●':'✓' %></span></div>
-    <div class="task-work-card-copy">
+    <a class="task-work-card-copy" href="<%= taskUrl(t.id) %>">
       <div class="task-work-card-title"><strong><%= t.title %></strong><span class="badge <%= t.priority %>"><%= t.priority %></span></div>
       <p><%= String(t.message||'').slice(0,180) %></p>
       <div class="task-work-meta"><span><b>From:</b> <%= t.created_by_name %></span><span><b>To:</b> <%= t.assigned_name %></span><% if(t.related_client_name){ %><span><b>Client:</b> <%= t.related_client_name %></span><% } %></div>
@@ -37,9 +37,15 @@
         <% if(priorityToday){ %><span class="date-label priority">My priority today</span><% } %>
         <% if(t.workflow_state==='returned'){ %><span class="date-label danger">Returned for more work</span><% } %>
       </div>
+    </a>
+    <div class="task-work-card-side"><div class="task-work-card-date"><strong><%= t.due_at?new Date(t.due_at).toLocaleDateString('en-ZA'):'No due date' %></strong><small><%= t.due_at?new Date(t.due_at).toLocaleTimeString('en-ZA',{hour:'2-digit',minute:'2-digit'}):new Date(t.created_at).toLocaleDateString('en-ZA') %></small><span>›</span></div>
+      <% if(t.legacyClaim?.pending){ %><div class="legacy-claim-actions" data-legacy-claim-actions>
+        <% if(t.legacyClaim.canDecide){ %><form method="post" action="<%= basePath %>/legacy-client-claims/<%= t.legacyClaim.requestId %>/decision" data-legacy-claim-form><input type="hidden" name="decision" value="approve"><input type="hidden" name="message_id" value="<%= t.id %>"><input type="hidden" name="return_to" value="message"><% if(panelMode){ %><input type="hidden" name="panel" value="1"><% } %><button class="btn primary" type="submit">Approve safely</button></form><% } %>
+        <a class="btn" href="<%= basePath %>/clients/assignment-centre?view=pending&focus_request=<%= t.legacyClaim.requestId %><%= panelMode?'&panel=1':'' %>">Open claim</a>
+        <% if(t.legacyClaim.canDecide){ %><details><summary>Reject / Review</summary><form method="post" action="<%= basePath %>/legacy-client-claims/<%= t.legacyClaim.requestId %>/decision" data-legacy-claim-form><input type="hidden" name="decision" value="reject"><input type="hidden" name="message_id" value="<%= t.id %>"><input type="hidden" name="return_to" value="message"><% if(panelMode){ %><input type="hidden" name="panel" value="1"><% } %><label>Reason<textarea name="reason" rows="2" required></textarea></label><button class="btn danger" type="submit">Reject claim</button></form></details><% } else { %><span class="muted"><%= t.legacyClaim.ownerOnly?'Owner review required':'Management review required' %></span><% } %>
+      </div><% } %>
     </div>
-    <div class="task-work-card-date"><strong><%= t.due_at?new Date(t.due_at).toLocaleDateString('en-ZA'):'No due date' %></strong><small><%= t.due_at?new Date(t.due_at).toLocaleTimeString('en-ZA',{hour:'2-digit',minute:'2-digit'}):new Date(t.created_at).toLocaleDateString('en-ZA') %></small><span>›</span></div>
-  </a>
+  </article>
   <% }) %>
   <% if(!tasks.length){ %><div class="panel task-work-empty"><h2>Nothing here</h2><p>This view has no matching tasks or messages.</p></div><% } %>
 </section>
@@ -50,3 +56,6 @@
   <% if(!notifications.length){ %><div class="panel task-work-empty"><h2>All caught up</h2><p>There are no unread updates or approval requests.</p></div><% } %>
 </section>
 <% } %>
+<script>
+document.addEventListener('submit',async event=>{const form=event.target.closest('[data-legacy-claim-form]');if(!form)return;event.preventDefault();const button=form.querySelector('button[type="submit"]');button.disabled=true;try{const response=await fetch(form.action,{method:'POST',headers:{Accept:'application/json'},body:new FormData(form)}),data=await response.json();if(!response.ok||!data.ok)throw new Error(data.message||'The claim could not be reviewed.');if(data.result.status==='conflict'){alert(data.result.message);location.href=`<%= basePath %>/clients/assignment-centre?view=pending&focus_request=${data.result.requestId}<%= panelMode?'&panel=1':'' %>`;return}const card=form.closest('[data-task-id]');card.querySelector('[data-legacy-claim-actions]').innerHTML=`<span class="workflow-state">${data.result.classification==='rejected'?'Rejected':'Decision completed'}</span><small>${new Date().toLocaleString('en-ZA')}</small>`;card.classList.remove('legacy-claim-pending');window.dispatchEvent(new Event('workspace:refresh'))}catch(error){alert(error.message);button.disabled=false}});
+</script>
