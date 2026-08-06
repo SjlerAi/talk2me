@@ -179,6 +179,10 @@ const approvalDecisionsSafe = require('./src/routes/approval-decisions-safe');
 app.use('/', approvalDecisionsSafe);
 if (BASE_PATH) app.use(BASE_PATH, approvalDecisionsSafe);
 
+const legacyClientClaimReconciliation = require('./src/routes/legacy-client-claim-reconciliation');
+app.use('/', legacyClientClaimReconciliation);
+if (BASE_PATH) app.use(BASE_PATH, legacyClientClaimReconciliation);
+
 const osOperations = require('./src/routes/os-operations');
 app.use('/', osOperations);
 if (BASE_PATH) app.use(BASE_PATH, osOperations);

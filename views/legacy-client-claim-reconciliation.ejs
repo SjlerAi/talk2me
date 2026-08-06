@@ -1,0 +1,66 @@
+<%
+const queryFor = changes => {
+  const params = new URLSearchParams();
+  if (filters.classification) params.set('classification', filters.classification);
+  if (filters.claimant) params.set('claimant', filters.claimant);
+  if (filters.current_assignee) params.set('current_assignee', filters.current_assignee);
+  if (filters.search) params.set('search', filters.search);
+  params.set('page_size', filters.page_size);
+  if (panelMode) params.set('panel', '1');
+  Object.entries(changes || {}).forEach(([key, value]) => value === '' ? params.delete(key) : params.set(key, value));
+  return params.toString();
+};
+const dateText = value => value ? new Date(value).toLocaleString('en-ZA') : 'Not recorded';
+%>
+<section class="lcr-head">
+  <div>
+    <div class="eyebrow">Administration - read-only report</div>
+    <h1>Legacy Client Claim Reconciliation</h1>
+    <p>This report analyses historical pending client and account claims created before immediate claiming was introduced. No records are changed from this screen.</p>
+  </div>
+  <div class="lcr-head-actions">
+    <span class="lcr-read-only">Read only - no records changed</span>
+    <a class="btn" href="<%= basePath %>/backoffice<%= panelMode?'?panel=1':'' %>">Back to Administration</a>
+    <a class="btn primary" href="<%= basePath %>/backoffice/legacy-client-claim-reconciliation.csv?<%= queryFor({page:''}) %>">Export filtered CSV</a>
+  </div>
+</section>
+
+<section class="lcr-summary" aria-label="Reconciliation summary">
+  <article><span>Pending claim requests</span><strong><%= summary.totalPendingClaims %></strong><small>Historical request rows</small></article>
+  <article><span>Unique customer scopes</span><strong><%= summary.uniqueScopes %></strong><small>Grouped by account</small></article>
+  <article class="safe"><span>Safe to apply</span><strong><%= summary.safe_to_apply %></strong><small>Scope count</small></article>
+  <article class="correct"><span>Already correct</span><strong><%= summary.already_correct %></strong><small>Scope count</small></article>
+  <article class="conflict"><span>Ownership conflicts</span><strong><%= summary.ownership_conflict %></strong><small>Scope count</small></article>
+  <article class="exception"><span>Exceptions</span><strong><%= summary.exception %></strong><small>Scope count</small></article>
+</section>
+
+<section class="panel lcr-filters">
+  <form method="get">
+    <% if(panelMode){ %><input type="hidden" name="panel" value="1"><% } %>
+    <label>Classification<select name="classification"><option value="">All classifications</option>
+      <% [['safe_to_apply','Safe to apply'],['already_correct','Already correct'],['ownership_conflict','Ownership conflict'],['exception','Exception']].forEach(item=>{ %><option value="<%= item[0] %>" <%= filters.classification===item[0]?'selected':'' %>><%= item[1] %></option><% }) %>
+    </select></label>
+    <label>Original claimant<select name="claimant"><option value="">All claimants</option><% options.claimants.forEach(item=>{ %><option value="<%= item.id %>" <%= Number(filters.claimant)===item.id?'selected':'' %>><%= item.name %></option><% }) %></select></label>
+    <label>Current assignee<select name="current_assignee"><option value="">All assignees</option><option value="unassigned" <%= filters.current_assignee==='unassigned'?'selected':'' %>>Unassigned</option><% options.currentAssignees.forEach(item=>{ %><option value="<%= item.id %>" <%= Number(filters.current_assignee)===item.id?'selected':'' %>><%= item.name %></option><% }) %></select></label>
+    <label class="lcr-search">Search<input type="search" name="search" value="<%= filters.search %>" placeholder="Account, customer, client ID or name"></label>
+    <label>Rows<select name="page_size"><% [25,50,100].forEach(size=>{ %><option value="<%= size %>" <%= filters.page_size===size?'selected':'' %>><%= size %></option><% }) %></select></label>
+    <div class="lcr-filter-actions"><button class="btn primary" type="submit">Apply filters</button><a class="btn" href="<%= basePath %>/backoffice/legacy-client-claim-reconciliation<%= panelMode?'?panel=1':'' %>">Clear</a></div>
+  </form>
+</section>
+
+<section class="panel lcr-results">
+  <div class="lcr-results-head"><div><h2>Customer and account scopes</h2><p><%= pagination.total %> matching scope<%= pagination.total===1?'':'s' %>. Classifications are analysis only; this page cannot apply or decide a claim.</p></div><span>Page <%= pagination.page %> of <%= pagination.pages %></span></div>
+  <% if(!rows.length){ %><div class="lcr-empty"><h3>No matching legacy claims</h3><p>Change the filters or clear the search to see other pending claim scopes.</p></div><% } else { %>
+  <div class="lcr-table-wrap"><table class="lcr-table">
+    <thead><tr><th>Classification and reason</th><th>Customer / account</th><th>Linked scope</th><th>Legacy claims</th><th>Current assignment</th><th>Evidence and links</th></tr></thead>
+    <tbody><% rows.forEach(row=>{ %><tr>
+      <td data-label="Classification"><span class="lcr-status <%= row.classification %>"><%= row.classificationLabel %></span><p><%= row.reason %></p></td>
+      <td data-label="Customer / account"><strong><%= row.customerName %></strong><span>Account: <%= row.accountNumber||'Not recorded' %></span><span>Account ID: <%= row.accountId||'Not recorded' %></span></td>
+      <td data-label="Linked scope"><strong><%= row.linkedActiveClientCount %> active client/line<%= row.linkedActiveClientCount===1?'':'s' %></strong><span>Client IDs: <%= row.clientIds.join(', ')||'None found' %></span><span><%= row.clientNames.join(', ')||'Names not recorded' %></span></td>
+      <td data-label="Legacy claims"><strong><%= row.requestCount %> request<%= row.requestCount===1?'':'s' %>: #<%= row.requestIds.join(', #') %></strong><% row.claimants.forEach(item=>{ %><span><%= item.name %> (#<%= item.id %>)</span><% }) %><% row.claimTimestamps.forEach(value=>{ %><small><%= dateText(value) %></small><% }) %></td>
+      <td data-label="Current assignment"><% if(row.currentAssignees.length){ row.currentAssignees.forEach(item=>{ %><strong><%= item.name %> (#<%= item.id %>)</strong><% }); } else { %><strong>Unassigned</strong><% } %></td>
+      <td data-label="Evidence and links"><% if(row.evidence.length){ row.evidence.forEach(item=>{ %><span><%= item %></span><% }); } else { %><span>No current assignment evidence</span><% } %><nav class="lcr-links"><% if(row.customerUrl){ %><a href="<%= row.customerUrl %>">Customer 360</a><% } %><a href="<%= row.approvalHistoryUrl %>">Approval History</a><a href="<%= row.assignmentCentreUrl %>">Assignment Centre</a></nav></td>
+    </tr><% }) %></tbody>
+  </table></div><% } %>
+  <% if(pagination.pages>1){ %><nav class="lcr-pagination" aria-label="Report pages"><% if(pagination.page>1){ %><a class="btn" href="?<%= queryFor({page:pagination.page-1}) %>">Previous</a><% } %><span>Page <%= pagination.page %> of <%= pagination.pages %></span><% if(pagination.page<pagination.pages){ %><a class="btn" href="?<%= queryFor({page:pagination.page+1}) %>">Next</a><% } %></nav><% } %>
+</section>
