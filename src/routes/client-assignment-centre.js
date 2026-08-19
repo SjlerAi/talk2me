@@ -3,6 +3,7 @@ const db = require('../config/db');
 const { requireAuth } = require('../middleware/auth');
 const { audit } = require('../services/audit');
 const { claimClient } = require('../services/client-claim');
+const { bulkClaimClients } = require('../services/bulk-client-claim');
 
 const router = express.Router();
 const MANAGEMENT_ROLES = ['owner', 'admin', 'manager'];
@@ -306,10 +307,52 @@ router.get('/clients/assignment-centre', requireAuth, async (req, res, next) => 
       conflict: req.query.conflict,
       conflictOwner: clean(req.query.owner, 255),
       reviewed: req.query.reviewed,
+      bulkResult: {
+        complete: String(req.query.bulk_complete || '') === '1',
+        selected: Number(req.query.selected || 0),
+        claimed: Number(req.query.claimed_count || 0),
+        alreadyMine: Number(req.query.already_mine || 0),
+        conflicts: Number(req.query.conflicts || 0),
+        failed: Number(req.query.failed || 0),
+        error: clean(req.query.bulk_error, 255)
+      },
       focusRequest: positiveId(req.query.focus_request)
     });
   } catch (error) {
     next(error);
+  }
+});
+
+router.post('/clients/bulk-claim', requireAuth, async (req, res, next) => {
+  try {
+    const summary = await bulkClaimClients(req.body.client_ids, {
+      claimant: { id: req.session.user.id, name: req.session.user.full_name },
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      basePath: res.locals.basePath
+    });
+    const query = new URLSearchParams({
+      view: 'unassigned',
+      bulk_complete: '1',
+      selected: String(summary.selected),
+      claimed_count: String(summary.claimed),
+      already_mine: String(summary.alreadyMine),
+      conflicts: String(summary.conflicts),
+      failed: String(summary.failed)
+    });
+    const q = clean(req.body.q, 200);
+    if (q) query.set('q', q);
+    if (String(req.body.panel || '') === '1') query.set('panel', '1');
+    return res.redirect(`${res.locals.basePath}/clients/assignment-centre?${query.toString()}`);
+  } catch (error) {
+    if (error.statusCode === 400) {
+      const query = new URLSearchParams({ view: 'unassigned', bulk_error: error.message });
+      const q = clean(req.body.q, 200);
+      if (q) query.set('q', q);
+      if (String(req.body.panel || '') === '1') query.set('panel', '1');
+      return res.redirect(`${res.locals.basePath}/clients/assignment-centre?${query.toString()}`);
+    }
+    return next(error);
   }
 });
 

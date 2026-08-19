@@ -1,11 +1,14 @@
 <% const panel = panelMode ? '&panel=1' : ''; %>
 <% const viewUrl = key => `${basePath}/clients/assignment-centre?view=${key}${panel}`; %>
+<% const bulk = typeof bulkResult === 'object' && bulkResult ? bulkResult : {}; %>
 <section class="page-head assignment-centre-head">
   <div><div class="eyebrow">Shared customer ownership</div><h1>Client Assignment Centre</h1><p>Clients are grouped by their unique account number. One claim assigns the main account and every linked mobile line to the same staff member.</p></div>
   <a class="btn" href="<%= basePath %>/workspace">Return to Workspace</a>
 </section>
 <% if(claimed){ %><div class="success-box">Client claimed successfully.</div><% } %>
 <% if(conflict){ %><div class="warning-box">This client is already claimed by <%= conflictOwner||'another staff member' %>. A conflict has been sent to the owner for a decision.</div><% } %>
+<% if(bulk.error){ %><div class="warning-box"><%= bulk.error %></div><% } %>
+<% if(bulk.complete){ %><div class="success-box bulk-claim-result"><strong>Bulk claim complete.</strong> <span><%= bulk.claimed %> claimed immediately<% if(bulk.alreadyMine){ %>, <%= bulk.alreadyMine %> already in My Accounts<% } %><% if(bulk.conflicts){ %>, <%= bulk.conflicts %> conflict<%= bulk.conflicts===1?'':'s' %> sent to the Owner<% } %><% if(bulk.failed){ %>, <%= bulk.failed %> could not be claimed<% } %>.</span> <a href="<%= viewUrl('mine') %>">Open My Accounts</a></div><% } %>
 <% if(reviewed){ %><div class="<%= reviewed==='conflict'?'warning-box':'success-box' %>"><%= reviewed==='conflict'?'Ownership conflict - review required':(reviewed==='rejected'?'The account claim was rejected.':'The legacy claim decision was completed safely.') %></div><% } %>
 <nav class="assignment-centre-tabs" aria-label="Client assignment views">
   <a class="<%= view==='unassigned'?'active':'' %>" href="<%= viewUrl('unassigned') %>">Unassigned Accounts <b><%= counts.unassigned_count||0 %></b></a>
@@ -15,15 +18,24 @@
 </nav>
 <% if(!['requests','pending'].includes(view)){ %>
 <section class="panel assignment-centre-filter"><form method="get"><input type="hidden" name="view" value="<%= view %>"><% if(panelMode){ %><input type="hidden" name="panel" value="1"><% } %><label>Search this account list<input type="search" name="q" value="<%= q %>" placeholder="Name, cellphone, email, unique account or town"></label><button class="btn primary" type="submit">Search</button></form></section>
+<% if(view==='unassigned'){ %><form method="post" action="<%= basePath %>/clients/bulk-claim" class="bulk-claim-form" data-bulk-claim-form>
+  <input type="hidden" name="q" value="<%= q %>"><% if(panelMode){ %><input type="hidden" name="panel" value="1"><% } %>
+  <div class="bulk-claim-toolbar panel">
+    <label class="bulk-select-all"><input type="checkbox" data-bulk-select-all><span><strong>Select all available accounts</strong><small>Tick the accounts that belong to you, then claim them together.</small></span></label>
+    <div class="bulk-claim-submit"><span data-bulk-count aria-live="polite">0 selected</span><button class="btn primary" type="submit" disabled data-bulk-submit>Claim selected</button></div>
+  </div>
+<% } %>
 <section class="assignment-client-list">
-  <% clients.forEach(c=>{ %><article class="assignment-client-card <%= c.pending_claim_id?'claim-pending':'' %>">
+  <% clients.forEach(c=>{ %><article class="assignment-client-card <%= c.pending_claim_id?'claim-pending':'' %> <%= view==='unassigned'?'bulk-claim-card':'' %>">
+    <% if(view==='unassigned'){ %><label class="bulk-account-choice <%= c.pending_claim_id?'disabled':'' %>" for="bulk-claim-<%= c.id %>"><input id="bulk-claim-<%= c.id %>" type="checkbox" name="client_ids[]" value="<%= c.id %>" data-bulk-claim-checkbox <%= c.pending_claim_id?'disabled':'' %>><span class="sr-only">Select <%= c.client_name||'account '+c.id %></span></label><% } %>
     <div class="assignment-client-main"><div class="assignment-client-title"><strong><%= c.client_name||'Unnamed client' %></strong><span class="client-status <%= c.lifecycle_status||'client' %>"><%= c.lifecycle_status||'client' %></span></div><p><%= [c.cell_number,c.email,c.account_number,c.city_town].filter(Boolean).join(' · ')||'No contact details captured' %></p><div class="assignment-client-meta"><span>Assignment: <b><%= c.assigned_staff_name||'Unassigned' %></b></span><span>Linked lines: <b><%= c.linked_line_count||1 %></b></span><span>Main record: #<%= c.id %></span><span>Added: <%= new Date(c.created_at).toLocaleDateString('en-ZA') %></span><% if(c.next_upgrade_date){ %><span>Upgrade: <%= new Date(c.next_upgrade_date).toLocaleDateString('en-ZA') %></span><% } %></div><% if((c.linked_mobile_numbers||[]).length>1){ %><small class="assignment-linked-lines">Linked mobile numbers: <%= c.linked_mobile_numbers.join(' · ') %></small><% } %></div>
     <div class="assignment-client-actions"><a class="btn" href="<%= basePath %>/customers/<%= c.id %>/360<%= panelMode?'?panel=1':'' %>">Open Main Account</a>
-      <% if(!c.assigned_staff_id){ %><% if(c.pending_claim_id){ %><span class="assignment-pending-label">Ownership conflict awaiting owner decision: <%= c.pending_requested_by_name %></span><% } else { %><form method="post" action="<%= basePath %>/clients/<%= c.id %>/request-claim"><% if(panelMode){ %><input type="hidden" name="panel" value="1"><% } %><button class="btn primary" type="submit">Claim client</button></form><% } %><% } %>
+      <% if(!c.assigned_staff_id){ %><% if(c.pending_claim_id){ %><span class="assignment-pending-label">Ownership conflict awaiting owner decision: <%= c.pending_requested_by_name %></span><% } else if(view==='unassigned'){ %><span class="bulk-account-hint">Tick to include</span><% } %><% } %>
     </div>
   </article><% }) %>
   <% if(!clients.length){ %><div class="panel empty-state"><h2>No matching accounts</h2><p><%= view==='unassigned'?'There are currently no unassigned account groups in this list.':'No accounts match this view.' %></p></div><% } %>
 </section>
+<% if(view==='unassigned'){ %></form><script src="<%= basePath %>/public/js/client-assignment-centre.js" defer></script><% } %>
 <% } else { %>
 <section class="assignment-request-list">
   <% requests.forEach(r=>{ %><article class="panel assignment-request-card <%= Number(focusRequest)===Number(r.id)?'focused-claim':'' %>" id="claim-<%= r.id %>">

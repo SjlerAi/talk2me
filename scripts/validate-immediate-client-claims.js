@@ -184,7 +184,7 @@ async function run() {
   assert(!indexRoute.includes("VALUES ('claim_account','customer_accounts',:accountId,:clientId,:accountNumber,:summary,:reason,:json,'manager','pending_manager'"));
   assert(assignmentRoute.includes('claimClient(requestedClientId'));
   assert(indexRoute.includes('claimClient(clientId'));
-  assert(assignmentTemplate.includes('Claim client') && customerTemplate.includes('Claim client'));
+  assert(assignmentTemplate.includes('Claim selected') && customerTemplate.includes('Claim client'));
   assert(assignmentTemplate.includes('Client claimed successfully.') && customerTemplate.includes('Client claimed successfully.'));
   assert(!assignmentTemplate.includes('waiting for approval') && !customerTemplate.includes('waiting for approval'));
   assert(assignmentRoute.includes("query.set('panel', '1')") && indexRoute.includes("query.set('panel','1')"));
