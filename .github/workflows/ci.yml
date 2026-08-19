@@ -1,0 +1,23 @@
+name: Validate Talk2Me
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run check
+      - name: Validate shell scripts
+        run: bash -n deploy.sh scripts/setup-elitehost-ssh.sh scripts/install-talk2me-uat-agent.sh scripts/talk2me-uat-agent.sh scripts/deploy-uat-artifact.sh
