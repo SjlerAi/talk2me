@@ -1,0 +1,173 @@
+name: Deploy Talk2Me to Elitehost UAT
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type DEPLOY UAT
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: talk2me-elitehost-uat
+  cancel-in-progress: false
+
+jobs:
+  package:
+    if: github.ref_name == 'main' && inputs.confirmation == 'DEPLOY UAT'
+    runs-on: ubuntu-latest
+    outputs:
+      artifact_name: ${{ steps.release.outputs.artifact_name }}
+      checksum: ${{ steps.release.outputs.checksum }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run check
+      - name: Build production release artifact
+        id: release
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          npm prune --omit=dev --no-audit --no-fund
+          stage="$RUNNER_TEMP/talk2me-release"
+          mkdir -p "$stage"
+          git archive "$GITHUB_SHA" server.js package.json package-lock.json public src views scripts | tar -x -C "$stage"
+          cp -a node_modules "$stage/node_modules"
+          node - "$stage/.talk2me-release.json" <<'NODE'
+          const fs = require('fs');
+          const crypto = require('crypto');
+          const target = process.argv[2];
+          fs.writeFileSync(target, JSON.stringify({
+            schema: 1,
+            service: 'talk2me-crm',
+            repository: process.env.GITHUB_REPOSITORY,
+            environment: 'uat',
+            commit: process.env.GITHUB_SHA,
+            branch: process.env.GITHUB_REF_NAME,
+            workflowRunId: process.env.GITHUB_RUN_ID,
+            dependencyHash: crypto.createHash('sha256').update(fs.readFileSync('package-lock.json')).digest('hex'),
+            builtAt: new Date().toISOString()
+          }, null, 2) + '\n');
+          NODE
+          artifact_name="talk2me-${GITHUB_SHA}-${GITHUB_RUN_ID}.tar.gz"
+          tar -czf "$artifact_name" -C "$stage" .
+          checksum="$(sha256sum "$artifact_name" | awk '{print $1}')"
+          printf '%s  %s\n' "$checksum" "$artifact_name" > "$artifact_name.sha256"
+          echo "artifact_name=$artifact_name" >> "$GITHUB_OUTPUT"
+          echo "checksum=$checksum" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: talk2me-uat-release
+          path: |
+            talk2me-*.tar.gz
+            talk2me-*.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 7
+
+  deploy:
+    needs: package
+    runs-on: ubuntu-latest
+    environment:
+      name: talk2me-uat
+      url: https://talk2me.uent.co.za
+    env:
+      SSH_HOST: 164.160.91.40
+      SSH_PORT: "41414"
+      SSH_USER: uent
+      SITE_URL: https://talk2me.uent.co.za
+      CONTROL_BRANCH: deploy/uat-control
+      ARTIFACT_NAME: ${{ needs.package.outputs.artifact_name }}
+      ARTIFACT_SHA256: ${{ needs.package.outputs.checksum }}
+      ELITEHOST_SSH_PRIVATE_KEY: ${{ secrets.ELITEHOST_SSH_PRIVATE_KEY }}
+      ELITEHOST_SSH_KEY_PASSPHRASE: ${{ secrets.ELITEHOST_SSH_KEY_PASSPHRASE }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v8
+        with:
+          name: talk2me-uat-release
+      - name: Revalidate downloaded artifact
+        run: |
+          test "$(sha256sum "$ARTIFACT_NAME" | awk '{print $1}')" = "$ARTIFACT_SHA256"
+          grep -Fxq "$ARTIFACT_SHA256  $ARTIFACT_NAME" "$ARTIFACT_NAME.sha256"
+      - name: Configure encrypted SSH key
+        run: bash scripts/setup-elitehost-ssh.sh
+      - name: Transfer immutable artifact
+        run: |
+          scp -P "$SSH_PORT" "$ARTIFACT_NAME" "$ARTIFACT_NAME.sha256" "$SSH_USER@$SSH_HOST:/home/uent/.config/talk2me/inbox/"
+      - uses: actions/checkout@v6
+        with:
+          ref: deploy/uat-control
+          path: control
+      - name: Signal deployment agent
+        working-directory: control
+        run: |
+          node - "deploy/uat.json" <<'NODE'
+          const fs = require('fs');
+          const target = process.argv[2];
+          fs.writeFileSync(target, JSON.stringify({
+            schema: 1,
+            repository: process.env.GITHUB_REPOSITORY,
+            environment: 'uat',
+            status: 'DEPLOY',
+            commit: process.env.GITHUB_SHA,
+            workflowRunId: process.env.GITHUB_RUN_ID,
+            artifact: process.env.ARTIFACT_NAME,
+            sha256: process.env.ARTIFACT_SHA256,
+            requestedAt: new Date().toISOString()
+          }, null, 2) + '\n');
+          NODE
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add deploy/uat.json
+          git commit -m "Deploy ${GITHUB_SHA} to UAT"
+          git push origin HEAD:deploy/uat-control
+      - name: Wait for exact public release
+        timeout-minutes: 20
+        run: |
+          set -Eeuo pipefail
+          for attempt in $(seq 1 80); do
+            health="$(curl -fsS --connect-timeout 10 --max-time 20 "$SITE_URL/api/health" 2>/dev/null || true)"
+            release="$(curl -fsS --connect-timeout 10 --max-time 20 "$SITE_URL/api/release" 2>/dev/null || true)"
+            if HEALTH="$health" RELEASE="$release" node - <<'NODE'
+          try {
+            const health = JSON.parse(process.env.HEALTH || '{}');
+            const release = JSON.parse(process.env.RELEASE || '{}');
+            process.exit(health.status === 'ok' && release.commit === process.env.GITHUB_SHA && String(release.workflowRunId) === String(process.env.GITHUB_RUN_ID) ? 0 : 1);
+          } catch { process.exit(1); }
+          NODE
+            then
+              echo "Exact release $GITHUB_SHA is healthy."
+              exit 0
+            fi
+            echo "Waiting for deployment agent (attempt $attempt/80)..."
+            sleep 15
+          done
+          echo "Timed out waiting for the exact release."
+          exit 1
+      - name: Collect deployment diagnostics
+        if: failure()
+        continue-on-error: true
+        run: |
+          ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" 'tail -n 160 /home/uent/.talk2me-deploy/cron.log 2>/dev/null || true; printf "\n--- last request ---\n"; cat /home/uent/.talk2me-deploy/last-request.json 2>/dev/null || true; printf "\n--- Passenger stderr ---\n"; tail -n 100 /home/uent/talk2me.uent.co.za/stderr.log 2>/dev/null || true'
+      - name: Return control manifest to HOLD
+        if: always()
+        working-directory: control
+        run: |
+          git fetch origin deploy/uat-control
+          git reset --hard origin/deploy/uat-control
+          node - "deploy/uat.json" <<'NODE'
+          const fs = require('fs');
+          const target = process.argv[2];
+          fs.writeFileSync(target, JSON.stringify({ schema: 1, repository: process.env.GITHUB_REPOSITORY, environment: 'uat', status: 'HOLD', commit: null, workflowRunId: null, artifact: null, sha256: null, requestedAt: null }, null, 2) + '\n');
+          NODE
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add deploy/uat.json
+          git diff --cached --quiet || git commit -m "Return UAT deployment control to HOLD"
+          git push origin HEAD:deploy/uat-control

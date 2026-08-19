@@ -1,0 +1,11 @@
+{
+  "schema": 1,
+  "repository": "SjlerAi/talk2me",
+  "environment": "uat",
+  "status": "HOLD",
+  "commit": null,
+  "workflowRunId": null,
+  "artifact": null,
+  "sha256": null,
+  "requestedAt": null
+}

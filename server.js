@@ -4,6 +4,7 @@ const path = require('path');
 const session = require('express-session');
 const expressLayouts = require('express-ejs-layouts');
 const crypto = require('crypto');
+const fs = require('fs');
 const db = require('./src/config/db');
 const packageInfo = require('./package.json');
 const { startNightlyLogoutWorker } = require('./src/services/nightly-logout');
@@ -47,6 +48,38 @@ app.use(expressLayouts);
 app.set('layout', 'layout');
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
+
+function registerPublicGet(route, handler) {
+  app.get(route, handler);
+  if (BASE_PATH) app.get(`${BASE_PATH}${route}`, handler);
+}
+
+registerPublicGet('/api/health', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  try {
+    await db.execute('SELECT 1 AS ok');
+    res.json({ status: 'ok', service: 'talk2me-crm', database: 'connected' });
+  } catch (error) {
+    console.error('Public health check failed:', error.message);
+    res.status(503).json({ status: 'error', service: 'talk2me-crm', database: 'unavailable' });
+  }
+});
+
+registerPublicGet('/api/release', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const releasePath = path.join(__dirname, '.talk2me-release.json');
+  try {
+    const release = JSON.parse(fs.readFileSync(releasePath, 'utf8'));
+    res.json(release);
+  } catch (error) {
+    res.status(503).json({
+      service: 'talk2me-crm',
+      status: 'release-metadata-unavailable',
+      version: packageInfo.version || 'unknown'
+    });
+  }
+});
+
 app.use(session({
   name: 'talk2me.sid',
   secret: process.env.SESSION_SECRET,

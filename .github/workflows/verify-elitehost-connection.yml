@@ -1,0 +1,28 @@
+name: Verify Elitehost connection
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    environment: talk2me-uat
+    env:
+      SSH_HOST: 164.160.91.40
+      SSH_PORT: "41414"
+      SSH_USER: uent
+      ELITEHOST_SSH_PRIVATE_KEY: ${{ secrets.ELITEHOST_SSH_PRIVATE_KEY }}
+      ELITEHOST_SSH_KEY_PASSPHRASE: ${{ secrets.ELITEHOST_SSH_KEY_PASSPHRASE }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Configure encrypted SSH key
+        run: bash scripts/setup-elitehost-ssh.sh
+      - name: Verify authenticated account and expected paths
+        run: |
+          result="$(ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" 'set -eu; printf "user=%s\n" "$(whoami)"; test -d /home/uent/repositories/talk2me; test -d /home/uent/talk2me.uent.co.za; printf "paths=ok\n"')"
+          printf '%s\n' "$result"
+          grep -Fxq 'user=uent' <<<"$result"
+          grep -Fxq 'paths=ok' <<<"$result"

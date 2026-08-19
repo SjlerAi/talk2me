@@ -1,0 +1,41 @@
+name: Bootstrap Elitehost UAT agent
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type BOOTSTRAP UAT AGENT
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  bootstrap:
+    if: github.ref_name == 'main' && inputs.confirmation == 'BOOTSTRAP UAT AGENT'
+    runs-on: ubuntu-latest
+    environment: talk2me-uat
+    env:
+      SSH_HOST: 164.160.91.40
+      SSH_PORT: "41414"
+      SSH_USER: uent
+      ELITEHOST_SSH_PRIVATE_KEY: ${{ secrets.ELITEHOST_SSH_PRIVATE_KEY }}
+      ELITEHOST_SSH_KEY_PASSPHRASE: ${{ secrets.ELITEHOST_SSH_KEY_PASSPHRASE }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Configure encrypted SSH key
+        run: bash scripts/setup-elitehost-ssh.sh
+      - name: Install permanent deployment agent
+        run: |
+          ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" bash -s -- "${GITHUB_SHA}" <<'REMOTE'
+          set -Eeuo pipefail
+          expected_sha="$1"
+          repo=/home/uent/repositories/talk2me
+          git -C "$repo" diff --quiet
+          git -C "$repo" diff --cached --quiet
+          git -C "$repo" fetch origin main:refs/remotes/origin/main deploy/uat-control:refs/remotes/origin/deploy/uat-control
+          test "$(git -C "$repo" rev-parse origin/main)" = "$expected_sha"
+          git -C "$repo" reset --hard "$expected_sha"
+          bash "$repo/scripts/install-talk2me-uat-agent.sh"
+          /home/uent/bin/talk2me-uat-agent --status
+          REMOTE
