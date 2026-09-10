@@ -2,9 +2,9 @@ const express = require('express');
 
 const router = express.Router();
 
-// Keep the existing route bundle intact while adding the owner-only
-// contact audience module as a focused extension.
+// Keep the existing route bundle intact while adding focused extensions.
 router.use(require('./routes/contact-list-builder'));
+router.use(require('./routes/customer-details'));
 router.use(require('./routes/index'));
 
 module.exports = router;

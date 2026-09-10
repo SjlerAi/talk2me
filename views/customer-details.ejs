@@ -1,0 +1,98 @@
+<section class="page-head">
+  <div>
+    <a href="<%= basePath %>/customers/<%= client.id %>/360">← Back to Customer 360</a>
+    <div class="eyebrow">Talk2Me customer #<%= client.id %></div>
+    <h1>Edit Customer Details</h1>
+    <p>This person already exists in the main Talk2Me customer database. Update the details here; do not create a second customer record.</p>
+  </div>
+</section>
+
+<% if (saved) { %><div class="success-box">Customer details saved successfully.</div><% } %>
+<% if (converted) { %><div class="success-box">Prospect converted to an active customer. The same Talk2Me customer record and history were kept.</div><% } %>
+<% if (error) { %><div class="warning-box"><strong><%= error %></strong></div><% } %>
+
+<% if (duplicates && duplicates.length) { %>
+<section class="panel">
+  <div class="eyebrow">Duplicate protection</div>
+  <h2>Possible existing customer found</h2>
+  <p>One or more values match another customer record. Open the existing record first if this is the same person.</p>
+  <div class="table-wrap"><table class="data-table">
+    <thead><tr><th>Talk2Me ID</th><th>Name</th><th>Cell</th><th>Email</th><th>Account</th><th></th></tr></thead>
+    <tbody><% duplicates.forEach(d => { %><tr>
+      <td>#<%= d.id %></td><td><%= d.client_name %></td><td><%= d.cell_number || '—' %></td><td><%= d.email || '—' %></td><td><%= d.account_number || '—' %></td>
+      <td><a class="btn" target="_blank" href="<%= basePath %>/customers/<%= d.id %>/360">Open existing</a></td>
+    </tr><% }) %></tbody>
+  </table></div>
+</section>
+<% } %>
+
+<section class="panel">
+  <div class="panel-heading-row">
+    <div>
+      <div class="eyebrow">Permanent customer record</div>
+      <h2><%= client.client_name %></h2>
+      <p>Talk2Me customer #<strong><%= client.id %></strong> · Lifecycle: <strong><%= client.lifecycle_status || 'prospect' %></strong></p>
+    </div>
+    <% if ((client.lifecycle_status || 'prospect') === 'prospect') { %>
+      <form method="post" action="<%= basePath %>/customers/<%= client.id %>/convert-to-client" onsubmit="return confirm('Convert this prospect to an active customer? The same record and history will be kept.')">
+        <button class="btn primary" type="submit">Convert to Active Customer</button>
+      </form>
+    <% } %>
+  </div>
+</section>
+
+<div class="card form-card">
+<form method="post" action="<%= basePath %>/customers/<%= client.id %>/details">
+  <% if (duplicates && duplicates.length) { %><input type="hidden" name="confirm_duplicate" value="1"><% } %>
+  <div class="form-grid">
+    <div><label>Display / customer name</label><input name="client_name" required value="<%= client.client_name || '' %>"></div>
+    <div><label>Customer type</label><select name="customer_type"><% ['unknown','individual','business'].forEach(v=>{ %><option value="<%= v %>" <%= (client.customer_type||'unknown')===v?'selected':'' %>><%= v %></option><% }) %></select></div>
+    <div><label>First name</label><input name="first_name" value="<%= client.first_name || '' %>"></div>
+    <div><label>Surname</label><input name="surname" value="<%= client.surname || '' %>"></div>
+    <div class="full"><label>Company name</label><input name="company_name" value="<%= client.company_name || '' %>"></div>
+    <div><label>Cell number</label><input name="cell_number" value="<%= client.cell_number || '' %>"></div>
+    <div><label>Alternative number</label><input name="alt_number" value="<%= client.alt_number || '' %>"></div>
+    <div><label>Email</label><input type="email" name="email" value="<%= client.email || '' %>"></div>
+    <div><label>Town</label><input name="city_town" value="<%= client.city_town || '' %>"></div>
+    <div><label>ID number</label><input name="id_number" value="<%= client.id_number || '' %>"></div>
+    <div><label>Birthday</label><input type="date" name="birthday" value="<%= client.birthday ? new Date(client.birthday).toISOString().slice(0,10) : '' %>"><small class="field-help">If blank, Talk2Me can derive it from a valid South African ID number.</small></div>
+    <div><label>Package</label><input name="package_name" value="<%= client.package_name || '' %>"></div>
+    <div><label>Handset</label><input name="handset" value="<%= client.handset || '' %>"></div>
+    <div><label>Monthly invoice amount</label><input type="number" step="0.01" name="monthly_invoice_amount" value="<%= client.monthly_invoice_amount || '' %>"></div>
+    <div><label>Previous upgrade date</label><input type="date" name="previous_upgrade_date" value="<%= client.previous_upgrade_date ? new Date(client.previous_upgrade_date).toISOString().slice(0,10) : '' %>"></div>
+    <div><label>Contract term</label><select name="contract_term_months"><option value="24" <%= Number(client.contract_term_months||24)===24?'selected':'' %>>24 months</option><option value="36" <%= Number(client.contract_term_months)===36?'selected':'' %>>36 months</option></select></div>
+    <div><label>Cancellation date</label><input type="date" name="cancellation_date" value="<%= client.cancellation_date ? new Date(client.cancellation_date).toISOString().slice(0,10) : '' %>"></div>
+
+    <% if (isManagement) { %>
+      <div><label>Official account number</label><input name="account_number" value="<%= client.account_number || '' %>"><small class="field-help">Management field. Talk2Me customer #<%= client.id %> remains the permanent internal ID even while this is blank.</small></div>
+      <div><label>Lifecycle status</label><select name="lifecycle_status"><% ['prospect','client','inactive','lost'].forEach(v=>{ %><option value="<%= v %>" <%= (client.lifecycle_status||'prospect')===v?'selected':'' %>><%= v.replace('_',' ') %></option><% }) %></select></div>
+      <div><label>Line status</label><select name="line_status"><% ['unknown','active','inactive','cancelled','suspended'].forEach(v=>{ %><option value="<%= v %>" <%= (client.line_status||'unknown')===v?'selected':'' %>><%= v %></option><% }) %></select></div>
+    <% } %>
+
+    <div class="full"><label>Internal customer notes</label><textarea name="notes" rows="5"><%= client.notes || '' %></textarea></div>
+  </div>
+
+  <div class="hero-actions">
+    <button class="btn primary" type="submit">Save Customer Details</button>
+    <a class="btn" href="<%= basePath %>/customers/<%= client.id %>/360">Cancel</a>
+  </div>
+</form>
+</div>
+
+<script>
+(() => {
+  const idInput = document.querySelector('input[name="id_number"]');
+  const birthdayInput = document.querySelector('input[name="birthday"]');
+  if (!idInput || !birthdayInput) return;
+  idInput.addEventListener('change', () => {
+    if (birthdayInput.value) return;
+    const digits = (idInput.value || '').replace(/\D/g, '');
+    if (!/^\d{13}$/.test(digits)) return;
+    const yy = Number(digits.slice(0,2)), mm = Number(digits.slice(2,4)), dd = Number(digits.slice(4,6));
+    const now = new Date();
+    const year = yy > now.getFullYear() % 100 ? 1900 + yy : 2000 + yy;
+    const check = new Date(Date.UTC(year, mm - 1, dd));
+    if (check.getUTCFullYear() === year && check.getUTCMonth() === mm - 1 && check.getUTCDate() === dd) birthdayInput.value = `${year}-${String(mm).padStart(2,'0')}-${String(dd).padStart(2,'0')}`;
+  });
+})();
+</script>
