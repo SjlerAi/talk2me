@@ -1,0 +1,137 @@
+<section class="page-head">
+  <div>
+    <div class="eyebrow">Owner only</div>
+    <h1>Contact Lists & Customer Communication</h1>
+    <p>Build a customer audience by category and date, copy or export contact details, and send an email to the selected list.</p>
+  </div>
+  <a class="btn" href="<%= basePath %>/backoffice">Back to Administration</a>
+</section>
+
+<% if(message){ %><div class="panel" style="border-left:4px solid #15803d;margin-bottom:16px"><strong><%= message %></strong></div><% } %>
+<% if(error){ %><div class="panel" style="border-left:4px solid #b42318;margin-bottom:16px"><strong><%= error %></strong></div><% } %>
+
+<section class="panel">
+  <div class="panel-heading-row"><div><h2>1. Build the audience</h2><p class="muted">The date meaning changes automatically to match the selected category.</p></div></div>
+  <form method="get" action="<%= basePath %>/backoffice/contact-lists" class="form-grid" id="audience-filter-form">
+    <label>Customer category
+      <select name="category">
+        <% Object.entries(categories).forEach(([value,label])=>{ %>
+          <option value="<%= value %>" <%= filters.category===value?'selected':'' %>><%= label %></option>
+        <% }) %>
+      </select>
+    </label>
+    <label>Date range
+      <select name="preset" id="contact-preset">
+        <option value="all" <%= filters.preset==='all'?'selected':'' %>>All time</option>
+        <option value="today" <%= filters.preset==='today'?'selected':'' %>>Today</option>
+        <option value="7d" <%= filters.preset==='7d'?'selected':'' %>>Last 7 days</option>
+        <option value="30d" <%= filters.preset==='30d'?'selected':'' %>>Last 30 days</option>
+        <option value="3m" <%= filters.preset==='3m'?'selected':'' %>>Last 3 months</option>
+        <option value="6m" <%= filters.preset==='6m'?'selected':'' %>>Last 6 months</option>
+        <option value="12m" <%= filters.preset==='12m'?'selected':'' %>>Last 12 months</option>
+        <option value="custom" <%= filters.preset==='custom'?'selected':'' %>>Custom dates</option>
+      </select>
+    </label>
+    <label class="custom-date">From
+      <input type="date" name="from" value="<%= filters.from||'' %>">
+    </label>
+    <label class="custom-date">To
+      <input type="date" name="to" value="<%= filters.to||'' %>">
+    </label>
+    <div style="display:flex;align-items:end"><button class="btn primary" type="submit">Build List</button></div>
+  </form>
+  <p class="muted" style="margin-top:12px"><strong>Date applies to:</strong> <%= audience.dateBasis %> · <strong>Selected period:</strong> <%= audience.range.label %></p>
+</section>
+
+<section class="command-stats" style="margin-top:16px">
+  <div><span>Contacts found</span><strong><%= audience.counts.contacts %></strong></div>
+  <div><span>Unique valid emails</span><strong><%= audience.counts.emails %></strong></div>
+  <div><span>Unique SA mobile numbers</span><strong><%= audience.counts.mobiles %></strong></div>
+</section>
+
+<section class="panel" style="margin-top:16px">
+  <div class="panel-heading-row">
+    <div><h2>2. Use the list</h2><p class="muted"><%= audience.categoryLabel %> · <%= audience.range.label %></p></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn" type="button" id="copy-emails">Copy Emails</button>
+      <button class="btn" type="button" id="copy-mobiles">Copy Mobile Numbers</button>
+      <a class="btn" href="<%= basePath %>/backoffice/contact-lists/export.csv?category=<%= encodeURIComponent(filters.category) %>&preset=<%= encodeURIComponent(filters.preset) %>&from=<%= encodeURIComponent(filters.from||'') %>&to=<%= encodeURIComponent(filters.to||'') %>">Export CSV</a>
+    </div>
+  </div>
+  <div id="copy-status" class="muted" aria-live="polite"></div>
+  <div style="overflow:auto;margin-top:12px;max-height:460px">
+    <table class="data-table">
+      <thead><tr><th>Name</th><th>Email</th><th>Mobile</th><th>Account</th><th>Category</th><th>Package</th><th>Date</th></tr></thead>
+      <tbody>
+        <% audience.contacts.slice(0,500).forEach(row=>{ %>
+          <tr>
+            <td><%= row.contact_name||'—' %></td>
+            <td><%= row.email||'—' %></td>
+            <td><%= row.mobile_number||'—' %></td>
+            <td><%= row.account_number||'—' %></td>
+            <td><%= row.category_label||'—' %></td>
+            <td><%= row.package_name||'—' %></td>
+            <td><%= row.contact_date ? new Date(row.contact_date).toLocaleDateString('en-ZA') : '—' %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+  <% if(audience.contacts.length>500){ %><p class="muted">Showing the first 500 contacts on screen. The CSV export contains the full filtered list.</p><% } %>
+</section>
+
+<section class="panel" style="margin-top:16px">
+  <div class="panel-heading-row"><div><h2>3. Send Email to This List</h2><p class="muted">Each recipient is sent an individual email. Addresses are never exposed to other customers.</p></div></div>
+  <form method="post" id="campaign-form">
+    <input type="hidden" name="category" value="<%= filters.category %>">
+    <input type="hidden" name="preset" value="<%= filters.preset %>">
+    <input type="hidden" name="from" value="<%= filters.from||'' %>">
+    <input type="hidden" name="to" value="<%= filters.to||'' %>">
+    <label>Subject
+      <input type="text" name="subject" maxlength="180" required value="<%= campaign?.subject||'' %>" placeholder="Email subject">
+    </label>
+    <label style="display:block;margin-top:12px">Message
+      <textarea name="body" rows="10" required placeholder="Write the customer email here"><%= campaign?.body||'' %></textarea>
+    </label>
+    <div class="panel" style="margin-top:14px;background:#f8fafc">
+      <strong>Audience ready: <%= audience.counts.emails %> valid unique email address<%= audience.counts.emails===1?'':'es' %></strong>
+      <p class="muted" style="margin:6px 0 0">For the owner-only pilot, direct campaign sending is limited to 250 recipients per send. Larger lists can still be copied or exported while we validate the workflow.</p>
+    </div>
+    <label style="display:flex;gap:8px;align-items:flex-start;margin-top:14px">
+      <input type="checkbox" name="confirm_send" value="1" style="width:auto;margin-top:4px">
+      <span>I confirm that I want to send this message to the <strong><%= audience.counts.emails %></strong> selected email recipients.</span>
+    </label>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">
+      <button class="btn" type="submit" formaction="<%= basePath %>/backoffice/contact-lists/test-email">Send Test to My Owner Email</button>
+      <button class="btn primary" type="submit" formaction="<%= basePath %>/backoffice/contact-lists/send-email" <%= audience.counts.emails===0?'disabled':'' %>>Send Email to This List</button>
+    </div>
+  </form>
+</section>
+
+<script>
+(() => {
+  const preset = document.getElementById('contact-preset');
+  const custom = [...document.querySelectorAll('.custom-date')];
+  const updateCustom = () => custom.forEach(el => { el.style.display = preset.value === 'custom' ? '' : 'none'; });
+  preset.addEventListener('change', updateCustom);
+  updateCustom();
+
+  const emails = <%- JSON.stringify(audience.emails) %>;
+  const mobiles = <%- JSON.stringify(audience.mobiles) %>;
+  const status = document.getElementById('copy-status');
+  async function copy(values, label) {
+    if (!values.length) { status.textContent = `No ${label} available in this audience.`; return; }
+    try {
+      await navigator.clipboard.writeText(values.join('\n'));
+      status.textContent = `${values.length} ${label} copied.`;
+    } catch {
+      const area = document.createElement('textarea');
+      area.value = values.join('\n');
+      document.body.appendChild(area); area.select(); document.execCommand('copy'); area.remove();
+      status.textContent = `${values.length} ${label} copied.`;
+    }
+  }
+  document.getElementById('copy-emails').addEventListener('click', () => copy(emails, 'email addresses'));
+  document.getElementById('copy-mobiles').addEventListener('click', () => copy(mobiles, 'mobile numbers'));
+})();
+</script>
