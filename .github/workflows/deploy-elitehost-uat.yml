@@ -100,13 +100,16 @@ jobs:
           grep -Fxq "$ARTIFACT_SHA256  $ARTIFACT_NAME" "$ARTIFACT_NAME.sha256"
       - name: Configure encrypted SSH key
         run: bash scripts/setup-elitehost-ssh.sh
-      - name: Transfer immutable artifact
-        run: |
-          scp -P "$SSH_PORT" "$ARTIFACT_NAME" "$ARTIFACT_NAME.sha256" "$SSH_USER@$SSH_HOST:/home/uent/.config/talk2me/inbox/"
       - uses: actions/checkout@v6
         with:
           ref: deploy/uat-control
           path: control
+      - name: Verify deployment agent and repair private inbox
+        run: |
+          ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" 'set -eu; test -x /home/uent/bin/talk2me-uat-agent; test -x /home/uent/bin/talk2me-deploy-uat; mkdir -p /home/uent/.config/talk2me/inbox; chmod 700 /home/uent/.config/talk2me/inbox'
+      - name: Transfer immutable artifact
+        run: |
+          scp -P "$SSH_PORT" "$ARTIFACT_NAME" "$ARTIFACT_NAME.sha256" "$SSH_USER@$SSH_HOST:/home/uent/.config/talk2me/inbox/"
       - name: Signal deployment agent
         working-directory: control
         run: |
