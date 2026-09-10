@@ -21,6 +21,10 @@ function createTransporter() {
   });
 }
 
+function talk2meSender() {
+  return { name: 'Talk2Me CRM', address: String(process.env.SMTP_USER || '').trim() };
+}
+
 function escapeHtml(value) {
   return String(value == null ? '' : value)
     .replace(/&/g, '&amp;')
@@ -90,7 +94,7 @@ async function sendTaskEmail({ to, staffName, task, appUrl }) {
 
   try {
     const info = await transporter.sendMail({
-      from: process.env.MAIL_FROM || `Talk2Me CRM <${process.env.SMTP_USER}>`,
+      from: talk2meSender(),
       to,
       subject,
       text,
@@ -109,4 +113,4 @@ function formatDateOnly(value) {
   return new Intl.DateTimeFormat('en-ZA', { day:'2-digit', month:'long', year:'numeric', timeZone:process.env.TZ || 'Africa/Johannesburg' }).format(date);
 }
 
-module.exports = { sendTaskEmail, createTransporter, smtpConfigured, escapeHtml, firstName, formatDateTime, formatDateOnly };
+module.exports = { sendTaskEmail, createTransporter, smtpConfigured, talk2meSender, escapeHtml, firstName, formatDateTime, formatDateOnly };
