@@ -145,7 +145,9 @@ router.get('/customers/:id/360', requireAuth, async (req, res, next) => {
       claimRequested: req.query.claim_requested,
       claimConflict: req.query.claim_conflict,
       claimOwner: String(req.query.claim_owner || '').trim().slice(0, 255),
-      changeRequested: req.query.change_requested
+      changeRequested: req.query.change_requested,
+      detailsSaved: String(req.query.details_saved || '') === '1',
+      converted: String(req.query.converted || '') === '1'
     });
   } catch (error) {
     next(error);
