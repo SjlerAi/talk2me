@@ -2,7 +2,7 @@
   <div>
     <div class="eyebrow">Owner only</div>
     <h1>Contact Lists & Customer Communication</h1>
-    <p>Build a customer audience by category and date, copy or export contact details, and send an email to the selected list.</p>
+    <p>Build a customer audience by category and date, copy or export contact details, and send an authenticated Talk2Me email to the selected list.</p>
   </div>
   <a class="btn" href="<%= basePath %>/backoffice">Back to Administration</a>
 </section>
@@ -81,19 +81,73 @@
 </section>
 
 <section class="panel" style="margin-top:16px">
-  <div class="panel-heading-row"><div><h2>3. Send Email to This List</h2><p class="muted">Each recipient is sent an individual email. Addresses are never exposed to other customers.</p></div></div>
+  <div class="panel-heading-row"><div><h2>3. Send Email to This List</h2><p class="muted">Write a new message or import an existing company email. Talk2Me sends a new authenticated email to each recipient individually.</p></div></div>
+
+  <div class="panel" style="background:#f8fafc;margin:12px 0 18px">
+    <h3 style="margin-top:0">Email content</h3>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px">
+      <div>
+        <strong>Write manually</strong>
+        <p class="muted" style="margin:5px 0 0">Use the Subject and Message fields below.</p>
+      </div>
+      <div>
+        <strong>Import existing email</strong>
+        <p class="muted" style="margin:5px 0 8px">Upload an Outlook/other email saved as <strong>.eml</strong>, or an <strong>.html/.htm</strong> campaign file. Talk2Me imports and sanitises the content before sending.</p>
+        <form method="post" enctype="multipart/form-data" action="<%= basePath %>/backoffice/contact-lists/import-email">
+          <input type="hidden" name="category" value="<%= filters.category %>">
+          <input type="hidden" name="preset" value="<%= filters.preset %>">
+          <input type="hidden" name="from" value="<%= filters.from||'' %>">
+          <input type="hidden" name="to" value="<%= filters.to||'' %>">
+          <input type="file" name="email_file" accept=".eml,.html,.htm,message/rfc822,text/html" required>
+          <button class="btn" type="submit" style="margin-top:8px">Import Email</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <% if(importedEmail){ %>
+    <div class="panel" style="border-left:4px solid #2563eb;margin-bottom:18px">
+      <div class="panel-heading-row">
+        <div>
+          <div class="eyebrow">Imported email ready</div>
+          <h3 style="margin:4px 0"><%= importedEmail.subject || 'No original subject' %></h3>
+          <p class="muted" style="margin:4px 0">File: <%= importedEmail.sourceFilename %><% if(importedEmail.originalFrom){ %> · Original sender: <%= importedEmail.originalFrom %><% } %></p>
+          <p class="muted" style="margin:4px 0"><%= importedEmail.attachments.length %> attachment<%= importedEmail.attachments.length===1?'':'s' %><% if(importedEmail.inlineImageCount){ %> · <%= importedEmail.inlineImageCount %> inline image<%= importedEmail.inlineImageCount===1?'':'s' %><% } %></p>
+        </div>
+        <form method="post" action="<%= basePath %>/backoffice/contact-lists/clear-import">
+          <input type="hidden" name="category" value="<%= filters.category %>">
+          <input type="hidden" name="preset" value="<%= filters.preset %>">
+          <input type="hidden" name="from" value="<%= filters.from||'' %>">
+          <input type="hidden" name="to" value="<%= filters.to||'' %>">
+          <button class="btn" type="submit">Clear Import</button>
+        </form>
+      </div>
+      <div style="margin-top:12px">
+        <strong>Preview</strong>
+        <iframe id="imported-email-preview" sandbox="" title="Imported email preview" style="display:block;width:100%;min-height:420px;border:1px solid #d0d5dd;border-radius:10px;background:white;margin-top:8px"></iframe>
+      </div>
+    </div>
+  <% } %>
+
   <form method="post" id="campaign-form">
     <input type="hidden" name="category" value="<%= filters.category %>">
     <input type="hidden" name="preset" value="<%= filters.preset %>">
     <input type="hidden" name="from" value="<%= filters.from||'' %>">
     <input type="hidden" name="to" value="<%= filters.to||'' %>">
+    <div style="display:flex;gap:18px;flex-wrap:wrap;margin-bottom:14px">
+      <label style="display:flex;gap:7px;align-items:center"><input type="radio" name="email_mode" value="manual" style="width:auto" <%= !importedEmail || campaign?.mode==='manual' ? 'checked' : '' %>> Write manually</label>
+      <label style="display:flex;gap:7px;align-items:center"><input type="radio" name="email_mode" value="imported" style="width:auto" <%= importedEmail && campaign?.mode!=='manual' ? 'checked' : '' %> <%= importedEmail?'':'disabled' %>> Use imported email</label>
+    </div>
     <label>Subject
-      <input type="text" name="subject" maxlength="180" required value="<%= campaign?.subject||'' %>" placeholder="Email subject">
+      <input type="text" name="subject" maxlength="180" required value="<%= campaign?.subject || importedEmail?.subject || '' %>" placeholder="Email subject">
     </label>
     <label style="display:block;margin-top:12px">Message
-      <textarea name="body" rows="10" required placeholder="Write the customer email here"><%= campaign?.body||'' %></textarea>
+      <textarea name="body" rows="10" placeholder="Write the customer email here"><%= campaign?.body || '' %></textarea>
     </label>
+    <% if(importedEmail){ %><p class="muted" style="margin-top:7px">When <strong>Use imported email</strong> is selected, the previewed HTML email is sent. You can still change the Subject above.</p><% } %>
     <div class="panel" style="margin-top:14px;background:#f8fafc">
+      <strong>Authenticated sender: Talk2Me CRM</strong>
+      <p class="muted" style="margin:6px 0 10px">The imported company's original From/To/CC headers are not reused. Talk2Me creates a new outgoing message through its configured SMTP sender.</p>
       <strong>Audience ready: <%= audience.counts.emails %> valid unique email address<%= audience.counts.emails===1?'':'es' %></strong>
       <p class="muted" style="margin:6px 0 0">For the owner-only pilot, direct campaign sending is limited to 250 recipients per send. Larger lists can still be copied or exported while we validate the workflow.</p>
     </div>
@@ -133,5 +187,10 @@
   }
   document.getElementById('copy-emails').addEventListener('click', () => copy(emails, 'email addresses'));
   document.getElementById('copy-mobiles').addEventListener('click', () => copy(mobiles, 'mobile numbers'));
+
+  <% if(importedEmail){ %>
+  const preview = document.getElementById('imported-email-preview');
+  if (preview) preview.srcdoc = <%- JSON.stringify(importedEmail.html).replace(/</g, '\\u003c') %>;
+  <% } %>
 })();
 </script>

@@ -19,5 +19,7 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - run: npm run check
+      - name: Validate customer communication import files
+        run: node --check src/services/imported-email.js && node --check src/routes/contact-list-builder.js
       - name: Validate shell scripts
         run: bash -n deploy.sh scripts/setup-elitehost-ssh.sh scripts/install-talk2me-uat-agent.sh scripts/talk2me-uat-agent.sh scripts/deploy-uat-artifact.sh
