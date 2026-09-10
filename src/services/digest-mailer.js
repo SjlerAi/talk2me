@@ -51,22 +51,21 @@ async function sendStaffWorkDigest({ staff, tasks, cases, appUrl, digestDate }) 
   const caseCount = cases.length;
   const empty = !tasks.length && !caseCount;
   const taskUrl = `${appUrl}/tasks?view=active`;
-  const overdueUrl = `${appUrl}/tasks?view=overdue`;
-  const dueTodayUrl = `${appUrl}/tasks?view=due`;
+  const todayTaskUrl = `${appUrl}/tasks?view=today`;
   const caseUrl = `${appUrl}/workspace`;
   const caseHtml = caseCount ? `<div style="border:1px solid #e2e8f0;background:#fff;border-radius:12px;padding:14px 16px;margin:0 0 18px;text-align:center"><strong>${caseCount} case${caseCount === 1 ? '' : 's'} / follow-up${caseCount === 1 ? '' : 's'} due</strong><div style="margin-top:10px">${button(caseUrl,'Open CRM Workspace')}</div></div>` : '';
   const html = baseEmail({
     heading:`Good morning ${name}`,
     intro:empty ? `You’re all clear for ${escapeHtml(formatDateOnly(digestDate))}. There are no overdue tasks, tasks due today or follow-ups due.` : `Your Talk2Me work summary for <strong>${escapeHtml(formatDateOnly(digestDate))}</strong>. Click a block to open the live CRM — the email no longer repeats the task details.`,
     summaryHtml:summaryCards([
-      {label:'Overdue tasks',value:String(overdueTasks),color:'#b42318',url:overdueUrl},
-      {label:'Due today',value:String(dueTodayTasks),color:'#d97706',url:dueTodayUrl},
+      {label:'Overdue tasks',value:String(overdueTasks),color:'#b42318',url:todayTaskUrl},
+      {label:'Due today',value:String(dueTodayTasks),color:'#d97706',url:todayTaskUrl},
       {label:'Total tasks',value:String(tasks.length),color:'#111827',url:taskUrl}
     ]),
     sectionsHtml:caseHtml,
     footer:'Have a productive day — Talk2Me CRM'
   });
-  const text = `Hi ${name},\n\nOverdue tasks: ${overdueTasks}\nDue today: ${dueTodayTasks}\nTotal tasks: ${tasks.length}\nCases / follow-ups due: ${caseCount}\n\nOpen Talk2Me tasks: ${taskUrl}\nOpen CRM workspace: ${caseUrl}`;
+  const text = `Hi ${name},\n\nOverdue tasks: ${overdueTasks}\nDue today: ${dueTodayTasks}\nTotal tasks: ${tasks.length}\nCases / follow-ups due: ${caseCount}\n\nOpen Talk2Me tasks due now: ${todayTaskUrl}\nOpen all active tasks: ${taskUrl}\nOpen CRM workspace: ${caseUrl}`;
   return deliver({to:staff.email,subject:`Talk2Me Daily Action Brief — ${formatDateOnly(digestDate)}`,text,html});
 }
 
