@@ -1,4 +1,4 @@
-const { createTransporter, smtpConfigured, escapeHtml, firstName, formatDateTime, formatDateOnly } = require('./mailer');
+const { createTransporter, smtpConfigured, talk2meSender, escapeHtml, firstName, formatDateOnly } = require('./mailer');
 
 function baseEmail({ heading, intro, summaryHtml, sectionsHtml, footer }) {
   return `<!doctype html><html><body style="margin:0;background:#f4f6f8;font-family:Arial,Helvetica,sans-serif;color:#1f2933">
@@ -15,7 +15,10 @@ function baseEmail({ heading, intro, summaryHtml, sectionsHtml, footer }) {
 }
 
 function summaryCards(cards) {
-  return `<table role="presentation" width="100%" cellspacing="8" cellpadding="0" style="margin:0 0 20px"><tr>${cards.map(c => `<td style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:14px;text-align:center"><div style="font-size:25px;font-weight:800;color:${c.color || '#111827'}">${escapeHtml(c.value)}</div><div style="font-size:12px;color:#667085;margin-top:4px">${escapeHtml(c.label)}</div></td>`).join('')}</tr></table>`;
+  return `<table role="presentation" width="100%" cellspacing="8" cellpadding="0" style="margin:0 0 20px"><tr>${cards.map(c => {
+    const content = `<div style="font-size:25px;font-weight:800;color:${c.color || '#111827'}">${escapeHtml(c.value)}</div><div style="font-size:12px;color:#667085;margin-top:4px">${escapeHtml(c.label)}</div>${c.url ? '<div style="font-size:11px;color:#ef1b23;margin-top:7px;font-weight:700">Open in CRM →</div>' : ''}`;
+    return `<td style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:14px;text-align:center">${c.url ? `<a href="${escapeHtml(c.url)}" style="display:block;text-decoration:none;color:inherit">${content}</a>` : content}</td>`;
+  }).join('')}</tr></table>`;
 }
 
 function button(url, label) {
@@ -36,48 +39,59 @@ async function deliver({ to, subject, text, html }) {
   const transporter = createTransporter();
   if (!transporter) return { sent:false, error:'Email module is not installed.' };
   try {
-    const info = await transporter.sendMail({ from:process.env.MAIL_FROM || `Talk2Me CRM <${process.env.SMTP_USER}>`, to, subject, text, html });
+    const info = await transporter.sendMail({ from:talk2meSender(), to, subject, text, html });
     return { sent:true, messageId:info.messageId || null };
   } catch (error) { return { sent:false, error:error.message }; }
 }
 
 async function sendStaffWorkDigest({ staff, tasks, cases, appUrl, digestDate }) {
   const name = firstName(staff.full_name);
-  const overdue = tasks.filter(x => x.is_overdue).length + cases.filter(x => x.is_overdue).length;
-  const dueToday = tasks.length + cases.length - overdue;
-  const taskHtml = tasks.map(t => itemCard({
-    title:t.title,
-    meta:`${t.is_overdue ? '<strong style="color:#b42318">OVERDUE</strong> · ' : ''}Due: ${escapeHtml(formatDateTime(t.due_at))}${t.client_name ? ` · Client: ${escapeHtml(t.client_name)}${t.cell_number ? ` · ${escapeHtml(t.cell_number)}` : ''}` : ''}`,
-    message:t.message,
-    url:`${appUrl}/tasks/${t.id}`,
-    buttonLabel:'Open Task', urgent:t.priority === 'urgent' || t.is_overdue
-  })).join('');
-  const caseHtml = cases.map(c => itemCard({
-    title:c.query_text || `Case #${c.id}`,
-    meta:`${c.is_overdue ? '<strong style="color:#b42318">OVERDUE</strong> · ' : ''}Follow-up: ${escapeHtml(formatDateTime(c.follow_up_at))} · Client: ${escapeHtml(c.client_name || 'Unknown')}${c.cell_number ? ` · ${escapeHtml(c.cell_number)}` : ''}`,
-    message:c.action_taken || c.result_found || '',
-    url:`${appUrl}/dashboard/inquiries/${c.id}`,
-    buttonLabel:'Open Case', urgent:c.priority === 'urgent' || c.is_overdue
-  })).join('');
-  const empty = !tasks.length && !cases.length;
+  const overdueTasks = tasks.filter(x => x.is_overdue).length;
+  const dueTodayTasks = tasks.length - overdueTasks;
+  const caseCount = cases.length;
+  const empty = !tasks.length && !caseCount;
+  const taskUrl = `${appUrl}/tasks?view=active`;
+  const overdueUrl = `${appUrl}/tasks?view=overdue`;
+  const dueTodayUrl = `${appUrl}/tasks?view=due`;
+  const caseUrl = `${appUrl}/workspace`;
+  const caseHtml = caseCount ? `<div style="border:1px solid #e2e8f0;background:#fff;border-radius:12px;padding:14px 16px;margin:0 0 18px;text-align:center"><strong>${caseCount} case${caseCount === 1 ? '' : 's'} / follow-up${caseCount === 1 ? '' : 's'} due</strong><div style="margin-top:10px">${button(caseUrl,'Open CRM Workspace')}</div></div>` : '';
   const html = baseEmail({
     heading:`Good morning ${name}`,
-    intro:empty ? `You’re all clear for ${escapeHtml(formatDateOnly(digestDate))}. There is no overdue work or work due today.` : `Here is the work currently waiting for you for <strong>${escapeHtml(formatDateOnly(digestDate))}</strong>.`,
-    summaryHtml:summaryCards([{label:'Overdue',value:String(overdue),color:'#b42318'},{label:'Due today',value:String(dueToday),color:'#d97706'},{label:'Total actions',value:String(tasks.length + cases.length),color:'#111827'}]),
-    sectionsHtml:`${tasks.length ? `<h2 style="font-size:19px;margin:20px 0 10px">Tasks</h2>${taskHtml}` : ''}${cases.length ? `<h2 style="font-size:19px;margin:20px 0 10px">Cases & follow-ups</h2>${caseHtml}` : ''}`,
+    intro:empty ? `You’re all clear for ${escapeHtml(formatDateOnly(digestDate))}. There are no overdue tasks, tasks due today or follow-ups due.` : `Your Talk2Me work summary for <strong>${escapeHtml(formatDateOnly(digestDate))}</strong>. Click a block to open the live CRM — the email no longer repeats the task details.`,
+    summaryHtml:summaryCards([
+      {label:'Overdue tasks',value:String(overdueTasks),color:'#b42318',url:overdueUrl},
+      {label:'Due today',value:String(dueTodayTasks),color:'#d97706',url:dueTodayUrl},
+      {label:'Total tasks',value:String(tasks.length),color:'#111827',url:taskUrl}
+    ]),
+    sectionsHtml:caseHtml,
     footer:'Have a productive day — Talk2Me CRM'
   });
-  const text = `Hi ${name},\n\nOverdue: ${overdue}\nDue today: ${dueToday}\n\nOpen Talk2Me: ${appUrl}/tasks`;
-  return deliver({to:staff.email,subject:`Your Talk2Me work for today — ${formatDateOnly(digestDate)}`,text,html});
+  const text = `Hi ${name},\n\nOverdue tasks: ${overdueTasks}\nDue today: ${dueTodayTasks}\nTotal tasks: ${tasks.length}\nCases / follow-ups due: ${caseCount}\n\nOpen Talk2Me tasks: ${taskUrl}\nOpen CRM workspace: ${caseUrl}`;
+  return deliver({to:staff.email,subject:`Talk2Me Daily Action Brief — ${formatDateOnly(digestDate)}`,text,html});
 }
 
 async function sendOwnerDailyBrief({ owner, birthdays, upgrades, claims=[], operational, appUrl, digestDate }) {
   const name=firstName(owner.full_name);
-  const bHtml=birthdays.map(c=>itemCard({title:c.client_name,meta:`Birthday: ${escapeHtml(formatDateOnly(c.birthday))} · Tel: ${escapeHtml(c.cell_number || '—')} · Email: ${escapeHtml(c.email || '—')}`,url:`${appUrl}/backoffice/clients?q=${encodeURIComponent(c.cell_number || c.client_name || '')}`,buttonLabel:'Open Client'})).join('');
-  const uHtml=upgrades.map(c=>itemCard({title:c.client_name,meta:`Upgrade: ${escapeHtml(formatDateOnly(c.upgrade_date))} · Tel: ${escapeHtml(c.cell_number || '—')} · Account: ${escapeHtml(c.account_number || '—')} · Handset: ${escapeHtml(c.handset || '—')}`,url:`${appUrl}/backoffice/clients?q=${encodeURIComponent(c.cell_number || c.account_number || c.client_name || '')}`,buttonLabel:'Open Client'})).join('');
-  const cHtml=claims.map(c=>itemCard({title:c.summary,meta:`Requested by ${escapeHtml(c.requested_by_name)} · Account ${escapeHtml(c.account_number||'—')}`,url:`${appUrl}/approvals`,buttonLabel:'Review Claim'})).join('');
-  const html=baseEmail({heading:`Good morning ${name}`,intro:`Here is the Talk2Me daily brief for <strong>${escapeHtml(formatDateOnly(digestDate))}</strong>.`,summaryHtml:summaryCards([{label:'Birthdays today',value:String(birthdays.length),color:'#7c3aed'},{label:'Upgrades today',value:String(upgrades.length),color:'#2563eb'},{label:'Pending claims',value:String(claims.length),color:'#f79009'},{label:'Open cases',value:String(operational.open_cases || 0),color:'#d97706'}]),sectionsHtml:`<h2 style="font-size:19px;margin:20px 0 10px">Claims awaiting approval</h2>${cHtml || '<p style="color:#667085">No staff claims are waiting.</p>'}<h2 style="font-size:19px;margin:20px 0 10px">Birthdays today</h2>${bHtml || '<p style="color:#667085">No birthdays today.</p>'}<h2 style="font-size:19px;margin:22px 0 10px">Upgrades today</h2>${uHtml || '<p style="color:#667085">No upgrades today.</p>'}<div style="text-align:center;margin-top:24px">${button(`${appUrl}/command-centre`,'Open Command Centre')}</div>`,footer:'Talk2Me Management Daily Brief'});
-  return deliver({to:owner.email,subject:`Talk2Me Daily Brief — ${formatDateOnly(digestDate)}`,text:`Pending claims: ${claims.length}\nBirthdays: ${birthdays.length}\nUpgrades: ${upgrades.length}\nOpen approvals: ${appUrl}/approvals`,html});
+  const dashboardUrl=`${appUrl}/dashboard`;
+  const approvalsUrl=`${appUrl}/approvals`;
+  const html=baseEmail({
+    heading:`Good morning ${name}`,
+    intro:`Your Talk2Me management summary for <strong>${escapeHtml(formatDateOnly(digestDate))}</strong>. Click any block to go directly to that area in the live CRM.`,
+    summaryHtml:summaryCards([
+      {label:'Birthdays today',value:String(birthdays.length),color:'#7c3aed',url:`${dashboardUrl}#birthdays`},
+      {label:'Upgrades today',value:String(upgrades.length),color:'#2563eb',url:`${dashboardUrl}#upgrades`},
+      {label:'Pending claims',value:String(claims.length),color:'#f79009',url:approvalsUrl},
+      {label:'Open cases',value:String(operational.open_cases || 0),color:'#d97706',url:`${dashboardUrl}#open-cases`}
+    ]),
+    sectionsHtml:`<div style="text-align:center;margin-top:24px">${button(`${appUrl}/command-centre`,'Open Command Centre')}</div>`,
+    footer:'Talk2Me Management Daily Brief'
+  });
+  return deliver({
+    to:owner.email,
+    subject:`Talk2Me Daily Brief — ${formatDateOnly(digestDate)}`,
+    text:`Birthdays today: ${birthdays.length}\nUpgrades today: ${upgrades.length}\nPending claims: ${claims.length}\nOpen cases: ${operational.open_cases || 0}\n\nDashboard: ${dashboardUrl}\nApprovals: ${approvalsUrl}`,
+    html
+  });
 }
 
 async function sendStaffClientDigest({ staff, birthdays, upgrades, appUrl, digestDate }) {
