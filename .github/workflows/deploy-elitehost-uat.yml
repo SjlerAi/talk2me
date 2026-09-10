@@ -1,6 +1,9 @@
 name: Deploy Talk2Me to Elitehost UAT
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       confirmation:
@@ -16,7 +19,7 @@ concurrency:
 
 jobs:
   package:
-    if: github.ref_name == 'main' && inputs.confirmation == 'DEPLOY UAT'
+    if: github.ref_name == 'main' && (github.event_name == 'push' || inputs.confirmation == 'DEPLOY UAT')
     runs-on: ubuntu-latest
     outputs:
       artifact_name: ${{ steps.release.outputs.artifact_name }}
