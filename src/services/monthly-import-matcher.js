@@ -106,7 +106,8 @@ function mobileResult(row, references) {
   const canonical = normaliseSouthAfricanMobile(row.phone_original || row.phone_normalised);
   const candidates = canonical ? [...(references.mobile.get(canonical)?.values() || [])] : [];
   const currentBase = canonical ? references.currentMobileByPhone?.get(canonical) : null;
-  const candidateJson = { canonicalPhone: canonical || null, clients: candidates, currentBase: currentBase || null };
+  const candidateJson = { canonicalPhone: canonical || null, clients: candidates };
+  if (currentBase) candidateJson.currentBase = currentBase;
   if (candidates.length === 1) {
     return {
       classification: 'exact_match', domain: 'mobile', confidence: 100,
