@@ -247,6 +247,12 @@ const staffWorkAccess = require('./src/routes/staff-work-access');
 app.use('/', staffWorkAccess);
 if (BASE_PATH) app.use(BASE_PATH, staffWorkAccess);
 
+if (UAT_MODE) {
+  const calendarProductivity = require('./src/routes/calendar-productivity');
+  app.use('/', calendarProductivity);
+  if (BASE_PATH) app.use(BASE_PATH, calendarProductivity);
+}
+
 const osProductivity = require('./src/routes/os-productivity');
 app.use('/', osProductivity);
 if (BASE_PATH) app.use(BASE_PATH, osProductivity);
