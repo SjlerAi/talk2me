@@ -6,6 +6,8 @@ const { requireAuth } = require('../middleware/auth');
 const { requireRole } = require('../middleware/permissions');
 const { runMatching } = require('../services/monthly-import-matcher');
 const { stageBaseDetailsBatch } = require('../services/base-details-stager');
+const { unifyBaseAccounts } = require('../services/base-details-account-unifier');
+const { syncMobileEvents } = require('../services/mobile-event-ledger');
 const { audit } = require('../services/audit');
 
 const router = express.Router();
@@ -14,9 +16,9 @@ async function schemaReady() {
   const [rows] = await db.query(`
     SELECT TABLE_NAME FROM information_schema.TABLES
     WHERE TABLE_SCHEMA=DATABASE()
-      AND TABLE_NAME IN ('mobile_base_current','mobile_base_snapshots','monthly_import_batches','monthly_import_matches','monthly_import_actions')
+      AND TABLE_NAME IN ('mobile_base_current','mobile_base_snapshots','mobile_events','staff_external_codes','monthly_import_batches','monthly_import_matches','monthly_import_actions')
   `);
-  return new Set(rows.map(row => row.TABLE_NAME)).size === 5;
+  return new Set(rows.map(row => row.TABLE_NAME)).size === 7;
 }
 
 async function loadCentre() {
@@ -57,23 +59,42 @@ async function loadCentre() {
     ORDER BY b.created_at DESC,b.id DESC,r.source_row_number
     LIMIT 250
   `);
-  return { batches, conflicts };
+
+  const [[baseSummary]] = await db.query(`
+    SELECT COUNT(*) current_lines,
+      SUM(account_id IS NOT NULL) linked_accounts,
+      SUM(account_id IS NULL) unlinked_accounts,
+      SUM(client_id IS NOT NULL) linked_clients,
+      SUM(eligible_upgrade_flag='Y') eligible_upgrades,
+      SUM(churn_risk_ind='Y') churn_risk
+    FROM mobile_base_current
+  `);
+  const [[eventSummary]] = await db.query(`
+    SELECT COUNT(*) events,
+      SUM(event_type='activation') activations,
+      SUM(event_type='upgrade') upgrades,
+      SUM(staff_id IS NOT NULL) staff_matched,
+      SUM(agent_code IS NOT NULL AND staff_id IS NULL) staff_unmapped
+    FROM mobile_events
+  `);
+  return { batches, conflicts, baseSummary: baseSummary || {}, eventSummary: eventSummary || {} };
 }
 
 router.get('/backoffice/base-details', requireAuth, requireRole('owner','manager','admin'), async (req, res, next) => {
   try {
     const ready = await schemaReady();
-    const data = ready ? await loadCentre() : { batches: [], conflicts: [] };
+    const data = ready ? await loadCentre() : { batches: [], conflicts: [], baseSummary: {}, eventSummary: {} };
     return res.render('base-details-centre', {
       title: 'Base Details Centre', schemaReady: ready,
       batches: data.batches, conflicts: data.conflicts,
+      baseSummary: data.baseSummary, eventSummary: data.eventSummary,
       notice: String(req.query.notice || '').slice(0, 500),
       error: String(req.query.error || '').slice(0, 700)
     });
   } catch (error) { next(error); }
 });
 
-router.post('/backoffice/base-details/:id/reconcile', requireAuth, requireRole('owner','manager'), async (req, res, next) => {
+router.post('/backoffice/base-details/:id/reconcile', requireAuth, requireRole('owner','manager'), async (req, res) => {
   try {
     if (!await schemaReady()) throw new Error('Apply the reviewed Base Details foundation SQL before reconciling.');
     const summary = await runMatching({ batchId: req.params.id });
@@ -90,12 +111,37 @@ router.post('/backoffice/base-details/:id/reconcile', requireAuth, requireRole('
   }
 });
 
-router.post('/backoffice/base-details/:id/stage', requireAuth, requireRole('owner','manager'), async (req, res, next) => {
+router.post('/backoffice/base-details/:id/stage', requireAuth, requireRole('owner','manager'), async (req, res) => {
   try {
     if (!await schemaReady()) throw new Error('Apply the reviewed Base Details foundation SQL before staging.');
     const summary = await stageBaseDetailsBatch({ batchId: req.params.id, userId: req.session.user.id });
     return res.redirect(`${res.locals.basePath}/backoffice/base-details?notice=${encodeURIComponent(
       `Base Details staged safely: ${summary.total} current service rows and source snapshots. CRM customers/accounts were not created, merged, overwritten or deleted.`
+    )}`);
+  } catch (error) {
+    return res.redirect(`${res.locals.basePath}/backoffice/base-details?error=${encodeURIComponent(error.message)}`);
+  }
+});
+
+router.post('/backoffice/base-details/unify-accounts', requireAuth, requireRole('owner','manager'), async (req, res) => {
+  try {
+    if (!await schemaReady()) throw new Error('Apply the reviewed Base Details foundation SQL first.');
+    const summary = await unifyBaseAccounts({ userId: req.session.user.id });
+    return res.redirect(`${res.locals.basePath}/backoffice/base-details?notice=${encodeURIComponent(
+      `Account unification complete: ${summary.createdAccounts} genuinely missing account(s) created; ${summary.linkedExisting + summary.linkedCreated} current line link(s) updated; ${summary.aliasConflicts} ambiguous legacy core(s) left untouched.`
+    )}`);
+  } catch (error) {
+    return res.redirect(`${res.locals.basePath}/backoffice/base-details?error=${encodeURIComponent(error.message)}`);
+  }
+});
+
+router.post('/backoffice/base-details/sync-events', requireAuth, requireRole('owner','manager'), async (req, res) => {
+  try {
+    if (!await schemaReady()) throw new Error('Apply the reviewed Base Details foundation SQL first.');
+    const summary = await syncMobileEvents({ userId: req.session.user.id });
+    const unmapped = summary.unmappedCodes.length ? ` Unmapped staff code(s): ${summary.unmappedCodes.join(', ')}.` : '';
+    return res.redirect(`${res.locals.basePath}/backoffice/base-details?notice=${encodeURIComponent(
+      `Mobile event ledger synchronised ${summary.total} activation/upgrade row(s); ${summary.staffMatched} staff matches, ${summary.staffUnmapped} unmapped.${unmapped}`
     )}`);
   } catch (error) {
     return res.redirect(`${res.locals.basePath}/backoffice/base-details?error=${encodeURIComponent(error.message)}`);
