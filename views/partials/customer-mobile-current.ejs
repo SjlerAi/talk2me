@@ -1,0 +1,49 @@
+<% if (typeof currentMobileDataReady !== 'undefined' && currentMobileDataReady) { %>
+<section class="panel">
+  <div class="panel-heading-row">
+    <div><div class="eyebrow">Vodacom current service data</div><h2>Current Mobile Service</h2></div>
+    <% if (currentMobileServices && currentMobileServices.length) { %><span class="badge"><%= currentMobileServices.length %> current line(s)</span><% } %>
+  </div>
+  <% if (!currentMobileServices || !currentMobileServices.length) { %>
+    <div class="empty-state">No current Base Details service is linked to this customer yet. Existing CRM history remains unchanged.</div>
+  <% } %>
+  <% (currentMobileServices || []).forEach(service => { %>
+    <article class="card" style="margin-top:12px">
+      <div class="summary-strip">
+        <span><small>MSISDN</small><strong><%= service.msisdn_original || service.msisdn_normalised %></strong></span>
+        <span><small>Account</small><strong><%= service.account_code || '—' %></strong></span>
+        <span><small>Contract</small><strong><%= service.contract_status || 'Unknown' %></strong></span>
+        <span><small>Upgrade eligible</small><strong><%= service.eligible_upgrade_flag || 'Unknown' %></strong></span>
+        <span><small>Eligible date</small><strong><%= service.eligible_upgrade_date ? new Date(service.eligible_upgrade_date).toLocaleDateString('en-ZA') : '—' %></strong></span>
+        <span><small>30-day active</small><strong><%= service.active_30_day || 'Unknown' %></strong></span>
+      </div>
+      <div class="imported-conflict-grid" style="margin-top:12px">
+        <span><b>Account name</b><%= service.account_name || '—' %></span>
+        <span><b>Tariff</b><%= service.tariff_name || service.price_plan || '—' %></span>
+        <span><b>Device</b><%= [service.device_manufacturer,service.device_name].filter(Boolean).join(' ') || '—' %></span>
+        <span><b>Last upgrade</b><%= service.last_upgrade_date ? new Date(service.last_upgrade_date).toLocaleDateString('en-ZA') : '—' %></span>
+        <span><b>ICCID</b><%= service.icc_id || '—' %></span>
+        <span><b>IMSI</b><%= service.imsi || '—' %></span>
+        <span><b>Arrears</b><%= service.account_in_arrears || 'Unknown' %></span>
+        <span><b>Churn risk</b><%= service.churn_risk_ind || 'Unknown' %></span>
+        <span><b>Portfolio score</b><%= service.portfolio_score || '—' %></span>
+      </div>
+      <small>Network/service values come from the latest staged Base Details snapshot. CRM notes, ownership and historical customer records remain separate.</small>
+    </article>
+  <% }) %>
+</section>
+
+<section class="panel">
+  <div class="eyebrow">Dealer transaction history</div>
+  <h2>Activation & Upgrade History</h2>
+  <% if (!mobileEvents || !mobileEvents.length) { %><div class="empty-state">No activation or upgrade events have been linked to this customer yet.</div><% } %>
+  <% (mobileEvents || []).forEach(event => { %>
+    <div class="timeline-item">
+      <time><%= event.event_date ? new Date(event.event_date).toLocaleDateString('en-ZA',{dateStyle:'medium'}) : 'Date unavailable' %></time>
+      <strong><%= String(event.event_type || 'event').toUpperCase() %> · <%= event.msisdn_original || event.msisdn_normalised || 'No MSISDN' %></strong>
+      <p><%= event.description || event.package_name || 'No description' %></p>
+      <small><%= event.staff_name || event.agent_code || 'Agent not mapped' %><%= event.deal_sheet_number ? ' · Deal sheet '+event.deal_sheet_number : '' %><%= event.channel ? ' · '+event.channel : '' %></small>
+    </div>
+  <% }) %>
+</section>
+<% } %>
