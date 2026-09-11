@@ -4,6 +4,8 @@ const db = require('../config/db');
 const { normaliseSouthAfricanMobile } = require('./sa-phone-normalisation');
 const { normaliseExternalCode, resolveStaffByExternalCode } = require('./staff-external-codes');
 
+const SYSTEM_AGENT_CODES = new Set(['SADMIN']);
+
 function parseJson(value, fallback = {}) {
   if (!value) return fallback;
   try { return typeof value === 'string' ? JSON.parse(value) : value; } catch { return fallback; }
@@ -25,6 +27,10 @@ function first(obj, names) {
 
 function firstAcross(raw, names) {
   return first(raw, names) ?? first(raw?.sourceFields || {}, names);
+}
+
+function isSystemAgentCode(value) {
+  return SYSTEM_AGENT_CODES.has(normaliseExternalCode(value));
 }
 
 async function syncMobileEvents({ batchId = null, userId = null } = {}) {
@@ -59,16 +65,19 @@ async function syncMobileEvents({ batchId = null, userId = null } = {}) {
     let insertedOrUpdated = 0;
     let staffMatched = 0;
     let staffUnmapped = 0;
+    let systemEvents = 0;
     const unmappedCodes = new Set();
 
     for (const row of rows) {
       const raw = parseJson(row.raw_data_json);
       const agentCode = normaliseExternalCode(row.agent_code || firstAcross(raw, ['agentCode', 'Agent', 'Created By', 'createdBy']));
-      const staffResolution = agentCode
+      const systemEvent = agentCode && isSystemAgentCode(agentCode);
+      const staffResolution = agentCode && !systemEvent
         ? await resolveStaffByExternalCode(connection, agentCode)
-        : { status: 'missing', staff: null };
+        : { status: systemEvent ? 'system' : 'missing', staff: null };
       const staffId = staffResolution.status === 'matched' ? Number(staffResolution.staff.id) : null;
       if (staffId) staffMatched += 1;
+      else if (systemEvent) systemEvents += 1;
       else if (agentCode) {
         staffUnmapped += 1;
         unmappedCodes.add(agentCode);
@@ -128,11 +137,11 @@ async function syncMobileEvents({ batchId = null, userId = null } = {}) {
     `, {
       userId: userId || null,
       description: `Mobile event ledger synchronised ${insertedOrUpdated} confirmed activation/upgrade import rows without changing CRM customer records.`,
-      afterJson: JSON.stringify({ total: insertedOrUpdated, staffMatched, staffUnmapped, unmappedCodes: [...unmappedCodes].sort() })
+      afterJson: JSON.stringify({ total: insertedOrUpdated, staffMatched, staffUnmapped, systemEvents, unmappedCodes: [...unmappedCodes].sort() })
     });
 
     await connection.commit();
-    return { total: insertedOrUpdated, staffMatched, staffUnmapped, unmappedCodes: [...unmappedCodes].sort() };
+    return { total: insertedOrUpdated, staffMatched, staffUnmapped, systemEvents, unmappedCodes: [...unmappedCodes].sort() };
   } catch (error) {
     await connection.rollback();
     throw error;
@@ -141,4 +150,4 @@ async function syncMobileEvents({ batchId = null, userId = null } = {}) {
   }
 }
 
-module.exports = { parseJson, numeric, first, firstAcross, syncMobileEvents };
+module.exports = { SYSTEM_AGENT_CODES, parseJson, numeric, first, firstAcross, isSystemAgentCode, syncMobileEvents };
