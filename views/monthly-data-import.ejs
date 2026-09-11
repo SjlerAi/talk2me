@@ -6,7 +6,10 @@
       <p>Upload the month’s reports, process them together, resolve exceptions, then finalise once.</p>
     </div>
     <% if (!selectedBatch) { %>
-      <a class="button secondary compact" href="#history">Technical history</a>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+        <a class="button secondary compact" href="<%= basePath %>/backoffice/data-import/source-evidence">Refresh Source Evidence</a>
+        <a class="button secondary compact" href="#history">Technical history</a>
+      </div>
     <% } %>
   </header>
 
@@ -216,28 +219,17 @@
       </div>
     </section>
 
-    <details id="history" class="card technical-history">
-      <summary><span><strong>Technical Import History</strong><small>Batch-level diagnostics and reprocessing controls</small></span><span><%= batches.length %> recent batches</span></summary>
-      <div class="batch-list">
-        <% batches.forEach(batch => { %>
-          <article class="batch-card">
-            <div class="batch-card-main">
-              <div class="batch-card-title"><span class="batch-number">#<%= batch.id %></span><strong class="safe-filename"><%= batch.original_filename %></strong><span class="status-pill <%= batch.status %>"><%= batch.status %></span></div>
-              <p><%= batch.import_type.replaceAll('_',' ') %> · <%= batch.source_system %> · <%= formatDate(batch.created_at) %></p>
-              <div class="batch-stats"><span><strong><%= batch.total_rows %></strong> rows</span><span><strong><%= batch.valid_rows %></strong> valid</span><span><strong><%= batch.duplicate_rows %></strong> duplicates</span><span><strong><%= batch.exception_rows %></strong> exceptions</span></div>
-            </div>
-            <div class="batch-card-actions">
-              <a class="button secondary" href="<%= basePath %>/backoffice/data-import/batches/<%= batch.id %><%= panelMode?'?panel=1':'' %>">Open Batch</a>
-              <% if (batch.status === 'confirmed' && matchingSchemaReady) { %>
-                <form method="post" action="<%= basePath %>/backoffice/data-import/batches/<%= batch.id %>/match<%= panelMode?'?panel=1':'' %>"><button>Re-run Matching</button></form>
-                <a class="button secondary" href="<%= basePath %>/backoffice/data-import/batches/<%= batch.id %>/review<%= panelMode?'?panel=1':'' %>">Review Matches</a>
-              <% } %>
-            </div>
-          </article>
-        <% }) %>
+    <section id="history" class="workflow-card history-card">
+      <div class="step-number">4</div>
+      <div class="workflow-content">
+        <span class="eyebrow">Technical history</span>
+        <h2>Imported batch history</h2>
+        <p>Technical traceability only. Use this when troubleshooting a specific source file.</p>
+        <div class="batch-table-wrap"><table class="batch-table"><thead><tr><th>Imported</th><th>File</th><th>Type</th><th>Rows</th><th>Status</th></tr></thead><tbody>
+        <% batches.forEach(b=>{ %><tr><td><%= formatDate(b.created_at) %></td><td><a href="<%= basePath %>/backoffice/data-import/batches/<%= b.id %><%= panelMode?'?panel=1':'' %>"><%= b.original_filename %></a></td><td><%= b.import_type.replaceAll('_',' ') %></td><td><%= b.total_rows %></td><td><span class="status-pill <%= b.status %>"><%= b.status %></span></td></tr><% }) %>
+        </tbody></table></div>
       </div>
-    </details>
+    </section>
   <% } %>
 </div>
-<link rel="stylesheet" href="<%= basePath %>/public/css/monthly-data-import.css?v=<%= encodeURIComponent(appVersion) %>-monthly-import-64">
-<script defer src="<%= basePath %>/public/js/monthly-import-conflict-review.js?v=<%= encodeURIComponent(appVersion) %>-conflict-review-66"></script>
+<script src="<%= basePath %>/public/js/monthly-import-conflict-review.js?v=<%= encodeURIComponent(appVersion) %>"></script>
