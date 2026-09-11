@@ -1,0 +1,30 @@
+name: Validate Monthly source evidence refresh
+
+on:
+  pull_request:
+    paths:
+      - 'src/services/monthly-source-evidence-refresh.js'
+      - 'src/routes/monthly-source-evidence-refresh.js'
+      - 'src/routes.js'
+      - 'views/monthly-source-evidence-refresh.ejs'
+      - 'scripts/validate-monthly-source-evidence-refresh.js'
+      - '.github/workflows/monthly-source-evidence-refresh.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-source-evidence-refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: node --check src/services/monthly-source-evidence-refresh.js
+      - run: node --check src/routes/monthly-source-evidence-refresh.js
+      - run: node --check scripts/validate-monthly-source-evidence-refresh.js
+      - run: node scripts/validate-monthly-source-evidence-refresh.js
