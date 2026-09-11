@@ -8,6 +8,7 @@ EXPECTED_RUN_ID="${4:?workflow run id required}"
 EXPECTED_SHA256="${5:?sha256 required}"
 
 APP_DIR=/home/uent/public_html/talk2me
+APP_ROOT=public_html/talk2me
 BACKUP_DIR=/home/uent/deployment-backups/talk2me-ui-uat
 RELEASES_DIR=/home/uent/releases/talk2me-ui-uat
 NODE_BIN=/opt/alt/alt-nodejs20/root/usr/bin/node
@@ -111,20 +112,36 @@ done
 printf '%s\n' "$EXPECTED_COMMIT" > "$APP_DIR/.deployed_commit"
 mkdir -p "$APP_DIR/tmp"
 touch "$APP_DIR/tmp/restart.txt"
-sleep 8
 
-health="$(curl -LfsS --connect-timeout 10 --max-time 25 "$SITE_URL/api/health")"
-release="$(curl -LfsS --connect-timeout 10 --max-time 25 "$SITE_URL/api/release")"
-HEALTH="$health" RELEASE="$release" EXPECTED_COMMIT="$EXPECTED_COMMIT" EXPECTED_RUN_ID="$EXPECTED_RUN_ID" "$NODE_BIN" <<'NODE'
+SELECTOR="$(command -v cloudlinux-selector || true)"
+if [ -n "$SELECTOR" ]; then
+  if ! "$SELECTOR" restart --json --interpreter nodejs --app-root "$APP_ROOT" >/tmp/talk2me-ui-uat-selector.json 2>&1; then
+    "$SELECTOR" start --json --interpreter nodejs --app-root "$APP_ROOT" >/tmp/talk2me-ui-uat-selector.json 2>&1
+  fi
+  cat /tmp/talk2me-ui-uat-selector.json
+fi
+
+for attempt in $(seq 1 12); do
+  health="$(curl -LfsS --connect-timeout 10 --max-time 25 "$SITE_URL/api/health" 2>/dev/null || true)"
+  release="$(curl -LfsS --connect-timeout 10 --max-time 25 "$SITE_URL/api/release" 2>/dev/null || true)"
+  if HEALTH="$health" RELEASE="$release" EXPECTED_COMMIT="$EXPECTED_COMMIT" EXPECTED_RUN_ID="$EXPECTED_RUN_ID" "$NODE_BIN" <<'NODE'
 const h = JSON.parse(process.env.HEALTH || '{}');
 const r = JSON.parse(process.env.RELEASE || '{}');
-if (h.status !== 'ok' || h.environment !== 'uat') process.exit(1);
+if (h.status !== 'ok' || h.environment !== 'uat' || h.database !== 'connected') process.exit(1);
 if (r.environment !== 'uat' || r.commit !== process.env.EXPECTED_COMMIT || String(r.workflowRunId) !== String(process.env.EXPECTED_RUN_ID)) process.exit(1);
 NODE
+  then
+    trap - ERR
+    rm -f "$ARTIFACT_PATH" "$CHECKSUM_PATH"
+    find "$BACKUP_DIR" -maxdepth 1 -type f -name 'talk2me-ui-uat-before-*.tar.gz' -printf '%T@ %p\n' | sort -nr | tail -n +6 | cut -d' ' -f2- | xargs -r rm -f
+    find "$BACKUP_DIR" -maxdepth 1 -type d -name 'node_modules-before-*' -printf '%T@ %p\n' | sort -nr | tail -n +3 | cut -d' ' -f2- | xargs -r rm -rf
+    find "$RELEASES_DIR" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' | sort -nr | tail -n +4 | cut -d' ' -f2- | xargs -r rm -rf
+    echo "Activated Talk2Me UI UAT release $EXPECTED_COMMIT from workflow $EXPECTED_RUN_ID."
+    exit 0
+  fi
+  echo "Waiting for UI UAT health (attempt $attempt/12)..."
+  sleep 5
+done
 
-trap - ERR
-rm -f "$ARTIFACT_PATH" "$CHECKSUM_PATH"
-find "$BACKUP_DIR" -maxdepth 1 -type f -name 'talk2me-ui-uat-before-*.tar.gz' -printf '%T@ %p\n' | sort -nr | tail -n +6 | cut -d' ' -f2- | xargs -r rm -f
-find "$BACKUP_DIR" -maxdepth 1 -type d -name 'node_modules-before-*' -printf '%T@ %p\n' | sort -nr | tail -n +3 | cut -d' ' -f2- | xargs -r rm -rf
-find "$RELEASES_DIR" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' | sort -nr | tail -n +4 | cut -d' ' -f2- | xargs -r rm -rf
-echo "Activated Talk2Me UI UAT release $EXPECTED_COMMIT from workflow $EXPECTED_RUN_ID."
+echo "UI UAT did not become healthy after activation." >&2
+exit 1
