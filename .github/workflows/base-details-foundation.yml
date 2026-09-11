@@ -10,14 +10,17 @@ on:
       - 'src/services/base-details-account-unifier.js'
       - 'src/services/mobile-event-ledger.js'
       - 'src/routes/base-details-centre.js'
+      - 'src/routes/base-details-search.js'
       - 'src/routes/customer-360-safe.js'
       - 'src/routes.js'
       - 'views/base-details-centre.ejs'
+      - 'views/mobile-base-view.ejs'
       - 'views/customer-360.ejs'
       - 'views/partials/customer-mobile-current.ejs'
       - 'scripts/validate-base-details-foundation.js'
       - 'scripts/validate-base-details-reconciliation.js'
       - 'scripts/validate-base-details-operations.js'
+      - 'scripts/validate-base-details-final-integration.js'
       - 'sql/ONE_OFF_110_base_details_master_foundation.sql'
       - '.github/workflows/base-details-foundation.yml'
   workflow_dispatch:
@@ -42,13 +45,16 @@ jobs:
       - run: node --check src/services/mobile-event-ledger.js
       - run: node --check src/services/monthly-import-matcher.js
       - run: node --check src/routes/base-details-centre.js
+      - run: node --check src/routes/base-details-search.js
       - run: node --check src/routes/customer-360-safe.js
       - run: node --check scripts/validate-base-details-foundation.js
       - run: node --check scripts/validate-base-details-reconciliation.js
       - run: node --check scripts/validate-base-details-operations.js
+      - run: node --check scripts/validate-base-details-final-integration.js
       - run: node scripts/validate-base-details-foundation.js
       - run: node scripts/validate-base-details-reconciliation.js
       - run: node scripts/validate-base-details-operations.js
+      - run: node scripts/validate-base-details-final-integration.js
       - name: Guard one-off SQL safety boundary
         run: |
           grep -q "Do NOT run npm run db:migrate" sql/ONE_OFF_110_base_details_master_foundation.sql
@@ -73,3 +79,9 @@ jobs:
           grep -q "partials/customer-mobile-current" views/customer-360.ejs
           grep -q "Current Mobile Service" views/partials/customer-mobile-current.ejs
           grep -q "Activation & Upgrade History" views/partials/customer-mobile-current.ejs
+      - name: Guard universal current-base search
+        run: |
+          grep -q "mobile_base_current" src/routes/base-details-search.js
+          grep -q "icc_id LIKE :like" src/routes/base-details-search.js
+          grep -q "imsi LIKE :like" src/routes/base-details-search.js
+          grep -q "mobile-base/:id" src/routes/base-details-search.js
