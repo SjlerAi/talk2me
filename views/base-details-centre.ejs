@@ -1,0 +1,77 @@
+<section class="page-head">
+  <div>
+    <span class="eyebrow">Back Office</span>
+    <h1>Base Details Centre</h1>
+    <p>Reconcile the Vodacom current mobile base, inspect exceptions, and stage current service data without changing CRM customer history.</p>
+  </div>
+  <a class="btn" href="<%= basePath %>/backoffice/data-import">Open Data Import Centre</a>
+</section>
+
+<% if (notice) { %><div class="success-banner"><%= notice %></div><% } %>
+<% if (error) { %><div class="phase-notice warning"><strong>Base Details was not changed</strong><p><%= error %></p></div><% } %>
+
+<% if (!schemaReady) { %>
+  <div class="phase-notice warning">
+    <strong>Base Details foundation not installed</strong>
+    <p>Apply the reviewed PR #110 one-off SQL after the required database backup. Do not use the generic migration runner.</p>
+  </div>
+<% } else { %>
+  <section class="card">
+    <h2>Base Details batches</h2>
+    <p>Upload the Base Details XLSX through Data Import Centre. Then reconcile here. Staging writes only the dedicated current/snapshot layer; it does not create or overwrite CRM customers or accounts.</p>
+    <% if (!batches.length) { %>
+      <div class="empty-state compact"><strong>No Base Details batch uploaded yet</strong><p>Use Data Import Centre to upload the Vodacom Base Details workbook.</p></div>
+    <% } %>
+    <% batches.forEach(batch => { %>
+      <article class="card" style="margin-top:16px">
+        <div style="display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap">
+          <div>
+            <span class="eyebrow">Batch #<%= batch.id %> · <%= batch.status %></span>
+            <h3><%= batch.original_filename %></h3>
+            <p><strong><%= Number(batch.total_rows||0) %></strong> source rows · <strong><%= Number(batch.reconciled_rows||0) %></strong> reconciled · <strong><%= Number(batch.snapshot_rows||0) %></strong> snapshots staged</p>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <form method="post" action="<%= basePath %>/backoffice/base-details/<%= batch.id %>/reconcile"><button class="btn">Reconcile</button></form>
+            <% if (Number(batch.reconciled_rows||0) === Number(batch.valid_rows||0) && Number(batch.valid_rows||0) > 0) { %>
+              <form method="post" action="<%= basePath %>/backoffice/base-details/<%= batch.id %>/stage"><button class="btn primary">Stage current mobile base</button></form>
+            <% } %>
+          </div>
+        </div>
+        <div class="summary-strip" style="margin-top:12px">
+          <span><strong><%= Number(batch.exact_matches||0) %></strong> exact existing</span>
+          <span><strong><%= Number(batch.possible_matches||0) %></strong> history / alias review</span>
+          <span><strong><%= Number(batch.new_records||0) %></strong> new service stages</span>
+          <span><strong><%= Number(batch.conflicts||0) %></strong> account conflicts</span>
+        </div>
+        <div class="summary-strip" style="margin-top:8px">
+          <span><strong><%= Number(batch.existing_client||0) %></strong> existing client</span>
+          <span><strong><%= Number(batch.existing_history||0) %></strong> same-account history</span>
+          <span><strong><%= Number(batch.new_service_existing_account||0) %></strong> new line / existing account</span>
+          <span><strong><%= Number(batch.new_service_new_account||0) %></strong> new line / new account</span>
+          <span><strong><%= Number(batch.account_alias_review||0) %></strong> account alias review</span>
+          <span><strong><%= Number(batch.account_conflicts||0) %></strong> account mismatch</span>
+        </div>
+      </article>
+    <% }) %>
+  </section>
+
+  <section class="card" style="margin-top:18px">
+    <h2>Base Details exceptions</h2>
+    <p>These rows are deliberately not used to overwrite an existing CRM account link. The current network source is preserved while the relationship/history discrepancy remains visible for management review.</p>
+    <% if (!conflicts.length) { %><div class="empty-state compact"><strong>No Base Details conflicts</strong></div><% } %>
+    <% conflicts.forEach(row => { %>
+      <article class="exception-card" style="margin-top:12px">
+        <header>
+          <div><span class="eyebrow">Batch #<%= row.batch_id %> · row <%= row.source_row_number %></span><strong><%= row.phone_normalised || 'No MSISDN' %></strong></div>
+          <span class="review-state pending"><%= row.action_type.replaceAll('_',' ') %></span>
+        </header>
+        <div class="imported-conflict-grid">
+          <span><b>Account</b><%= row.account_number || '-' %></span>
+          <span><b>Name</b><%= row.customer_name || '-' %></span>
+          <span><b>Source</b><%= row.original_filename %></span>
+        </div>
+        <p><%= row.match_reason %></p>
+      </article>
+    <% }) %>
+  </section>
+<% } %>
