@@ -56,10 +56,11 @@
       <span><strong><%= Number(eventSummary.activations||0) %></strong> activations</span>
       <span><strong><%= Number(eventSummary.upgrades||0) %></strong> upgrades</span>
       <span><strong><%= Number(eventSummary.staff_matched||0) %></strong> staff matched</span>
+      <span><strong><%= Number(eventSummary.system_events||0) %></strong> system events</span>
       <span><strong><%= Number(eventSummary.staff_unmapped||0) %></strong> staff code unresolved</span>
     </div>
     <form method="post" action="<%= basePath %>/backoffice/base-details/sync-events" style="margin-top:14px"><button class="btn">Synchronise activation & upgrade history</button></form>
-    <small>The ledger is idempotent by import row. Re-running refreshes links and staff mapping without duplicating events.</small>
+    <small>The ledger is idempotent by import row. Re-running refreshes links and staff mapping without duplicating events. SADMIN is classified as system activity, not a salesperson.</small>
   </section>
 
   <section class="card" style="margin-top:18px">
