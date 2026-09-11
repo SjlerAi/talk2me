@@ -1,0 +1,28 @@
+<section class="page-head">
+  <div>
+    <span class="eyebrow">Back Office · Monthly Import</span>
+    <h1>Refresh Source Evidence</h1>
+    <p>Re-read an exact report already stored in Monthly Import so the complete original heading/value row is preserved. This does not re-import the batch or change matching, approvals, applied actions or customer records.</p>
+  </div>
+  <a class="btn" href="<%= basePath %>/backoffice/data-import">Back to Data Import Centre</a>
+</section>
+
+<% if (notice) { %><div class="success-banner"><%= notice %></div><% } %>
+<% if (error) { %><div class="phase-notice warning"><strong>Nothing was changed</strong><p><%= error %></p></div><% } %>
+
+<section class="card">
+  <h2>Select the exact original report</h2>
+  <p>The file SHA-256, report family, source system, row count, source-row numbers and row fingerprints must agree with the existing batch. Any mismatch cancels the entire refresh.</p>
+  <form method="post" enctype="multipart/form-data" action="<%= basePath %>/backoffice/data-import/refresh-source-evidence">
+    <div class="form-grid">
+      <div class="full"><label>Original B12 / Siebel / Fixed Base report</label><input type="file" name="source_evidence_report" accept=".xls,.xlsx" required></div>
+    </div>
+    <button class="btn primary" type="submit">Refresh source evidence</button>
+  </form>
+  <small>Base Details does not use this tool; its source evidence is already preserved in the dedicated snapshot workflow.</small>
+</section>
+
+<section class="phase-notice" style="margin-top:18px">
+  <strong>Safety boundary</strong>
+  <p>This operation updates only <code>monthly_import_rows.raw_data_json</code> for the already-existing batch. It cannot create another batch, change customer/account records, alter matching decisions, approve actions or finalise anything.</p>
+</section>
