@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#e31e24">
+  <meta name="application-name" content="Talk2Me OS2">
+  <title>Talk2Me OS2</title>
+  <link rel="icon" href="/talk2me-os2-icon.svg" type="image/svg+xml">
+  <link rel="shortcut icon" href="/talk2me-os2-icon.svg">
+  <link rel="apple-touch-icon" href="/talk2me-os2-icon.svg">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="stylesheet" href="./os2.css">
+  <link rel="stylesheet" href="./customer360.css">
+  <link rel="stylesheet" href="./modal-fix.css">
+  <link rel="stylesheet" href="./my-work.css">
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar" id="sidebar">
+    <div class="brand"><div class="brand-mark">T</div><div><strong>Talk2Me</strong><span>OS2 Workspace</span></div></div>
+    <nav>
+      <button class="nav-item active" data-view="home"><span>⌂</span>Home</button>
+      <button class="nav-item" data-view="customers"><span>◎</span>Customers</button>
+      <button class="nav-item" data-view="work"><span>✓</span>My Work <b id="workBadge">0</b></button>
+      <button class="nav-item" data-view="opportunities"><span>↗</span>Opportunities</button>
+      <button class="nav-item" data-view="reports"><span>▦</span>Reports</button>
+      <button class="nav-item management" data-view="admin" id="adminNav"><span>⚙</span>Administration</button>
+    </nav>
+    <div class="tools"><p>WORK TOOLS</p><button data-toast="Opening Vodacom portal">V</button><button data-toast="Opening MTN portal">M</button><button data-toast="Opening Telkom portal">T</button><button data-toast="Opening Sage">S</button></div>
+    <div class="profile"><div class="avatar" id="profileAvatar">--</div><div><strong id="profileName">Loading…</strong><span id="profileRole">Secure session</span><button id="logoutButton" class="profile-logout">Sign out</button></div></div>
+  </aside>
+
+  <main>
+    <header class="topbar">
+      <button class="menu" id="menu">☰</button>
+      <div class="search"><span>⌕</span><input id="search" placeholder="Search customer, account, phone, package or handset..."><div class="results" id="results"></div></div>
+      <button class="quick" id="newInquiry">+ New inquiry</button>
+      <button class="icon" id="alerts">🔔<b id="alertBadge">0</b></button>
+    </header>
+
+    <section class="content" id="dashboardView">
+      <div class="page-head"><div><span id="todayLabel">LOADING</span><h1 id="welcomeHeading">Good morning</h1><p id="systemMessage">Connecting to the Talk2Me OS2 test database…</p></div><button class="secondary" id="refreshDashboard">Refresh</button></div>
+      <div class="attention-grid">
+        <article class="metric urgent" data-view="admin"><span>Approvals waiting</span><strong id="metricApprovals">–</strong><small>Pending manager or owner action</small></article>
+        <article class="metric warning" data-view="work"><span>Overdue work</span><strong id="metricOverdue">–</strong><small>Open tasks past their due time</small></article>
+        <article class="metric blue" data-view="customers"><span>Unassigned accounts</span><strong id="metricUnassigned">–</strong><small>Ready for assignment</small></article>
+        <article class="metric green"><span>Staff clocked in</span><strong id="metricClockedIn">–</strong><small id="activeStaffText">Loading active staff</small></article>
+      </div>
+      <div class="workspace-grid">
+        <section class="panel">
+          <div class="panel-head"><div><span>MY WORK</span><h2>Today</h2></div><button data-view="work">View all</button></div>
+          <div class="task"><div class="task-icon red">!</div><div><strong>Secure OS2 session active</strong><span>Eight-hour login using existing Talk2Me staff credentials</span></div><button id="databaseStatus">Check</button></div>
+          <div class="task"><div class="task-icon blue">⌕</div><div><strong>Search real customer records</strong><span>Select a result to open Customer 360</span></div><button onclick="document.getElementById('search').focus()">Search</button></div>
+          <div class="task"><div class="task-icon green">+</div><div><strong>New Inquiry is enabled</strong><span>Every inquiry is linked to the logged-in staff member and audited</span></div><button id="taskNewInquiry">Create</button></div>
+        </section>
+        <section class="panel">
+          <div class="panel-head"><div><span>OPPORTUNITIES</span><h2>Client care</h2></div><button data-view="opportunities">View all</button></div>
+          <div class="opportunity"><div><strong id="metricUpgrades">–</strong><span>Upgrades due</span></div><em>Next 7 days</em></div>
+          <div class="opportunity"><div><strong id="metricBirthdays">–</strong><span>Birthdays today</span></div><em>Send a message</em></div>
+          <div class="opportunity"><div><strong id="metricCallbacks">–</strong><span>Scheduled callbacks</span></div><em>Today</em></div>
+          <div class="opportunity"><div><strong id="metricProspects">–</strong><span>New prospects</span></div><em>Open pipeline</em></div>
+        </section>
+      </div>
+      <section class="panel activity">
+        <div class="panel-head"><div><span>TEAM PULSE</span><h2>Latest activity</h2></div><button data-view="reports">Open report</button></div>
+        <table><thead><tr><th>Staff member</th><th>Latest action</th><th>Customer</th><th>Status</th><th>Time</th></tr></thead><tbody id="activityRows"><tr><td colspan="5">Loading live activity…</td></tr></tbody></table>
+      </section>
+    </section>
+
+    <section class="content" id="workView" hidden>
+      <div class="work-head"><div><span id="workScope">Your assigned work</span><h1>My Work</h1><p id="workLoading">Loading work items...</p></div><button class="secondary" id="refreshWork">Refresh</button></div>
+      <div class="work-summary">
+        <div class="work-stat"><span>Total active</span><strong id="workCountTotal">0</strong></div>
+        <div class="work-stat"><span>Overdue</span><strong id="workCountOverdue">0</strong></div>
+        <div class="work-stat"><span>Due today</span><strong id="workCountToday">0</strong></div>
+        <div class="work-stat"><span>Waiting</span><strong id="workCountWaiting">0</strong></div>
+        <div class="work-stat"><span>Open</span><strong id="workCountOpen">0</strong></div>
+      </div>
+      <section class="panel">
+        <div class="work-filters">
+          <button class="work-filter active" data-filter="all">All active</button>
+          <button class="work-filter" data-filter="overdue">Overdue</button>
+          <button class="work-filter" data-filter="today">Due today</button>
+          <button class="work-filter" data-filter="waiting">Waiting</button>
+          <button class="work-filter" data-filter="open">Open & follow-up</button>
+        </div>
+        <div class="work-list" id="workItems"><div class="work-empty">Loading...</div></div>
+      </section>
+    </section>
+
+    <section class="content customer-view" id="customerView" hidden>
+      <div class="customer-hero panel">
+        <button class="secondary" id="backDashboard">← Dashboard</button>
+        <div class="customer-title"><span>CUSTOMER 360</span><h1 id="customerName">Customer</h1><p id="customerSummary">Loading customer information…</p></div>
+        <div class="customer-actions"><button class="secondary" id="copyPhone">Copy phone</button><button class="quick" id="customerNewInquiry">+ New inquiry</button></div>
+      </div>
+      <div class="customer-grid">
+        <section class="panel"><div class="panel-head"><div><span>PROFILE</span><h2>Customer details</h2></div></div><div class="detail-grid" id="customerDetails"></div></section>
+        <section class="panel"><div class="panel-head"><div><span>OWNERSHIP</span><h2>Account status</h2></div></div><div class="summary-stack" id="customerStatus"></div></section>
+      </div>
+      <section class="panel customer-section"><div class="panel-head"><div><span>SERVICES</span><h2>Mobile lines</h2></div><strong id="lineCount">0</strong></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Number</th><th>Package</th><th>Handset</th><th>Next upgrade</th><th>Status</th></tr></thead><tbody id="customerLines"></tbody></table></div></section>
+      <section class="panel customer-section"><div class="panel-head"><div><span>HISTORY</span><h2>Recent inquiries</h2></div><strong id="inquiryCount">0</strong></div><div id="customerInquiries" class="timeline"></div></section>
+    </section>
+  </main>
+</div>
+
+<div class="drawer" id="drawer"><div class="drawer-head"><h2>Notifications</h2><button id="closeDrawer">×</button></div><div class="notice"><b>OS2 test environment</b><span>This site is connected to the copied kloka_talk2me database, not the original production database.</span></div></div>
+<div class="modal" id="modal"><form id="inquiryForm">
+  <div class="modal-head"><div><span>LIVE TEST WORKFLOW</span><h2>New inquiry</h2></div><button type="button" id="closeModal">×</button></div>
+  <input type="hidden" id="inquiryClientId">
+  <label>Customer<input id="inquiryCustomer" readonly placeholder="Search and select a customer first"></label>
+  <div class="fields"><label>Category<select id="inquiryCategory" required><option value="">Loading categories…</option></select></label><label>Contact type<select id="inquiryContactType"><option value="walk_in">Walk-in</option><option value="phone_call">Phone call</option><option value="whatsapp">WhatsApp</option><option value="email">Email</option><option value="other">Other</option></select></label></div>
+  <label id="categoryOtherWrap" hidden>Other category<input id="inquiryCategoryOther" maxlength="120"></label>
+  <label>Customer question / request<textarea id="inquiryQuery" placeholder="What does the customer need?"></textarea></label>
+  <label>Result found<textarea id="inquiryResult" placeholder="What was discovered or confirmed?"></textarea></label>
+  <label>Action taken<textarea id="inquiryAction" placeholder="What was done, promised or arranged?"></textarea></label>
+  <div class="fields"><label>Status<select id="inquiryStatus"><option value="resolved">Resolved</option><option value="open">Open</option><option value="follow_up">Follow-up</option><option value="waiting_customer">Waiting for customer</option><option value="waiting_network">Waiting for network</option><option value="waiting_supplier">Waiting for supplier</option></select></label><label>Priority<select id="inquiryPriority"><option value="normal">Normal</option><option value="urgent">Urgent</option></select></label></div>
+  <label id="followUpWrap" hidden>Follow-up date and time<input type="datetime-local" id="inquiryFollowUp"></label>
+  <p id="inquiryError" class="form-error" hidden></p>
+  <div class="modal-actions"><button type="button" class="secondary" id="cancelModal">Cancel</button><button type="submit" class="quick" id="saveInquiry">Save inquiry</button></div>
+</form></div>
+
+<div class="work-update-modal" id="workUpdateModal"><form id="workUpdateForm">
+  <div class="modal-head"><div><span>MY WORK</span><h2>Update inquiry</h2></div><button type="button" id="closeWorkUpdate">×</button></div>
+  <input type="hidden" id="workUpdateId">
+  <p class="work-update-customer" id="workUpdateCustomer"></p>
+  <label>Status<select id="workUpdateStatus"><option value="open">Open</option><option value="follow_up">Follow-up</option><option value="waiting_customer">Waiting for customer</option><option value="waiting_network">Waiting for network</option><option value="waiting_supplier">Waiting for supplier</option><option value="resolved">Resolved</option></select></label>
+  <label id="workUpdateFollowUpWrap">Follow-up date and time<input type="datetime-local" id="workUpdateFollowUp"></label>
+  <label>Update note<textarea id="workUpdateNote" placeholder="Add what happened and the next step..."></textarea></label>
+  <p id="workUpdateError" class="form-error" hidden></p>
+  <div class="modal-actions"><button type="button" class="secondary" id="cancelWorkUpdate">Cancel</button><button type="submit" class="quick" id="saveWorkUpdate">Save update</button></div>
+</form></div>
+
+<div class="toast" id="toast"></div>
+<script src="./os2.js"></script>
+<script src="./search-controller.js"></script>
+<script src="./my-work.js"></script>
+<script src="./assignments.js"></script>
+</body>
+</html>
