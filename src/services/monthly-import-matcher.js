@@ -2,6 +2,7 @@
 
 const db = require('../config/db');
 const { normaliseSouthAfricanMobile, MOBILE_PHONE_FIELDS } = require('./sa-phone-normalisation');
+const { normaliseAccountCore, baseDetailsResult } = require('./base-details-reconciliation');
 
 function normaliseAccount(value) {
   return String(value ?? '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -55,7 +56,13 @@ async function loadReferenceData(connection) {
 
   const [accounts] = await connection.query('SELECT id,account_number,account_number_normalised,display_name FROM customer_accounts');
   const accountsByNumber = new Map();
-  for (const account of accounts) addToMap(accountsByNumber, normaliseAccount(account.account_number_normalised || account.account_number), account);
+  const accountsByCore = new Map();
+  const accountsById = new Map();
+  for (const account of accounts) {
+    accountsById.set(Number(account.id), account);
+    addToMap(accountsByNumber, normaliseAccount(account.account_number_normalised || account.account_number), account);
+    addToMap(accountsByCore, normaliseAccountCore(account.account_number || account.account_number_normalised), account);
+  }
 
   const [fixedAccounts] = await connection.query('SELECT id,account_id,account_number,account_number_normalised,customer_name FROM fixed_accounts');
   const fixedAccountsByAccountId = new Map();
@@ -71,7 +78,10 @@ async function loadReferenceData(connection) {
   `);
   const servicesByFixedAccount = new Map();
   for (const service of services) addToMap(servicesByFixedAccount, Number(service.fixed_account_id), service);
-  return { mobile, accountsByNumber, fixedAccountsByAccountId, fixedAccountsByNumber, servicesByFixedAccount };
+  return {
+    mobile, accountsByNumber, accountsByCore, accountsById,
+    fixedAccountsByAccountId, fixedAccountsByNumber, servicesByFixedAccount
+  };
 }
 
 function mobileResult(row, references) {
@@ -261,7 +271,9 @@ async function upsertResult(connection, row, result, { resetDecision = false } =
 
 async function matchSingleRow(connection, row, { references = null, resetDecision = false } = {}) {
   const source = references || await loadReferenceData(connection);
-  const result = row.import_type === 'fixed_base' ? fixedResult(row, source) : mobileResult(row, source);
+  const result = row.import_type === 'base_details'
+    ? baseDetailsResult(row, source)
+    : (row.import_type === 'fixed_base' ? fixedResult(row, source) : mobileResult(row, source));
   const matchId = await upsertResult(connection, row, result, { resetDecision });
   return { ...result, matchId };
 }
@@ -313,6 +325,8 @@ module.exports = {
   normaliseAccount,
   normaliseIdentifier,
   normaliseMac,
+  normaliseAccountCore,
+  baseDetailsResult,
   mobileResult,
   fixedResult
 };
