@@ -24,6 +24,23 @@
     }
   }
 
+  function loadUatProductivityAssets() {
+    if (!document.querySelector('link[data-uat-productivity]')) {
+      const stylesheet = document.createElement('link');
+      stylesheet.rel = 'stylesheet';
+      stylesheet.dataset.uatProductivity = '1';
+      stylesheet.href = `${basePath}/public/css/productivity-uat.css?v=${encodeURIComponent(appVersion)}`;
+      document.head.appendChild(stylesheet);
+    }
+    if (!document.querySelector('script[data-uat-productivity]')) {
+      const script = document.createElement('script');
+      script.defer = true;
+      script.dataset.uatProductivity = '1';
+      script.src = `${basePath}/public/js/productivity-uat.js?v=${encodeURIComponent(appVersion)}`;
+      document.head.appendChild(script);
+    }
+  }
+
   async function checkSession() {
     if (redirecting) return;
     try {
@@ -41,6 +58,7 @@
   }
 
   loadWorkflowAssets();
+  loadUatProductivityAssets();
   checkSession();
   setInterval(checkSession, 15000);
   document.addEventListener('visibilitychange', () => {
