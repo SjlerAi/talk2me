@@ -8,6 +8,8 @@ router.use(require('./routes/customer-details'));
 router.use(require('./routes/staff-import-identities'));
 router.use(require('./routes/base-details-centre'));
 router.use(require('./routes/monthly-source-evidence-refresh'));
+// This must precede the legacy fixed/index bundle because it intentionally owns /search/all.
+router.use(require('./routes/base-details-search'));
 router.use(require('./routes/index'));
 
 module.exports = router;
