@@ -4,7 +4,10 @@ on:
   pull_request:
     paths:
       - 'src/services/monthly-import-parser.js'
+      - 'src/services/monthly-import-matcher.js'
+      - 'src/services/base-details-reconciliation.js'
       - 'scripts/validate-base-details-foundation.js'
+      - 'scripts/validate-base-details-reconciliation.js'
       - 'sql/ONE_OFF_110_base_details_master_foundation.sql'
       - '.github/workflows/base-details-foundation.yml'
   workflow_dispatch:
@@ -23,8 +26,12 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - run: node --check src/services/monthly-import-parser.js
+      - run: node --check src/services/base-details-reconciliation.js
+      - run: node --check src/services/monthly-import-matcher.js
       - run: node --check scripts/validate-base-details-foundation.js
+      - run: node --check scripts/validate-base-details-reconciliation.js
       - run: node scripts/validate-base-details-foundation.js
+      - run: node scripts/validate-base-details-reconciliation.js
       - name: Guard one-off SQL safety boundary
         run: |
           grep -q "Do NOT run npm run db:migrate" sql/ONE_OFF_110_base_details_master_foundation.sql
@@ -32,3 +39,9 @@ jobs:
           grep -q "CREATE TABLE IF NOT EXISTS mobile_base_snapshots" sql/ONE_OFF_110_base_details_master_foundation.sql
           grep -q "CREATE TABLE IF NOT EXISTS mobile_events" sql/ONE_OFF_110_base_details_master_foundation.sql
           grep -q "CREATE TABLE IF NOT EXISTS staff_external_codes" sql/ONE_OFF_110_base_details_master_foundation.sql
+      - name: Guard Base Details staging-only boundary
+        run: |
+          grep -q "stage_base_existing_client" src/services/base-details-reconciliation.js
+          grep -q "stage_base_account_conflict" src/services/base-details-reconciliation.js
+          ! grep -q "actionType: 'create_mobile_record'" src/services/base-details-reconciliation.js
+          ! grep -q "actionType: 'link_mobile_client'" src/services/base-details-reconciliation.js
