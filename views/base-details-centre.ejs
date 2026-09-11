@@ -34,6 +34,21 @@
   </section>
 
   <section class="card" style="margin-top:18px">
+    <span class="eyebrow">Monthly import protection</span>
+    <h2>Pending mobile import re-match</h2>
+    <div class="summary-strip">
+      <span><strong><%= Number(pendingMobileSummary.pendingRows||0) %></strong> pending rows</span>
+      <span><strong><%= Number(pendingMobileSummary.pendingNewCustomerProposals||0) %></strong> pending new-customer proposals</span>
+      <span><strong><%= Number(pendingMobileSummary.baseProtected||0) %></strong> already protected by Base Details</span>
+      <span><strong><%= Number(pendingMobileSummary.conflicts||0) %></strong> conflicts</span>
+    </div>
+    <form method="post" action="<%= basePath %>/backoffice/base-details/rematch-pending-mobile" style="margin-top:14px">
+      <button class="btn primary">Re-match pending mobile imports</button>
+    </form>
+    <small>Only still-pending, not-applied activation/upgrade decisions are rechecked. Applied or previously decided records are never reset.</small>
+  </section>
+
+  <section class="card" style="margin-top:18px">
     <span class="eyebrow">Transaction history</span>
     <h2>Mobile event ledger</h2>
     <div class="summary-strip">
