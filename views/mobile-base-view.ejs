@@ -1,0 +1,114 @@
+<section class="page-head">
+  <div>
+    <span class="eyebrow">Current Vodacom service</span>
+    <h1><%= line.account_name || [line.first_name,line.surname].filter(Boolean).join(' ') || line.msisdn_original %></h1>
+    <p><strong><%= line.msisdn_original || line.msisdn_normalised %></strong> · Account <strong><%= line.account_code || '-' %></strong></p>
+  </div>
+  <% if (line.client_id) { %><a class="btn primary" href="<%= basePath %>/customers/<%= line.client_id %>/360">Open CRM Customer</a><% } %>
+</section>
+
+<div class="phase-notice">
+  <strong>Vodacom current-service record</strong>
+  <p>This screen is read-only. It shows the latest Base Details service truth without creating or overwriting historical CRM customer records.</p>
+</div>
+
+<section class="card" style="margin-top:18px">
+  <h2>Customer & account</h2>
+  <div class="summary-strip">
+    <span><b>MSISDN</b><br><%= line.msisdn_original || '-' %></span>
+    <span><b>Account code</b><br><%= line.account_code || '-' %></span>
+    <span><b>Account name</b><br><%= line.account_name || '-' %></span>
+    <span><b>Business unit</b><br><%= line.business_unit || '-' %></span>
+    <span><b>First name</b><br><%= line.first_name || '-' %></span>
+    <span><b>Surname</b><br><%= line.surname || '-' %></span>
+    <span><b>ID number</b><br><%= line.id_number || '-' %></span>
+    <span><b>Email</b><br><%= line.email_address || '-' %></span>
+    <span><b>Master account holder</b><br><%= line.master_account_holder || '-' %></span>
+    <span><b>Canonical account</b><br><%= line.canonical_account_number || 'Unresolved' %></span>
+  </div>
+</section>
+
+<section class="card" style="margin-top:18px">
+  <h2>Contract, plan & device</h2>
+  <div class="summary-strip">
+    <span><b>Contract status</b><br><%= line.contract_status || '-' %></span>
+    <span><b>Contract period</b><br><%= line.contract_period || '-' %></span>
+    <span><b>Connection date</b><br><%= line.connection_date || '-' %></span>
+    <span><b>Last active</b><br><%= line.last_active_date || '-' %></span>
+    <span><b>30 day active</b><br><%= line.active_30_day || '-' %></span>
+    <span><b>Last upgrade</b><br><%= line.last_upgrade_date || '-' %></span>
+    <span><b>Eligible upgrade date</b><br><%= line.eligible_upgrade_date || '-' %></span>
+    <span><b>Eligible flag</b><br><%= line.eligible_upgrade_flag || '-' %></span>
+    <span><b>Upgrade in progress</b><br><%= line.upgrade_in_progress || '-' %></span>
+    <span><b>Device</b><br><%= [line.device_manufacturer,line.device_name].filter(Boolean).join(' ') || '-' %></span>
+    <span><b>Price plan category</b><br><%= line.price_plan_category || '-' %></span>
+    <span><b>Price plan</b><br><%= line.price_plan || '-' %></span>
+    <span><b>Tariff</b><br><%= line.tariff_name || '-' %></span>
+    <span><b>CBU segment</b><br><%= line.cbu_segment || '-' %></span>
+    <span><b>Base dealer</b><br><%= line.base_dealer_name || '-' %></span>
+  </div>
+</section>
+
+<section class="card" style="margin-top:18px">
+  <h2>Revenue, usage & tenure</h2>
+  <div class="summary-strip">
+    <span><b>Subscription revenue excl VAT</b><br><%= line.subscription_revenue_excl_vat ?? '-' %></span>
+    <span><b>Customer revenue M1</b><br><%= line.customer_revenue_m1 ?? '-' %></span>
+    <span><b>Customer revenue M2</b><br><%= line.customer_revenue_m2 ?? '-' %></span>
+    <span><b>Customer revenue M3</b><br><%= line.customer_revenue_m3 ?? '-' %></span>
+    <span><b>In-bundle revenue</b><br><%= line.in_bundle_revenue ?? '-' %></span>
+    <span><b>Out-bundle revenue</b><br><%= line.out_bundle_revenue ?? '-' %></span>
+    <span><b>Data content revenue</b><br><%= line.data_content_revenue ?? '-' %></span>
+    <span><b>Average subscription revenue</b><br><%= line.ave_subscription_revenue ?? '-' %></span>
+    <span><b>Net subscription revenue</b><br><%= line.net_subscription_revenue ?? '-' %></span>
+    <span><b>Voice OOB usage</b><br><%= line.voice_oob_usage || '-' %></span>
+    <span><b>Data OOB usage</b><br><%= line.data_oob_usage || '-' %></span>
+    <span><b>Data usage M1 MB</b><br><%= line.data_usage_m1_mb ?? '-' %></span>
+    <span><b>Data usage M2 MB</b><br><%= line.data_usage_m2_mb ?? '-' %></span>
+    <span><b>Data usage M3 MB</b><br><%= line.data_usage_m3_mb ?? '-' %></span>
+    <span><b>Network tenure months</b><br><%= line.network_tenure_months ?? '-' %></span>
+    <span><b>Contract tenure months</b><br><%= line.contract_tenure_months ?? '-' %></span>
+  </div>
+</section>
+
+<section class="card" style="margin-top:18px">
+  <h2>SIM, risk & recommendations</h2>
+  <div class="summary-strip">
+    <span><b>SIM size</b><br><%= line.sim_size_description || '-' %></span>
+    <span><b>ICCID</b><br><%= line.icc_id || '-' %></span>
+    <span><b>IMSI</b><br><%= line.imsi || '-' %></span>
+    <span><b>J4U attached</b><br><%= line.j4u_attached || '-' %></span>
+    <span><b>Account in arrears</b><br><%= line.account_in_arrears || '-' %></span>
+    <span><b>OPT Out indicator</b><br><%= line.opt_out_indicator || '-' %></span>
+    <span><b>Churn risk</b><br><%= line.churn_risk_ind || '-' %></span>
+    <span><b>Device insurance</b><br><%= line.device_insurance || '-' %></span>
+    <span><b>SIM insurance</b><br><%= line.sim_insurance || '-' %></span>
+    <span><b>Portfolio score</b><br><%= line.portfolio_score || '-' %></span>
+    <span><b>Lines upgradable</b><br><%= line.lines_upgradable ?? '-' %></span>
+  </div>
+  <div style="margin-top:14px">
+    <p><b>Recommendation 1:</b> <%= line.recommendation_1 || '-' %></p>
+    <p><b>Recommendation 2:</b> <%= line.recommendation_2 || '-' %></p>
+    <p><b>Recommendation 3:</b> <%= line.recommendation_3 || '-' %></p>
+    <p><b>Recommendation 4:</b> <%= line.recommendation_4 || '-' %></p>
+  </div>
+</section>
+
+<section class="card" style="margin-top:18px">
+  <h2>Activation & upgrade history</h2>
+  <% if (!events.length) { %><p>No activation or upgrade event is linked to this number yet.</p><% } %>
+  <% events.forEach(event => { %>
+    <article style="padding:10px 0;border-bottom:1px solid #e5e7eb">
+      <strong><%= event.event_type === 'upgrade' ? 'Upgrade' : 'Activation' %></strong>
+      · <%= event.event_date || 'Date unavailable' %>
+      <% if (event.package_name) { %> · <%= event.package_name %><% } %>
+      <% if (event.staff_name) { %> · <%= event.staff_name %><% } else if (event.agent_code) { %> · <%= event.agent_code %><% } %>
+    </article>
+  <% }) %>
+</section>
+
+<section class="card" style="margin-top:18px">
+  <h2>Source snapshots</h2>
+  <p><strong><%= snapshots.length %></strong> retained Base Details snapshot<%= snapshots.length === 1 ? '' : 's' %> shown.</p>
+  <% snapshots.forEach(snapshot => { %><p>Batch #<%= snapshot.batch_id %> · source row <%= snapshot.source_row_number %> · <%= snapshot.captured_at %></p><% }) %>
+</section>
