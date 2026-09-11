@@ -191,14 +191,82 @@ self.addEventListener('fetch', event => {
 app.use('/public', express.static(path.join(__dirname, 'public')));
 if (BASE_PATH) app.use(`${BASE_PATH}/public`, express.static(path.join(__dirname, 'public')));
 
-app.get('/', (req, res) => res.redirect(`${BASE_PATH}/login`));
-if (BASE_PATH) app.get(BASE_PATH, (req, res) => res.redirect(`${BASE_PATH}/login`));
+const nightlyLogoutSettings = require('./src/routes/nightly-logout-settings');
+app.use('/', nightlyLogoutSettings);
+if (BASE_PATH) app.use(BASE_PATH, nightlyLogoutSettings);
+
+const provisionalFixedSave = require('./src/routes/provisional-fixed-save');
+app.use('/', provisionalFixedSave);
+if (BASE_PATH) app.use(BASE_PATH, provisionalFixedSave);
+
+const provisionalMobileSave = require('./src/routes/provisional-mobile-save');
+app.use('/', provisionalMobileSave);
+if (BASE_PATH) app.use(BASE_PATH, provisionalMobileSave);
+
+const customer360Safe = require('./src/routes/customer-360-safe');
+app.use('/', customer360Safe);
+if (BASE_PATH) app.use(BASE_PATH, customer360Safe);
+
+const osLauncherSettings = require('./src/routes/os-launcher-settings');
+app.use('/', osLauncherSettings);
+if (BASE_PATH) app.use(BASE_PATH, osLauncherSettings);
+
+const legacyClientClaimDecisions = require('./src/routes/legacy-client-claim-decisions');
+app.use('/', legacyClientClaimDecisions);
+if (BASE_PATH) app.use(BASE_PATH, legacyClientClaimDecisions);
+
+const clientAssignmentCentre = require('./src/routes/client-assignment-centre');
+app.use('/', clientAssignmentCentre);
+if (BASE_PATH) app.use(BASE_PATH, clientAssignmentCentre);
+
+const approvalCentre = require('./src/routes/approval-centre');
+app.use('/', approvalCentre);
+if (BASE_PATH) app.use(BASE_PATH, approvalCentre);
+
+const approvalDecisionsSafe = require('./src/routes/approval-decisions-safe');
+app.use('/', approvalDecisionsSafe);
+if (BASE_PATH) app.use(BASE_PATH, approvalDecisionsSafe);
+
+const legacyClientClaimReconciliation = require('./src/routes/legacy-client-claim-reconciliation');
+app.use('/', legacyClientClaimReconciliation);
+if (BASE_PATH) app.use(BASE_PATH, legacyClientClaimReconciliation);
+
+const osOperations = require('./src/routes/os-operations');
+app.use('/', osOperations);
+if (BASE_PATH) app.use(BASE_PATH, osOperations);
+
+const osSearchActions = require('./src/routes/os-search-actions');
+app.use('/', osSearchActions);
+if (BASE_PATH) app.use(BASE_PATH, osSearchActions);
+
+const osCustomerActions = require('./src/routes/os-customer-actions');
+app.use('/', osCustomerActions);
+if (BASE_PATH) app.use(BASE_PATH, osCustomerActions);
+
+const staffWorkAccess = require('./src/routes/staff-work-access');
+app.use('/', staffWorkAccess);
+if (BASE_PATH) app.use(BASE_PATH, staffWorkAccess);
+
+const osProductivity = require('./src/routes/os-productivity');
+app.use('/', osProductivity);
+if (BASE_PATH) app.use(BASE_PATH, osProductivity);
+
+const osRoutes = require('./src/routes/os');
+app.use('/', osRoutes);
+if (BASE_PATH) app.use(BASE_PATH, osRoutes);
 
 const routes = require('./src/routes');
-app.use(BASE_PATH, routes);
+app.use('/', routes);
+if (BASE_PATH) app.use(BASE_PATH, routes);
 
-startNightlyLogoutWorker();
-
+app.get('/', (req, res) => res.redirect(`${BASE_PATH}/login`));
+if (BASE_PATH) app.get(BASE_PATH, (req, res) => res.redirect(`${BASE_PATH}/login`));
+app.use((req, res) => res.status(404).render('error', { title: 'Not found', message: 'Page not found' }));
+app.use((err, req, res, next) => {
+  console.error(err);
+  res.status(500).render('error', { title: 'Server error', message: 'Something went wrong. Check server logs.' });
+});
 app.listen(PORT, () => {
-  console.log(`${process.env.APP_NAME || 'Talk2Me CRM'} listening on port ${PORT}${BASE_PATH || '/'}`);
+  console.log(`Talk2Me CRM running on port ${PORT} with base path ${BASE_PATH}`);
+  startNightlyLogoutWorker();
 });
