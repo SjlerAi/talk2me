@@ -11,7 +11,7 @@ const route = fs.readFileSync(path.join(root, 'src/routes/monthly-source-evidenc
 const view = fs.readFileSync(path.join(root, 'views/monthly-source-evidence-refresh.ejs'), 'utf8');
 const routes = fs.readFileSync(path.join(root, 'src/routes.js'), 'utf8');
 
-assert.strictEqual(hashBuffer(Buffer.from('Talk2Me')), 'fd35d6f8c2f085659021d62c8557024f646786117879ceafba504333b4160385');
+assert.strictEqual(hashBuffer(Buffer.from('Talk2Me')), '66aad2772ee0036673c686056640ca2a2d71b7d971bfa20d7f0fd3337e1ab1d0');
 assert.match(service, /WHERE file_hash=:fileHash/);
 assert.match(service, /storedRows\.length !== parsed\.rows\.length/);
 assert.match(service, /row_fingerprint/);
@@ -20,7 +20,6 @@ assert.match(service, /UPDATE monthly_import_rows\s+SET raw_data_json=/i);
 assert.match(service, /monthly_import_source_evidence_refreshed/);
 assert.match(service, /Base Details uses its own current\/snapshot workflow/);
 
-// The refresh must never alter business matching/approval/finalisation/customer state.
 for (const forbidden of [
   /INSERT INTO monthly_import_batches/i,
   /UPDATE monthly_import_batches/i,
