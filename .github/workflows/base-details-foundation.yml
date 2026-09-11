@@ -6,8 +6,15 @@ on:
       - 'src/services/monthly-import-parser.js'
       - 'src/services/monthly-import-matcher.js'
       - 'src/services/base-details-reconciliation.js'
+      - 'src/services/base-details-stager.js'
+      - 'src/services/base-details-account-unifier.js'
+      - 'src/services/mobile-event-ledger.js'
+      - 'src/routes/base-details-centre.js'
+      - 'src/routes.js'
+      - 'views/base-details-centre.ejs'
       - 'scripts/validate-base-details-foundation.js'
       - 'scripts/validate-base-details-reconciliation.js'
+      - 'scripts/validate-base-details-operations.js'
       - 'sql/ONE_OFF_110_base_details_master_foundation.sql'
       - '.github/workflows/base-details-foundation.yml'
   workflow_dispatch:
@@ -27,11 +34,17 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: node --check src/services/monthly-import-parser.js
       - run: node --check src/services/base-details-reconciliation.js
+      - run: node --check src/services/base-details-stager.js
+      - run: node --check src/services/base-details-account-unifier.js
+      - run: node --check src/services/mobile-event-ledger.js
       - run: node --check src/services/monthly-import-matcher.js
+      - run: node --check src/routes/base-details-centre.js
       - run: node --check scripts/validate-base-details-foundation.js
       - run: node --check scripts/validate-base-details-reconciliation.js
+      - run: node --check scripts/validate-base-details-operations.js
       - run: node scripts/validate-base-details-foundation.js
       - run: node scripts/validate-base-details-reconciliation.js
+      - run: node scripts/validate-base-details-operations.js
       - name: Guard one-off SQL safety boundary
         run: |
           grep -q "Do NOT run npm run db:migrate" sql/ONE_OFF_110_base_details_master_foundation.sql
@@ -45,3 +58,7 @@ jobs:
           grep -q "stage_base_account_conflict" src/services/base-details-reconciliation.js
           ! grep -q "actionType: 'create_mobile_record'" src/services/base-details-reconciliation.js
           ! grep -q "actionType: 'link_mobile_client'" src/services/base-details-reconciliation.js
+      - name: Guard monthly current-base protection
+        run: |
+          grep -q "link_existing_mobile_base" src/services/monthly-import-matcher.js
+          grep -q "currentMobileByPhone" src/services/monthly-import-matcher.js
