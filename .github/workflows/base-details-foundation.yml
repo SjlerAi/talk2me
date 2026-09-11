@@ -10,8 +10,11 @@ on:
       - 'src/services/base-details-account-unifier.js'
       - 'src/services/mobile-event-ledger.js'
       - 'src/routes/base-details-centre.js'
+      - 'src/routes/customer-360-safe.js'
       - 'src/routes.js'
       - 'views/base-details-centre.ejs'
+      - 'views/customer-360.ejs'
+      - 'views/partials/customer-mobile-current.ejs'
       - 'scripts/validate-base-details-foundation.js'
       - 'scripts/validate-base-details-reconciliation.js'
       - 'scripts/validate-base-details-operations.js'
@@ -39,6 +42,7 @@ jobs:
       - run: node --check src/services/mobile-event-ledger.js
       - run: node --check src/services/monthly-import-matcher.js
       - run: node --check src/routes/base-details-centre.js
+      - run: node --check src/routes/customer-360-safe.js
       - run: node --check scripts/validate-base-details-foundation.js
       - run: node --check scripts/validate-base-details-reconciliation.js
       - run: node --check scripts/validate-base-details-operations.js
@@ -62,3 +66,10 @@ jobs:
         run: |
           grep -q "link_existing_mobile_base" src/services/monthly-import-matcher.js
           grep -q "currentMobileByPhone" src/services/monthly-import-matcher.js
+      - name: Guard Customer 360 current-data visibility
+        run: |
+          grep -q "currentMobileServices" src/routes/customer-360-safe.js
+          grep -q "mobileEvents" src/routes/customer-360-safe.js
+          grep -q "partials/customer-mobile-current" views/customer-360.ejs
+          grep -q "Current Mobile Service" views/partials/customer-mobile-current.ejs
+          grep -q "Activation & Upgrade History" views/partials/customer-mobile-current.ejs
