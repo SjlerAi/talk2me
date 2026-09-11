@@ -1,0 +1,59 @@
+<% const selected = selectedDate || new Date().toISOString().slice(0,10); %>
+<section class="calendar-hub" id="calendar-hub" data-selected-date="<%= selected %>" data-management="<%= isManagement ? '1' : '0' %>">
+  <header class="calendar-hub-head">
+    <div>
+      <span class="calendar-kicker">Talk2Me work planner</span>
+      <h1>My Day & Calendar</h1>
+      <p>If work matters on a date, it belongs here.</p>
+    </div>
+    <div class="calendar-head-actions">
+      <a class="calendar-btn secondary" href="<%= basePath %>/workspace">Back to My Workspace</a>
+      <% if(isManagement){ %>
+        <button class="calendar-btn secondary" type="button" id="calendar-scope">Show team</button>
+      <% } %>
+      <button class="calendar-btn primary" type="button" id="calendar-add">+ Add reminder</button>
+    </div>
+  </header>
+
+  <div class="calendar-toolbar">
+    <button type="button" id="calendar-prev" aria-label="Previous month">‹</button>
+    <button type="button" id="calendar-today">Today</button>
+    <strong id="calendar-month-label"></strong>
+    <button type="button" id="calendar-next" aria-label="Next month">›</button>
+  </div>
+
+  <div class="calendar-layout">
+    <div class="calendar-month-panel">
+      <div class="calendar-weekdays"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div>
+      <div class="calendar-grid" id="calendar-grid" aria-label="Calendar month"></div>
+    </div>
+
+    <aside class="calendar-agenda">
+      <div class="calendar-agenda-head">
+        <div><span>Selected date</span><strong id="agenda-date"></strong></div>
+        <button type="button" class="calendar-mini-add" id="agenda-add">+</button>
+      </div>
+      <div class="calendar-legend"><span data-type="task">Task</span><span data-type="follow-up">Follow-up</span><span data-type="callback">Callback</span><span data-type="birthday">Birthday</span><span data-type="upgrade">Upgrade</span><span data-type="reminder">Reminder</span></div>
+      <div id="calendar-agenda-list" class="calendar-agenda-list"><p class="calendar-loading">Loading dated work…</p></div>
+    </aside>
+  </div>
+
+  <dialog id="calendar-dialog" class="calendar-dialog">
+    <form method="dialog" id="calendar-item-form">
+      <header><div><span>Quick add</span><h2>Add to calendar</h2></div><button value="cancel" type="submit" aria-label="Close">×</button></header>
+      <input type="hidden" name="date" id="calendar-form-date" value="<%= selected %>">
+      <label>Type<select name="item_type"><option value="reminder">Reminder</option><option value="appointment">Appointment</option><option value="other">Other</option></select></label>
+      <label>Title<input name="title" maxlength="255" required placeholder="e.g. Phone customer about upgrade"></label>
+      <label>Date & time<input name="starts_at" type="datetime-local" required></label>
+      <% if(isManagement){ %>
+        <label>Assign to<select name="assigned_to"><option value="<%= userId %>">Me</option><% staff.forEach(person=>{ %><% if(Number(person.id)!==Number(userId)){ %><option value="<%= person.id %>"><%= person.full_name %></option><% } %><% }) %></select></label>
+      <% } %>
+      <label>Details<textarea name="details" rows="4" maxlength="5000" placeholder="Optional detail or telephone number"></textarea></label>
+      <div class="calendar-dialog-actions"><button value="cancel" type="submit" class="calendar-btn secondary">Cancel</button><button type="button" class="calendar-btn primary" id="calendar-save">Save</button></div>
+      <p id="calendar-form-status" class="calendar-form-status"></p>
+    </form>
+  </dialog>
+</section>
+<link rel="stylesheet" href="<%= basePath %>/public/css/productivity-uat.css?v=<%= encodeURIComponent(appVersion) %>">
+<script id="calendar-config" type="application/json"><%- JSON.stringify({basePath,selectedDate:selected,isManagement,userId}).replace(/</g,'\\u003c') %></script>
+<script defer src="<%= basePath %>/public/js/productivity-uat.js?v=<%= encodeURIComponent(appVersion) %>"></script>
