@@ -8,6 +8,7 @@ const { runMatching } = require('../services/monthly-import-matcher');
 const { stageBaseDetailsBatch } = require('../services/base-details-stager');
 const { unifyBaseAccounts } = require('../services/base-details-account-unifier');
 const { syncMobileEvents } = require('../services/mobile-event-ledger');
+const { loadPendingMobileSummary, rematchPendingMobileImports } = require('../services/pending-mobile-rematcher');
 const { audit } = require('../services/audit');
 
 const router = express.Router();
@@ -77,17 +78,27 @@ async function loadCentre() {
       SUM(agent_code IS NOT NULL AND staff_id IS NULL) staff_unmapped
     FROM mobile_events
   `);
-  return { batches, conflicts, baseSummary: baseSummary || {}, eventSummary: eventSummary || {} };
+  const pendingMobileSummary = await loadPendingMobileSummary();
+  return {
+    batches,
+    conflicts,
+    baseSummary: baseSummary || {},
+    eventSummary: eventSummary || {},
+    pendingMobileSummary
+  };
 }
 
 router.get('/backoffice/base-details', requireAuth, requireRole('owner','manager','admin'), async (req, res, next) => {
   try {
     const ready = await schemaReady();
-    const data = ready ? await loadCentre() : { batches: [], conflicts: [], baseSummary: {}, eventSummary: {} };
+    const data = ready
+      ? await loadCentre()
+      : { batches: [], conflicts: [], baseSummary: {}, eventSummary: {}, pendingMobileSummary: {} };
     return res.render('base-details-centre', {
       title: 'Base Details Centre', schemaReady: ready,
       batches: data.batches, conflicts: data.conflicts,
       baseSummary: data.baseSummary, eventSummary: data.eventSummary,
+      pendingMobileSummary: data.pendingMobileSummary,
       notice: String(req.query.notice || '').slice(0, 500),
       error: String(req.query.error || '').slice(0, 700)
     });
@@ -129,6 +140,23 @@ router.post('/backoffice/base-details/unify-accounts', requireAuth, requireRole(
     const summary = await unifyBaseAccounts({ userId: req.session.user.id });
     return res.redirect(`${res.locals.basePath}/backoffice/base-details?notice=${encodeURIComponent(
       `Account unification complete: ${summary.createdAccounts} genuinely missing account(s) created; ${summary.linkedExisting + summary.linkedCreated} current line link(s) updated; ${summary.aliasConflicts} ambiguous legacy core(s) left untouched.`
+    )}`);
+  } catch (error) {
+    return res.redirect(`${res.locals.basePath}/backoffice/base-details?error=${encodeURIComponent(error.message)}`);
+  }
+});
+
+router.post('/backoffice/base-details/rematch-pending-mobile', requireAuth, requireRole('owner','manager'), async (req, res) => {
+  try {
+    if (!await schemaReady()) throw new Error('Apply the reviewed Base Details foundation SQL first.');
+    const summary = await rematchPendingMobileImports();
+    await audit(req, {
+      actionType: 'pending_mobile_imports_rematched', entityType: 'monthly_import_actions', entityId: null,
+      description: `Re-matched ${summary.total} still-pending, not-applied activation/upgrade import decisions against the current Base Details layer.`,
+      after: summary
+    });
+    return res.redirect(`${res.locals.basePath}/backoffice/base-details?notice=${encodeURIComponent(
+      `Pending mobile re-match complete: ${summary.total} row(s) rechecked; ${summary.protectedByBase} previous new-customer proposal(s) are now protected by the current Base Details layer; ${summary.newRecord} still require new-customer review.`
     )}`);
   } catch (error) {
     return res.redirect(`${res.locals.basePath}/backoffice/base-details?error=${encodeURIComponent(error.message)}`);
