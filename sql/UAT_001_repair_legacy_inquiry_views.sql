@@ -1,11 +1,16 @@
 -- Talk2Me UI UAT only: repair legacy inquiry views after phpMyAdmin clone import.
 -- The production export used a hard-coded DEFINER that a separate UAT DB user cannot impersonate.
--- These CREATE VIEW statements deliberately omit DEFINER so the executing UAT DB user owns them.
+-- phpMyAdmin may have created temporary placeholder TABLES for these views before the CREATE VIEW failure.
+-- These statements remove those placeholders and recreate the views without a hard-coded definer.
 
+DROP TABLE IF EXISTS v_inquiry_daily_summary;
 DROP TABLE IF EXISTS v_today_inquiries;
 DROP TABLE IF EXISTS v_yesterday_inquiries;
+DROP VIEW IF EXISTS v_inquiry_daily_summary;
+DROP VIEW IF EXISTS v_today_inquiries;
+DROP VIEW IF EXISTS v_yesterday_inquiries;
 
-CREATE OR REPLACE SQL SECURITY INVOKER VIEW v_inquiry_daily_summary AS
+CREATE SQL SECURITY INVOKER VIEW v_inquiry_daily_summary AS
 SELECT
   CAST(i.created_at AS DATE) AS inquiry_date,
   COALESCE(s.full_name,'Unassigned') AS staff_member,
@@ -19,7 +24,7 @@ LEFT JOIN staff_users s ON s.id = i.staff_id
 LEFT JOIN inquiry_categories c ON c.id = i.category_id
 GROUP BY CAST(i.created_at AS DATE), s.full_name, c.category_name;
 
-CREATE OR REPLACE SQL SECURITY INVOKER VIEW v_today_inquiries AS
+CREATE SQL SECURITY INVOKER VIEW v_today_inquiries AS
 SELECT
   i.id,
   i.created_at,
@@ -38,9 +43,10 @@ FROM inquiries i
 LEFT JOIN staff_users s ON s.id = i.staff_id
 LEFT JOIN workstations w ON w.id = i.workstation_id
 LEFT JOIN inquiry_categories c ON c.id = i.category_id
-WHERE CAST(i.created_at AS DATE) = CURDATE();
+WHERE CAST(i.created_at AS DATE) = CURDATE()
+ORDER BY i.created_at DESC;
 
-CREATE OR REPLACE SQL SECURITY INVOKER VIEW v_yesterday_inquiries AS
+CREATE SQL SECURITY INVOKER VIEW v_yesterday_inquiries AS
 SELECT
   i.id,
   i.created_at,
@@ -59,4 +65,5 @@ FROM inquiries i
 LEFT JOIN staff_users s ON s.id = i.staff_id
 LEFT JOIN workstations w ON w.id = i.workstation_id
 LEFT JOIN inquiry_categories c ON c.id = i.category_id
-WHERE CAST(i.created_at AS DATE) = CURDATE() - INTERVAL 1 DAY;
+WHERE CAST(i.created_at AS DATE) = CURDATE() - INTERVAL 1 DAY
+ORDER BY i.created_at DESC;
