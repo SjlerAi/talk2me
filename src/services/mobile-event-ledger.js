@@ -23,6 +23,10 @@ function first(obj, names) {
   return null;
 }
 
+function firstAcross(raw, names) {
+  return first(raw, names) ?? first(raw?.sourceFields || {}, names);
+}
+
 async function syncMobileEvents({ batchId = null, userId = null } = {}) {
   const connection = await db.getConnection();
   try {
@@ -59,7 +63,7 @@ async function syncMobileEvents({ batchId = null, userId = null } = {}) {
 
     for (const row of rows) {
       const raw = parseJson(row.raw_data_json);
-      const agentCode = normaliseExternalCode(row.agent_code || first(raw, ['agentCode', 'agent', 'createdBy']));
+      const agentCode = normaliseExternalCode(row.agent_code || firstAcross(raw, ['agentCode', 'Agent', 'Created By', 'createdBy']));
       const staffResolution = agentCode
         ? await resolveStaffByExternalCode(connection, agentCode)
         : { status: 'missing', staff: null };
@@ -80,9 +84,9 @@ async function syncMobileEvents({ batchId = null, userId = null } = {}) {
         accountId = client?.account_id || null;
       }
 
-      const channel = first(raw, ['channel', 'Channel']);
-      const commissionScore = first(raw, ['commissionScore', 'Commission Score', 'commission_score']);
-      const averageSpend = numeric(first(raw, ['averageSpend', 'Average Spend', 'Avg Spend', 'avgSpend']));
+      const channel = firstAcross(raw, ['channel', 'Channel']);
+      const commissionScore = firstAcross(raw, ['commissionScore', 'Commission Score', 'commission_score']);
+      const averageSpend = numeric(firstAcross(raw, ['averageSpend', 'Average Spend', 'Avg Spend', 'avgSpend']));
       const phone = normaliseSouthAfricanMobile(row.phone_original || row.phone_normalised);
 
       await connection.execute(`
@@ -124,10 +128,7 @@ async function syncMobileEvents({ batchId = null, userId = null } = {}) {
     `, {
       userId: userId || null,
       description: `Mobile event ledger synchronised ${insertedOrUpdated} confirmed activation/upgrade import rows without changing CRM customer records.`,
-      afterJson: JSON.stringify({
-        total: insertedOrUpdated, staffMatched, staffUnmapped,
-        unmappedCodes: [...unmappedCodes].sort()
-      })
+      afterJson: JSON.stringify({ total: insertedOrUpdated, staffMatched, staffUnmapped, unmappedCodes: [...unmappedCodes].sort() })
     });
 
     await connection.commit();
@@ -140,4 +141,4 @@ async function syncMobileEvents({ batchId = null, userId = null } = {}) {
   }
 }
 
-module.exports = { parseJson, numeric, first, syncMobileEvents };
+module.exports = { parseJson, numeric, first, firstAcross, syncMobileEvents };
