@@ -6,7 +6,10 @@
       <p>Upload the month’s reports, process them together, resolve exceptions, then finalise once.</p>
     </div>
     <% if (!selectedBatch) { %>
-      <a class="button secondary compact" href="#history">Technical history</a>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+        <a class="button secondary compact" href="<%= basePath %>/backoffice/data-import/source-evidence">Refresh Source Evidence</a>
+        <a class="button secondary compact" href="#history">Technical history</a>
+      </div>
     <% } %>
   </header>
 
