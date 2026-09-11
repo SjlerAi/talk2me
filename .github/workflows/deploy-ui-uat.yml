@@ -1,0 +1,214 @@
+name: Deploy Talk2Me UI UAT
+
+on:
+  push:
+    branches:
+      - uat/talk2me-ui-redesign
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: talk2me-ui-uat
+  cancel-in-progress: false
+
+jobs:
+  deploy-ui-uat:
+    runs-on: ubuntu-latest
+    environment:
+      name: talk2me-ui-uat
+      url: https://uent.co.za/talk2me
+    env:
+      SSH_HOST: 164.160.91.40
+      SSH_PORT: "41414"
+      SSH_USER: uent
+      SITE_URL: https://uent.co.za/talk2me
+      CONTROL_BRANCH: deploy/ui-uat-control
+      ELITEHOST_SSH_PRIVATE_KEY: ${{ secrets.ELITEHOST_SSH_PRIVATE_KEY }}
+      ELITEHOST_SSH_KEY_PASSPHRASE: ${{ secrets.ELITEHOST_SSH_KEY_PASSPHRASE }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Validate UAT source
+        run: |
+          set -Eeuo pipefail
+          npm ci --no-audit --no-fund
+          npm run check
+
+      - name: Build immutable UI UAT artifact
+        id: release
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          npm prune --omit=dev --no-audit --no-fund
+          stage="$RUNNER_TEMP/talk2me-ui-uat-release"
+          mkdir -p "$stage"
+          git archive "$GITHUB_SHA" server.js package.json package-lock.json public src views scripts | tar -x -C "$stage"
+          cp -a node_modules "$stage/node_modules"
+          node - "$stage/.talk2me-release.json" <<'NODE'
+          const fs = require('fs');
+          const crypto = require('crypto');
+          const target = process.argv[2];
+          fs.writeFileSync(target, JSON.stringify({
+            schema: 1,
+            service: 'talk2me-crm',
+            repository: process.env.GITHUB_REPOSITORY,
+            environment: 'ui-uat',
+            commit: process.env.GITHUB_SHA,
+            branch: process.env.GITHUB_REF_NAME,
+            workflowRunId: process.env.GITHUB_RUN_ID,
+            dependencyHash: crypto.createHash('sha256').update(fs.readFileSync('package-lock.json')).digest('hex'),
+            builtAt: new Date().toISOString()
+          }, null, 2) + '\n');
+          NODE
+          artifact_name="talk2me-ui-uat-${GITHUB_SHA}-${GITHUB_RUN_ID}.tar.gz"
+          tar -czf "$artifact_name" -C "$stage" .
+          checksum="$(sha256sum "$artifact_name" | awk '{print $1}')"
+          printf '%s  %s\n' "$checksum" "$artifact_name" > "$artifact_name.sha256"
+          echo "artifact_name=$artifact_name" >> "$GITHUB_OUTPUT"
+          echo "checksum=$checksum" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: talk2me-ui-uat-release
+          path: |
+            talk2me-ui-uat-*.tar.gz
+            talk2me-ui-uat-*.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Configure Elitehost SSH
+        run: bash scripts/setup-elitehost-ssh.sh
+
+      - name: Bootstrap isolated UI UAT deployment agent
+        run: |
+          set -Eeuo pipefail
+          ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" bash -s -- "$GITHUB_SHA" <<'REMOTE'
+          set -Eeuo pipefail
+          expected_sha="$1"
+          live_repo=/home/uent/repositories/talk2me
+          source_repo=/home/uent/repositories/talk2me-ui-uat
+          branch=uat/talk2me-ui-redesign
+          test -d "$live_repo/.git"
+          remote_url="$(git -C "$live_repo" remote get-url origin)"
+          if [ ! -d "$source_repo/.git" ]; then
+            rm -rf "$source_repo"
+            git clone "$remote_url" "$source_repo"
+          else
+            git -C "$source_repo" remote set-url origin "$remote_url"
+          fi
+          git -C "$source_repo" fetch origin "$branch:refs/remotes/origin/$branch"
+          test "$(git -C "$source_repo" rev-parse origin/$branch)" = "$expected_sha"
+          git -C "$source_repo" checkout -B "$branch" "$expected_sha"
+          git -C "$source_repo" reset --hard "$expected_sha"
+          bash "$source_repo/scripts/install-talk2me-ui-uat-agent.sh"
+          /home/uent/bin/talk2me-ui-uat-agent --status
+          REMOTE
+
+      - name: Transfer immutable artifact
+        env:
+          ARTIFACT_NAME: ${{ steps.release.outputs.artifact_name }}
+        run: |
+          set -Eeuo pipefail
+          scp -P "$SSH_PORT" "$ARTIFACT_NAME" "$ARTIFACT_NAME.sha256" "$SSH_USER@$SSH_HOST:/home/uent/.config/talk2me-ui-uat/inbox/"
+
+      - uses: actions/checkout@v6
+        with:
+          ref: deploy/ui-uat-control
+          path: control
+
+      - name: Signal exact UI UAT release
+        working-directory: control
+        env:
+          ARTIFACT_NAME: ${{ steps.release.outputs.artifact_name }}
+          ARTIFACT_SHA256: ${{ steps.release.outputs.checksum }}
+        run: |
+          set -Eeuo pipefail
+          node - "deploy/ui-uat.json" <<'NODE'
+          const fs = require('fs');
+          const target = process.argv[2];
+          fs.writeFileSync(target, JSON.stringify({
+            schema: 1,
+            repository: process.env.GITHUB_REPOSITORY,
+            environment: 'ui-uat',
+            status: 'DEPLOY',
+            commit: process.env.GITHUB_SHA,
+            workflowRunId: process.env.GITHUB_RUN_ID,
+            artifact: process.env.ARTIFACT_NAME,
+            sha256: process.env.ARTIFACT_SHA256,
+            requestedAt: new Date().toISOString()
+          }, null, 2) + '\n');
+          NODE
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add deploy/ui-uat.json
+          git commit -m "Deploy ${GITHUB_SHA} to UI UAT"
+          git push origin HEAD:deploy/ui-uat-control
+
+      - name: Run permanent deployment agent now
+        run: |
+          set -Eeuo pipefail
+          ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" /home/uent/bin/talk2me-ui-uat-agent
+
+      - name: Verify exact public UI UAT release
+        run: |
+          set -Eeuo pipefail
+          for attempt in $(seq 1 24); do
+            health="$(curl -LfsS --connect-timeout 10 --max-time 20 "$SITE_URL/api/health" 2>/dev/null || true)"
+            release="$(curl -LfsS --connect-timeout 10 --max-time 20 "$SITE_URL/api/release" 2>/dev/null || true)"
+            if HEALTH="$health" RELEASE="$release" EXPECTED_COMMIT="$GITHUB_SHA" EXPECTED_RUN_ID="$GITHUB_RUN_ID" node <<'NODE'
+          const h = JSON.parse(process.env.HEALTH || '{}');
+          const r = JSON.parse(process.env.RELEASE || '{}');
+          if (h.status !== 'ok' || h.database !== 'connected' || h.environment !== 'uat') process.exit(1);
+          if (r.environment !== 'uat' || r.commit !== process.env.EXPECTED_COMMIT || String(r.workflowRunId) !== String(process.env.EXPECTED_RUN_ID)) process.exit(1);
+          console.log(JSON.stringify({health:h, release:r}, null, 2));
+          NODE
+            then
+              exit 0
+            fi
+            echo "Waiting for exact UI UAT release (attempt $attempt/24)..."
+            sleep 5
+          done
+          echo "Exact UI UAT release could not be proven publicly." >&2
+          exit 1
+
+      - name: Collect UI UAT diagnostics
+        if: failure()
+        continue-on-error: true
+        run: |
+          ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" 'printf "%s\n" "--- agent ---"; tail -n 120 /home/uent/.talk2me-ui-uat-deploy/cron.log 2>/dev/null || true; printf "%s\n" "--- request ---"; cat /home/uent/.talk2me-ui-uat-deploy/last-request.json 2>/dev/null || true; printf "%s\n" "--- app stderr ---"; tail -n 100 /home/uent/public_html/talk2me/stderr.log 2>/dev/null || true; printf "%s\n" "--- selector ---"; command -v cloudlinux-selector || true'
+
+      - name: Return UI UAT control to HOLD
+        if: always()
+        working-directory: control
+        run: |
+          set -Eeuo pipefail
+          git fetch origin deploy/ui-uat-control
+          git reset --hard origin/deploy/ui-uat-control
+          node - "deploy/ui-uat.json" <<'NODE'
+          const fs = require('fs');
+          fs.writeFileSync(process.argv[2], JSON.stringify({
+            schema: 1,
+            repository: process.env.GITHUB_REPOSITORY,
+            environment: 'ui-uat',
+            status: 'HOLD',
+            commit: null,
+            workflowRunId: null,
+            artifact: null,
+            sha256: null,
+            requestedAt: null
+          }, null, 2) + '\n');
+          NODE
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add deploy/ui-uat.json
+          git diff --cached --quiet || git commit -m "Return UI UAT deployment control to HOLD"
+          git push origin HEAD:deploy/ui-uat-control
