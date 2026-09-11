@@ -1,0 +1,27 @@
+name: Validate exact release proof
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/verify-public-release.js'
+      - 'scripts/validate-public-release-proof.js'
+      - '.github/workflows/deploy-elitehost-uat.yml'
+      - '.github/workflows/validate-release-proof.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+      - run: node --check scripts/verify-public-release.js
+      - run: node --check scripts/validate-public-release-proof.js
+      - run: node scripts/validate-public-release-proof.js
+      - name: Guard explicit release identity arguments
+        run: |
+          grep -q 'node scripts/verify-public-release.js "$health" "$release" "$GITHUB_SHA" "$GITHUB_RUN_ID"' .github/workflows/deploy-elitehost-uat.yml
