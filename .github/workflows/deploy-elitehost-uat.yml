@@ -158,15 +158,8 @@ jobs:
           for attempt in $(seq 1 80); do
             health="$(curl -fsS --connect-timeout 10 --max-time 20 "$SITE_URL/api/health" 2>/dev/null || true)"
             release="$(curl -fsS --connect-timeout 10 --max-time 20 "$SITE_URL/api/release" 2>/dev/null || true)"
-            if HEALTH="$health" RELEASE="$release" node - <<'NODE'
-          try {
-            const health = JSON.parse(process.env.HEALTH || '{}');
-            const release = JSON.parse(process.env.RELEASE || '{}');
-            process.exit(health.status === 'ok' && release.commit === process.env.GITHUB_SHA && String(release.workflowRunId) === String(process.env.GITHUB_RUN_ID) ? 0 : 1);
-          } catch { process.exit(1); }
-          NODE
-            then
-              echo "Exact release $GITHUB_SHA is healthy."
+            if node scripts/verify-public-release.js "$health" "$release" "$GITHUB_SHA" "$GITHUB_RUN_ID" >/tmp/talk2me-release-proof.txt 2>/dev/null; then
+              cat /tmp/talk2me-release-proof.txt
               exit 0
             fi
             echo "Waiting for deployment agent (attempt $attempt/80)..."
