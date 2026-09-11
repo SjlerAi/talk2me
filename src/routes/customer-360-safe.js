@@ -1,8 +1,17 @@
 const express = require('express');
 const db = require('../config/db');
 const { requireAuth } = require('../middleware/auth');
+const { normaliseSouthAfricanMobile } = require('../services/sa-phone-normalisation');
 
 const router = express.Router();
+
+async function mobileDataSchemaReady() {
+  const [rows] = await db.query(`
+    SELECT TABLE_NAME FROM information_schema.TABLES
+    WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN ('mobile_base_current','mobile_events')
+  `);
+  return new Set(rows.map(row => row.TABLE_NAME)).size === 2;
+}
 
 router.get('/customers/:id/360', requireAuth, async (req, res, next) => {
   try {
@@ -26,6 +35,10 @@ router.get('/customers/:id/360', requireAuth, async (req, res, next) => {
 
     const lineIds = lines.map(line => Number(line.id)).filter(Boolean);
     const phoneNumbers = [...new Set(lines.map(line => String(line.cell_number || '').trim()).filter(Boolean))];
+    const canonicalPhones = [...new Set(lines.flatMap(line => [
+      line.cell_number_normalised, line.cell_number,
+      line.main_contact_number_normalised, line.main_contact_number, line.alt_number
+    ]).map(normaliseSouthAfricanMobile).filter(Boolean))];
 
     let history = [];
     if (lineIds.length) {
@@ -129,6 +142,60 @@ router.get('/customers/:id/360', requireAuth, async (req, res, next) => {
       );
     }
 
+    let currentMobileServices = [];
+    let mobileEvents = [];
+    let currentMobileDataReady = false;
+    if (await mobileDataSchemaReady()) {
+      currentMobileDataReady = true;
+      const serviceClauses = [];
+      const serviceParams = [];
+      if (lineIds.length) {
+        serviceClauses.push(`mb.client_id IN (${lineIds.map(() => '?').join(',')})`);
+        serviceParams.push(...lineIds);
+      }
+      if (client.account_id) {
+        serviceClauses.push('mb.account_id=?');
+        serviceParams.push(Number(client.account_id));
+      }
+      if (canonicalPhones.length) {
+        serviceClauses.push(`mb.msisdn_normalised IN (${canonicalPhones.map(() => '?').join(',')})`);
+        serviceParams.push(...canonicalPhones);
+      }
+      if (serviceClauses.length) {
+        [currentMobileServices] = await db.query(`
+          SELECT mb.*
+          FROM mobile_base_current mb
+          WHERE ${serviceClauses.join(' OR ')}
+          ORDER BY mb.msisdn_normalised
+        `, serviceParams);
+      }
+
+      const eventClauses = [];
+      const eventParams = [];
+      if (lineIds.length) {
+        eventClauses.push(`me.client_id IN (${lineIds.map(() => '?').join(',')})`);
+        eventParams.push(...lineIds);
+      }
+      if (client.account_id) {
+        eventClauses.push('me.account_id=?');
+        eventParams.push(Number(client.account_id));
+      }
+      if (canonicalPhones.length) {
+        eventClauses.push(`me.msisdn_normalised IN (${canonicalPhones.map(() => '?').join(',')})`);
+        eventParams.push(...canonicalPhones);
+      }
+      if (eventClauses.length) {
+        [mobileEvents] = await db.query(`
+          SELECT me.*,su.full_name staff_name
+          FROM mobile_events me
+          LEFT JOIN staff_users su ON su.id=me.staff_id
+          WHERE ${eventClauses.join(' OR ')}
+          ORDER BY me.event_date DESC,me.id DESC
+          LIMIT 100
+        `, eventParams);
+      }
+    }
+
     res.render('customer-360', {
       title: client.client_name || 'Customer Workspace',
       client,
@@ -141,6 +208,9 @@ router.get('/customers/:id/360', requireAuth, async (req, res, next) => {
       pendingClaim: pendingClaim || null,
       pendingAccountRequest: pendingAccountRequest || null,
       fixedAccounts,
+      currentMobileDataReady,
+      currentMobileServices,
+      mobileEvents,
       assigned: req.query.assigned,
       claimRequested: req.query.claim_requested,
       claimConflict: req.query.claim_conflict,

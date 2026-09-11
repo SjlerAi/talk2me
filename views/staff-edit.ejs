@@ -1,5 +1,5 @@
 <section class="page-head">
-  <div><h1><%= isNew ? 'Add Staff Member' : 'Staff Profile' %></h1><p>Identity, contact information, role and private documents.</p></div>
+  <div><h1><%= isNew ? 'Add Staff Member' : 'Staff Profile' %></h1><p>Identity, contact information, role, import identities and private documents.</p></div>
   <a class="btn" href="<%= basePath %>/backoffice/staff">Back to Staff</a>
 </section>
 <% if (saved) { %><div class="success-banner">Staff record saved successfully.</div><% } %>
@@ -33,9 +33,20 @@
     <% if (!isNew && staff.profile_photo_path) { %><img class="large-profile-photo" src="<%= basePath %>/backoffice/staff/<%= staff.id %>/photo" alt="Profile photo"><% } %>
     <% if (!isNew) { %>
       <p><strong>Last login:</strong><br><%= staff.last_login_at ? new Date(staff.last_login_at).toLocaleString('en-ZA') : 'Never' %></p>
+      <h3>Import identities</h3>
+      <p><small>Add every Vodacom/dealer report code or alias used for this staff member. Future import matching uses these identities instead of hard-coded names.</small></p>
+      <div id="staffImportIdentities" data-staff-id="<%= staff.id %>" data-base-path="<%= basePath %>">
+        <div data-code-list><p>Loading report / agent codes…</p></div>
+        <form data-code-form style="margin-top:12px">
+          <label>Report / agent code</label>
+          <div style="display:flex;gap:8px;align-items:center"><input name="external_code" maxlength="120" placeholder="e.g. OLIVIERJ06_C3D" autocomplete="off"><button class="btn small" type="submit">Add code</button></div>
+        </form>
+        <p data-code-message aria-live="polite"></p>
+      </div>
       <h3>Private documents</h3>
       <% if (!documents.length) { %><p>No documents uploaded.</p><% } %>
       <% documents.forEach(doc => { %><p><a href="<%= basePath %>/backoffice/staff/<%= staff.id %>/documents/<%= doc.id %>"><%= doc.document_type.replace('_',' ') %>: <%= doc.original_filename %></a><br><small><%= new Date(doc.uploaded_at).toLocaleString('en-ZA') %></small></p><% }) %>
-    <% } else { %><p>Create the staff record first. Uploaded files will be stored privately and linked to the new profile.</p><% } %>
+      <script src="<%= basePath %>/public/js/staff-import-identities.js" defer></script>
+    <% } else { %><p>Create the staff record first. Then add report / agent codes and uploaded files to the profile.</p><% } %>
   </aside>
 </div>

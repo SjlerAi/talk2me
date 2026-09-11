@@ -2,6 +2,7 @@
 
 const db = require('../config/db');
 const { normaliseSouthAfricanMobile, MOBILE_PHONE_FIELDS } = require('./sa-phone-normalisation');
+const { normaliseAccountCore, baseDetailsResult } = require('./base-details-reconciliation');
 
 function normaliseAccount(value) {
   return String(value ?? '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -55,7 +56,31 @@ async function loadReferenceData(connection) {
 
   const [accounts] = await connection.query('SELECT id,account_number,account_number_normalised,display_name FROM customer_accounts');
   const accountsByNumber = new Map();
-  for (const account of accounts) addToMap(accountsByNumber, normaliseAccount(account.account_number_normalised || account.account_number), account);
+  const accountsByCore = new Map();
+  const accountsById = new Map();
+  for (const account of accounts) {
+    accountsById.set(Number(account.id), account);
+    addToMap(accountsByNumber, normaliseAccount(account.account_number_normalised || account.account_number), account);
+    addToMap(accountsByCore, normaliseAccountCore(account.account_number || account.account_number_normalised), account);
+  }
+
+  const currentMobileByPhone = new Map();
+  const [[currentBaseSchema]] = await connection.query(`
+    SELECT COUNT(*) total FROM information_schema.TABLES
+    WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='mobile_base_current'
+  `);
+  if (Number(currentBaseSchema?.total || 0) === 1) {
+    const [currentLines] = await connection.query(`
+      SELECT id,msisdn_normalised,account_id,client_id,account_code,account_code_core,account_name,
+        contract_status,eligible_upgrade_date,eligible_upgrade_flag
+      FROM mobile_base_current
+      WHERE msisdn_normalised IS NOT NULL AND msisdn_normalised<>''
+    `);
+    for (const line of currentLines) {
+      const canonical = normaliseSouthAfricanMobile(line.msisdn_normalised);
+      if (canonical) currentMobileByPhone.set(canonical, line);
+    }
+  }
 
   const [fixedAccounts] = await connection.query('SELECT id,account_id,account_number,account_number_normalised,customer_name FROM fixed_accounts');
   const fixedAccountsByAccountId = new Map();
@@ -71,13 +96,18 @@ async function loadReferenceData(connection) {
   `);
   const servicesByFixedAccount = new Map();
   for (const service of services) addToMap(servicesByFixedAccount, Number(service.fixed_account_id), service);
-  return { mobile, accountsByNumber, fixedAccountsByAccountId, fixedAccountsByNumber, servicesByFixedAccount };
+  return {
+    mobile, currentMobileByPhone, accountsByNumber, accountsByCore, accountsById,
+    fixedAccountsByAccountId, fixedAccountsByNumber, servicesByFixedAccount
+  };
 }
 
 function mobileResult(row, references) {
   const canonical = normaliseSouthAfricanMobile(row.phone_original || row.phone_normalised);
   const candidates = canonical ? [...(references.mobile.get(canonical)?.values() || [])] : [];
+  const currentBase = canonical ? references.currentMobileByPhone?.get(canonical) : null;
   const candidateJson = { canonicalPhone: canonical || null, clients: candidates };
+  if (currentBase) candidateJson.currentBase = currentBase;
   if (candidates.length === 1) {
     return {
       classification: 'exact_match', domain: 'mobile', confidence: 100,
@@ -89,13 +119,22 @@ function mobileResult(row, references) {
   if (candidates.length > 1) {
     return {
       classification: 'conflict', domain: 'mobile', confidence: 0,
-      reason: `Canonical phone ${canonical} matches ${candidates.length} distinct clients and requires management selection.`,
+      reason: `Canonical phone ${canonical} matches ${candidates.length} distinct historical clients and requires management selection.`,
       candidates: candidateJson, actionType: 'resolve_mobile_conflict', targetType: 'clients', targetId: null
+    };
+  }
+  if (currentBase) {
+    return {
+      classification: 'possible_match', domain: 'mobile', confidence: 95,
+      proposedClientId: currentBase.client_id ? Number(currentBase.client_id) : null,
+      proposedAccountId: currentBase.account_id ? Number(currentBase.account_id) : null,
+      reason: `Canonical phone ${canonical} already exists in the current Base Details service layer (mobile base #${currentBase.id}). It must not create a duplicate CRM customer; relationship linking remains a separate reviewed step.`,
+      candidates: candidateJson, actionType: 'link_existing_mobile_base', targetType: 'mobile_base_current', targetId: Number(currentBase.id)
     };
   }
   return {
     classification: 'new_record', domain: 'mobile', confidence: 0,
-    reason: canonical ? `No existing client has canonical phone ${canonical}.` : 'The imported phone is not a plausible South African mobile number.',
+    reason: canonical ? `No existing client or current Base Details service has canonical phone ${canonical}.` : 'The imported phone is not a plausible South African mobile number.',
     candidates: candidateJson, actionType: 'create_mobile_record', targetType: 'clients', targetId: null
   };
 }
@@ -261,7 +300,9 @@ async function upsertResult(connection, row, result, { resetDecision = false } =
 
 async function matchSingleRow(connection, row, { references = null, resetDecision = false } = {}) {
   const source = references || await loadReferenceData(connection);
-  const result = row.import_type === 'fixed_base' ? fixedResult(row, source) : mobileResult(row, source);
+  const result = row.import_type === 'base_details'
+    ? baseDetailsResult(row, source)
+    : (row.import_type === 'fixed_base' ? fixedResult(row, source) : mobileResult(row, source));
   const matchId = await upsertResult(connection, row, result, { resetDecision });
   return { ...result, matchId };
 }
@@ -313,6 +354,8 @@ module.exports = {
   normaliseAccount,
   normaliseIdentifier,
   normaliseMac,
+  normaliseAccountCore,
+  baseDetailsResult,
   mobileResult,
   fixedResult
 };
