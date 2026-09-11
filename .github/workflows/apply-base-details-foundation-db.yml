@@ -1,6 +1,10 @@
 name: Apply Base Details database foundation
 
 on:
+  pull_request:
+    paths:
+      - 'scripts/apply-base-details-foundation-db.js'
+      - '.github/workflows/apply-base-details-foundation-db.yml'
   push:
     branches:
       - main
@@ -13,11 +17,41 @@ permissions:
   contents: read
 
 concurrency:
-  group: talk2me-base-details-db-foundation
+  group: talk2me-base-details-db-foundation-${{ github.event_name }}
   cancel-in-progress: false
 
 jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Validate guarded database operation
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test -f sql/ONE_OFF_110_base_details_master_foundation.sql
+          test -f sql/ONE_OFF_110A_staff_contact_seed.sql
+          test -f scripts/apply-base-details-foundation-db.js
+          node --check scripts/apply-base-details-foundation-db.js
+          grep -q 'Do NOT run npm run db:migrate' sql/ONE_OFF_110_base_details_master_foundation.sql
+          grep -q 'CREATE TABLE IF NOT EXISTS mobile_base_current' sql/ONE_OFF_110_base_details_master_foundation.sql
+          grep -q 'CREATE TABLE IF NOT EXISTS mobile_base_snapshots' sql/ONE_OFF_110_base_details_master_foundation.sql
+          grep -q 'CREATE TABLE IF NOT EXISTS mobile_events' sql/ONE_OFF_110_base_details_master_foundation.sql
+          grep -q 'CREATE TABLE IF NOT EXISTS staff_external_codes' sql/ONE_OFF_110_base_details_master_foundation.sql
+          grep -q "COALESCE(NULLIF(TRIM(contact_number),'')" sql/ONE_OFF_110A_staff_contact_seed.sql
+          grep -q 'createServerBackup' scripts/apply-base-details-foundation-db.js
+          grep -q 'Preflight found a partial Base Details schema state' scripts/apply-base-details-foundation-db.js
+          grep -q 'Core Talk2Me row counts changed' scripts/apply-base-details-foundation-db.js
+          grep -q 'staffExternalCodesVerified' scripts/apply-base-details-foundation-db.js
+
   apply:
+    if: github.event_name != 'pull_request'
+    needs: validate
     runs-on: ubuntu-latest
     environment:
       name: talk2me-uat
@@ -33,21 +67,6 @@ jobs:
       ELITEHOST_SSH_KEY_PASSPHRASE: ${{ secrets.ELITEHOST_SSH_KEY_PASSPHRASE }}
     steps:
       - uses: actions/checkout@v6
-
-      - name: Validate reviewed inputs
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          test -f sql/ONE_OFF_110_base_details_master_foundation.sql
-          test -f sql/ONE_OFF_110A_staff_contact_seed.sql
-          test -f scripts/apply-base-details-foundation-db.js
-          grep -q 'Do NOT run npm run db:migrate' sql/ONE_OFF_110_base_details_master_foundation.sql
-          grep -q 'CREATE TABLE IF NOT EXISTS mobile_base_current' sql/ONE_OFF_110_base_details_master_foundation.sql
-          grep -q 'CREATE TABLE IF NOT EXISTS mobile_base_snapshots' sql/ONE_OFF_110_base_details_master_foundation.sql
-          grep -q 'CREATE TABLE IF NOT EXISTS mobile_events' sql/ONE_OFF_110_base_details_master_foundation.sql
-          grep -q 'CREATE TABLE IF NOT EXISTS staff_external_codes' sql/ONE_OFF_110_base_details_master_foundation.sql
-          grep -q "COALESCE(NULLIF(TRIM(contact_number),'')" sql/ONE_OFF_110A_staff_contact_seed.sql
-          node --check scripts/apply-base-details-foundation-db.js
 
       - name: Configure encrypted SSH key
         run: bash scripts/setup-elitehost-ssh.sh
