@@ -1,0 +1,34 @@
+name: Validate Base Details foundation
+
+on:
+  pull_request:
+    paths:
+      - 'src/services/monthly-import-parser.js'
+      - 'scripts/validate-base-details-foundation.js'
+      - 'sql/ONE_OFF_110_base_details_master_foundation.sql'
+      - '.github/workflows/base-details-foundation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-base-details:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: node --check src/services/monthly-import-parser.js
+      - run: node --check scripts/validate-base-details-foundation.js
+      - run: node scripts/validate-base-details-foundation.js
+      - name: Guard one-off SQL safety boundary
+        run: |
+          grep -q "Do NOT run npm run db:migrate" sql/ONE_OFF_110_base_details_master_foundation.sql
+          grep -q "CREATE TABLE IF NOT EXISTS mobile_base_current" sql/ONE_OFF_110_base_details_master_foundation.sql
+          grep -q "CREATE TABLE IF NOT EXISTS mobile_base_snapshots" sql/ONE_OFF_110_base_details_master_foundation.sql
+          grep -q "CREATE TABLE IF NOT EXISTS mobile_events" sql/ONE_OFF_110_base_details_master_foundation.sql
+          grep -q "CREATE TABLE IF NOT EXISTS staff_external_codes" sql/ONE_OFF_110_base_details_master_foundation.sql
