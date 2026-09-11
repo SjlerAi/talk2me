@@ -16,6 +16,7 @@ const configuredBasePath = String(process.env.BASE_PATH || '/talk2me').trim();
 const BASE_PATH = configuredBasePath === '/' ? '' : '/' + configuredBasePath.split('/').filter(Boolean).join('/');
 const PORT = process.env.PORT || 3000;
 const sessionSecure = String(process.env.SESSION_SECURE || 'false').toLowerCase() === 'true';
+const UAT_MODE = String(process.env.UAT_MODE || '').trim().toLowerCase() === 'true';
 const EIGHT_HOURS_MS = 8 * 60 * 60 * 1000;
 
 class MySqlSessionStore extends session.Store {
@@ -49,6 +50,14 @@ app.set('layout', 'layout');
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
+if (UAT_MODE) {
+  app.use((req, res, next) => {
+    res.set('X-Robots-Tag', 'noindex, nofollow, noarchive');
+    res.set('Cache-Control', 'no-store');
+    next();
+  });
+}
+
 function registerPublicGet(route, handler) {
   app.get(route, handler);
   if (BASE_PATH) app.get(`${BASE_PATH}${route}`, handler);
@@ -58,10 +67,10 @@ registerPublicGet('/api/health', async (req, res) => {
   res.set('Cache-Control', 'no-store');
   try {
     await db.execute('SELECT 1 AS ok');
-    res.json({ status: 'ok', service: 'talk2me-crm', database: 'connected' });
+    res.json({ status: 'ok', service: 'talk2me-crm', database: 'connected', environment: UAT_MODE ? 'uat' : 'production' });
   } catch (error) {
     console.error('Public health check failed:', error.message);
-    res.status(503).json({ status: 'error', service: 'talk2me-crm', database: 'unavailable' });
+    res.status(503).json({ status: 'error', service: 'talk2me-crm', database: 'unavailable', environment: UAT_MODE ? 'uat' : 'production' });
   }
 });
 
@@ -70,18 +79,19 @@ registerPublicGet('/api/release', (req, res) => {
   const releasePath = path.join(__dirname, '.talk2me-release.json');
   try {
     const release = JSON.parse(fs.readFileSync(releasePath, 'utf8'));
-    res.json(release);
+    res.json({ ...release, environment: UAT_MODE ? 'uat' : 'production' });
   } catch (error) {
     res.status(503).json({
       service: 'talk2me-crm',
       status: 'release-metadata-unavailable',
-      version: packageInfo.version || 'unknown'
+      version: packageInfo.version || 'unknown',
+      environment: UAT_MODE ? 'uat' : 'production'
     });
   }
 });
 
 app.use(session({
-  name: 'talk2me.sid',
+  name: UAT_MODE ? 'talk2me.uat.sid' : 'talk2me.sid',
   secret: process.env.SESSION_SECRET,
   store: new MySqlSessionStore(),
   resave: false,
@@ -99,6 +109,7 @@ app.use((req, res, next) => {
   res.locals.panelMode = String(req.query.panel || '') === '1';
   res.locals.voipUrlTemplate = process.env.VOIP_URL_TEMPLATE || '';
   res.locals.unreadTaskCount = 0;
+  res.locals.isUat = UAT_MODE;
   next();
 });
 
@@ -111,9 +122,9 @@ registerPwaRoute('/manifest.webmanifest', (req, res) => {
   const scope = `${BASE_PATH || ''}/` || '/';
   res.type('application/manifest+json').send({
     id: `${BASE_PATH || ''}/workspace`,
-    name: 'Talk2Me OS',
-    short_name: 'Talk2Me',
-    description: 'Talk2Me customer and staff command centre',
+    name: UAT_MODE ? 'Talk2Me CRM UAT' : 'Talk2Me OS',
+    short_name: UAT_MODE ? 'Talk2Me UAT' : 'Talk2Me',
+    description: UAT_MODE ? 'Talk2Me isolated CRM test environment' : 'Talk2Me customer and staff command centre',
     start_url: `${BASE_PATH || ''}/workspace`,
     scope,
     display: 'standalone',
@@ -180,82 +191,14 @@ self.addEventListener('fetch', event => {
 app.use('/public', express.static(path.join(__dirname, 'public')));
 if (BASE_PATH) app.use(`${BASE_PATH}/public`, express.static(path.join(__dirname, 'public')));
 
-const nightlyLogoutSettings = require('./src/routes/nightly-logout-settings');
-app.use('/', nightlyLogoutSettings);
-if (BASE_PATH) app.use(BASE_PATH, nightlyLogoutSettings);
-
-const provisionalFixedSave = require('./src/routes/provisional-fixed-save');
-app.use('/', provisionalFixedSave);
-if (BASE_PATH) app.use(BASE_PATH, provisionalFixedSave);
-
-const provisionalMobileSave = require('./src/routes/provisional-mobile-save');
-app.use('/', provisionalMobileSave);
-if (BASE_PATH) app.use(BASE_PATH, provisionalMobileSave);
-
-const customer360Safe = require('./src/routes/customer-360-safe');
-app.use('/', customer360Safe);
-if (BASE_PATH) app.use(BASE_PATH, customer360Safe);
-
-const osLauncherSettings = require('./src/routes/os-launcher-settings');
-app.use('/', osLauncherSettings);
-if (BASE_PATH) app.use(BASE_PATH, osLauncherSettings);
-
-const legacyClientClaimDecisions = require('./src/routes/legacy-client-claim-decisions');
-app.use('/', legacyClientClaimDecisions);
-if (BASE_PATH) app.use(BASE_PATH, legacyClientClaimDecisions);
-
-const clientAssignmentCentre = require('./src/routes/client-assignment-centre');
-app.use('/', clientAssignmentCentre);
-if (BASE_PATH) app.use(BASE_PATH, clientAssignmentCentre);
-
-const approvalCentre = require('./src/routes/approval-centre');
-app.use('/', approvalCentre);
-if (BASE_PATH) app.use(BASE_PATH, approvalCentre);
-
-const approvalDecisionsSafe = require('./src/routes/approval-decisions-safe');
-app.use('/', approvalDecisionsSafe);
-if (BASE_PATH) app.use(BASE_PATH, approvalDecisionsSafe);
-
-const legacyClientClaimReconciliation = require('./src/routes/legacy-client-claim-reconciliation');
-app.use('/', legacyClientClaimReconciliation);
-if (BASE_PATH) app.use(BASE_PATH, legacyClientClaimReconciliation);
-
-const osOperations = require('./src/routes/os-operations');
-app.use('/', osOperations);
-if (BASE_PATH) app.use(BASE_PATH, osOperations);
-
-const osSearchActions = require('./src/routes/os-search-actions');
-app.use('/', osSearchActions);
-if (BASE_PATH) app.use(BASE_PATH, osSearchActions);
-
-const osCustomerActions = require('./src/routes/os-customer-actions');
-app.use('/', osCustomerActions);
-if (BASE_PATH) app.use(BASE_PATH, osCustomerActions);
-
-const staffWorkAccess = require('./src/routes/staff-work-access');
-app.use('/', staffWorkAccess);
-if (BASE_PATH) app.use(BASE_PATH, staffWorkAccess);
-
-const osProductivity = require('./src/routes/os-productivity');
-app.use('/', osProductivity);
-if (BASE_PATH) app.use(BASE_PATH, osProductivity);
-
-const osRoutes = require('./src/routes/os');
-app.use('/', osRoutes);
-if (BASE_PATH) app.use(BASE_PATH, osRoutes);
-
-const routes = require('./src/routes');
-app.use('/', routes);
-if (BASE_PATH) app.use(BASE_PATH, routes);
-
 app.get('/', (req, res) => res.redirect(`${BASE_PATH}/login`));
 if (BASE_PATH) app.get(BASE_PATH, (req, res) => res.redirect(`${BASE_PATH}/login`));
-app.use((req, res) => res.status(404).render('error', { title: 'Not found', message: 'Page not found' }));
-app.use((err, req, res, next) => {
-  console.error(err);
-  res.status(500).render('error', { title: 'Server error', message: 'Something went wrong. Check server logs.' });
-});
+
+const routes = require('./src/routes');
+app.use(BASE_PATH, routes);
+
+startNightlyLogoutWorker();
+
 app.listen(PORT, () => {
-  console.log(`Talk2Me CRM running on port ${PORT} with base path ${BASE_PATH}`);
-  startNightlyLogoutWorker();
+  console.log(`${process.env.APP_NAME || 'Talk2Me CRM'} listening on port ${PORT}${BASE_PATH || '/'}`);
 });
