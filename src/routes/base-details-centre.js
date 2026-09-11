@@ -75,7 +75,8 @@ async function loadCentre() {
       SUM(event_type='activation') activations,
       SUM(event_type='upgrade') upgrades,
       SUM(staff_id IS NOT NULL) staff_matched,
-      SUM(agent_code IS NOT NULL AND staff_id IS NULL) staff_unmapped
+      SUM(UPPER(TRIM(COALESCE(agent_code,'')))='SADMIN') system_events,
+      SUM(agent_code IS NOT NULL AND staff_id IS NULL AND UPPER(TRIM(agent_code))<>'SADMIN') staff_unmapped
     FROM mobile_events
   `);
   const pendingMobileSummary = await loadPendingMobileSummary();
@@ -168,8 +169,9 @@ router.post('/backoffice/base-details/sync-events', requireAuth, requireRole('ow
     if (!await schemaReady()) throw new Error('Apply the reviewed Base Details foundation SQL first.');
     const summary = await syncMobileEvents({ userId: req.session.user.id });
     const unmapped = summary.unmappedCodes.length ? ` Unmapped staff code(s): ${summary.unmappedCodes.join(', ')}.` : '';
+    const system = summary.systemEvents ? ` ${summary.systemEvents} system-admin event(s).` : '';
     return res.redirect(`${res.locals.basePath}/backoffice/base-details?notice=${encodeURIComponent(
-      `Mobile event ledger synchronised ${summary.total} activation/upgrade row(s); ${summary.staffMatched} staff matches, ${summary.staffUnmapped} unmapped.${unmapped}`
+      `Mobile event ledger synchronised ${summary.total} activation/upgrade row(s); ${summary.staffMatched} staff matches, ${summary.staffUnmapped} unmapped.${system}${unmapped}`
     )}`);
   } catch (error) {
     return res.redirect(`${res.locals.basePath}/backoffice/base-details?error=${encodeURIComponent(error.message)}`);
