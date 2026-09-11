@@ -3,9 +3,7 @@ const { normaliseSouthAfricanMobile } = require('./sa-phone-normalisation');
 
 function clean(value, max = 2000) { return String(value ?? '').trim().slice(0, max); }
 function label(value) { return clean(value, 200).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); }
-function phone(value) {
-  return normaliseSouthAfricanMobile(clean(value, 50));
-}
+function phone(value) { return normaliseSouthAfricanMobile(clean(value, 50)); }
 function date(value) {
   if (!value) return null;
   if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0, 10);
@@ -22,7 +20,7 @@ function date(value) {
   return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString().slice(0, 10);
 }
 function number(value) {
-  const text = clean(value, 80).replace(/,/g, '');
+  const text = clean(value, 80).replace(/,/g, '').replace(/^R\s*/i, '');
   if (!text || text === '-' || text.toLowerCase() === 'n/a') return null;
   const parsed = Number(text);
   return Number.isFinite(parsed) ? parsed : null;
@@ -174,45 +172,64 @@ function buildBaseDetails(report, map, row, sourceRowNumber, headerRow) {
     dataUsageM3Mb: number(field(map, row, ['Data Usage M3 (MB)', 'Data Usage M3 MB']))
   };
   return validate({
-    ...report,
-    sourceRowNumber,
-    phoneOriginal,
-    phoneNormalised: phone(phoneOriginal),
-    accountNumber,
-    customerName: baseDetails.accountName,
-    transactionDate: null,
-    packageName: tariffName || pricePlan,
-    simNumber: baseDetails.iccId,
-    description: baseDetails.contractStatus,
-    sourceFields: sourceFields(headerRow, row),
-    baseDetails
+    ...report, sourceRowNumber, phoneOriginal, phoneNormalised: phone(phoneOriginal), accountNumber,
+    customerName: baseDetails.accountName, transactionDate: null, packageName: tariffName || pricePlan,
+    simNumber: baseDetails.iccId, description: baseDetails.contractStatus,
+    sourceFields: sourceFields(headerRow, row), baseDetails
   }, [['phoneNormalised', 'Invalid or missing MSISDN.'], ['accountNumber', 'Account Code is missing.']]);
 }
 function build(report, map, row, sourceRowNumber, headerRow) {
-  if (report.importType === 'base_details') {
-    return buildBaseDetails(report, map, row, sourceRowNumber, headerRow);
-  }
+  if (report.importType === 'base_details') return buildBaseDetails(report, map, row, sourceRowNumber, headerRow);
+  const rawSource = sourceFields(headerRow, row);
   if (report.importType === 'activation') {
-    const phoneOriginal = clean(at(row, column(map, ['Cell Nr', 'Cell Number'])), 80);
-    return validate({ ...report, sourceRowNumber, phoneOriginal, phoneNormalised: phone(phoneOriginal), customerName: clean(at(row, column(map, ['Customer'])), 255), transactionDate: date(at(row, column(map, ['Activation Date']))), packageName: clean(at(row, column(map, ['Package'])), 255), agentCode: clean(at(row, column(map, ['Created By', 'Agent'])), 120), imei: code(at(row, column(map, ['IMEI', 'IMEI Number'])), 80), dealSheetNumber: code(at(row, column(map, ['Deal Sheet', 'Deal sheet number'])), 120), description: clean(at(row, column(map, ['Deal Sheet Description', 'Deal description'])), 4000) }, [['phoneNormalised', 'Invalid or missing cellphone number.'], ['customerName', 'Customer name is missing.'], ['transactionDate', 'Activation date is missing or invalid.']]);
+    const phoneOriginal = clean(field(map, row, ['Cell Nr', 'Cell Number']), 80);
+    return validate({
+      ...report, sourceRowNumber, phoneOriginal, phoneNormalised: phone(phoneOriginal),
+      customerName: clean(field(map, row, ['Customer']), 255),
+      transactionDate: date(field(map, row, ['Activation Date'])),
+      packageName: clean(field(map, row, ['Package']), 255),
+      agentCode: clean(field(map, row, ['Created By', 'Agent']), 120),
+      imei: code(field(map, row, ['IMEI', 'IMEI Number']), 80),
+      dealSheetNumber: code(field(map, row, ['Deal Sheet', 'Deal sheet number']), 120),
+      description: clean(field(map, row, ['Deal Sheet Description', 'Deal description']), 4000),
+      channel: clean(field(map, row, ['Channel']), 120),
+      commissionScore: clean(field(map, row, ['Commission Score']), 120),
+      averageSpend: number(field(map, row, ['Average Spend', 'Avg Spend'])),
+      sourceFields: rawSource
+    }, [['phoneNormalised', 'Invalid or missing cellphone number.'], ['customerName', 'Customer name is missing.'], ['transactionDate', 'Activation date is missing or invalid.']]);
   }
   if (report.importType === 'upgrade') {
-    const phoneOriginal = clean(at(row, column(map, ['Handset No', 'Cell Nr'])), 80);
-    return validate({ ...report, sourceRowNumber, phoneOriginal, phoneNormalised: phone(phoneOriginal), customerName: '', transactionDate: date(at(row, column(map, ['Order Date']))), packageName: clean(at(row, column(map, ['Current Package'])), 255), agentCode: clean(at(row, column(map, ['Agent'])), 120), imei: code(at(row, column(map, ['IMEI Number', 'IMEI'])), 80), dealSheetNumber: code(at(row, column(map, ['Deal sheet number', 'Deal Sheet'])), 120), description: clean(at(row, column(map, ['Deal description', 'Upgrade Description', 'Upgrade Tariff Name'])), 4000) }, [['phoneNormalised', 'Invalid or missing cellphone number.'], ['transactionDate', 'Order date is missing or invalid.']]);
+    const phoneOriginal = clean(field(map, row, ['Handset No', 'Cell Nr']), 80);
+    return validate({
+      ...report, sourceRowNumber, phoneOriginal, phoneNormalised: phone(phoneOriginal), customerName: '',
+      transactionDate: date(field(map, row, ['Order Date'])),
+      packageName: clean(field(map, row, ['Current Package', 'Current Tariff Plan', 'Current Tariff Plan/Package']), 255),
+      agentCode: clean(field(map, row, ['Agent']), 120),
+      imei: code(field(map, row, ['IMEI Number', 'IMEI']), 80),
+      dealSheetNumber: code(field(map, row, ['Deal sheet number', 'Deal Sheet']), 120),
+      description: clean(field(map, row, ['Deal description', 'Upgrade Description', 'Upgrade Tariff Name']), 4000),
+      channel: clean(field(map, row, ['Channel']), 120),
+      commissionScore: clean(field(map, row, ['Commission Score']), 120),
+      averageSpend: number(field(map, row, ['Average Spend', 'Avg Spend'])),
+      customerType: clean(field(map, row, ['Customer Type']), 120),
+      upgradedPhone: clean(field(map, row, ['Upgraded Phone']), 255),
+      phonesUpgraded: integer(field(map, row, ['No of Phones Upgraded', 'Number of Phones Upgraded'])),
+      sourceFields: rawSource
+    }, [['phoneNormalised', 'Invalid or missing cellphone number.'], ['transactionDate', 'Order date is missing or invalid.']]);
   }
-  const branchName = clean(at(row, column(map, ['Branch'])), 255);
-  const routerModel = clean(at(row, column(map, ['Router Model'])), 255);
+  const branchName = clean(field(map, row, ['Branch']), 255);
+  const routerModel = clean(field(map, row, ['Router Model']), 255);
   return validate({
     ...report, sourceRowNumber,
-    accountNumber: code(at(row, column(map, ['Account number'])), 120),
-    customerName: clean(at(row, column(map, ['Title'])), 255),
-    transactionDate: date(at(row, column(map, ['Activation Date']))),
-    packageName: clean(at(row, column(map, ['Package'])), 255),
-    orderNumber: code(at(row, column(map, ['Order Number'])), 120),
-    macAddress: code(at(row, column(map, ['MAC'])), 120).replace(/[^A-Z0-9]/g, ''),
-    solutionId: code(at(row, column(map, ['Solutution ID', 'Solution ID'])), 120),
-    simNumber: code(at(row, column(map, ['Sim Number', 'SIM Number'])), 120),
-    branchName, routerModel, description: branchName || routerModel
+    accountNumber: code(field(map, row, ['Account number']), 120),
+    customerName: clean(field(map, row, ['Title']), 255),
+    transactionDate: date(field(map, row, ['Activation Date'])),
+    packageName: clean(field(map, row, ['Package']), 255),
+    orderNumber: code(field(map, row, ['Order Number']), 120),
+    macAddress: code(field(map, row, ['MAC']), 120).replace(/[^A-Z0-9]/g, ''),
+    solutionId: code(field(map, row, ['Solutution ID', 'Solution ID']), 120),
+    simNumber: code(field(map, row, ['Sim Number', 'SIM Number']), 120),
+    branchName, routerModel, description: branchName || routerModel, sourceFields: rawSource
   }, [['accountNumber', 'Account number is missing.'], ['orderNumber', 'Order number is missing.']]);
 }
 function parse(buffer, filename) {
@@ -233,4 +250,4 @@ function parse(buffer, filename) {
   if (!rows.length) throw new Error('No data rows were found.');
   return { ...report, rows };
 }
-module.exports = { parse, phone, date, detect, fingerprint };
+module.exports = { parse, phone, date, detect, fingerprint, sourceFields };
