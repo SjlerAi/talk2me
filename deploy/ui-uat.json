@@ -2,10 +2,10 @@
   "schema": 1,
   "repository": "SjlerAi/talk2me",
   "environment": "ui-uat",
-  "status": "HOLD",
-  "commit": null,
-  "workflowRunId": null,
-  "artifact": null,
-  "sha256": null,
-  "requestedAt": null
+  "status": "DEPLOY",
+  "commit": "0653e15cd11ace2b5035725287d1c89ccf252b0f",
+  "workflowRunId": "34637124718",
+  "artifact": "talk2me-ui-uat-0653e15cd11ace2b5035725287d1c89ccf252b0f-34637124718.tar.gz",
+  "sha256": "d8708d95dad166e6ee5945a21d32c3c99257fee80913d045600c67f6a2b2803e",
+  "requestedAt": "2026-09-11T19:08:21.039Z"
 }
