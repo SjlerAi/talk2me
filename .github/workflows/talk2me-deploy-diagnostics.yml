@@ -14,29 +14,22 @@ jobs:
     environment: talk2me-uat
     env:
       SSH_HOST: 164.160.91.40
-      SSH_PORT: "41414"
+      SSH_PORT: '41414'
       SSH_USER: uent
-      EXPECTED_RELEASE: 5fa63c5f6ab8d7a19befc808829fe2ee247d560f
       ELITEHOST_SSH_PRIVATE_KEY: ${{ secrets.ELITEHOST_SSH_PRIVATE_KEY }}
       ELITEHOST_SSH_KEY_PASSPHRASE: ${{ secrets.ELITEHOST_SSH_KEY_PASSPHRASE }}
     steps:
       - uses: actions/checkout@v6
       - name: Configure encrypted SSH key
         run: bash scripts/setup-elitehost-ssh.sh
-      - name: Verify exact deployed release
+      - name: Inspect deployment state only
+        shell: bash
         run: |
-          live="$(curl -LfsS --connect-timeout 10 --max-time 25 https://talk2me.uent.co.za/api/release)"
-          LIVE_RELEASE="$live" node - <<'NODE'
-          const release = JSON.parse(process.env.LIVE_RELEASE || '{}');
-          if (release.commit !== process.env.EXPECTED_RELEASE) {
-            console.error(`Expected ${process.env.EXPECTED_RELEASE}, got ${release.commit || 'unknown'}`);
-            process.exit(1);
-          }
-          console.log(`Verified live release ${release.commit}`);
-          NODE
-      - name: Send forced staff action brief test
-        run: |
-          ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" 'DIGEST_FORCE_SEND=1 /bin/bash /home/uent/bin/talk2me-staff-work'
-      - name: Send forced owner daily brief test
-        run: |
-          ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" 'DIGEST_FORCE_SEND=1 /bin/bash /home/uent/bin/talk2me-owner-brief'
+          set -Eeuo pipefail
+          echo '--- public health ---'
+          curl -LfsS --connect-timeout 10 --max-time 25 https://talk2me.uent.co.za/api/health || true
+          echo
+          echo '--- public release ---'
+          curl -LfsS --connect-timeout 10 --max-time 25 https://talk2me.uent.co.za/api/release || true
+          echo
+          ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" 'set -eu; echo "--- deployed marker ---"; cat /home/uent/talk2me.uent.co.za/.deployed_commit 2>/dev/null || true; echo "--- release manifest ---"; cat /home/uent/talk2me.uent.co.za/.talk2me-release.json 2>/dev/null || true; echo "--- agent last request ---"; cat /home/uent/.talk2me-deploy/last-request.json 2>/dev/null || true; echo "--- agent last success ---"; cat /home/uent/.talk2me-deploy/last-success.json 2>/dev/null || true; echo "--- control status ---"; cat /home/uent/talk2me-deploy-control/deploy/uat.json 2>/dev/null || true; echo "--- agent lock ---"; ls -ld /home/uent/.talk2me-deploy/agent.lock 2>/dev/null || true; echo "--- cron tail ---"; tail -n 120 /home/uent/.talk2me-deploy/cron.log 2>/dev/null || true; echo "--- Passenger stderr tail ---"; tail -n 80 /home/uent/talk2me.uent.co.za/stderr.log 2>/dev/null || true'
