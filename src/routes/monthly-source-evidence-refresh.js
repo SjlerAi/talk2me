@@ -23,6 +23,14 @@ const upload = multer({
   }
 });
 
+router.get('/backoffice/data-import/source-evidence', requireAuth, requireRole('owner','manager'), (req, res) => {
+  res.render('monthly-source-evidence-refresh', {
+    title: 'Refresh Monthly Source Evidence',
+    notice: String(req.query.notice || '').slice(0, 500),
+    error: String(req.query.error || '').slice(0, 700)
+  });
+});
+
 router.post('/backoffice/data-import/refresh-source-evidence', requireAuth, requireRole('owner','manager'), upload.single('source_evidence_report'), async (req, res) => {
   try {
     if (!req.file) throw new Error('Select the exact original report file that is already in Monthly Import.');
@@ -32,9 +40,9 @@ router.post('/backoffice/data-import/refresh-source-evidence', requireAuth, requ
       userId: req.session.user.id
     });
     const notice = `Source evidence refreshed for batch #${result.batchId}: ${result.refreshedRows} row(s). Matching, approvals and customer records were not changed.`;
-    return res.redirect(`${res.locals.basePath}/backoffice/data-import?tab=upload&notice=${encodeURIComponent(notice)}`);
+    return res.redirect(`${res.locals.basePath}/backoffice/data-import/source-evidence?notice=${encodeURIComponent(notice)}`);
   } catch (error) {
-    return res.redirect(`${res.locals.basePath}/backoffice/data-import?tab=upload&error=${encodeURIComponent(error.message)}`);
+    return res.redirect(`${res.locals.basePath}/backoffice/data-import/source-evidence?error=${encodeURIComponent(error.message)}`);
   }
 });
 
