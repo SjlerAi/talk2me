@@ -17,7 +17,7 @@ jobs:
   deploy-ui-uat:
     runs-on: ubuntu-latest
     environment:
-      name: talk2me-ui-uat
+      name: talk2me-uat
       url: https://uent.co.za/talk2me
     env:
       SSH_HOST: 164.160.91.40
@@ -186,9 +186,16 @@ jobs:
         run: |
           ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" 'printf "%s\n" "--- agent ---"; tail -n 120 /home/uent/.talk2me-ui-uat-deploy/cron.log 2>/dev/null || true; printf "%s\n" "--- request ---"; cat /home/uent/.talk2me-ui-uat-deploy/last-request.json 2>/dev/null || true; printf "%s\n" "--- app stderr ---"; tail -n 100 /home/uent/public_html/talk2me/stderr.log 2>/dev/null || true; printf "%s\n" "--- selector ---"; command -v cloudlinux-selector || true'
 
+      - name: Checkout UI UAT control for HOLD cleanup
+        if: always()
+        uses: actions/checkout@v6
+        with:
+          ref: deploy/ui-uat-control
+          path: hold-control
+
       - name: Return UI UAT control to HOLD
         if: always()
-        working-directory: control
+        working-directory: hold-control
         run: |
           set -Eeuo pipefail
           git fetch origin deploy/ui-uat-control
