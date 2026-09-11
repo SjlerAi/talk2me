@@ -7,12 +7,16 @@ try {
   nodemailer = null;
 }
 
+function outboundEmailEnabled() {
+  return String(process.env.OUTBOUND_EMAIL_ENABLED || 'true').trim().toLowerCase() === 'true';
+}
+
 function smtpConfigured() {
-  return Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASSWORD);
+  return outboundEmailEnabled() && Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASSWORD);
 }
 
 function createTransporter() {
-  if (!nodemailer) return null;
+  if (!outboundEmailEnabled() || !nodemailer) return null;
   return nodemailer.createTransport({
     host: process.env.SMTP_HOST,
     port: Number(process.env.SMTP_PORT || 465),
@@ -49,6 +53,7 @@ function formatDateTime(value) {
 }
 
 async function sendTaskEmail({ to, staffName, task, appUrl }) {
+  if (!outboundEmailEnabled()) return { sent: false, error: 'Outbound email is disabled for this environment.' };
   if (!nodemailer) return { sent: false, error: 'Email module is not installed. Run NPM Install in cPanel.' };
   if (!smtpConfigured()) return { sent: false, error: 'SMTP is not configured.' };
   if (!to) return { sent: false, error: 'Staff member has no login email.' };
@@ -113,4 +118,4 @@ function formatDateOnly(value) {
   return new Intl.DateTimeFormat('en-ZA', { day:'2-digit', month:'long', year:'numeric', timeZone:process.env.TZ || 'Africa/Johannesburg' }).format(date);
 }
 
-module.exports = { sendTaskEmail, createTransporter, smtpConfigured, talk2meSender, escapeHtml, firstName, formatDateTime, formatDateOnly };
+module.exports = { sendTaskEmail, createTransporter, smtpConfigured, outboundEmailEnabled, talk2meSender, escapeHtml, firstName, formatDateTime, formatDateOnly };
