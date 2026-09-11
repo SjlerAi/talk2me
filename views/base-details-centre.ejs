@@ -2,7 +2,7 @@
   <div>
     <span class="eyebrow">Back Office</span>
     <h1>Base Details Centre</h1>
-    <p>Reconcile the Vodacom current mobile base, inspect exceptions, and stage current service data without changing CRM customer history.</p>
+    <p>Reconcile the Vodacom current mobile base, preserve source history, unify safe account links and maintain activation/upgrade event history.</p>
   </div>
   <a class="btn" href="<%= basePath %>/backoffice/data-import">Open Data Import Centre</a>
 </section>
@@ -17,8 +17,39 @@
   </div>
 <% } else { %>
   <section class="card">
+    <span class="eyebrow">Current database layer</span>
+    <h2>Mobile base status</h2>
+    <div class="summary-strip">
+      <span><strong><%= Number(baseSummary.current_lines||0) %></strong> current lines</span>
+      <span><strong><%= Number(baseSummary.linked_accounts||0) %></strong> account links</span>
+      <span><strong><%= Number(baseSummary.unlinked_accounts||0) %></strong> unresolved account links</span>
+      <span><strong><%= Number(baseSummary.linked_clients||0) %></strong> direct client links</span>
+      <span><strong><%= Number(baseSummary.eligible_upgrades||0) %></strong> upgrade eligible</span>
+      <span><strong><%= Number(baseSummary.churn_risk||0) %></strong> churn risk</span>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px">
+      <form method="post" action="<%= basePath %>/backoffice/base-details/unify-accounts"><button class="btn primary">Unify safe account links</button></form>
+    </div>
+    <small>Only unique account cores are linked automatically. Genuinely missing Base Details accounts may be created once. Ambiguous legacy aliases are left untouched.</small>
+  </section>
+
+  <section class="card" style="margin-top:18px">
+    <span class="eyebrow">Transaction history</span>
+    <h2>Mobile event ledger</h2>
+    <div class="summary-strip">
+      <span><strong><%= Number(eventSummary.events||0) %></strong> events</span>
+      <span><strong><%= Number(eventSummary.activations||0) %></strong> activations</span>
+      <span><strong><%= Number(eventSummary.upgrades||0) %></strong> upgrades</span>
+      <span><strong><%= Number(eventSummary.staff_matched||0) %></strong> staff matched</span>
+      <span><strong><%= Number(eventSummary.staff_unmapped||0) %></strong> staff code unresolved</span>
+    </div>
+    <form method="post" action="<%= basePath %>/backoffice/base-details/sync-events" style="margin-top:14px"><button class="btn">Synchronise activation & upgrade history</button></form>
+    <small>The ledger is idempotent by import row. Re-running refreshes links and staff mapping without duplicating events.</small>
+  </section>
+
+  <section class="card" style="margin-top:18px">
     <h2>Base Details batches</h2>
-    <p>Upload the Base Details XLSX through Data Import Centre. Then reconcile here. Staging writes only the dedicated current/snapshot layer; it does not create or overwrite CRM customers or accounts.</p>
+    <p>Upload the Base Details XLSX through Data Import Centre. Reconcile first. Staging writes only the dedicated current/snapshot layer and never creates or overwrites historical CRM client rows.</p>
     <% if (!batches.length) { %>
       <div class="empty-state compact"><strong>No Base Details batch uploaded yet</strong><p>Use Data Import Centre to upload the Vodacom Base Details workbook.</p></div>
     <% } %>
@@ -57,7 +88,7 @@
 
   <section class="card" style="margin-top:18px">
     <h2>Base Details exceptions</h2>
-    <p>These rows are deliberately not used to overwrite an existing CRM account link. The current network source is preserved while the relationship/history discrepancy remains visible for management review.</p>
+    <p>These rows are deliberately not used to overwrite an existing CRM account relationship. The current network source remains preserved while the history discrepancy stays visible for management review.</p>
     <% if (!conflicts.length) { %><div class="empty-state compact"><strong>No Base Details conflicts</strong></div><% } %>
     <% conflicts.forEach(row => { %>
       <article class="exception-card" style="margin-top:12px">
