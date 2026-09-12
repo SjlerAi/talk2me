@@ -90,30 +90,10 @@ jobs:
       - name: Configure Elitehost SSH
         run: bash scripts/setup-elitehost-ssh.sh
 
-      - name: Bootstrap isolated UI UAT deployment agent
+      - name: Verify permanent UI UAT deployment agent
         run: |
           set -Eeuo pipefail
-          ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" bash -s -- "$GITHUB_SHA" <<'REMOTE'
-          set -Eeuo pipefail
-          expected_sha="$1"
-          live_repo=/home/uent/repositories/talk2me
-          source_repo=/home/uent/repositories/talk2me-ui-uat
-          branch=uat/talk2me-ui-redesign
-          test -d "$live_repo/.git"
-          remote_url="$(git -C "$live_repo" remote get-url origin)"
-          if [ ! -d "$source_repo/.git" ]; then
-            rm -rf "$source_repo"
-            git clone "$remote_url" "$source_repo"
-          else
-            git -C "$source_repo" remote set-url origin "$remote_url"
-          fi
-          git -C "$source_repo" fetch origin "$expected_sha"
-          git -C "$source_repo" checkout -B "$branch" "$expected_sha"
-          git -C "$source_repo" reset --hard "$expected_sha"
-          test "$(git -C "$source_repo" rev-parse HEAD)" = "$expected_sha"
-          bash "$source_repo/scripts/install-talk2me-ui-uat-agent.sh"
-          /home/uent/bin/talk2me-ui-uat-agent --status
-          REMOTE
+          ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" 'test -x /home/uent/bin/talk2me-ui-uat-agent && test -x /home/uent/bin/talk2me-deploy-ui-uat && test -d /home/uent/.config/talk2me-ui-uat/inbox && test -d /home/uent/talk2me-ui-uat-deploy-control'
 
       - name: Transfer immutable artifact
         env:
