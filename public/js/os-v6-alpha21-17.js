@@ -7,38 +7,39 @@
   const appVersion = String(config.appVersion || '');
   let redirecting = false;
 
+  function addStylesheet(marker, href) {
+    if (document.querySelector(`link[${marker}]`)) return;
+    const stylesheet = document.createElement('link');
+    stylesheet.rel = 'stylesheet';
+    stylesheet.setAttribute(marker, '1');
+    stylesheet.href = href;
+    document.head.appendChild(stylesheet);
+  }
+
+  function addScript(marker, src, onload) {
+    if (document.querySelector(`script[${marker}]`)) {
+      if (typeof onload === 'function') onload();
+      return;
+    }
+    const script = document.createElement('script');
+    script.async = false;
+    script.setAttribute(marker, '1');
+    script.src = src;
+    if (typeof onload === 'function') script.addEventListener('load', onload, { once: true });
+    document.head.appendChild(script);
+  }
+
   function loadWorkflowAssets() {
-    if (!document.querySelector('link[data-task-workflow]')) {
-      const stylesheet = document.createElement('link');
-      stylesheet.rel = 'stylesheet';
-      stylesheet.dataset.taskWorkflow = '1';
-      stylesheet.href = `${basePath}/public/css/task-workflow.css?v=${encodeURIComponent(appVersion)}`;
-      document.head.appendChild(stylesheet);
-    }
-    if (!document.querySelector('script[data-task-workflow]')) {
-      const script = document.createElement('script');
-      script.defer = true;
-      script.dataset.taskWorkflow = '1';
-      script.src = `${basePath}/public/js/task-workflow-notifications.js?v=${encodeURIComponent(appVersion)}`;
-      document.head.appendChild(script);
-    }
+    addStylesheet('data-task-workflow', `${basePath}/public/css/task-workflow.css?v=${encodeURIComponent(appVersion)}`);
+    addScript('data-task-workflow', `${basePath}/public/js/task-workflow-notifications.js?v=${encodeURIComponent(appVersion)}`);
   }
 
   function loadUatProductivityAssets() {
-    if (!document.querySelector('link[data-uat-productivity]')) {
-      const stylesheet = document.createElement('link');
-      stylesheet.rel = 'stylesheet';
-      stylesheet.dataset.uatProductivity = '1';
-      stylesheet.href = `${basePath}/public/css/productivity-uat.css?v=${encodeURIComponent(appVersion)}`;
-      document.head.appendChild(stylesheet);
-    }
-    if (!document.querySelector('script[data-uat-productivity]')) {
-      const script = document.createElement('script');
-      script.defer = true;
-      script.dataset.uatProductivity = '1';
-      script.src = `${basePath}/public/js/productivity-uat.js?v=${encodeURIComponent(appVersion)}`;
-      document.head.appendChild(script);
-    }
+    addStylesheet('data-uat-productivity', `${basePath}/public/css/productivity-uat.css?v=${encodeURIComponent(appVersion)}`);
+    addStylesheet('data-calendar-home-uat', `${basePath}/public/css/calendar-home-uat.css?v=${encodeURIComponent(appVersion)}`);
+    addScript('data-uat-productivity', `${basePath}/public/js/productivity-uat.js?v=${encodeURIComponent(appVersion)}`, () => {
+      addScript('data-calendar-home-uat', `${basePath}/public/js/calendar-home-uat.js?v=${encodeURIComponent(appVersion)}`);
+    });
   }
 
   async function checkSession() {
