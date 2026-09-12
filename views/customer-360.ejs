@@ -13,4 +13,51 @@
 <section class="panel assignment-control"><div><div class="eyebrow">Client ownership</div><h2>Assigned Staff Member</h2><p><%= client.account_number?'This assignment applies to every mobile line on account '+client.account_number+'.':'This client has no account number, so the assignment applies to this client record.' %></p></div><% if(['owner','manager'].includes(currentUser.role)){ %><form method="post" action="<%= basePath %>/backoffice/clients/<%= client.id %>/assign"><input type="hidden" name="return_to" value="customer360"><select name="assigned_staff_id"><option value="">Unassigned</option><% assignmentStaff.forEach(s=>{ %><option value="<%= s.id %>" <%= Number(assignment?.id)===Number(s.id)?'selected':'' %>><%= s.full_name %> — <%= s.role %></option><% }) %></select><button class="btn primary" type="submit">Update Assignment</button></form><% } else { %><strong><%= assignment?.full_name||'Unassigned' %></strong><small>Only an owner or manager can change this assignment.</small><% } %></section>
 <section class="authority-card <%= client.account_authority_status==='confirmed'?'confirmed':'warning' %>"><div><span>Authorised Account Contact</span><h2><%= client.main_contact_name&&String(client.main_contact_name).toLowerCase()!=='null'?client.main_contact_name:'Not confirmed' %></h2><p><%= client.main_contact_number&&String(client.main_contact_number).toLowerCase()!=='null'?client.main_contact_number:'No authorised contact number' %></p></div><div><span>Authority</span><strong><%= client.account_authority_status==='confirmed'?'Confirmed':client.account_authority_status==='not_authorised'?'Not authorised':'Verification required' %></strong><a href="<%= basePath %>/customers/<%= client.id %>/propose-change">Request authority update</a></div></section>
 <section class="panel"><h2>Account Lines</h2><div class="table-wrap"><table class="data-table"><thead><tr><th>Line</th><th>User / Client</th><th>Package</th><th>Handset</th><th>Previous upgrade</th><th>Next upgrade</th><th>Status</th><th></th></tr></thead><tbody><% lines.forEach(x=>{ %><tr class="<%= x.id===client.id?'selected-line':'' %>"><td><strong><%= x.cell_number||'Unknown' %></strong></td><td><%= x.client_name %></td><td><%= x.package_name||'—' %></td><td><%= x.handset||'—' %></td><td><%= x.previous_upgrade_date?new Date(x.previous_upgrade_date).toLocaleDateString('en-ZA'):'—' %></td><td><strong><%= x.next_upgrade_date?new Date(x.next_upgrade_date).toLocaleDateString('en-ZA'):'—' %></strong></td><td><span class="status-pill <%= x.line_status %>"><%= x.line_status %></span></td><td><a href="<%= basePath %>/customers/<%= x.id %>/360">Open</a></td></tr><% }) %></tbody></table></div></section><% if(fixedAccounts&&fixedAccounts.length){ %><section class="panel"><div class="panel-heading-row"><div><div class="eyebrow">Same customer</div><h2>Fixed Services</h2></div><a class="btn primary" href="<%= basePath %>/fixed/accounts/<%= fixedAccounts[0].id %>">Open Fixed Customer 360</a></div><% fixedAccounts.forEach(a=>{ %><a class="mini-client" href="<%= basePath %>/fixed/accounts/<%= a.id %>"><div><strong><%= a.customer_name %></strong><small>Account <%= a.account_number %> · <%= a.fixed_service_count %> fixed service(s)</small></div><span class="search-type fixed">FIXED</span></a><% }) %></section><% } %>
+<section class="panel" id="base-details-current-panel" hidden><div class="panel-heading-row"><div><div class="eyebrow">Preserved source truth</div><h2>Current Vodacom / Base Details</h2><p>This information comes from the imported Base Details source and remains read-only. Use the normal Customer 360 controls above for CRM changes.</p></div></div><div id="base-details-current-lines"></div></section>
 <section class="command-grid"><div class="panel"><h2>Interaction History</h2><% history.forEach(i=>{ %><a class="timeline-item" href="<%= basePath %>/dashboard/inquiries/<%= i.id %>"><time><%= new Date(i.created_at).toLocaleString('en-ZA') %></time><strong><%= i.category_name||i.category_other||'Customer note' %> · <%= i.status %></strong><p><%= i.query_text||'No inquiry detail' %></p><% if(i.action_taken){ %><p><strong>Note:</strong> <%= i.action_taken %></p><% } %><small><%= i.responsible_name %></small></a><% }) %><% if(!history.length){ %><div class="empty-state">No CRM interactions recorded for this customer yet.</div><% } %></div><div class="panel"><div class="panel-heading-row"><h2>Related Tasks</h2><a class="btn primary" href="<%= basePath %>/tasks/new?client_id=<%= client.id %>&q=<%= encodeURIComponent(client.cell_number||client.account_number||client.email||client.client_name||'') %>">+ Add Task</a></div><% tasks.forEach(t=>{ %><a class="timeline-item" href="<%= basePath %>/tasks/<%= t.id %>"><time><%= new Date(t.created_at).toLocaleString('en-ZA') %></time><strong><%= t.title %></strong><p><%= t.message %></p><small><%= t.assigned_name %> · <%= t.status %></small></a><% }) %><% if(!tasks.length){ %><div class="empty-state">No related tasks.</div><% } %></div></section>
+<script>
+(()=>{
+  const panel=document.getElementById('base-details-current-panel');
+  const holder=document.getElementById('base-details-current-lines');
+  if(!panel||!holder)return;
+  const BASE=<%- JSON.stringify(basePath) %>;
+  const clientId=<%- JSON.stringify(client.id) %>;
+  const text=v=>v===null||v===undefined||String(v).trim()===''?'—':String(v);
+  const date=v=>{if(!v)return '—';const d=new Date(v);return Number.isNaN(d.getTime())?text(v):d.toLocaleDateString('en-ZA',{dateStyle:'medium'});};
+  const addField=(grid,label,value)=>{const box=document.createElement('div');const l=document.createElement('span');const s=document.createElement('strong');l.textContent=label;s.textContent=text(value);box.append(l,s);grid.appendChild(box);};
+  const addSection=(card,title,fields)=>{const h=document.createElement('h3');h.textContent=title;h.style.margin='16px 0 8px';card.appendChild(h);const grid=document.createElement('div');grid.className='answer-grid';fields.forEach(([label,value])=>addField(grid,label,value));card.appendChild(grid);};
+  fetch(`${BASE}/api/uat/customers/${clientId}/base-details`,{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'}})
+    .then(r=>r.ok?r.json():null)
+    .then(data=>{
+      if(!data||!data.ok||!Array.isArray(data.rows)||!data.rows.length)return;
+      panel.hidden=false;
+      data.rows.forEach((line,index)=>{
+        const card=document.createElement('article');
+        card.className='panel';
+        card.style.margin='12px 0 0';
+        const heading=document.createElement('div');heading.className='panel-heading-row';
+        const copy=document.createElement('div');const eyebrow=document.createElement('div');eyebrow.className='eyebrow';eyebrow.textContent=`Imported service ${index+1}`;
+        const h=document.createElement('h2');h.textContent=text(line.msisdn_original||line.msisdn_normalised);
+        const p=document.createElement('p');p.textContent=`Account ${text(line.account_code)} · ${text(line.account_name)}`;
+        copy.append(eyebrow,h,p);
+        const source=document.createElement('a');source.className='btn';source.href=`${BASE}/mobile-base/${line.id}?source=1`;source.textContent='View full source record';
+        heading.append(copy,source);card.appendChild(heading);
+        addSection(card,'Customer & account',[
+          ['Business unit',line.business_unit],['First name',line.first_name],['Surname',line.surname],['ID number',line.id_number],['Email',line.email_address],['Master account holder',line.master_account_holder]
+        ]);
+        addSection(card,'Contract, plan & device',[
+          ['Contract status',line.contract_status],['Contract period',line.contract_period],['Connection date',date(line.connection_date)],['Last active',date(line.last_active_date)],['Last upgrade',date(line.last_upgrade_date)],['Eligible upgrade',date(line.eligible_upgrade_date)],['Eligible flag',line.eligible_upgrade_flag],['Device',[line.device_manufacturer,line.device_name].filter(Boolean).join(' ')],['Price plan',line.price_plan],['Tariff',line.tariff_name],['Base dealer',line.base_dealer_name]
+        ]);
+        addSection(card,'Usage, revenue & risk',[
+          ['Subscription revenue excl VAT',line.subscription_revenue_excl_vat],['Revenue M1',line.customer_revenue_m1],['Revenue M2',line.customer_revenue_m2],['Revenue M3',line.customer_revenue_m3],['Data usage M1 MB',line.data_usage_m1_mb],['Data usage M2 MB',line.data_usage_m2_mb],['Data usage M3 MB',line.data_usage_m3_mb],['Account in arrears',line.account_in_arrears],['Churn risk',line.churn_risk_ind],['Portfolio score',line.portfolio_score]
+        ]);
+        addSection(card,'SIM & source history',[
+          ['SIM size',line.sim_size_description],['ICCID',line.icc_id],['IMSI',line.imsi],['Device insurance',line.device_insurance],['SIM insurance',line.sim_insurance],['Source snapshots',line.snapshot_count]
+        ]);
+        const recs=[line.recommendation_1,line.recommendation_2,line.recommendation_3,line.recommendation_4].filter(Boolean);
+        if(recs.length){const h3=document.createElement('h3');h3.textContent='Recommendations';h3.style.margin='16px 0 8px';card.appendChild(h3);recs.forEach((r,i)=>{const p=document.createElement('p');p.textContent=`${i+1}. ${r}`;card.appendChild(p);});}
+        holder.appendChild(card);
+      });
+    }).catch(()=>{});
+})();
+</script>
