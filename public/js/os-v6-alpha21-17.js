@@ -5,7 +5,7 @@
   const config = configNode ? JSON.parse(configNode.textContent || '{}') : {};
   const basePath = String(config.basePath || '');
   const appVersion = String(config.appVersion || '');
-  const uatAssetVersion = `${appVersion}-widgets-1`;
+  const uatAssetVersion = `${appVersion}-widgets-2`;
   let redirecting = false;
 
   function addStylesheet(marker, href) {
@@ -40,11 +40,14 @@
     addStylesheet('data-calendar-home-uat', `${basePath}/public/css/calendar-home-uat.css?v=${encodeURIComponent(uatAssetVersion)}`);
     addStylesheet('data-uat-responsive-polish', `${basePath}/public/css/uat-responsive-polish.css?v=${encodeURIComponent(uatAssetVersion)}`);
     addStylesheet('data-uat-work-widgets', `${basePath}/public/css/uat-work-widgets.css?v=${encodeURIComponent(uatAssetVersion)}`);
+    addStylesheet('data-uat-widget-polish', `${basePath}/public/css/uat-widget-polish.css?v=${encodeURIComponent(uatAssetVersion)}`);
     addScript('data-uat-responsive-polish', `${basePath}/public/js/uat-responsive-polish.js?v=${encodeURIComponent(uatAssetVersion)}`);
     addScript('data-uat-reminder-fix', `${basePath}/public/js/uat-reminder-dialog-fix.js?v=${encodeURIComponent(uatAssetVersion)}`);
     addScript('data-uat-productivity', `${basePath}/public/js/productivity-uat.js?v=${encodeURIComponent(uatAssetVersion)}`, () => {
       addScript('data-calendar-home-uat', `${basePath}/public/js/calendar-home-uat.js?v=${encodeURIComponent(uatAssetVersion)}`, () => {
-        addScript('data-uat-work-widgets', `${basePath}/public/js/uat-work-widgets.js?v=${encodeURIComponent(uatAssetVersion)}`);
+        addScript('data-uat-work-widgets', `${basePath}/public/js/uat-work-widgets.js?v=${encodeURIComponent(uatAssetVersion)}`, () => {
+          addScript('data-uat-widget-polish', `${basePath}/public/js/uat-widget-polish.js?v=${encodeURIComponent(uatAssetVersion)}`);
+        });
       });
     });
   }
