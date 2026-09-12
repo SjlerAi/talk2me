@@ -4,12 +4,14 @@
 <form method="post" action="<%= basePath %>/tasks" class="form-grid" id="taskForm">
 <% const fixed = typeof selectedFixed !== 'undefined' ? selectedFixed : null; %>
 <input type="hidden" name="related_fixed_account_id" value="<%= fixed?.id||'' %>">
-<label>Type<select name="type"><option value="task">Task — action required</option><option value="notification">Notification — information</option></select></label>
+<label>Type<select name="type" id="messageType"><option value="task">Task — action required</option><option value="notification">Notification — information</option></select></label>
 <label>Priority<select name="priority"><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></select></label>
 <label class="full">Send to<select name="assigned_to" required><option value="">Select recipient</option><% staff.forEach(s=>{ %><option value="<%= s.id %>"><%= s.full_name %> — <%= s.role.charAt(0).toUpperCase()+s.role.slice(1) %> — <%= s.email %></option><% }) %></select></label>
 <label class="full">Title<input name="title" maxlength="180" required></label>
-<label class="full">Message<textarea name="message" rows="6" required></textarea></label>
-<label>Due date and time<input type="datetime-local" name="due_at"></label>
+<label class="full">Message<textarea name="message" rows="6" required placeholder="Paste the WhatsApp message or type the instruction here."></textarea></label>
+<label class="full checkbox-row"><input type="checkbox" id="followUpMessage" value="1"> Follow up on this message</label>
+<div class="full selected-client" id="followUpHint" hidden><div class="selected-client-title">Tracked follow-up</div><small>This message will be saved as a task for the same staff member so you can see whether it has been completed.</small></div>
+<label id="dueDateField">Due date and time<input type="datetime-local" name="due_at" id="dueAt"></label>
 <% if(fixed){ %><div class="full selected-client"><div class="selected-client-title">✓ Related fixed account</div><strong><%= fixed.customer_name %></strong><br><small>Account <%= fixed.account_number %></small></div><% } %>
 
 <div class="full client-picker">
@@ -32,12 +34,33 @@
 </form></section>
 <script>
 (() => {
+  const form = document.getElementById('taskForm');
+  const typeSelect = document.getElementById('messageType');
+  const followUp = document.getElementById('followUpMessage');
+  const dueField = document.getElementById('dueDateField');
+  const dueAt = document.getElementById('dueAt');
+  const followUpHint = document.getElementById('followUpHint');
   const input = document.getElementById('clientSearch');
   const hidden = document.getElementById('relatedClientId');
   const results = document.getElementById('clientResults');
   const selected = document.getElementById('selectedClient');
   const caseSelect = document.getElementById('relatedCase');
   let timer;
+
+  function syncFollowUp() {
+    const tracking = followUp.checked;
+    const taskSelected = typeSelect.value === 'task';
+    dueField.hidden = !tracking && !taskSelected;
+    dueAt.required = tracking;
+    followUpHint.hidden = !tracking;
+  }
+
+  followUp.addEventListener('change', syncFollowUp);
+  typeSelect.addEventListener('change', syncFollowUp);
+  form.addEventListener('submit', () => {
+    if (followUp.checked) typeSelect.value = 'task';
+  });
+  syncFollowUp();
 
   function clearSelection() {
     hidden.value = '';
