@@ -129,6 +129,13 @@ router.get('/customers/:id/360', requireAuth, async (req, res, next) => {
       );
     }
 
+    // Emergency safety isolation: keep the Base Details Customer 360 contract present,
+    // but do not execute the new current-service/event joins while Customer 360 is being restored.
+    // Base tables and standalone Base Details screens remain untouched and available.
+    const currentMobileServices = [];
+    const mobileEvents = [];
+    const currentMobileDataReady = false;
+
     res.render('customer-360', {
       title: client.client_name || 'Customer Workspace',
       client,
@@ -141,6 +148,9 @@ router.get('/customers/:id/360', requireAuth, async (req, res, next) => {
       pendingClaim: pendingClaim || null,
       pendingAccountRequest: pendingAccountRequest || null,
       fixedAccounts,
+      currentMobileDataReady,
+      currentMobileServices,
+      mobileEvents,
       assigned: req.query.assigned,
       claimRequested: req.query.claim_requested,
       claimConflict: req.query.claim_conflict,
