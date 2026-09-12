@@ -3,7 +3,7 @@
 const express = require('express');
 const db = require('../config/db');
 const { requireAuth } = require('../middleware/auth');
-const { normaliseSouthAfricanMobile } = require('../services/sa-phone-normalisation');
+const { normaliseSouthAfricanMobile, formatSouthAfricanMobile } = require('../services/sa-phone-normalisation');
 const { materializeBaseAccount } = require('../services/base-details-client-materializer');
 
 const router = express.Router();
@@ -42,7 +42,7 @@ router.get('/search/all', requireAuth, async (req, res, next) => {
     const q = String(req.query.q || '').trim();
     if (q.length < 2) return res.json([]);
     const like = `%${q}%`;
-    const phone = normaliseSouthAfricanMobile(q);
+    const phone = normaliseSouthAfricanMobile(q) || null;
 
     const [mobile] = await db.execute(`
       SELECT c.id,c.account_number,c.client_name,c.cell_number,c.email,c.handset,c.package_name,
@@ -66,12 +66,7 @@ router.get('/search/all', requireAuth, async (req, res, next) => {
           'mobile_base' record_type,
           mb.client_id,mb.account_id,mb.icc_id,mb.imsi
         FROM mobile_base_current mb
-        WHERE mb.client_id IS NULL
-          AND NOT EXISTS (
-            SELECT 1 FROM clients c2
-            WHERE c2.cell_number_normalised=mb.msisdn_normalised
-          )
-          AND (
+        WHERE (
             (:phone IS NOT NULL AND mb.msisdn_normalised=:phone)
             OR mb.msisdn_original LIKE :like OR mb.account_code LIKE :like OR mb.account_name LIKE :like
             OR mb.first_name LIKE :like OR mb.surname LIKE :like OR mb.email_address LIKE :like
@@ -97,9 +92,22 @@ router.get('/search/all', requireAuth, async (req, res, next) => {
       LIMIT 12
     `, { phone, like });
 
+    const crmRows = mobile.map(row => ({ ...row, url: `${res.locals.basePath}/customers/${row.id}/360` }));
+    const seenPhones = new Set(crmRows.map(row => normaliseSouthAfricanMobile(row.cell_number)).filter(Boolean));
+
+    const baseRows = currentBase
+      .filter(row => !row.client_id || !seenPhones.has(normaliseSouthAfricanMobile(row.cell_number)))
+      .map(row => ({
+        ...row,
+        cell_number: formatSouthAfricanMobile(row.cell_number),
+        url: row.client_id
+          ? `${res.locals.basePath}/customers/${row.client_id}/360`
+          : `${res.locals.basePath}/mobile-base/${row.id}`
+      }));
+
     const rows = [
-      ...mobile.map(row => ({ ...row, url: `${res.locals.basePath}/customers/${row.id}/360` })),
-      ...currentBase.map(row => ({ ...row, url: `${res.locals.basePath}/mobile-base/${row.id}` })),
+      ...crmRows,
+      ...baseRows,
       ...fixed.map(row => ({ ...row, url: `${res.locals.basePath}/fixed/accounts/${row.id}` }))
     ];
     return res.json(rows.slice(0, 20));
@@ -123,6 +131,10 @@ router.get('/api/uat/customers/:id/base-details', requireAuth, async (req, res, 
     if (client.account_id) {
       clauses.push('mb.account_id=:accountId');
       params.accountId = Number(client.account_id);
+    }
+    if (client.account_number) {
+      clauses.push('mb.account_code=:accountCode');
+      params.accountCode = String(client.account_number).trim();
     }
     if (client.cell_number_normalised) {
       clauses.push('mb.msisdn_normalised=:phone');

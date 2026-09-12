@@ -1,6 +1,7 @@
 'use strict';
 
 const db = require('../config/db');
+const { formatSouthAfricanMobile } = require('./sa-phone-normalisation');
 
 function clean(value, max = 255) {
   const text = String(value ?? '').trim();
@@ -17,23 +18,25 @@ function lineStatus(value) {
   return /cancel|terminat|disconnect/i.test(String(value || '')) ? 'cancelled' : 'active';
 }
 
-function baseClientValues(line, userId) {
+function baseClientValues(line, userId, fallbackAccountId = null) {
   const fullName = clean([line.first_name, line.surname].filter(Boolean).join(' '), 255);
   const accountName = clean(line.account_name, 255);
   const clientName = accountName || fullName || clean(line.msisdn_original || line.msisdn_normalised, 255) || 'Imported customer';
   const handset = clean([line.device_manufacturer, line.device_name].filter(Boolean).join(' '), 255);
   const packageName = clean(line.tariff_name || line.price_plan, 255);
   const term = contractTerm(line.contract_period);
+  const canonicalPhone = clean(line.msisdn_normalised, 20);
+  const displayPhone = clean(formatSouthAfricanMobile(canonicalPhone || line.msisdn_original), 30);
 
   return {
-    accountId: line.account_id ? Number(line.account_id) : null,
+    accountId: line.account_id ? Number(line.account_id) : (fallbackAccountId ? Number(fallbackAccountId) : null),
     accountNumber: clean(line.account_code, 120),
     firstName: clean(line.first_name, 120),
     surname: clean(line.surname, 120),
     companyName: accountName,
     clientName,
-    cellNumber: clean(line.msisdn_original || line.msisdn_normalised, 30),
-    phone: clean(line.msisdn_normalised, 20),
+    cellNumber: displayPhone,
+    phone: canonicalPhone,
     email: clean(line.email_address, 180),
     idNumber: clean(line.id_number, 80),
     packageName,
@@ -54,6 +57,16 @@ async function updateExistingClient(connection, clientId, values) {
       first_name=CASE WHEN first_name IS NULL OR TRIM(first_name)='' THEN :firstName ELSE first_name END,
       surname=CASE WHEN surname IS NULL OR TRIM(surname)='' THEN :surname ELSE surname END,
       company_name=CASE WHEN company_name IS NULL OR TRIM(company_name)='' THEN :companyName ELSE company_name END,
+      cell_number=CASE
+        WHEN lead_source='Base Details import' THEN :cellNumber
+        WHEN cell_number IS NULL OR TRIM(cell_number)='' THEN :cellNumber
+        WHEN REPLACE(TRIM(cell_number),'+','')=:phone THEN :cellNumber
+        ELSE cell_number
+      END,
+      cell_number_normalised=CASE
+        WHEN cell_number_normalised IS NULL OR TRIM(cell_number_normalised)='' THEN :phone
+        ELSE cell_number_normalised
+      END,
       email=CASE WHEN email IS NULL OR TRIM(email)='' THEN :email ELSE email END,
       id_number=CASE WHEN id_number IS NULL OR TRIM(id_number)='' THEN :idNumber ELSE id_number END,
       package_name=CASE WHEN package_name IS NULL OR TRIM(package_name)='' THEN :packageName ELSE package_name END,
@@ -103,8 +116,10 @@ async function materializeBaseAccount({ baseId, userId = null } = {}) {
     let lines;
     if (target.account_id) {
       [lines] = await connection.execute(
-        'SELECT * FROM mobile_base_current WHERE account_id=:accountId ORDER BY id FOR UPDATE',
-        { accountId: target.account_id }
+        `SELECT * FROM mobile_base_current
+         WHERE account_id=:accountId OR account_code=:accountCode
+         ORDER BY id FOR UPDATE`,
+        { accountId: target.account_id, accountCode: target.account_code }
       );
     } else {
       [lines] = await connection.execute(
@@ -119,7 +134,7 @@ async function materializeBaseAccount({ baseId, userId = null } = {}) {
     const materialized = [];
 
     for (const line of lines) {
-      const values = baseClientValues(line, userId);
+      const values = baseClientValues(line, userId, target.account_id || null);
       if (!values.phone) continue;
 
       let clientId = line.client_id ? Number(line.client_id) : null;
@@ -152,9 +167,11 @@ async function materializeBaseAccount({ baseId, userId = null } = {}) {
 
       await connection.execute(
         `UPDATE mobile_base_current
-         SET client_id=:clientId,updated_at=CURRENT_TIMESTAMP
+         SET client_id=:clientId,
+             account_id=COALESCE(account_id,:accountId),
+             updated_at=CURRENT_TIMESTAMP
          WHERE id=:baseId`,
-        { clientId, baseId: line.id }
+        { clientId, accountId: values.accountId, baseId: line.id }
       );
 
       await connection.execute(
@@ -166,7 +183,7 @@ async function materializeBaseAccount({ baseId, userId = null } = {}) {
         { clientId, accountId: values.accountId, baseId: line.id, phone: values.phone }
       );
 
-      materialized.push({ baseId: Number(line.id), clientId, phone: values.phone });
+      materialized.push({ baseId: Number(line.id), clientId, phone: values.phone, accountCode: line.account_code });
       if (Number(line.id) === id) targetClientId = clientId;
     }
 
@@ -180,8 +197,8 @@ async function materializeBaseAccount({ baseId, userId = null } = {}) {
     `, {
       userId: Number(userId) || null,
       baseId: id,
-      description: `Imported Base Details account opened in CRM: ${createdCount} CRM line(s) created and ${linkedExistingCount} existing line(s) linked without changing source snapshots.`,
-      afterJson: JSON.stringify({ targetClientId, createdCount, linkedExistingCount, materialized })
+      description: `Imported Base Details account opened in CRM: ${createdCount} CRM line(s) created and ${linkedExistingCount} existing line(s) linked across the full Base account without changing source snapshots.`,
+      afterJson: JSON.stringify({ targetClientId, createdCount, linkedExistingCount, accountCode: target.account_code, materialized })
     });
 
     await connection.commit();
