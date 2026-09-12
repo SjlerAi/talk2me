@@ -5,6 +5,10 @@ document.addEventListener('DOMContentLoaded',()=>{
   const primary=actions.querySelector('a');
   let mobile=null;
   const panelSuffix=new URLSearchParams(location.search).get('panel')==='1'?'?panel=1':'';
+  document.querySelectorAll(`a[href*="/customers/${match[1]}/notes/new"]`).forEach(link=>{
+    link.target='_blank';
+    link.rel='noopener';
+  });
   if(!labels.includes('add mobile line')){mobile=document.createElement('a');mobile.className='btn opportunity';mobile.href=`${location.pathname.replace(/\/360\/?$/,'')}/add-mobile${panelSuffix}`;mobile.textContent='Add Mobile Line';actions.insertBefore(mobile,primary?.nextSibling||actions.firstChild)}
   if(!labels.includes('add fixed service')){const fixed=document.createElement('a');fixed.className='btn opportunity';fixed.href=`${location.pathname.replace(/\/360\/?$/,'')}/add-fixed${panelSuffix}`;fixed.textContent='Add Fixed Service';actions.insertBefore(fixed,mobile?.nextSibling||primary?.nextSibling||actions.firstChild)}
 });
