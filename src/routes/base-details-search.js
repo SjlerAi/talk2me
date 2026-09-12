@@ -6,6 +6,7 @@ const { requireAuth } = require('../middleware/auth');
 const { normaliseSouthAfricanMobile } = require('../services/sa-phone-normalisation');
 
 const router = express.Router();
+const IS_UAT = String(process.env.UAT_MODE || '').trim().toLowerCase() === 'true';
 
 async function baseSchemaReady() {
   const [[row]] = await db.query(`
@@ -24,6 +25,15 @@ async function safeSection(label, fallback, loader, warnings) {
     warnings.push(label);
     return fallback;
   }
+}
+
+function safeDiagnostic(error) {
+  const code = String(error?.code || 'ERROR').replace(/[^A-Z0-9_-]/gi, '').slice(0, 40);
+  const message = String(error?.message || 'Unknown route failure')
+    .replace(/\s+/g, ' ')
+    .replace(/\/home\/[^\s]+/g, '[server-path]')
+    .slice(0, 220);
+  return `${code}: ${message}`;
 }
 
 router.get('/search/all', requireAuth, async (req, res, next) => {
@@ -101,8 +111,6 @@ router.get('/mobile-base/:id', requireAuth, async (req, res, next) => {
     const id = Number(req.params.id);
     if (!Number.isSafeInteger(id) || id < 1) return res.status(400).render('error', { title: 'Invalid mobile service', message: 'Select a valid current mobile service.' });
 
-    // The Base line itself is the only fatal dependency. Linked CRM/account/history
-    // data must never stop a valid current Vodacom service from opening.
     const [[line]] = await db.execute(`SELECT * FROM mobile_base_current WHERE id=:id LIMIT 1`, { id });
     if (!line) return res.status(404).render('error', { title: 'Current mobile service not found', message: 'This current Base Details service line does not exist.' });
 
@@ -156,6 +164,17 @@ router.get('/mobile-base/:id', requireAuth, async (req, res, next) => {
     console.error(`[MobileBase ${req.params.id}] fatal open failure:`, error.code || '', error.message || error);
     next(error);
   }
+});
+
+router.use((error, req, res, next) => {
+  if (!IS_UAT) return next(error);
+  console.error('[MobileBase UAT route diagnostic]', error);
+  if (res.headersSent) return next(error);
+  return res.status(500).render('error', {
+    title: 'Customer open error',
+    message: 'The customer was found, but the Vodacom/Base customer record could not be opened.',
+    diagnostic: safeDiagnostic(error)
+  });
 });
 
 module.exports = router;
