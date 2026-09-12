@@ -4,6 +4,7 @@ const express = require('express');
 const db = require('../config/db');
 const { requireAuth } = require('../middleware/auth');
 const { normaliseSouthAfricanMobile } = require('../services/sa-phone-normalisation');
+const { materializeBaseAccount } = require('../services/base-details-client-materializer');
 
 const router = express.Router();
 const IS_UAT = String(process.env.UAT_MODE || '').trim().toLowerCase() === 'true';
@@ -110,6 +111,11 @@ router.get('/mobile-base/:id', requireAuth, async (req, res, next) => {
     if (!await baseSchemaReady()) return res.status(404).render('error', { title: 'Current mobile service unavailable', message: 'The Base Details service layer is not installed.' });
     const id = Number(req.params.id);
     if (!Number.isSafeInteger(id) || id < 1) return res.status(400).render('error', { title: 'Invalid mobile service', message: 'Select a valid current mobile service.' });
+
+    if (IS_UAT && String(req.query.source || '') !== '1') {
+      const result = await materializeBaseAccount({ baseId: id, userId: req.session.user.id });
+      return res.redirect(`${res.locals.basePath}/customers/${result.clientId}/360?base_linked=1`);
+    }
 
     const [[line]] = await db.execute(`SELECT * FROM mobile_base_current WHERE id=:id LIMIT 1`, { id });
     if (!line) return res.status(404).render('error', { title: 'Current mobile service not found', message: 'This current Base Details service line does not exist.' });
