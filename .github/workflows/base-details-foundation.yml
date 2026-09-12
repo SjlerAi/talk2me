@@ -76,7 +76,7 @@ jobs:
         run: |
           grep -q "currentMobileServices" src/routes/customer-360-safe.js
           grep -q "mobileEvents" src/routes/customer-360-safe.js
-          grep -q "partials/customer-mobile-current" views/customer-360.ejs
+          ! grep -Fq "include('partials/customer-mobile-current')" views/customer-360.ejs
           grep -q "Current Mobile Service" views/partials/customer-mobile-current.ejs
           grep -q "Activation & Upgrade History" views/partials/customer-mobile-current.ejs
       - name: Guard universal current-base search
