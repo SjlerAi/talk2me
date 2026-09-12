@@ -10,8 +10,19 @@ const MOBILE_PHONE_FIELDS = Object.freeze([
 
 function normaliseSouthAfricanMobile(value) {
   let digits = String(value ?? '').trim().replace(/^\+/, '').replace(/\D/g, '');
-  if (/^0\d{9}$/.test(digits)) digits = `27${digits.slice(1)}`;
+
+  // Be forgiving with imported numbers that users may type as 0 + 27xxxxxxxxx.
+  // Canonical storage/search remains 27xxxxxxxxx.
+  if (/^027[6-8]\d{8}$/.test(digits)) digits = digits.slice(1);
+  if (/^0[6-8]\d{8}$/.test(digits)) digits = `27${digits.slice(1)}`;
+  if (/^[6-8]\d{8}$/.test(digits)) digits = `27${digits}`;
+
   return /^27[6-8]\d{8}$/.test(digits) ? digits : '';
 }
 
-module.exports = { normaliseSouthAfricanMobile, MOBILE_PHONE_FIELDS };
+function formatSouthAfricanMobile(value) {
+  const normalised = normaliseSouthAfricanMobile(value);
+  return normalised ? `0${normalised.slice(2)}` : String(value ?? '').trim();
+}
+
+module.exports = { normaliseSouthAfricanMobile, formatSouthAfricanMobile, MOBILE_PHONE_FIELDS };
