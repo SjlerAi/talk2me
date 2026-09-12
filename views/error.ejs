@@ -1,1 +1,8 @@
-<div class="panel"><h1><%= title %></h1><p><%= message %></p><a class="btn" href="<%= basePath %>/dashboard">Dashboard</a></div>
+<div class="panel">
+  <h1><%= title %></h1>
+  <p><%= message %></p>
+  <% if (typeof diagnostic !== 'undefined' && diagnostic) { %>
+    <div class="warning-box" style="margin:14px 0"><strong>UAT diagnostic:</strong> <%= diagnostic %></div>
+  <% } %>
+  <a class="btn" href="<%= basePath %>/dashboard">Dashboard</a>
+</div>
