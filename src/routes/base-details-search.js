@@ -9,6 +9,10 @@ const { materializeBaseAccount } = require('../services/base-details-client-mate
 const router = express.Router();
 const IS_UAT = String(process.env.UAT_MODE || '').trim().toLowerCase() === 'true';
 
+function accountKey(value) {
+  return String(value || '').trim().toUpperCase();
+}
+
 async function baseSchemaReady() {
   const [[row]] = await db.query(`
     SELECT COUNT(*) AS total
@@ -43,17 +47,26 @@ router.get('/search/all', requireAuth, async (req, res, next) => {
     if (q.length < 2) return res.json([]);
     const like = `%${q}%`;
     const phone = normaliseSouthAfricanMobile(q) || null;
+    const phoneLocal = phone ? `0${phone.slice(2)}` : null;
 
     const [mobile] = await db.execute(`
       SELECT c.id,c.account_number,c.client_name,c.cell_number,c.email,c.handset,c.package_name,
         'mobile' record_type
       FROM clients c
-      WHERE (:phone IS NOT NULL AND c.cell_number_normalised=:phone)
+      WHERE (
+          :phone IS NOT NULL AND (
+            c.cell_number_normalised=:phone
+            OR REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(TRIM(COALESCE(c.cell_number,'')),'+',''),' ',''),'-',''),'(',''),')','') IN (:phone,:phoneLocal)
+          )
+        )
          OR c.client_name LIKE :like OR c.cell_number LIKE :like OR c.email LIKE :like
          OR c.account_number LIKE :like OR c.id_number LIKE :like
-      ORDER BY CASE WHEN :phone IS NOT NULL AND c.cell_number_normalised=:phone THEN 0 ELSE 1 END,c.client_name
+      ORDER BY CASE WHEN :phone IS NOT NULL AND (
+        c.cell_number_normalised=:phone
+        OR REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(TRIM(COALESCE(c.cell_number,'')),'+',''),' ',''),'-',''),'(',''),')','') IN (:phone,:phoneLocal)
+      ) THEN 0 ELSE 1 END,c.client_name
       LIMIT 12
-    `, { phone, like });
+    `, { phone, phoneLocal, like });
 
     let currentBase = [];
     if (await baseSchemaReady()) {
@@ -64,18 +77,35 @@ router.get('/search/all', requireAuth, async (req, res, next) => {
           NULLIF(TRIM(CONCAT_WS(' ',mb.device_manufacturer,mb.device_name)),'') handset,
           COALESCE(NULLIF(TRIM(mb.tariff_name),''),NULLIF(TRIM(mb.price_plan),'')) package_name,
           'mobile_base' record_type,
-          mb.client_id,mb.account_id,mb.icc_id,mb.imsi
+          mb.client_id,mb.account_id,mb.icc_id,mb.imsi,
+          COALESCE(
+            mb.client_id,
+            (
+              SELECT c3.id
+              FROM clients c3
+              WHERE NULLIF(TRIM(c3.account_number),'') IS NOT NULL
+                AND TRIM(c3.account_number)=TRIM(mb.account_code)
+              ORDER BY (c3.cell_number_normalised=mb.msisdn_normalised) DESC,c3.is_active DESC,c3.id ASC
+              LIMIT 1
+            )
+          ) resolved_client_id
         FROM mobile_base_current mb
         WHERE (
-            (:phone IS NOT NULL AND mb.msisdn_normalised=:phone)
+            (:phone IS NOT NULL AND (
+              mb.msisdn_normalised=:phone
+              OR REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(TRIM(COALESCE(mb.msisdn_original,'')),'+',''),' ',''),'-',''),'(',''),')','') IN (:phone,:phoneLocal)
+            ))
             OR mb.msisdn_original LIKE :like OR mb.account_code LIKE :like OR mb.account_name LIKE :like
             OR mb.first_name LIKE :like OR mb.surname LIKE :like OR mb.email_address LIKE :like
             OR mb.id_number LIKE :like OR mb.icc_id LIKE :like OR mb.imsi LIKE :like
           )
-        ORDER BY CASE WHEN :phone IS NOT NULL AND mb.msisdn_normalised=:phone THEN 0 ELSE 1 END,
+        ORDER BY CASE WHEN :phone IS NOT NULL AND (
+          mb.msisdn_normalised=:phone
+          OR REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(TRIM(COALESCE(mb.msisdn_original,'')),'+',''),' ',''),'-',''),'(',''),')','') IN (:phone,:phoneLocal)
+        ) THEN 0 ELSE 1 END,
           mb.account_name,mb.msisdn_normalised
         LIMIT 12
-      `, { phone, like });
+      `, { phone, phoneLocal, like });
     }
 
     const [fixed] = await db.execute(`
@@ -84,26 +114,50 @@ router.get('/search/all', requireAuth, async (req, res, next) => {
         fs.id fixed_service_id,fs.branch_name,fs.solution_id,fs.order_number,'fixed' record_type
       FROM fixed_accounts fa
       LEFT JOIN fixed_services fs ON fs.fixed_account_id=fa.id
-      WHERE (:phone IS NOT NULL AND fa.contact_number_normalised=:phone)
+      WHERE (:phone IS NOT NULL AND (
+          fa.contact_number_normalised=:phone
+          OR REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(TRIM(COALESCE(fa.contact_number,'')),'+',''),' ',''),'-',''),'(',''),')','') IN (:phone,:phoneLocal)
+        ))
          OR fa.customer_name LIKE :like OR fa.contact_name LIKE :like OR fa.contact_number LIKE :like
          OR fa.email LIKE :like OR fa.account_number LIKE :like OR fs.branch_name LIKE :like
          OR fs.solution_id LIKE :like OR fs.order_number LIKE :like OR fs.sim_number LIKE :like OR fs.mac_address LIKE :like
       ORDER BY fa.customer_name,fs.branch_name
       LIMIT 12
-    `, { phone, like });
+    `, { phone, phoneLocal, like });
 
     const crmRows = mobile.map(row => ({ ...row, url: `${res.locals.basePath}/customers/${row.id}/360` }));
+    const crmClientIds = new Set(crmRows.map(row => Number(row.id)).filter(Number.isSafeInteger));
+    const crmAccounts = new Set(crmRows.map(row => accountKey(row.account_number)).filter(Boolean));
     const seenPhones = new Set(crmRows.map(row => normaliseSouthAfricanMobile(row.cell_number)).filter(Boolean));
+    const seenBaseTargets = new Set();
+    const baseRows = [];
 
-    const baseRows = currentBase
-      .filter(row => !row.client_id || !seenPhones.has(normaliseSouthAfricanMobile(row.cell_number)))
-      .map(row => ({
+    for (const row of currentBase) {
+      const resolvedClientId = Number(row.resolved_client_id || 0) || null;
+      const key = accountKey(row.account_number);
+      const rowPhone = normaliseSouthAfricanMobile(row.cell_number);
+
+      if (resolvedClientId && (crmClientIds.has(resolvedClientId) || (key && crmAccounts.has(key)))) continue;
+      if (!resolvedClientId && rowPhone && seenPhones.has(rowPhone)) continue;
+
+      const targetKey = resolvedClientId
+        ? `client:${resolvedClientId}`
+        : key
+          ? `base-account:${key}`
+          : `base:${row.id}`;
+      if (seenBaseTargets.has(targetKey)) continue;
+      seenBaseTargets.add(targetKey);
+
+      baseRows.push({
         ...row,
+        id: resolvedClientId || row.id,
+        record_type: resolvedClientId ? 'mobile' : 'mobile_base',
         cell_number: formatSouthAfricanMobile(row.cell_number),
-        url: row.client_id
-          ? `${res.locals.basePath}/customers/${row.client_id}/360`
+        url: resolvedClientId
+          ? `${res.locals.basePath}/customers/${resolvedClientId}/360`
           : `${res.locals.basePath}/mobile-base/${row.id}`
-      }));
+      });
+    }
 
     const rows = [
       ...crmRows,
