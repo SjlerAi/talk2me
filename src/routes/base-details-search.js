@@ -106,6 +106,42 @@ router.get('/search/all', requireAuth, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+router.get('/api/uat/customers/:id/base-details', requireAuth, async (req, res, next) => {
+  try {
+    if (!IS_UAT || !await baseSchemaReady()) return res.status(404).json({ ok: false, error: 'Base Details UAT view is unavailable.' });
+    const clientId = Number(req.params.id);
+    if (!Number.isSafeInteger(clientId) || clientId < 1) return res.status(400).json({ ok: false, error: 'Invalid customer.' });
+
+    const [[client]] = await db.execute(
+      'SELECT id,account_id,account_number,cell_number_normalised FROM clients WHERE id=:id LIMIT 1',
+      { id: clientId }
+    );
+    if (!client) return res.status(404).json({ ok: false, error: 'Customer not found.' });
+
+    const clauses = ['mb.client_id=:clientId'];
+    const params = { clientId };
+    if (client.account_id) {
+      clauses.push('mb.account_id=:accountId');
+      params.accountId = Number(client.account_id);
+    }
+    if (client.cell_number_normalised) {
+      clauses.push('mb.msisdn_normalised=:phone');
+      params.phone = client.cell_number_normalised;
+    }
+
+    const [rows] = await db.execute(`
+      SELECT mb.*,
+        (SELECT COUNT(*) FROM mobile_base_snapshots s WHERE s.mobile_base_current_id=mb.id) snapshot_count
+      FROM mobile_base_current mb
+      WHERE ${clauses.join(' OR ')}
+      ORDER BY mb.msisdn_normalised,mb.id
+      LIMIT 100
+    `, params);
+
+    return res.json({ ok: true, rows });
+  } catch (error) { next(error); }
+});
+
 router.get('/mobile-base/:id', requireAuth, async (req, res, next) => {
   try {
     if (!await baseSchemaReady()) return res.status(404).render('error', { title: 'Current mobile service unavailable', message: 'The Base Details service layer is not installed.' });
