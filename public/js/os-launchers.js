@@ -73,6 +73,28 @@
     setTimeout(() => node.remove(), 4200);
   }
 
+  function openInternalRoute(payload) {
+    let url;
+    try { url = new URL(payload?.url || '', window.location.href); } catch (_) { return; }
+    if (url.origin !== window.location.origin) return;
+    url.searchParams.delete('panel');
+
+    const title = String(payload?.title || 'Talk2Me').trim().replace(/\s+/g, ' ').slice(0, 90) || 'Talk2Me';
+    const icon = String(payload?.icon || 'C').trim().slice(0, 4) || 'C';
+    const routeKey = `${url.pathname}${url.search}`;
+
+    windows.open({
+      id: `route:${routeKey}`,
+      appKey: 'route',
+      title,
+      icon,
+      subtitle: 'Talk2Me application',
+      url: url.href,
+      width: 1100,
+      height: 690
+    });
+  }
+
   function windowName(key) {
     return `talk2me-companion-${String(key).replace(/[^a-z0-9_-]/gi, '-')}`;
   }
@@ -251,6 +273,10 @@
 
   window.addEventListener('message', event => {
     if (event.origin !== window.location.origin) return;
+    if (event.data?.type === 'talk2me:open-route') {
+      openInternalRoute(event.data);
+      return;
+    }
     if (event.data?.type === 'talk2me:launcher-settings-saved') refreshManagedLaunchers();
   });
 
