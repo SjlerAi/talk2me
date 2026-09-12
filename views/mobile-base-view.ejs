@@ -7,6 +7,10 @@
   <% if (line.client_id) { %><a class="btn primary" href="<%= basePath %>/customers/<%= line.client_id %>/360">Open CRM Customer</a><% } %>
 </section>
 
+<% if (typeof sectionWarnings !== 'undefined' && sectionWarnings && sectionWarnings.length) { %>
+<div class="warning-box"><strong>UAT data warning:</strong> The current Vodacom service opened, but the following linked sections could not be loaded: <%= sectionWarnings.join(', ') %>. The core service record remains available.</div>
+<% } %>
+
 <div class="phase-notice">
   <strong>Vodacom current-service record</strong>
   <p>This screen is read-only. It shows the latest Base Details service truth without creating or overwriting historical CRM customer records.</p>
