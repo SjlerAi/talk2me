@@ -1,9 +1,6 @@
 name: Deploy Talk2Me UI UAT
 
 on:
-  push:
-    branches:
-      - uat/talk2me-ui-redesign
   workflow_dispatch:
 
 permissions:
@@ -43,6 +40,8 @@ jobs:
           npm ci --no-audit --no-fund
           node --check src/routes/calendar-productivity.js
           node --check public/js/productivity-uat.js
+          node --check src/routes/uat-work-widgets.js
+          node --check public/js/uat-work-widgets.js
           npm run check
 
       - name: Build immutable UI UAT artifact
@@ -89,6 +88,12 @@ jobs:
 
       - name: Configure Elitehost SSH
         run: bash scripts/setup-elitehost-ssh.sh
+
+      - name: Refresh lean permanent UI UAT deployment scripts
+        run: |
+          set -Eeuo pipefail
+          scp -P "$SSH_PORT" scripts/talk2me-ui-uat-agent.sh scripts/deploy-ui-uat-artifact.sh "$SSH_USER@$SSH_HOST:/home/uent/.config/talk2me-ui-uat/"
+          ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" 'set -eu; install -m 700 /home/uent/.config/talk2me-ui-uat/talk2me-ui-uat-agent.sh /home/uent/bin/talk2me-ui-uat-agent; install -m 700 /home/uent/.config/talk2me-ui-uat/deploy-ui-uat-artifact.sh /home/uent/bin/talk2me-deploy-ui-uat; tmp=/home/uent/.talk2me-ui-uat-deploy/cron.new; (crontab -l 2>/dev/null || true) | grep -Fv "talk2me-ui-uat-deploy-agent" > "$tmp" || true; printf "%s\n" "*/5 * * * * /home/uent/bin/talk2me-ui-uat-agent >> /home/uent/.talk2me-ui-uat-deploy/cron.log 2>&1 # talk2me-ui-uat-deploy-agent" >> "$tmp"; crontab "$tmp"; rm -f "$tmp"'
 
       - name: Verify permanent UI UAT deployment agent
         run: |
@@ -147,29 +152,32 @@ jobs:
             health="$(curl -LfsS --connect-timeout 10 --max-time 20 "$SITE_URL/api/health" 2>/dev/null || true)"
             release="$(curl -LfsS --connect-timeout 10 --max-time 20 "$SITE_URL/api/release" 2>/dev/null || true)"
             productivity="$(curl -LfsS --connect-timeout 10 --max-time 20 "$SITE_URL/api/productivity/health" 2>/dev/null || true)"
-            if HEALTH="$health" RELEASE="$release" PRODUCTIVITY="$productivity" EXPECTED_COMMIT="$GITHUB_SHA" EXPECTED_RUN_ID="$GITHUB_RUN_ID" node <<'NODE'
+            widgets="$(curl -LfsS --connect-timeout 10 --max-time 20 "$SITE_URL/api/uat/widgets/health" 2>/dev/null || true)"
+            if HEALTH="$health" RELEASE="$release" PRODUCTIVITY="$productivity" WIDGETS="$widgets" EXPECTED_COMMIT="$GITHUB_SHA" EXPECTED_RUN_ID="$GITHUB_RUN_ID" node <<'NODE'
           const h = JSON.parse(process.env.HEALTH || '{}');
           const r = JSON.parse(process.env.RELEASE || '{}');
           const p = JSON.parse(process.env.PRODUCTIVITY || '{}');
+          const w = JSON.parse(process.env.WIDGETS || '{}');
           if (h.status !== 'ok' || h.database !== 'connected' || h.environment !== 'uat') process.exit(1);
           if (r.environment !== 'uat' || r.commit !== process.env.EXPECTED_COMMIT || String(r.workflowRunId) !== String(process.env.EXPECTED_RUN_ID)) process.exit(1);
           if (p.status !== 'ok' || p.environment !== 'uat' || p.database !== 'connected' || p.scratchpad !== true || p.calendar !== true) process.exit(1);
-          console.log(JSON.stringify({health:h, release:r, productivity:p}, null, 2));
+          if (w.status !== 'ok' || w.environment !== 'uat' || w.chat !== true || w.tasks !== true || w.voiceDirectory !== true) process.exit(1);
+          console.log(JSON.stringify({health:h, release:r, productivity:p, widgets:w}, null, 2));
           NODE
             then
               exit 0
             fi
-            echo "Waiting for exact UI UAT productivity release (attempt $attempt/24)..."
+            echo "Waiting for exact UI UAT widget release (attempt $attempt/24)..."
             sleep 5
           done
-          echo "Exact UI UAT productivity release could not be proven publicly." >&2
+          echo "Exact UI UAT widget release could not be proven publicly." >&2
           exit 1
 
       - name: Collect UI UAT diagnostics
         if: failure()
         continue-on-error: true
         run: |
-          ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" 'printf "%s\n" "--- agent ---"; tail -n 120 /home/uent/.talk2me-ui-uat-deploy/cron.log 2>/dev/null || true; printf "%s\n" "--- request ---"; cat /home/uent/.talk2me-ui-uat-deploy/last-request.json 2>/dev/null || true; printf "%s\n" "--- app stderr ---"; tail -n 100 /home/uent/public_html/talk2me/stderr.log 2>/dev/null || true; printf "%s\n" "--- selector ---"; command -v cloudlinux-selector || true'
+          ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" 'printf "%s\n" "--- process count ---"; ps -u uent -o pid= 2>/dev/null | wc -l || true; printf "%s\n" "--- agent ---"; tail -n 120 /home/uent/.talk2me-ui-uat-deploy/cron.log 2>/dev/null || true; printf "%s\n" "--- request ---"; cat /home/uent/.talk2me-ui-uat-deploy/last-request.json 2>/dev/null || true; printf "%s\n" "--- app stderr ---"; tail -n 100 /home/uent/public_html/talk2me/stderr.log 2>/dev/null || true; printf "%s\n" "--- selector ---"; command -v cloudlinux-selector || true'
 
       - name: Checkout UI UAT control for HOLD cleanup
         if: always()
