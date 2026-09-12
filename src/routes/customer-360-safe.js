@@ -51,8 +51,6 @@ async function loadCustomerNoteContext(clientId) {
   };
 }
 
-// Keep customer-note actions in the same early-mounted router as Customer 360.
-// This prevents later route ordering or legacy routers from turning a valid note URL into a generic 404.
 router.get('/customers/:id/notes/new', requireAuth, async (req, res, next) => {
   try {
     const clientId = Number(req.params.id);
@@ -115,9 +113,15 @@ router.post('/customers/:id/notes', requireAuth, async (req, res, next) => {
       other: 'Customer Note'
     };
     const noteType = noteTypes[values.note_type] || noteTypes.other;
-    const contactMethod = ['walk_in', 'phone', 'email', 'whatsapp', 'other'].includes(values.contact_method)
-      ? values.contact_method
-      : 'other';
+    const contactMethods = {
+      walk_in: 'walk_in',
+      phone: 'phone_call',
+      phone_call: 'phone_call',
+      email: 'email',
+      whatsapp: 'whatsapp',
+      other: 'other'
+    };
+    const contactMethod = contactMethods[values.contact_method] || 'other';
 
     if (!subject) throw new Error('Enter a subject for the customer note.');
     if (!noteText) throw new Error('Enter the customer note or inquiry details.');
@@ -139,7 +143,7 @@ router.post('/customers/:id/notes', requireAuth, async (req, res, next) => {
           (client_id,service_type,staff_id,assigned_staff_id,walkin_or_call,client_name,cell_number,email,
            category_id,category_other,query_text,action_taken,status,follow_up_at,completed_at,completed_by)
          VALUES (:clientId,'general',:capturedBy,:assignedTo,:contactMethod,:clientName,:cellNumber,:email,
-           NULL,:categoryOther,:subject,:noteText,:status,:followUpAt,:completedAt,:completedBy)`,
+           :categoryId,:categoryOther,:subject,:noteText,:status,:followUpAt,:completedAt,:completedBy)`,
         {
           clientId,
           capturedBy: req.session.user.id,
@@ -148,6 +152,7 @@ router.post('/customers/:id/notes', requireAuth, async (req, res, next) => {
           clientName: context.client.client_name,
           cellNumber: context.client.cell_number || null,
           email: context.client.email || null,
+          categoryId: 11,
           categoryOther: noteType,
           subject,
           noteText,
@@ -206,8 +211,6 @@ router.get('/customers/:id/360', requireAuth, async (req, res, next) => {
       return res.status(400).render('error', { title: 'Invalid customer', message: 'The customer record could not be identified.' });
     }
 
-    // CORE CONTRACT: if the customer exists in clients, Customer 360 must open.
-    // Everything else on the page is enrichment and may degrade independently.
     const [[client]] = await db.execute('SELECT * FROM clients WHERE id=:id LIMIT 1', { id });
     if (!client) {
       return res.status(404).render('error', { title: 'Not found', message: 'Client line could not be found.' });
@@ -346,8 +349,6 @@ router.get('/customers/:id/360', requireAuth, async (req, res, next) => {
       return rows;
     });
 
-    // Base Details stays preserved and independently accessible while the merged read model is rebuilt.
-    // It must never prevent the core CRM customer record from opening.
     const currentMobileServices = [];
     const mobileEvents = [];
     const currentMobileDataReady = false;
@@ -377,7 +378,6 @@ router.get('/customers/:id/360', requireAuth, async (req, res, next) => {
       converted: String(req.query.converted || '') === '1'
     });
   } catch (error) {
-    // Only the core customer lookup/render path should reach this handler.
     next(error);
   }
 });
