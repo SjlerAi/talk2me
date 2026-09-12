@@ -24,6 +24,15 @@ async function safeSection(customerId, label, fallback, loader, warnings) {
   }
 }
 
+function safeDiagnostic(error) {
+  const code = String(error?.code || 'ERROR').replace(/[^A-Z0-9_-]/gi, '').slice(0, 40);
+  const message = String(error?.message || 'Unknown route failure')
+    .replace(/\s+/g, ' ')
+    .replace(/\/home\/[^\s]+/g, '[server-path]')
+    .slice(0, 220);
+  return `${code}: ${message}`;
+}
+
 router.get('/customers/:id/360', requireAuth, async (req, res, next) => {
   try {
     const id = Number(req.params.id);
@@ -31,8 +40,6 @@ router.get('/customers/:id/360', requireAuth, async (req, res, next) => {
       return res.status(400).render('error', { title: 'Invalid customer', message: 'The customer record could not be identified.' });
     }
 
-    // Customer identity is the only fatal dependency. Once a Talk2Me customer exists,
-    // legacy or optional linked data must never prevent that customer from opening.
     const [[client]] = await db.execute('SELECT * FROM clients WHERE id=:id LIMIT 1', { id });
     if (!client) {
       return res.status(404).render('error', { title: 'Not found', message: 'Client line could not be found.' });
@@ -271,6 +278,17 @@ router.get('/customers/:id/360', requireAuth, async (req, res, next) => {
     console.error(`[Customer360 ${req.params.id}] fatal open failure:`, error.code || '', error.message || error);
     next(error);
   }
+});
+
+router.use((error, req, res, next) => {
+  if (!IS_UAT) return next(error);
+  console.error('[Customer360 UAT route diagnostic]', error);
+  if (res.headersSent) return next(error);
+  return res.status(500).render('error', {
+    title: 'Customer open error',
+    message: 'The customer was found, but the customer workspace could not be opened.',
+    diagnostic: safeDiagnostic(error)
+  });
 });
 
 module.exports = router;
