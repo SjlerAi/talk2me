@@ -60,6 +60,19 @@
     document.getElementById('clearClient').addEventListener('click', () => { input.value=''; clearSelection(); input.focus(); });
   }
 
+  const presetParams = new URLSearchParams(window.location.search);
+  const presetClientId = Number(presetParams.get('client_id') || 0);
+  const presetQuery = String(presetParams.get('q') || '').trim();
+  if (presetClientId > 0 && presetQuery.length >= 2) {
+    fetch(`${window.location.pathname.replace(/\/tasks\/new$/, '')}/clients/search?q=${encodeURIComponent(presetQuery)}`)
+      .then(response => response.ok ? response.json() : [])
+      .then(clients => {
+        const client = clients.find(row => Number(row.id) === presetClientId);
+        if (client) chooseClient(client);
+      })
+      .catch(() => {});
+  }
+
   input.addEventListener('input', () => {
     clearTimeout(timer);
     clearSelection();
