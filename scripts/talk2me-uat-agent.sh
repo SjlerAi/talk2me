@@ -9,6 +9,7 @@ INBOX_DIR=/home/uent/.config/talk2me/inbox
 DRIVER=/home/uent/bin/talk2me-deploy-uat
 NODE_BIN=/opt/alt/alt-nodejs20/root/usr/bin/node
 LOCK_DIR="$STATE_DIR/agent.lock"
+LOCK_PID="$LOCK_DIR/pid"
 
 mkdir -p "$STATE_DIR" "$INBOX_DIR"
 
@@ -19,11 +20,30 @@ if [ "${1:-}" = "--status" ]; then
   exit 0
 fi
 
-if ! mkdir "$LOCK_DIR" 2>/dev/null; then
-  echo "$(date -Is) another agent run is active"
+acquire_lock() {
+  if mkdir "$LOCK_DIR" 2>/dev/null; then
+    printf '%s\n' "$$" > "$LOCK_PID"
+    return 0
+  fi
+
+  holder=""
+  [ -f "$LOCK_PID" ] && holder="$(cat "$LOCK_PID" 2>/dev/null || true)"
+  if [[ "$holder" =~ ^[0-9]+$ ]] && kill -0 "$holder" 2>/dev/null; then
+    echo "$(date -Is) deployment agent already active as pid $holder"
+    return 1
+  fi
+
+  # A dead PID, missing PID file, or abandoned lock from an interrupted shell is stale.
+  echo "$(date -Is) removing stale deployment-agent lock"
+  rm -rf "$LOCK_DIR"
+  mkdir "$LOCK_DIR"
+  printf '%s\n' "$$" > "$LOCK_PID"
+}
+
+if ! acquire_lock; then
   exit 0
 fi
-trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
+trap 'rm -rf "$LOCK_DIR" 2>/dev/null || true' EXIT
 
 git -C "$CONTROL_DIR" fetch --quiet origin "$CONTROL_BRANCH:refs/remotes/origin/$CONTROL_BRANCH"
 git -C "$CONTROL_DIR" reset --quiet --hard "origin/$CONTROL_BRANCH"
