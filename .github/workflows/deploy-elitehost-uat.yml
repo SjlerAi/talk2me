@@ -15,7 +15,10 @@ permissions:
 
 concurrency:
   group: talk2me-elitehost-uat
-  cancel-in-progress: false
+  # Normal releases remain serialized and never cancel each other. The marker is reserved
+  # for a deliberate one-off recovery when an already-activated release is stuck only in
+  # the public verification loop.
+  cancel-in-progress: ${{ github.event_name == 'push' && contains(github.event.head_commit.message, '[supersede-stale-verifier]') }}
 
 jobs:
   package:
@@ -154,20 +157,20 @@ jobs:
         run: |
           ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" /home/uent/bin/talk2me-uat-agent
       - name: Wait for exact public release
-        timeout-minutes: 20
+        timeout-minutes: 3
         run: |
           set -Eeuo pipefail
-          for attempt in $(seq 1 80); do
-            health="$(curl -fsS --connect-timeout 10 --max-time 20 "$SITE_URL/api/health" 2>/dev/null || true)"
-            release="$(curl -fsS --connect-timeout 10 --max-time 20 "$SITE_URL/api/release" 2>/dev/null || true)"
+          for attempt in $(seq 1 8); do
+            health="$(curl -fsS --connect-timeout 3 --max-time 5 "$SITE_URL/api/health" 2>/dev/null || true)"
+            release="$(curl -fsS --connect-timeout 3 --max-time 5 "$SITE_URL/api/release" 2>/dev/null || true)"
             if node scripts/verify-public-release.js "$health" "$release" "$GITHUB_SHA" "$GITHUB_RUN_ID" >/tmp/talk2me-release-proof.txt 2>/dev/null; then
               cat /tmp/talk2me-release-proof.txt
               exit 0
             fi
-            echo "Waiting for deployment agent (attempt $attempt/80)..."
-            sleep 15
+            echo "Waiting for exact public release (attempt $attempt/8)..."
+            sleep 5
           done
-          echo "Timed out waiting for the exact release."
+          echo "Exact public release was not proven inside the bounded verification window."
           exit 1
       - name: Collect deployment diagnostics
         if: failure()
