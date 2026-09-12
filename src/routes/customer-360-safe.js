@@ -17,6 +17,188 @@ async function optionalSection(section, clientId, fallback, loader) {
   }
 }
 
+function clean(value, max = 5000) {
+  return String(value || '').trim().slice(0, max);
+}
+
+async function loadCustomerNoteContext(clientId) {
+  const [[client]] = await db.execute(
+    'SELECT id,client_name,cell_number,email,account_number FROM clients WHERE id=:id LIMIT 1',
+    { id: clientId }
+  );
+  if (!client) return null;
+
+  const [staff] = await db.query(
+    'SELECT id,full_name,role FROM staff_users WHERE is_active=1 ORDER BY full_name'
+  );
+
+  const assignment = await optionalSection('customer note assignment', clientId, null, async () => {
+    const [[row]] = await db.execute(
+      `SELECT assigned_staff_id
+       FROM client_assignments
+       WHERE is_active=1
+         AND (client_id=:id OR (:account<>'' AND account_number=:account))
+       ORDER BY (client_id=:id) DESC,updated_at DESC LIMIT 1`,
+      { id: clientId, account: client.account_number || '' }
+    );
+    return row || null;
+  });
+
+  return {
+    client,
+    staff,
+    assignedStaffId: assignment?.assigned_staff_id || null
+  };
+}
+
+// Keep customer-note actions in the same early-mounted router as Customer 360.
+// This prevents later route ordering or legacy routers from turning a valid note URL into a generic 404.
+router.get('/customers/:id/notes/new', requireAuth, async (req, res, next) => {
+  try {
+    const clientId = Number(req.params.id);
+    if (!Number.isFinite(clientId) || clientId <= 0) {
+      return res.status(400).render('error', {
+        title: 'Invalid customer',
+        message: 'The customer record could not be identified.'
+      });
+    }
+
+    const context = await loadCustomerNoteContext(clientId);
+    if (!context) {
+      return res.status(404).render('error', {
+        title: 'Customer not found',
+        message: 'The customer could not be found.'
+      });
+    }
+
+    res.render('customer-note-add', {
+      layout: false,
+      title: 'Add Customer Note',
+      ...context,
+      error: null,
+      values: {
+        assigned_staff_id: context.assignedStaffId || req.session.user.id,
+        note_type: 'inquiry',
+        contact_method: 'walk_in'
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/customers/:id/notes', requireAuth, async (req, res, next) => {
+  const clientId = Number(req.params.id);
+  const values = req.body || {};
+
+  try {
+    const context = await loadCustomerNoteContext(clientId);
+    if (!context) {
+      return res.status(404).render('error', {
+        title: 'Customer not found',
+        message: 'The customer could not be found.'
+      });
+    }
+
+    const subject = clean(values.subject, 255);
+    const noteText = clean(values.note_text);
+    const assignedStaffId = Number(values.assigned_staff_id || 0) || req.session.user.id;
+    const followUpRequired = values.follow_up_required === '1';
+    const followUpAt = values.follow_up_at || null;
+    const noteTypes = {
+      inquiry: 'Customer Inquiry',
+      call: 'Customer Call',
+      walk_in: 'Walk-in Interaction',
+      complaint: 'Customer Complaint',
+      information: 'Customer Information',
+      sales: 'Sales Opportunity',
+      other: 'Customer Note'
+    };
+    const noteType = noteTypes[values.note_type] || noteTypes.other;
+    const contactMethod = ['walk_in', 'phone', 'email', 'whatsapp', 'other'].includes(values.contact_method)
+      ? values.contact_method
+      : 'other';
+
+    if (!subject) throw new Error('Enter a subject for the customer note.');
+    if (!noteText) throw new Error('Enter the customer note or inquiry details.');
+    if (followUpRequired && !followUpAt) throw new Error('Select a follow-up date and time.');
+
+    const [[handler]] = await db.execute(
+      'SELECT id FROM staff_users WHERE id=:id AND is_active=1 LIMIT 1',
+      { id: assignedStaffId }
+    );
+    if (!handler) throw new Error('Select a valid staff member to handle this interaction.');
+
+    const status = followUpRequired ? 'follow_up' : 'resolved';
+    const conn = await db.getConnection();
+    try {
+      await conn.beginTransaction();
+
+      const [result] = await conn.execute(
+        `INSERT INTO inquiries
+          (client_id,service_type,staff_id,assigned_staff_id,walkin_or_call,client_name,cell_number,email,
+           category_id,category_other,query_text,action_taken,status,follow_up_at,completed_at,completed_by)
+         VALUES (:clientId,'general',:capturedBy,:assignedTo,:contactMethod,:clientName,:cellNumber,:email,
+           NULL,:categoryOther,:subject,:noteText,:status,:followUpAt,:completedAt,:completedBy)`,
+        {
+          clientId,
+          capturedBy: req.session.user.id,
+          assignedTo: assignedStaffId,
+          contactMethod,
+          clientName: context.client.client_name,
+          cellNumber: context.client.cell_number || null,
+          email: context.client.email || null,
+          categoryOther: noteType,
+          subject,
+          noteText,
+          status,
+          followUpAt: followUpRequired ? followUpAt : null,
+          completedAt: followUpRequired ? null : new Date(),
+          completedBy: followUpRequired ? null : req.session.user.id
+        }
+      );
+
+      if (followUpRequired) {
+        await conn.execute(
+          `INSERT INTO staff_tasks
+            (type,title,message,priority,status,assigned_to,created_by,due_at,related_client_id,related_inquiry_id,email_status)
+           VALUES ('task',:title,:message,'normal','unread',:assignedTo,:createdBy,:dueAt,:clientId,:inquiryId,'not_configured')`,
+          {
+            title: `Follow up: ${subject}`.slice(0, 200),
+            message: noteText,
+            assignedTo: assignedStaffId,
+            createdBy: req.session.user.id,
+            dueAt: followUpAt,
+            clientId,
+            inquiryId: result.insertId
+          }
+        );
+      }
+
+      await conn.commit();
+      return res.redirect(`${res.locals.basePath}/customers/${clientId}/360?note_saved=1`);
+    } catch (error) {
+      await conn.rollback();
+      throw error;
+    } finally {
+      conn.release();
+    }
+  } catch (error) {
+    if (error.message && !error.code) {
+      const context = await loadCustomerNoteContext(clientId);
+      if (!context) return next(error);
+      return res.status(400).render('customer-note-add', {
+        layout: false,
+        title: 'Add Customer Note',
+        ...context,
+        error: error.message,
+        values
+      });
+    }
+    next(error);
+  }
+});
+
 router.get('/customers/:id/360', requireAuth, async (req, res, next) => {
   try {
     const id = Number(req.params.id);
@@ -186,6 +368,7 @@ router.get('/customers/:id/360', requireAuth, async (req, res, next) => {
       currentMobileServices,
       mobileEvents,
       assigned: req.query.assigned,
+      noteSaved: String(req.query.note_saved || '') === '1',
       claimRequested: req.query.claim_requested,
       claimConflict: req.query.claim_conflict,
       claimOwner: String(req.query.claim_owner || '').trim().slice(0, 255),
