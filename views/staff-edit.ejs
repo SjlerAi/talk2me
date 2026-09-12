@@ -21,6 +21,17 @@
       <div><label>Employment start</label><input name="employment_start_date" type="date" value="<%= staff.employment_start_date ? new Date(staff.employment_start_date).toISOString().slice(0,10) : '' %>"></div>
       <div><label>Access level</label><select name="role"><% ['owner','admin','manager','staff'].forEach(role => { %><option value="<%= role %>" <%= staff.role===role ? 'selected' : '' %>><%= role %></option><% }) %></select></div>
       <div><label>Status</label><select name="is_active"><option value="1" <%= staff.is_active !== 0 ? 'selected' : '' %>>Active</option><option value="0" <%= staff.is_active === 0 ? 'selected' : '' %>>Inactive</option></select></div>
+      <% if (!isNew) { %>
+        <div class="full" id="uatStaffColourControl" data-staff-id="<%= staff.id %>" data-base-path="<%= basePath %>">
+          <label>Talk2Me staff colour</label>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <input type="color" data-staff-colour value="#2563eb" style="width:54px;height:38px;padding:2px;cursor:pointer">
+            <span data-staff-colour-label style="font-size:13px;color:#667382">Loading colour…</span>
+            <button class="btn small" type="button" data-staff-colour-reset>Use default</button>
+          </div>
+          <small style="display:block;margin-top:6px;color:#778391">Used consistently for this person in the UAT Team calendar and communication widgets.</small>
+        </div>
+      <% } %>
       <div class="full"><label><%= isNew ? 'Temporary password' : 'New password (leave blank to keep current)' %></label><input name="password" type="password" <%= isNew ? 'required' : '' %> autocomplete="new-password"></div>
       <div><label>Profile photo</label><input name="profile_photo" type="file" accept="image/jpeg,image/png,image/webp"></div>
       <div><label>ID document</label><input name="id_document" type="file" accept="image/jpeg,image/png,image/webp,application/pdf"></div>
@@ -47,6 +58,7 @@
       <% if (!documents.length) { %><p>No documents uploaded.</p><% } %>
       <% documents.forEach(doc => { %><p><a href="<%= basePath %>/backoffice/staff/<%= staff.id %>/documents/<%= doc.id %>"><%= doc.document_type.replace('_',' ') %>: <%= doc.original_filename %></a><br><small><%= new Date(doc.uploaded_at).toLocaleString('en-ZA') %></small></p><% }) %>
       <script src="<%= basePath %>/public/js/staff-import-identities.js" defer></script>
+      <script src="<%= basePath %>/public/js/uat-staff-colour-editor.js" defer></script>
     <% } else { %><p>Create the staff record first. Then add report / agent codes and uploaded files to the profile.</p><% } %>
   </aside>
 </div>
