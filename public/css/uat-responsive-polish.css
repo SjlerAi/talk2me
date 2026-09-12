@@ -1,0 +1,215 @@
+/* UAT-only responsive polish for the calendar-first workspace. */
+
+.t2m-os-top-actions > form {
+  margin: 0;
+}
+
+.t2m-compact-session {
+  min-height: 44px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  padding: 5px 10px !important;
+  border: 1px solid #91c9e7 !important;
+  border-radius: 11px !important;
+  background: #e7f3fb !important;
+  color: #184d6d !important;
+  box-shadow: 0 3px 10px rgba(0,114,188,.08) !important;
+  white-space: nowrap;
+}
+
+.t2m-compact-session:hover {
+  background: #dcedf8 !important;
+  border-color: #69b3dc !important;
+}
+
+.t2m-compact-user {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+  text-align: left;
+  line-height: 1.05;
+}
+
+.t2m-compact-user strong {
+  color: #202832;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.t2m-compact-user small {
+  color: #4b6e82;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.t2m-compact-clockout {
+  padding-left: 9px;
+  border-left: 1px solid #b8daef;
+  color: #125a82;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: none;
+}
+
+/* Auto-compact the application rail when Talk2Me shares a screen with another window. */
+@media (min-width: 761px) and (max-width: 1180px) {
+  .t2m-os-shell.is-uat-auto-collapsed {
+    grid-template-columns: var(--t2m-os-sidebar-rail,68px) minmax(0,1fr) !important;
+  }
+
+  .t2m-os-shell.is-uat-auto-collapsed .t2m-os-sidebar {
+    padding-inline: 8px !important;
+    overflow-x: hidden !important;
+  }
+
+  .t2m-os-shell.is-uat-auto-collapsed .t2m-os-sidebar-label,
+  .t2m-os-shell.is-uat-auto-collapsed .t2m-os-sidebar button > strong {
+    display: none !important;
+  }
+
+  .t2m-os-shell.is-uat-auto-collapsed .t2m-os-sidebar-section {
+    gap: 6px !important;
+  }
+
+  .t2m-os-shell.is-uat-auto-collapsed .t2m-os-sidebar button {
+    grid-template-columns: 1fr !important;
+    justify-items: center !important;
+    padding-inline: 0 !important;
+  }
+
+  .t2m-os-shell.is-uat-auto-collapsed .t2m-os-sidebar button > span {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+  }
+
+  .t2m-os-shell.is-uat-auto-collapsed .t2m-os-sidebar button > b {
+    position: absolute !important;
+    right: -2px !important;
+    top: -3px !important;
+    min-width: 18px !important;
+    height: 18px !important;
+    padding: 0 4px !important;
+  }
+
+  .t2m-os-shell.is-uat-auto-collapsed .t2m-os-sidebar-toggle > span {
+    background: transparent !important;
+    font-size: 20px !important;
+  }
+
+  .t2m-calendar-home-shell .t2m-os-workspace {
+    min-width: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .t2m-home-calendar {
+    overflow: auto !important;
+    padding: 12px 14px 12px !important;
+  }
+
+  .t2m-home-calendar-head {
+    align-items: center !important;
+    flex-direction: row !important;
+    gap: 10px !important;
+  }
+
+  .t2m-home-calendar-head h1 {
+    font-size: 23px !important;
+  }
+
+  .t2m-home-calendar-head p {
+    font-size: 11px !important;
+  }
+
+  .t2m-home-actions button {
+    height: 34px !important;
+    padding-inline: 10px !important;
+    font-size: 11px !important;
+  }
+
+  .t2m-home-calendar-layout {
+    grid-template-columns: minmax(540px,1fr) minmax(235px,260px) !important;
+    min-width: 790px !important;
+    gap: 10px !important;
+  }
+
+  .t2m-home-month,
+  .t2m-home-agenda {
+    min-width: 0 !important;
+  }
+
+  .t2m-home-day {
+    min-height: 58px !important;
+    padding: 5px 6px !important;
+  }
+
+  .t2m-home-agenda > header {
+    padding: 9px 10px !important;
+  }
+
+  .t2m-home-agenda > header strong {
+    font-size: 13px !important;
+  }
+
+  .t2m-home-empty {
+    min-height: 150px !important;
+    padding: 12px !important;
+  }
+
+  .t2m-os-topbar {
+    gap: 8px !important;
+  }
+
+  .t2m-os-search {
+    min-width: 180px !important;
+  }
+
+  .t2m-os-top-actions {
+    gap: 6px !important;
+  }
+
+  .t2m-os-icon-button {
+    width: 42px !important;
+    min-width: 42px !important;
+  }
+}
+
+@media (max-width: 920px) and (min-width: 761px) {
+  .t2m-os-brand > span {
+    display: none !important;
+  }
+
+  .t2m-os-brand {
+    width: 66px !important;
+    min-width: 66px !important;
+  }
+
+  .t2m-home-calendar-layout {
+    grid-template-columns: minmax(520px,1fr) 225px !important;
+    min-width: 755px !important;
+  }
+
+  .t2m-compact-session {
+    gap: 7px !important;
+    padding-inline: 8px !important;
+  }
+
+  .t2m-compact-clockout {
+    padding-left: 7px !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .t2m-home-calendar-layout {
+    min-width: 0 !important;
+    grid-template-columns: 1fr !important;
+  }
+
+  .t2m-home-agenda {
+    min-height: 220px !important;
+  }
+
+  .t2m-compact-user small {
+    display: none;
+  }
+}
