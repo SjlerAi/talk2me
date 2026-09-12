@@ -45,6 +45,9 @@ jobs:
           node --check public/js/productivity-uat.js
           node --check src/routes/uat-work-widgets.js
           node --check public/js/uat-work-widgets.js
+          node --check src/routes/uat-staff-preferences.js
+          node --check public/js/uat-widget-polish.js
+          node --check public/js/uat-staff-colour-editor.js
           npm run check
 
       - name: Build immutable UI UAT artifact
