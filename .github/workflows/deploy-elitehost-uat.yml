@@ -113,6 +113,7 @@ jobs:
           test -d "$repo/.git"
           git -C "$repo" diff --quiet
           git -C "$repo" diff --cached --quiet
+          git -C "$repo" remote set-url origin https://github.com/SjlerAi/talk2me.git
           git -C "$repo" fetch origin main:refs/remotes/origin/main deploy/uat-control:refs/remotes/origin/deploy/uat-control
           test "$(git -C "$repo" rev-parse origin/main)" = "$expected_sha"
           git -C "$repo" reset --hard "$expected_sha"
