@@ -104,21 +104,19 @@ jobs:
         with:
           ref: deploy/uat-control
           path: control
-      - name: Verify or recommission permanent deployment agent
+      - name: Refresh permanent deployment agent from exact source
         run: |
           ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" bash -s -- "$GITHUB_SHA" <<'REMOTE'
           set -Eeuo pipefail
           expected_sha="$1"
           repo=/home/uent/repositories/talk2me
           test -d "$repo/.git"
-          if [ ! -x /home/uent/bin/talk2me-uat-agent ] || [ ! -x /home/uent/bin/talk2me-deploy-uat ] || [ ! -d /home/uent/.config/talk2me/inbox ]; then
-            git -C "$repo" diff --quiet
-            git -C "$repo" diff --cached --quiet
-            git -C "$repo" fetch origin main:refs/remotes/origin/main deploy/uat-control:refs/remotes/origin/deploy/uat-control
-            test "$(git -C "$repo" rev-parse origin/main)" = "$expected_sha"
-            git -C "$repo" reset --hard "$expected_sha"
-            bash "$repo/scripts/install-talk2me-uat-agent.sh"
-          fi
+          git -C "$repo" diff --quiet
+          git -C "$repo" diff --cached --quiet
+          git -C "$repo" fetch origin main:refs/remotes/origin/main deploy/uat-control:refs/remotes/origin/deploy/uat-control
+          test "$(git -C "$repo" rev-parse origin/main)" = "$expected_sha"
+          git -C "$repo" reset --hard "$expected_sha"
+          bash "$repo/scripts/install-talk2me-uat-agent.sh"
           test -x /home/uent/bin/talk2me-uat-agent
           test -x /home/uent/bin/talk2me-deploy-uat
           mkdir -p /home/uent/.config/talk2me/inbox
@@ -151,6 +149,9 @@ jobs:
           git add deploy/uat.json
           git commit -m "Deploy ${GITHUB_SHA} to UAT"
           git push origin HEAD:deploy/uat-control
+      - name: Activate exact release through permanent agent
+        run: |
+          ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" /home/uent/bin/talk2me-uat-agent
       - name: Wait for exact public release
         timeout-minutes: 20
         run: |
