@@ -12,10 +12,9 @@ function normaliseSouthAfricanMobile(value) {
   let digits = String(value ?? '').trim().replace(/^\+/, '').replace(/\D/g, '');
 
   // Be forgiving with imported numbers that users may type as 0 + 27xxxxxxxxx.
-  // Canonical storage/search remains 27xxxxxxxxx.
+  // Canonical storage/search remains 27xxxxxxxxx. Bare 9-digit numbers remain invalid.
   if (/^027[6-8]\d{8}$/.test(digits)) digits = digits.slice(1);
   if (/^0[6-8]\d{8}$/.test(digits)) digits = `27${digits.slice(1)}`;
-  if (/^[6-8]\d{8}$/.test(digits)) digits = `27${digits}`;
 
   return /^27[6-8]\d{8}$/.test(digits) ? digits : '';
 }
