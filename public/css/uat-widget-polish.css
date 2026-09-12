@@ -1,0 +1,41 @@
+/* UAT compact widget polish: fast, movable office tools rather than full-screen forms. */
+#t2m-messenger-widget,#t2m-task-widget{min-width:300px;min-height:260px}
+#t2m-messenger-widget .t2m-float-widget-head-copy small{display:none}
+#t2m-messenger-widget .t2m-chat-shell{grid-template-rows:auto minmax(0,1fr)}
+#t2m-messenger-widget .t2m-chat-tabs{display:grid;grid-template-columns:minmax(0,1fr) 92px;gap:6px;padding:6px}
+#t2m-messenger-widget .t2m-chat-tabs [data-chat-tab="people"],
+#t2m-messenger-widget .t2m-chat-tabs [data-chat-tab="system"]{display:none!important}
+#t2m-messenger-widget .t2m-chat-tabs [data-chat-tab="office"]{grid-column:2;height:32px;border:1px solid #d9e1e7;background:#f3f6f8;color:#344054}
+#t2m-messenger-widget .t2m-chat-tabs [data-chat-tab="office"].is-active{background:#202832;border-color:#202832;color:#fff}
+#t2m-messenger-widget .t2m-chat-staff-select{grid-column:1;grid-row:1;width:100%;height:32px;border:1px solid #ccd6df;border-radius:8px;background:#fff;padding:0 30px 0 9px;color:#344054;font-size:10px;font-weight:850;outline:none}
+#t2m-messenger-widget .t2m-chat-staff-select:focus{border-color:#202832;box-shadow:0 0 0 2px rgba(32,40,50,.08)}
+#t2m-messenger-widget .t2m-chat-main{grid-template-columns:minmax(0,1fr)}
+#t2m-messenger-widget .t2m-chat-people{display:none!important}
+#t2m-messenger-widget .t2m-chat-conversation-head{padding:7px 9px}
+#t2m-messenger-widget .t2m-chat-conversation-head strong{font-size:11px}
+#t2m-messenger-widget .t2m-chat-conversation-head small{font-size:8px}
+#t2m-messenger-widget .t2m-chat-office-note{padding:5px 9px;font-size:8px}
+#t2m-messenger-widget .t2m-chat-messages{padding:7px 8px}
+#t2m-messenger-widget .t2m-chat-empty{padding:12px}
+#t2m-messenger-widget .t2m-chat-empty strong{font-size:11px}
+#t2m-messenger-widget .t2m-chat-empty span{font-size:8px}
+#t2m-messenger-widget .t2m-chat-composer{padding:6px}
+#t2m-messenger-widget .t2m-chat-compose-row{grid-template-columns:32px minmax(0,1fr) 48px;gap:5px}
+#t2m-messenger-widget .t2m-chat-compose-row textarea{min-height:32px;max-height:68px;padding:7px 8px;border-radius:9px;font-size:10px}
+#t2m-messenger-widget .t2m-chat-compose-row button{height:32px;border-radius:9px;font-size:10px}
+#t2m-messenger-widget .t2m-chat-compose-row .voice{font-size:14px}
+#t2m-task-widget .t2m-float-widget-head-copy small{display:none}
+#t2m-task-widget .t2m-task-toolbar{padding:6px;gap:4px}
+#t2m-task-widget .t2m-task-toolbar button{height:29px;padding:0 8px;font-size:8px}
+#t2m-task-widget .t2m-task-content{padding:6px}
+#t2m-task-widget .t2m-task-card{margin-bottom:5px;border-radius:9px}
+#t2m-task-widget .t2m-task-card-body{padding:7px 8px}
+#t2m-task-widget .t2m-task-form{gap:6px;padding:8px}
+#t2m-task-widget .t2m-task-form h3{font-size:13px}
+#t2m-task-widget .t2m-task-form input,#t2m-task-widget .t2m-task-form select,#t2m-task-widget .t2m-task-form textarea{padding:7px;font-size:9px}
+#t2m-task-widget .t2m-task-form textarea{min-height:58px}
+#t2m-task-widget .t2m-task-detail{padding:8px}
+@media(max-width:620px){
+  #t2m-messenger-widget,#t2m-task-widget{min-width:0;min-height:0}
+  #t2m-messenger-widget .t2m-chat-tabs{grid-template-columns:minmax(0,1fr) 78px}
+}
