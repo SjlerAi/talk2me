@@ -16,6 +16,16 @@ async function baseSchemaReady() {
   return Number(row?.total || 0) === 1;
 }
 
+async function safeSection(label, fallback, loader, warnings) {
+  try {
+    return await loader();
+  } catch (error) {
+    console.error(`[MobileBase] ${label} failed:`, error.code || '', error.message || error);
+    warnings.push(label);
+    return fallback;
+  }
+}
+
 router.get('/search/all', requireAuth, async (req, res, next) => {
   try {
     const q = String(req.query.q || '').trim();
@@ -91,38 +101,61 @@ router.get('/mobile-base/:id', requireAuth, async (req, res, next) => {
     const id = Number(req.params.id);
     if (!Number.isSafeInteger(id) || id < 1) return res.status(400).render('error', { title: 'Invalid mobile service', message: 'Select a valid current mobile service.' });
 
-    const [[line]] = await db.execute(`
-      SELECT mb.*,ca.account_number canonical_account_number,ca.display_name canonical_account_name,
-        c.client_name crm_client_name
-      FROM mobile_base_current mb
-      LEFT JOIN customer_accounts ca ON ca.id=mb.account_id
-      LEFT JOIN clients c ON c.id=mb.client_id
-      WHERE mb.id=:id LIMIT 1
-    `, { id });
+    // The Base line itself is the only fatal dependency. Linked CRM/account/history
+    // data must never stop a valid current Vodacom service from opening.
+    const [[line]] = await db.execute(`SELECT * FROM mobile_base_current WHERE id=:id LIMIT 1`, { id });
     if (!line) return res.status(404).render('error', { title: 'Current mobile service not found', message: 'This current Base Details service line does not exist.' });
 
-    const [events] = await db.execute(`
-      SELECT me.*,su.full_name staff_name
-      FROM mobile_events me
-      LEFT JOIN staff_users su ON su.id=me.staff_id
-      WHERE me.mobile_base_current_id=:id OR me.msisdn_normalised=:phone
-      ORDER BY me.event_date DESC,me.id DESC
-      LIMIT 50
-    `, { id, phone: line.msisdn_normalised });
+    const warnings = [];
 
-    const [snapshots] = await db.execute(`
-      SELECT id,batch_id,source_row_number,captured_at
-      FROM mobile_base_snapshots
-      WHERE mobile_base_current_id=:id
-      ORDER BY captured_at DESC,id DESC
-      LIMIT 24
-    `, { id });
+    if (line.account_id) {
+      const account = await safeSection('Canonical account', null, async () => {
+        const [[row]] = await db.execute('SELECT account_number,display_name FROM customer_accounts WHERE id=:id LIMIT 1', { id: line.account_id });
+        return row || null;
+      }, warnings);
+      line.canonical_account_number = account?.account_number || null;
+      line.canonical_account_name = account?.display_name || null;
+    }
+
+    if (line.client_id) {
+      const crmClient = await safeSection('CRM customer link', null, async () => {
+        const [[row]] = await db.execute('SELECT client_name FROM clients WHERE id=:id LIMIT 1', { id: line.client_id });
+        return row || null;
+      }, warnings);
+      line.crm_client_name = crmClient?.client_name || null;
+    }
+
+    const events = await safeSection('Activation and upgrade history', [], async () => {
+      const [rows] = await db.execute(`
+        SELECT me.*,su.full_name staff_name
+        FROM mobile_events me
+        LEFT JOIN staff_users su ON su.id=me.staff_id
+        WHERE me.mobile_base_current_id=:id OR me.msisdn_normalised=:phone
+        ORDER BY me.event_date DESC,me.id DESC
+        LIMIT 50
+      `, { id, phone: line.msisdn_normalised });
+      return rows;
+    }, warnings);
+
+    const snapshots = await safeSection('Base snapshot history', [], async () => {
+      const [rows] = await db.execute(`
+        SELECT id,batch_id,source_row_number,captured_at
+        FROM mobile_base_snapshots
+        WHERE mobile_base_current_id=:id
+        ORDER BY captured_at DESC,id DESC
+        LIMIT 24
+      `, { id });
+      return rows;
+    }, warnings);
 
     return res.render('mobile-base-view', {
       title: line.account_name || line.msisdn_original || 'Current Vodacom Service',
-      line,events,snapshots
+      line,events,snapshots,sectionWarnings:[...new Set(warnings)]
     });
-  } catch (error) { next(error); }
+  } catch (error) {
+    console.error(`[MobileBase ${req.params.id}] fatal open failure:`, error.code || '', error.message || error);
+    next(error);
+  }
 });
 
 module.exports = router;
