@@ -251,6 +251,10 @@ if (UAT_MODE) {
   const calendarProductivity = require('./src/routes/calendar-productivity');
   app.use('/', calendarProductivity);
   if (BASE_PATH) app.use(BASE_PATH, calendarProductivity);
+
+  const uatWorkWidgets = require('./src/routes/uat-work-widgets');
+  app.use('/', uatWorkWidgets);
+  if (BASE_PATH) app.use(BASE_PATH, uatWorkWidgets);
 }
 
 const osProductivity = require('./src/routes/os-productivity');
