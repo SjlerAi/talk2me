@@ -1,6 +1,9 @@
 name: Deploy Talk2Me UI UAT
 
 on:
+  push:
+    branches:
+      - uat/talk2me-ui-redesign
   workflow_dispatch:
 
 permissions:
