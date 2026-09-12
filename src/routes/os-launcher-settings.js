@@ -11,6 +11,7 @@ const {
 } = require('../services/os-launcher-settings');
 
 const router = express.Router();
+const IS_UAT = String(process.env.UAT_MODE || '').trim().toLowerCase() === 'true';
 
 function isOwner(user) {
   return Boolean(user && ['owner', 'admin'].includes(user.role));
@@ -77,6 +78,7 @@ router.get('/api/os/launchers', requireAuth, async (req, res, next) => {
   }
 });
 
+if (IS_UAT) router.use(require('./uat-staff-preferences'));
 router.use(require('./monthly-data-import'));
 router.use(require('./monthly-import-management'));
 router.use(require('./attendance'));
