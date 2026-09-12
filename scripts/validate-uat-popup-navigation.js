@@ -5,14 +5,18 @@ const fs = require('fs');
 const path = require('path');
 
 const root = path.resolve(__dirname, '..');
-const os = fs.readFileSync(path.join(root, 'public/js/os-v6.js'), 'utf8');
-const layout = fs.readFileSync(path.join(root, 'views/layout.ejs'), 'utf8');
+const customerActions = fs.readFileSync(path.join(root, 'public/js/customer-actions.js'), 'utf8');
+const launchers = fs.readFileSync(path.join(root, 'public/js/os-launchers.js'), 'utf8');
 
-assert.match(os, /talk2me:open-route/);
-assert.match(os, /event\.origin !== location\.origin/);
-assert.match(os, /windows\.open\(/);
-assert.match(layout, /talk2me:open-route/);
-assert.match(layout, /window\.parent\.postMessage/);
-assert.match(layout, /data-panel-self/);
+assert.match(customerActions, /panelMode/);
+assert.match(customerActions, /talk2me:open-route/);
+assert.match(customerActions, /window\.parent\.postMessage/);
+assert.match(customerActions, /data-panel-self/);
+assert.match(customerActions, /url\.searchParams\.delete\('panel'\)/);
+assert.match(launchers, /talk2me:open-route/);
+assert.match(launchers, /event\.origin !== window\.location\.origin/);
+assert.match(launchers, /openInternalRoute/);
+assert.match(launchers, /windows\.open\(/);
+assert.match(launchers, /url\.searchParams\.delete\('panel'\)/);
 
 console.log('UAT popup navigation validation passed.');
