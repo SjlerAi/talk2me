@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#e31e24">
+  <meta name="application-name" content="Talk2Me OS2">
+  <title>Talk2Me OS2 Login</title>
+  <link rel="icon" href="/talk2me-os2-icon.svg" type="image/svg+xml">
+  <link rel="shortcut icon" href="/talk2me-os2-icon.svg">
+  <link rel="apple-touch-icon" href="/talk2me-os2-icon.svg">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="stylesheet" href="./login.css">
+</head>
+<body>
+  <main class="login-shell">
+    <section class="login-card">
+      <div class="brand-row">
+        <div class="brand-mark">T</div>
+        <div><strong>Talk2Me</strong><span>OS2 Workspace</span></div>
+      </div>
+      <div class="login-copy">
+        <span>SECURE STAFF ACCESS</span>
+        <h1>Welcome back</h1>
+        <p>Use your existing Talk2Me username or email address and password.</p>
+      </div>
+      <form id="loginForm" autocomplete="on">
+        <label>Username or email
+          <input id="identity" name="identity" autocomplete="username" required autofocus>
+        </label>
+        <label>Password
+          <input id="password" name="password" type="password" autocomplete="current-password" required>
+        </label>
+        <div class="error" id="loginError" role="alert"></div>
+        <button type="submit" id="loginButton">Sign in</button>
+      </form>
+      <div class="security-note">
+        <strong>Protected test environment</strong>
+        <span>Sessions expire automatically after 8 hours. Activity is recorded in the Talk2Me audit log.</span>
+      </div>
+    </section>
+  </main>
+  <script src="./login.js"></script>
+</body>
+</html>
