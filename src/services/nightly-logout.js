@@ -1,4 +1,5 @@
 const db = require('../config/db');
+const { startDigestScheduler } = require('./digest-scheduler');
 
 const DEFAULT_TIMEZONE = 'Africa/Johannesburg';
 const DEFAULT_LOGOUT_TIME = '22:00:00';
@@ -39,8 +40,6 @@ async function ensureNightlyLogoutSchema() {
   if (schemaPromise) return schemaPromise;
 
   schemaPromise = (async () => {
-    // Keep nightly logout settings isolated in their own table. This avoids
-    // database-specific SHOW COLUMNS parameter handling on shared hosting.
     await db.execute(`CREATE TABLE IF NOT EXISTS nightly_logout_settings (
       id TINYINT UNSIGNED NOT NULL,
       enabled TINYINT(1) NOT NULL DEFAULT 1,
@@ -126,6 +125,7 @@ async function runAutomaticLogout(now = new Date()) {
 }
 
 function startNightlyLogoutWorker() {
+  startDigestScheduler();
   const run = () => runAutomaticLogout().catch(error => console.error('Nightly automatic logout failed', error));
   setTimeout(run, 5000);
   const timer = setInterval(run, 30000);
