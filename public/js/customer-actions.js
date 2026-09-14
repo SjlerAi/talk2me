@@ -9,6 +9,7 @@
     try {
       const frames = window.parent.document.querySelectorAll('.t2m-os-window iframe');
       for (const frame of frames) {
+        if (frame.contentWindow === window) continue;
         let frameUrl;
         try { frameUrl = new URL(frame.src, window.parent.location.href); } catch (_) { continue; }
         if (frameUrl.origin !== location.origin) continue;
