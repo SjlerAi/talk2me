@@ -32,6 +32,15 @@
   document.addEventListener('DOMContentLoaded', () => {
     const match = location.pathname.match(/\/customers\/(\d+)\/360\/?$/);
     if (!match) return;
+    const customerId = Number(match[1]);
+
+    if (panelMode && params.get('details_saved') === '1') {
+      window.parent.postMessage({
+        type: 'talk2me:customer-saved',
+        customerId
+      }, location.origin);
+    }
+
     const actions = document.querySelector('.customer-head .hero-actions');
     if (!actions) return;
 
