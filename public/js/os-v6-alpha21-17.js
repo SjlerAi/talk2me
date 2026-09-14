@@ -45,6 +45,7 @@
     addScript('data-uat-reminder-fix', `${basePath}/public/js/uat-reminder-dialog-fix.js?v=${encodeURIComponent(uatAssetVersion)}`);
     addScript('data-uat-productivity', `${basePath}/public/js/productivity-uat.js?v=${encodeURIComponent(uatAssetVersion)}`, () => {
       addScript('data-calendar-home-uat', `${basePath}/public/js/calendar-home-uat.js?v=${encodeURIComponent(uatAssetVersion)}`, () => {
+        addScript('data-uat-command-centre-sidebar', `${basePath}/public/js/uat-command-centre-sidebar.js?v=${encodeURIComponent(uatAssetVersion)}`);
         addScript('data-uat-work-widgets', `${basePath}/public/js/uat-work-widgets.js?v=${encodeURIComponent(uatAssetVersion)}`, () => {
           addScript('data-uat-widget-polish', `${basePath}/public/js/uat-widget-polish.js?v=${encodeURIComponent(uatAssetVersion)}`);
         });
