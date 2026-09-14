@@ -4,6 +4,21 @@
   const params = new URLSearchParams(location.search);
   const panelMode = params.get('panel') === '1' && window.parent !== window;
 
+  function refreshOpenCustomerWindows(customerId) {
+    if (!panelMode || !customerId) return;
+    try {
+      const frames = window.parent.document.querySelectorAll('.t2m-os-window iframe');
+      for (const frame of frames) {
+        let frameUrl;
+        try { frameUrl = new URL(frame.src, window.parent.location.href); } catch (_) { continue; }
+        if (frameUrl.origin !== location.origin) continue;
+        if (new RegExp(`/customers/${customerId}/360/?$`).test(frameUrl.pathname)) {
+          frame.contentWindow?.location.reload();
+        }
+      }
+    } catch (_) {}
+  }
+
   if (panelMode) {
     document.addEventListener('click', event => {
       const link = event.target.closest('a[href]');
@@ -35,6 +50,7 @@
     const customerId = Number(match[1]);
 
     if (panelMode && params.get('details_saved') === '1') {
+      refreshOpenCustomerWindows(customerId);
       window.parent.postMessage({
         type: 'talk2me:customer-saved',
         customerId
