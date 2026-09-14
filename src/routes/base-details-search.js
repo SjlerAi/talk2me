@@ -3,9 +3,14 @@
 const express = require('express');
 const db = require('../config/db');
 const { requireAuth } = require('../middleware/auth');
-const { normaliseSouthAfricanMobile } = require('../services/sa-phone-normalisation');
+const { normaliseSouthAfricanMobile, formatSouthAfricanMobile } = require('../services/sa-phone-normalisation');
+const { materializeBaseAccount } = require('../services/base-details-client-materializer');
 
 const router = express.Router();
+
+function accountKey(value) {
+  return String(value || '').trim().toUpperCase();
+}
 
 async function baseSchemaReady() {
   const [[row]] = await db.query(`
@@ -16,23 +21,42 @@ async function baseSchemaReady() {
   return Number(row?.total || 0) === 1;
 }
 
+async function safeSection(label, fallback, loader, warnings) {
+  try {
+    return await loader();
+  } catch (error) {
+    console.error(`[MobileBase] ${label} failed:`, error.code || '', error.message || error);
+    warnings.push(label);
+    return fallback;
+  }
+}
+
 router.get('/search/all', requireAuth, async (req, res, next) => {
   try {
     const q = String(req.query.q || '').trim();
     if (q.length < 2) return res.json([]);
     const like = `%${q}%`;
-    const phone = normaliseSouthAfricanMobile(q);
+    const phone = normaliseSouthAfricanMobile(q) || null;
+    const phoneLocal = phone ? `0${phone.slice(2)}` : null;
 
     const [mobile] = await db.execute(`
       SELECT c.id,c.account_number,c.client_name,c.cell_number,c.email,c.handset,c.package_name,
         'mobile' record_type
       FROM clients c
-      WHERE (:phone IS NOT NULL AND c.cell_number_normalised=:phone)
+      WHERE (
+          :phone IS NOT NULL AND (
+            c.cell_number_normalised=:phone
+            OR REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(TRIM(COALESCE(c.cell_number,'')),'+',''),' ',''),'-',''),'(',''),')','') IN (:phone,:phoneLocal)
+          )
+        )
          OR c.client_name LIKE :like OR c.cell_number LIKE :like OR c.email LIKE :like
          OR c.account_number LIKE :like OR c.id_number LIKE :like
-      ORDER BY CASE WHEN :phone IS NOT NULL AND c.cell_number_normalised=:phone THEN 0 ELSE 1 END,c.client_name
+      ORDER BY CASE WHEN :phone IS NOT NULL AND (
+        c.cell_number_normalised=:phone
+        OR REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(TRIM(COALESCE(c.cell_number,'')),'+',''),' ',''),'-',''),'(',''),')','') IN (:phone,:phoneLocal)
+      ) THEN 0 ELSE 1 END,c.client_name
       LIMIT 12
-    `, { phone, like });
+    `, { phone, phoneLocal, like });
 
     let currentBase = [];
     if (await baseSchemaReady()) {
@@ -43,23 +67,35 @@ router.get('/search/all', requireAuth, async (req, res, next) => {
           NULLIF(TRIM(CONCAT_WS(' ',mb.device_manufacturer,mb.device_name)),'') handset,
           COALESCE(NULLIF(TRIM(mb.tariff_name),''),NULLIF(TRIM(mb.price_plan),'')) package_name,
           'mobile_base' record_type,
-          mb.client_id,mb.account_id,mb.icc_id,mb.imsi
+          mb.client_id,mb.account_id,mb.icc_id,mb.imsi,
+          COALESCE(
+            mb.client_id,
+            (
+              SELECT c3.id
+              FROM clients c3
+              WHERE NULLIF(TRIM(c3.account_number),'') IS NOT NULL
+                AND TRIM(c3.account_number)=TRIM(mb.account_code)
+              ORDER BY (c3.cell_number_normalised=mb.msisdn_normalised) DESC,c3.is_active DESC,c3.id ASC
+              LIMIT 1
+            )
+          ) resolved_client_id
         FROM mobile_base_current mb
-        WHERE mb.client_id IS NULL
-          AND NOT EXISTS (
-            SELECT 1 FROM clients c2
-            WHERE c2.cell_number_normalised=mb.msisdn_normalised
-          )
-          AND (
-            (:phone IS NOT NULL AND mb.msisdn_normalised=:phone)
+        WHERE (
+            (:phone IS NOT NULL AND (
+              mb.msisdn_normalised=:phone
+              OR REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(TRIM(COALESCE(mb.msisdn_original,'')),'+',''),' ',''),'-',''),'(',''),')','') IN (:phone,:phoneLocal)
+            ))
             OR mb.msisdn_original LIKE :like OR mb.account_code LIKE :like OR mb.account_name LIKE :like
             OR mb.first_name LIKE :like OR mb.surname LIKE :like OR mb.email_address LIKE :like
             OR mb.id_number LIKE :like OR mb.icc_id LIKE :like OR mb.imsi LIKE :like
           )
-        ORDER BY CASE WHEN :phone IS NOT NULL AND mb.msisdn_normalised=:phone THEN 0 ELSE 1 END,
+        ORDER BY CASE WHEN :phone IS NOT NULL AND (
+          mb.msisdn_normalised=:phone
+          OR REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(TRIM(COALESCE(mb.msisdn_original,'')),'+',''),' ',''),'-',''),'(',''),')','') IN (:phone,:phoneLocal)
+        ) THEN 0 ELSE 1 END,
           mb.account_name,mb.msisdn_normalised
         LIMIT 12
-      `, { phone, like });
+      `, { phone, phoneLocal, like });
     }
 
     const [fixed] = await db.execute(`
@@ -68,20 +104,97 @@ router.get('/search/all', requireAuth, async (req, res, next) => {
         fs.id fixed_service_id,fs.branch_name,fs.solution_id,fs.order_number,'fixed' record_type
       FROM fixed_accounts fa
       LEFT JOIN fixed_services fs ON fs.fixed_account_id=fa.id
-      WHERE (:phone IS NOT NULL AND fa.contact_number_normalised=:phone)
+      WHERE (:phone IS NOT NULL AND (
+          fa.contact_number_normalised=:phone
+          OR REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(TRIM(COALESCE(fa.contact_number,'')),'+',''),' ',''),'-',''),'(',''),')','') IN (:phone,:phoneLocal)
+        ))
          OR fa.customer_name LIKE :like OR fa.contact_name LIKE :like OR fa.contact_number LIKE :like
          OR fa.email LIKE :like OR fa.account_number LIKE :like OR fs.branch_name LIKE :like
          OR fs.solution_id LIKE :like OR fs.order_number LIKE :like OR fs.sim_number LIKE :like OR fs.mac_address LIKE :like
       ORDER BY fa.customer_name,fs.branch_name
       LIMIT 12
-    `, { phone, like });
+    `, { phone, phoneLocal, like });
+
+    const crmRows = mobile.map(row => ({ ...row, url: `${res.locals.basePath}/customers/${row.id}/360` }));
+    const crmClientIds = new Set(crmRows.map(row => Number(row.id)).filter(Number.isSafeInteger));
+    const crmAccounts = new Set(crmRows.map(row => accountKey(row.account_number)).filter(Boolean));
+    const seenPhones = new Set(crmRows.map(row => normaliseSouthAfricanMobile(row.cell_number)).filter(Boolean));
+    const seenBaseTargets = new Set();
+    const baseRows = [];
+
+    for (const row of currentBase) {
+      const resolvedClientId = Number(row.resolved_client_id || 0) || null;
+      const key = accountKey(row.account_number);
+      const rowPhone = normaliseSouthAfricanMobile(row.cell_number);
+
+      if (resolvedClientId && (crmClientIds.has(resolvedClientId) || (key && crmAccounts.has(key)))) continue;
+      if (!resolvedClientId && rowPhone && seenPhones.has(rowPhone)) continue;
+
+      const targetKey = resolvedClientId
+        ? `client:${resolvedClientId}`
+        : key
+          ? `base-account:${key}`
+          : `base:${row.id}`;
+      if (seenBaseTargets.has(targetKey)) continue;
+      seenBaseTargets.add(targetKey);
+
+      baseRows.push({
+        ...row,
+        id: resolvedClientId || row.id,
+        record_type: resolvedClientId ? 'mobile' : 'mobile_base',
+        cell_number: formatSouthAfricanMobile(row.cell_number),
+        url: resolvedClientId
+          ? `${res.locals.basePath}/customers/${resolvedClientId}/360`
+          : `${res.locals.basePath}/mobile-base/${row.id}`
+      });
+    }
 
     const rows = [
-      ...mobile.map(row => ({ ...row, url: `${res.locals.basePath}/customers/${row.id}/360` })),
-      ...currentBase.map(row => ({ ...row, url: `${res.locals.basePath}/mobile-base/${row.id}` })),
+      ...crmRows,
+      ...baseRows,
       ...fixed.map(row => ({ ...row, url: `${res.locals.basePath}/fixed/accounts/${row.id}` }))
     ];
     return res.json(rows.slice(0, 20));
+  } catch (error) { next(error); }
+});
+
+router.get('/api/customers/:id/base-details', requireAuth, async (req, res, next) => {
+  try {
+    if (!await baseSchemaReady()) return res.status(404).json({ ok: false, error: 'Base Details is unavailable.' });
+    const clientId = Number(req.params.id);
+    if (!Number.isSafeInteger(clientId) || clientId < 1) return res.status(400).json({ ok: false, error: 'Invalid customer.' });
+
+    const [[client]] = await db.execute(
+      'SELECT id,account_id,account_number,cell_number_normalised FROM clients WHERE id=:id LIMIT 1',
+      { id: clientId }
+    );
+    if (!client) return res.status(404).json({ ok: false, error: 'Customer not found.' });
+
+    const clauses = ['mb.client_id=:clientId'];
+    const params = { clientId };
+    if (client.account_id) {
+      clauses.push('mb.account_id=:accountId');
+      params.accountId = Number(client.account_id);
+    }
+    if (client.account_number) {
+      clauses.push('mb.account_code=:accountCode');
+      params.accountCode = String(client.account_number).trim();
+    }
+    if (client.cell_number_normalised) {
+      clauses.push('mb.msisdn_normalised=:phone');
+      params.phone = client.cell_number_normalised;
+    }
+
+    const [rows] = await db.execute(`
+      SELECT mb.*,
+        (SELECT COUNT(*) FROM mobile_base_snapshots s WHERE s.mobile_base_current_id=mb.id) snapshot_count
+      FROM mobile_base_current mb
+      WHERE ${clauses.join(' OR ')}
+      ORDER BY mb.msisdn_normalised,mb.id
+      LIMIT 100
+    `, params);
+
+    return res.json({ ok: true, rows });
   } catch (error) { next(error); }
 });
 
@@ -91,38 +204,64 @@ router.get('/mobile-base/:id', requireAuth, async (req, res, next) => {
     const id = Number(req.params.id);
     if (!Number.isSafeInteger(id) || id < 1) return res.status(400).render('error', { title: 'Invalid mobile service', message: 'Select a valid current mobile service.' });
 
-    const [[line]] = await db.execute(`
-      SELECT mb.*,ca.account_number canonical_account_number,ca.display_name canonical_account_name,
-        c.client_name crm_client_name
-      FROM mobile_base_current mb
-      LEFT JOIN customer_accounts ca ON ca.id=mb.account_id
-      LEFT JOIN clients c ON c.id=mb.client_id
-      WHERE mb.id=:id LIMIT 1
-    `, { id });
+    if (String(req.query.source || '') !== '1') {
+      const result = await materializeBaseAccount({ baseId: id, userId: req.session.user.id });
+      return res.redirect(`${res.locals.basePath}/customers/${result.clientId}/360?base_linked=1`);
+    }
+
+    const [[line]] = await db.execute('SELECT * FROM mobile_base_current WHERE id=:id LIMIT 1', { id });
     if (!line) return res.status(404).render('error', { title: 'Current mobile service not found', message: 'This current Base Details service line does not exist.' });
 
-    const [events] = await db.execute(`
-      SELECT me.*,su.full_name staff_name
-      FROM mobile_events me
-      LEFT JOIN staff_users su ON su.id=me.staff_id
-      WHERE me.mobile_base_current_id=:id OR me.msisdn_normalised=:phone
-      ORDER BY me.event_date DESC,me.id DESC
-      LIMIT 50
-    `, { id, phone: line.msisdn_normalised });
+    const warnings = [];
 
-    const [snapshots] = await db.execute(`
-      SELECT id,batch_id,source_row_number,captured_at
-      FROM mobile_base_snapshots
-      WHERE mobile_base_current_id=:id
-      ORDER BY captured_at DESC,id DESC
-      LIMIT 24
-    `, { id });
+    if (line.account_id) {
+      const account = await safeSection('Canonical account', null, async () => {
+        const [[row]] = await db.execute('SELECT account_number,display_name FROM customer_accounts WHERE id=:id LIMIT 1', { id: line.account_id });
+        return row || null;
+      }, warnings);
+      line.canonical_account_number = account?.account_number || null;
+      line.canonical_account_name = account?.display_name || null;
+    }
+
+    if (line.client_id) {
+      const crmClient = await safeSection('CRM customer link', null, async () => {
+        const [[row]] = await db.execute('SELECT client_name FROM clients WHERE id=:id LIMIT 1', { id: line.client_id });
+        return row || null;
+      }, warnings);
+      line.crm_client_name = crmClient?.client_name || null;
+    }
+
+    const events = await safeSection('Activation and upgrade history', [], async () => {
+      const [rows] = await db.execute(`
+        SELECT me.*,su.full_name staff_name
+        FROM mobile_events me
+        LEFT JOIN staff_users su ON su.id=me.staff_id
+        WHERE me.mobile_base_current_id=:id OR me.msisdn_normalised=:phone
+        ORDER BY me.event_date DESC,me.id DESC
+        LIMIT 50
+      `, { id, phone: line.msisdn_normalised });
+      return rows;
+    }, warnings);
+
+    const snapshots = await safeSection('Base snapshot history', [], async () => {
+      const [rows] = await db.execute(`
+        SELECT id,batch_id,source_row_number,captured_at
+        FROM mobile_base_snapshots
+        WHERE mobile_base_current_id=:id
+        ORDER BY captured_at DESC,id DESC
+        LIMIT 24
+      `, { id });
+      return rows;
+    }, warnings);
 
     return res.render('mobile-base-view', {
       title: line.account_name || line.msisdn_original || 'Current Vodacom Service',
-      line,events,snapshots
+      line,events,snapshots,sectionWarnings:[...new Set(warnings)]
     });
-  } catch (error) { next(error); }
+  } catch (error) {
+    console.error(`[MobileBase ${req.params.id}] fatal open failure:`, error.code || '', error.message || error);
+    next(error);
+  }
 });
 
 module.exports = router;
