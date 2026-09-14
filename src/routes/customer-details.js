@@ -53,14 +53,36 @@ async function duplicateMatches(id, { cell_number, email, id_number, account_num
   const account = text(account_number, 100);
   const [rows] = await db.execute(`SELECT id,client_name,cell_number,email,id_number,account_number,lifecycle_status
     FROM clients
-    WHERE id<>:id AND (
-      (:phone IS NOT NULL AND cell_number_normalised=:phone)
-      OR (:mail<>'' AND LOWER(email)=:mail)
-      OR (:identity<>'' AND id_number=:identity)
-      OR (:account<>'' AND account_number=:account)
-    )
+    WHERE id<>:id
+      AND NOT (:account<>'' AND account_number=:account)
+      AND (
+        (:phone IS NOT NULL AND cell_number_normalised=:phone)
+        OR (:mail<>'' AND LOWER(email)=:mail)
+        OR (:identity<>'' AND id_number=:identity)
+      )
     ORDER BY id DESC LIMIT 10`, { id, phone, mail, identity, account });
   return rows;
+}
+
+function persistedValue(value) {
+  return String(value == null ? '' : value).trim();
+}
+
+async function verifySavedCustomer(id, values) {
+  const saved = await getClient(id);
+  if (!saved) throw new Error('The customer disappeared before the update could be verified.');
+
+  const checks = [
+    ['client_name', values.client_name],
+    ['email', values.email],
+    ['cell_number', values.cell_number],
+    ['alt_number', values.alt_number],
+    ['city_town', values.city_town],
+    ['id_number', values.id_number]
+  ];
+  const failed = checks.find(([field, expected]) => persistedValue(saved[field]).toLowerCase() !== persistedValue(expected).toLowerCase());
+  if (failed) throw new Error(`Customer details did not persist correctly (${failed[0]}). Please try again.`);
+  return saved;
 }
 
 router.get('/customers/:id/details', requireAuth, async (req, res, next) => {
@@ -117,12 +139,12 @@ router.post('/customers/:id/details', requireAuth, async (req, res, next) => {
     if (duplicates.length && String(req.body.confirm_duplicate || '') !== '1') {
       return res.status(409).render('customer-details', {
         title:'Possible Duplicate Customer', client:{...client,...values}, isManagement, saved:false, converted:false,
-        duplicates, error:'Talk2Me found another customer with matching contact, ID or account information. Check the records below before saving.'
+        duplicates, error:'Talk2Me found another customer with matching contact, ID or identity information on a different account. Check the records below before saving.'
       });
     }
 
     const phone = normalisePhone(values.cell_number);
-    await db.execute(`UPDATE clients SET
+    const [updateResult] = await db.execute(`UPDATE clients SET
       client_name=:client_name,first_name=:first_name,surname=:surname,company_name=:company_name,
       cell_number=:cell_number,cell_number_normalised=:phone,alt_number=:alt_number,email=:email,city_town=:city_town,
       id_number=:id_number,birthday=:birthday,customer_type=:customer_type,package_name=:package_name,handset=:handset,
@@ -132,7 +154,15 @@ router.post('/customers/:id/details', requireAuth, async (req, res, next) => {
       account_number=:account_number,lifecycle_status=:lifecycle_status,line_status=:line_status,updated_at=NOW()
       WHERE id=:id`, { ...values, phone, term: values.contract_term_months, id });
 
-    try { await audit(req, 'customer_details_updated', 'clients', id, { lifecycle_status:values.lifecycle_status }); } catch (_) {}
+    if (!updateResult.affectedRows) throw new Error('Customer details were not updated.');
+    const saved = await verifySavedCustomer(id, values);
+
+    try {
+      await audit(req, 'customer_details_updated', 'clients', id, {
+        lifecycle_status: saved.lifecycle_status,
+        email_updated: persistedValue(client.email).toLowerCase() !== persistedValue(saved.email).toLowerCase()
+      });
+    } catch (_) {}
     res.redirect(`${res.locals.basePath}/customers/${id}/360?details_saved=1`);
   } catch (error) { next(error); }
 });

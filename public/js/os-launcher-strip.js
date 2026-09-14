@@ -8,6 +8,29 @@
   const basePath = String(config.basePath || '');
   if (!strip || !previous || !next) return;
 
+  function installUatCommandCentre() {
+    const isUatWorkspace = location.hostname === 'uent.co.za' && basePath === '/talk2me';
+    if (!isUatWorkspace || document.querySelector('[data-uat-command-centre]')) return;
+    const existing = [...document.querySelectorAll('[data-os-route]')]
+      .find(node => String(node.dataset.osRoute || '').endsWith('/command-centre'));
+    if (existing) return;
+
+    const sections = [...document.querySelectorAll('.t2m-os-sidebar-section')];
+    const information = sections.find(section => section.querySelector('.t2m-os-sidebar-label')?.textContent.trim() === 'Information') || sections[0];
+    if (!information) return;
+
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.dataset.uatCommandCentre = '1';
+    button.dataset.osRoute = `${basePath}/command-centre`;
+    button.dataset.routeTitle = 'Command Centre';
+    button.dataset.routeIcon = '◆';
+    button.setAttribute('aria-label', 'Command Centre');
+    button.title = 'Command Centre';
+    button.innerHTML = '<span>◆</span><strong>Command Centre</strong>';
+    information.insertBefore(button, information.children[1] || null);
+  }
+
   function update() {
     const max = Math.max(0, strip.scrollWidth - strip.clientWidth);
     previous.disabled = strip.scrollLeft <= 4;
@@ -45,6 +68,7 @@
   window.addEventListener('resize', update);
   window.addEventListener('workspace:refresh', refreshAssignments);
   new MutationObserver(update).observe(strip, { childList: true });
+  installUatCommandCentre();
   update();
   refreshAssignments();
   setInterval(refreshAssignments, 15000);
