@@ -24,6 +24,6 @@ requireText(actions, "params.get('details_saved') === '1'", 'verified-save refre
 requireText(server, "require('./src/routes/uat-command-centre')", 'UAT Command Centre mount');
 requireText(command, "router.get('/command-centre', requireAuth", 'authenticated UAT Command Centre route');
 requireText(command, 'if (!IS_UAT) return next();', 'UAT-only Command Centre guard');
-requireText(launcher, 'data.uatCommandCentre', 'temporary UAT Command Centre launcher');
+requireText(launcher, 'dataset.uatCommandCentre', 'temporary UAT Command Centre launcher');
 
 console.log('UAT customer save and Command Centre validation passed.');
