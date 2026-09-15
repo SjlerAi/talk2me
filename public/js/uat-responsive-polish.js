@@ -32,7 +32,20 @@
     shell.classList.toggle('is-uat-auto-collapsed', media.matches);
   }
 
+  function keepLauncherVisible() {
+    const launcher = document.querySelector('.t2m-os-launcher');
+    if (!launcher) return;
+    launcher.removeAttribute('hidden');
+    launcher.setAttribute('aria-hidden', 'false');
+
+    const observer = new MutationObserver(() => {
+      if (launcher.hasAttribute('hidden')) launcher.removeAttribute('hidden');
+    });
+    observer.observe(launcher, { attributes: true, attributeFilter: ['hidden'] });
+  }
+
   compactSessionControl();
+  keepLauncherVisible();
   applyResponsiveState();
 
   if (typeof media.addEventListener === 'function') media.addEventListener('change', applyResponsiveState);
