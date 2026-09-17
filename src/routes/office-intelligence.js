@@ -10,34 +10,129 @@ function sourceFromRequest(req) {
   return /android|iphone|ipad|mobile/.test(agent) ? 'mobile' : 'backoffice';
 }
 
+function hasAgentAccess(user) {
+  return Boolean(user && ['owner', 'manager'].includes(user.role));
+}
+
 function requireOfficeIntelligenceAccess(req, res, next) {
-  if (!req.session.user) {
-    return res.redirect(`${res.locals.basePath}/login?return=office-intelligence`);
+  if (!req.session.user) return res.redirect(`${res.locals.basePath}/login?return=office-intelligence`);
+  if (!hasAgentAccess(req.session.user)) {
+    return res.status(403).render('error', { title: 'Forbidden', message: 'Owner or manager access required.' });
   }
-  if (!['owner', 'manager'].includes(req.session.user.role)) {
-    return res.status(403).render('error', {
-      title: 'Forbidden',
-      message: 'Owner or manager access required.'
+  next();
+}
+
+function requireStandaloneAgentAccess(req, res, next) {
+  if (!req.session.user) return res.redirect(`${res.locals.basePath}/agent/login`);
+  if (!hasAgentAccess(req.session.user)) {
+    return res.status(403).render('agent-login', {
+      layout: false,
+      title: 'Gerda Agent',
+      error: 'This private management agent is available only to authorised owner or manager accounts.'
     });
   }
   next();
 }
 
-// Preserve the existing Talk2Me login handler, but when the login journey started
-// from Gerda Agent, replace only its normal /workspace landing with Office Intelligence.
+// Reuse the existing CRM authentication handler unchanged. This middleware only
+// changes presentation/landing for explicitly marked Agent/Office Intelligence logins.
 router.post('/login', (req, res, next) => {
-  if (String(req.query.return || '') !== 'office-intelligence') return next();
+  const returnTarget = String(req.query.return || '');
+  if (!['office-intelligence', 'agent'].includes(returnTarget)) return next();
+
   const originalRedirect = res.redirect.bind(res);
+  const originalRender = res.render.bind(res);
+
   res.redirect = target => {
     const normalWorkspace = `${res.locals.basePath}/workspace`;
     if (String(target) === normalWorkspace) {
-      return originalRedirect(`${res.locals.basePath}/office-intelligence`);
+      const path = returnTarget === 'agent' ? '/agent' : '/office-intelligence';
+      return originalRedirect(`${res.locals.basePath}${path}`);
     }
+    return originalRedirect(target);
+  };
+
+  if (returnTarget === 'agent') {
+    res.render = (view, locals = {}, callback) => {
+      if (view === 'login') {
+        return originalRender('agent-login', {
+          layout: false,
+          title: 'Gerda Agent',
+          error: locals.error || 'Invalid login details.'
+        }, callback);
+      }
+      return originalRender(view, locals, callback);
+    };
+  }
+
+  next();
+});
+
+// Reuse the existing CRM logout handler, but keep Agent users inside the Agent journey.
+router.post('/logout', (req, res, next) => {
+  if (String(req.query.return || '') !== 'agent') return next();
+  const originalRedirect = res.redirect.bind(res);
+  res.redirect = target => {
+    const normalLogin = `${res.locals.basePath}/login`;
+    if (String(target) === normalLogin) return originalRedirect(`${res.locals.basePath}/agent/login`);
     return originalRedirect(target);
   };
   next();
 });
 
+router.get('/agent/login', (req, res) => {
+  if (hasAgentAccess(req.session.user)) return res.redirect(`${res.locals.basePath}/agent`);
+  res.render('agent-login', { layout: false, title: 'Gerda Agent', error: null });
+});
+
+router.get('/agent/manifest.webmanifest', (req, res) => {
+  const basePath = res.locals.basePath || '';
+  res.type('application/manifest+json').send({
+    id: `${basePath}/agent`,
+    name: 'Gerda Agent - Talk2Me',
+    short_name: 'Gerda Agent',
+    description: 'Private Talk2Me live management agent',
+    start_url: `${basePath}/agent`,
+    scope: `${basePath}/agent`,
+    display: 'standalone',
+    background_color: '#07111f',
+    theme_color: '#07111f',
+    icons: [
+      { src: `${basePath}/public/images/favicon-192x192.png`, sizes: '192x192', type: 'image/png' },
+      { src: `${basePath}/public/images/favicon-512x512.png`, sizes: '512x512', type: 'image/png' },
+      { src: `${basePath}/public/images/favicon-512x512.png`, sizes: '512x512', type: 'image/png', purpose: 'maskable' }
+    ]
+  });
+});
+
+router.get('/agent', requireStandaloneAgentAccess, async (req, res, next) => {
+  try {
+    const rangeKey = String(req.query.range || 'today');
+    const report = await buildOfficeReport({ rangeKey, requestedBy: req.session.user.id, requestSource: sourceFromRequest(req) });
+    res.render('agent', { layout: false, title: 'Gerda Agent', report, commandText: '' });
+  } catch (error) { next(error); }
+});
+
+router.post('/agent/check', requireStandaloneAgentAccess, async (req, res, next) => {
+  try {
+    const commandText = String(req.body.command || 'check for me').trim();
+    const parsed = parseCommand(commandText);
+    const report = await buildOfficeReport({ rangeKey: parsed.rangeKey, requestedBy: req.session.user.id, requestSource: sourceFromRequest(req), commandText });
+    res.render('agent', { layout: false, title: 'Gerda Agent', report, commandText });
+  } catch (error) { next(error); }
+});
+
+router.get('/api/agent/check', requireStandaloneAgentAccess, async (req, res, next) => {
+  try {
+    const commandText = String(req.query.command || 'check for me').trim();
+    const parsed = parseCommand(commandText);
+    const report = await buildOfficeReport({ rangeKey: parsed.rangeKey, requestedBy: req.session.user.id, requestSource: sourceFromRequest(req), commandText });
+    res.set('Cache-Control', 'no-store');
+    res.json(report);
+  } catch (error) { next(error); }
+});
+
+// Back Office version remains available through the CRM management UI.
 router.get('/office-intelligence/manifest.webmanifest', (req, res) => {
   const basePath = res.locals.basePath || '';
   res.type('application/manifest+json').send({

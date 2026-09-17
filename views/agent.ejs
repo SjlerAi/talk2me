@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#08111f">
+  <title>Gerda Agent · Talk2Me</title>
+  <link rel="manifest" href="<%= basePath %>/agent/manifest.webmanifest">
+  <style>
+    *{box-sizing:border-box}html,body{margin:0;background:#07111f;color:#e5eef8;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}body{min-height:100vh;background:radial-gradient(circle at 12% 0%,rgba(34,197,94,.13),transparent 28%),linear-gradient(180deg,#07111f 0,#0b1524 48%,#07111f 100%)}a{color:inherit}.app{width:min(100%,1180px);margin:0 auto;padding:18px 18px 44px}.top{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:8px 2px 22px}.brand{display:flex;align-items:center;gap:11px}.mark{width:42px;height:42px;border-radius:14px;display:grid;place-items:center;background:#f8fafc;color:#07111f;font-weight:1000;letter-spacing:-.08em}.brand strong{display:block;font-size:1rem}.brand span{font-size:.72rem;color:#7dd3fc;text-transform:uppercase;letter-spacing:.13em;font-weight:800}.user{display:flex;align-items:center;gap:12px;color:#94a3b8;font-size:.82rem}.logout{border:1px solid #334155;background:#101d30;color:#dbe7f5;border-radius:12px;padding:9px 12px;font-weight:800;cursor:pointer}.hero{position:relative;overflow:hidden;border:1px solid rgba(148,163,184,.18);background:linear-gradient(135deg,rgba(15,27,45,.96),rgba(13,37,58,.94));border-radius:28px;padding:28px;margin-bottom:18px;box-shadow:0 30px 80px rgba(0,0,0,.28)}.hero:after{content:"";position:absolute;width:240px;height:240px;border-radius:50%;right:-70px;top:-95px;background:rgba(74,222,128,.08)}.eyebrow{font-size:.76rem;letter-spacing:.15em;text-transform:uppercase;color:#86efac;font-weight:900}.hero h1{font-size:clamp(2.4rem,7vw,4.5rem);line-height:.95;letter-spacing:-.06em;margin:10px 0 14px}.hero p{max-width:700px;margin:0;color:#aebbd0;line-height:1.55}.live{display:inline-flex;align-items:center;gap:8px;margin-top:18px;padding:8px 11px;border-radius:999px;background:rgba(34,197,94,.1);color:#86efac;font-weight:900;font-size:.84rem}.live i{width:8px;height:8px;border-radius:50%;background:#4ade80;box-shadow:0 0 0 5px rgba(74,222,128,.08)}.install{margin-left:8px;border:1px solid #334155;background:#101d30;color:#dbe7f5;border-radius:999px;padding:8px 11px;font-weight:800;cursor:pointer}.command{border:1px solid rgba(148,163,184,.18);background:rgba(15,27,45,.82);border-radius:22px;padding:18px;margin-bottom:18px}.command label{display:block;font-weight:900;margin-bottom:9px}.command-row{display:grid;grid-template-columns:1fr auto;gap:10px}.command input{width:100%;min-width:0;border:1px solid #334155;background:#091525;color:#fff;border-radius:14px;padding:14px 15px;font:inherit;outline:none}.command input:focus{border-color:#4ade80;box-shadow:0 0 0 4px rgba(74,222,128,.1)}.command button{border:0;border-radius:14px;padding:0 22px;background:#4ade80;color:#052e16;font-weight:1000;cursor:pointer}.quick{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.quick a{text-decoration:none;padding:8px 11px;border-radius:999px;background:#101d30;border:1px solid #26364d;color:#cbd5e1;font-size:.83rem;font-weight:800}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:18px}.metric{border:1px solid rgba(148,163,184,.16);background:rgba(15,27,45,.8);border-radius:19px;padding:18px}.metric span{display:block;color:#8292aa;font-size:.74rem;text-transform:uppercase;letter-spacing:.08em;font-weight:900}.metric strong{display:block;font-size:2rem;margin-top:7px;letter-spacing:-.04em}.metric.off{opacity:.45}.section{border:1px solid rgba(148,163,184,.16);background:rgba(15,27,45,.78);border-radius:22px;padding:20px;margin-bottom:18px;overflow:hidden}.section h2{margin:0 0 4px;font-size:1.25rem}.section>p{margin:0 0 15px;color:#8292aa}.table-wrap{overflow:auto}.table{width:100%;border-collapse:collapse;min-width:640px}.table th,.table td{text-align:left;padding:11px 10px;border-bottom:1px solid #203047;font-size:.88rem}.table th{font-size:.72rem;color:#8292aa;text-transform:uppercase;letter-spacing:.06em}.empty{padding:18px;border-radius:14px;background:#091525;color:#8292aa}.foot{font-size:.77rem;color:#64748b;margin-top:10px}.privacy{display:flex;align-items:center;justify-content:space-between;gap:12px;color:#64748b;font-size:.76rem;padding:2px 4px 0}
+    @media(max-width:760px){.app{padding:12px 12px 34px}.top{padding-bottom:14px}.brand span{display:none}.user .name{display:none}.hero{padding:23px 18px;border-radius:22px}.grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.metric{padding:15px}.metric strong{font-size:1.65rem}.command-row{grid-template-columns:1fr}.command button{padding:14px 18px}.section{padding:16px}.install{display:inline-flex}.privacy{display:block;line-height:1.6}}
+    @media(max-width:390px){.grid{grid-template-columns:1fr 1fr}.metric span{font-size:.67rem}.metric strong{font-size:1.5rem}}
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="top">
+      <div class="brand"><div class="mark">T2M</div><div><strong>Talk2Me</strong><span>Private Management Agent</span></div></div>
+      <div class="user"><span class="name"><%= currentUser.full_name || currentUser.email %></span><form method="post" action="<%= basePath %>/logout?return=agent"><button class="logout" type="submit">Sign out</button></form></div>
+    </header>
+
+    <section class="hero">
+      <div class="eyebrow">Live business intelligence</div>
+      <h1>Gerda Agent</h1>
+      <p>Your private management view of what is happening in Talk2Me right now. This is a standalone reporting agent and does not open the CRM workspace.</p>
+      <div><span class="live"><i></i> LIVE · <%= report.range.label %></span><button class="install" id="agent-install" type="button">Add to phone</button></div>
+    </section>
+
+    <form class="command" method="post" action="<%= basePath %>/agent/check">
+      <label for="agent-command">What would you like me to check?</label>
+      <div class="command-row"><input id="agent-command" name="command" value="<%= commandText || '' %>" placeholder="Check for me, check weekly, check last 7 days" autocomplete="off"><button type="submit">Check now</button></div>
+      <div class="quick"><a href="<%= basePath %>/agent?range=today">Today</a><a href="<%= basePath %>/agent?range=this_week">This week</a><a href="<%= basePath %>/agent?range=last_7_days">Last 7 days</a><a href="<%= basePath %>/agent?range=month_to_date">Month to date</a></div>
+    </form>
+
+    <section class="grid"><% report.metrics.forEach(function(m){ %><article class="metric <%= m.available ? '' : 'off' %>"><span><%= m.name %></span><strong><%= m.available ? m.value : '—' %></strong></article><% }) %></section>
+
+    <section class="section"><h2>Who has been working</h2><p>Attendance evidence for <%= report.range.label.toLowerCase() %>.</p><% if(report.staffActivity.length){ %><div class="table-wrap"><table class="table"><thead><tr><th>Staff</th><th>First clock-in</th><th>Last activity</th><th>Working now</th></tr></thead><tbody><% report.staffActivity.forEach(function(row){ %><tr><td><strong><%= row.staff_name %></strong></td><td><%= row.first_clock_in || '—' %></td><td><%= row.last_activity || '—' %></td><td><%= Number(row.active_sessions||0)>0?'Yes':'No' %></td></tr><% }) %></tbody></table></div><% } else { %><div class="empty">No attendance activity was found for this period.</div><% } %></section>
+
+    <section class="section"><h2>Recent CRM activity</h2><p>Most recent centrally audited actions for the selected period.</p><% if(report.recentAudit.length){ %><div class="table-wrap"><table class="table"><thead><tr><th>Time</th><th>Staff</th><th>Action</th><th>Details</th></tr></thead><tbody><% report.recentAudit.forEach(function(row){ %><tr><td><%= row.created_at || '—' %></td><td><%= row.staff_name || 'System' %></td><td><%= row.action_type || '—' %></td><td><%= row.description || '' %></td></tr><% }) %></tbody></table></div><% } else { %><div class="empty">No centrally audited actions were found for this period. Additional CRM telemetry will expand this section.</div><% } %></section>
+
+    <section class="section"><h2>CRM usage</h2><p>Usage intelligence becomes richer as the new telemetry layer collects activity.</p><% if(report.screenUsage.length){ %><div class="table-wrap"><table class="table"><thead><tr><th>Screen</th><th>Uses</th><th>Staff</th><th>Last used</th></tr></thead><tbody><% report.screenUsage.forEach(function(row){ %><tr><td><strong><%= row.screen_key %></strong></td><td><%= row.uses %></td><td><%= row.staff_count %></td><td><%= row.last_used_at || '—' %></td></tr><% }) %></tbody></table></div><% } else { %><div class="empty">No screen telemetry has been collected yet.</div><% } %><div class="foot">Generated <%= report.generatedAt %>.</div></section>
+
+    <div class="privacy"><span>Read/report focused · no destructive database controls exposed.</span><span>Talk2Me Agent</span></div>
+  </main>
+  <script>
+    (()=>{let deferred=null;const button=document.getElementById('agent-install');window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferred=e});button?.addEventListener('click',async()=>{if(deferred){deferred.prompt();await deferred.userChoice;deferred=null;return}alert('On iPhone use Share → Add to Home Screen. On Android use the browser menu → Add to Home screen / Install app.')})})();
+  </script>
+</body>
+</html>
