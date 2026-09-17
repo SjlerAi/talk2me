@@ -34,12 +34,15 @@ function requireStandaloneAgentAccess(req, res, next) {
   next();
 }
 
-// Preserve the normal CRM login handler, but replace only its landing target for
-// explicitly marked Office Intelligence or standalone Agent login journeys.
+// Reuse the existing CRM authentication handler unchanged. This middleware only
+// changes presentation/landing for explicitly marked Agent/Office Intelligence logins.
 router.post('/login', (req, res, next) => {
   const returnTarget = String(req.query.return || '');
   if (!['office-intelligence', 'agent'].includes(returnTarget)) return next();
+
   const originalRedirect = res.redirect.bind(res);
+  const originalRender = res.render.bind(res);
+
   res.redirect = target => {
     const normalWorkspace = `${res.locals.basePath}/workspace`;
     if (String(target) === normalWorkspace) {
@@ -48,6 +51,20 @@ router.post('/login', (req, res, next) => {
     }
     return originalRedirect(target);
   };
+
+  if (returnTarget === 'agent') {
+    res.render = (view, locals = {}, callback) => {
+      if (view === 'login') {
+        return originalRender('agent-login', {
+          layout: false,
+          title: 'Gerda Agent',
+          error: locals.error || 'Invalid login details.'
+        }, callback);
+      }
+      return originalRender(view, locals, callback);
+    };
+  }
+
   next();
 });
 
