@@ -105,8 +105,8 @@ async function rows(sql, params = {}) {
   }
 }
 
-function metric(name, result) {
-  return { name, value: result.value, available: result.available };
+function metric(key, name, result, anchor) {
+  return { key, name, value: result.value, available: result.available, anchor };
 }
 
 async function buildOfficeReport({ rangeKey = 'today', requestedBy = null, requestSource = 'backoffice', commandText = null } = {}) {
@@ -117,7 +117,7 @@ async function buildOfficeReport({ rangeKey = 'today', requestedBy = null, reque
   const [activeStaff, inquiryCreated, inquiryClosed, tasksCreated, tasksCompleted, clientsCreated, overdueTasks, pendingTasks, auditedActions] = await Promise.all([
     scalar(`SELECT COUNT(DISTINCT staff_id) AS total FROM attendance_sessions WHERE status='active'`),
     scalar(`SELECT COUNT(*) AS total FROM inquiries WHERE created_at ${between}`),
-    scalar(`SELECT COUNT(*) AS total FROM inquiries WHERE status IN ('closed','completed','resolved') AND updated_at ${between}`),
+    scalar(`SELECT COUNT(*) AS total FROM inquiries WHERE status IN ('closed','completed','resolved','cancelled') AND COALESCE(completed_at,updated_at) ${between}`),
     scalar(`SELECT COUNT(*) AS total FROM staff_tasks WHERE created_at ${between}`),
     scalar(`SELECT COUNT(*) AS total FROM staff_tasks WHERE completed_at ${between}`),
     scalar(`SELECT COUNT(*) AS total FROM clients WHERE created_at ${between}`),
@@ -126,58 +126,208 @@ async function buildOfficeReport({ rangeKey = 'today', requestedBy = null, reque
     scalar(`SELECT COUNT(*) AS total FROM audit_log WHERE created_at ${between}`)
   ]);
 
-  const staffActivity = await rows(`
-    SELECT su.id, COALESCE(NULLIF(su.full_name,''), NULLIF(CONCAT_WS(' ',su.first_name,su.surname),''), su.email) AS staff_name,
-           MIN(a.clock_in_at) AS first_clock_in,
-           MAX(COALESCE(a.clock_out_at,a.updated_at)) AS last_activity,
-           SUM(CASE WHEN a.status='active' THEN 1 ELSE 0 END) AS active_sessions
-    FROM attendance_sessions a
-    JOIN staff_users su ON su.id=a.staff_id
-    WHERE a.clock_in_at ${between}
-    GROUP BY su.id, staff_name
-    ORDER BY first_clock_in ASC
-  `);
-
-  const recentAudit = await rows(`
-    SELECT al.created_at, al.action_type, al.entity_type, al.entity_id,
-           COALESCE(NULLIF(su.full_name,''), NULLIF(CONCAT_WS(' ',su.first_name,su.surname),''), su.email, 'System') AS staff_name,
-           al.description
-    FROM audit_log al
-    LEFT JOIN staff_users su ON su.id=al.staff_id
-    WHERE al.created_at ${between}
-    ORDER BY al.created_at DESC
-    LIMIT 30
-  `);
-
-  const screenUsage = await rows(`
-    SELECT COALESCE(screen_key,'unknown') AS screen_key, COUNT(*) AS uses,
-           COUNT(DISTINCT staff_id) AS staff_count,
-           MAX(occurred_at) AS last_used_at
-    FROM crm_usage_events
-    WHERE event_type='screen_view' AND occurred_at ${between}
-    GROUP BY screen_key
-    ORDER BY uses DESC, screen_key ASC
-    LIMIT 20
-  `);
+  const [staffActivity, recentAudit, screenUsage, staffSummary, staffRecentWork, newInquiries, completedInquiries, createdTasks, completedTaskRows, outstandingTaskRows, overdueTaskRows, newCustomers] = await Promise.all([
+    rows(`
+      SELECT su.id, COALESCE(NULLIF(su.full_name,''), NULLIF(CONCAT_WS(' ',su.first_name,su.surname),''), su.email) AS staff_name,
+             MIN(a.clock_in_at) AS first_clock_in,
+             MAX(COALESCE(a.clock_out_at,a.updated_at)) AS last_activity,
+             SUM(CASE WHEN a.status='active' THEN 1 ELSE 0 END) AS active_sessions
+      FROM attendance_sessions a
+      JOIN staff_users su ON su.id=a.staff_id
+      WHERE a.clock_in_at ${between}
+      GROUP BY su.id, staff_name
+      ORDER BY first_clock_in ASC
+    `),
+    rows(`
+      SELECT al.created_at, al.action_type, al.entity_type, al.entity_id, al.staff_id,
+             COALESCE(NULLIF(su.full_name,''), NULLIF(CONCAT_WS(' ',su.first_name,su.surname),''), su.email, 'System') AS staff_name,
+             al.description
+      FROM audit_log al
+      LEFT JOIN staff_users su ON su.id=al.staff_id
+      WHERE al.created_at ${between}
+      ORDER BY al.created_at DESC
+      LIMIT 40
+    `),
+    rows(`
+      SELECT COALESCE(screen_key,'unknown') AS screen_key, COUNT(*) AS uses,
+             COUNT(DISTINCT staff_id) AS staff_count,
+             MAX(occurred_at) AS last_used_at
+      FROM crm_usage_events
+      WHERE event_type='screen_view' AND occurred_at ${between}
+      GROUP BY screen_key
+      ORDER BY uses DESC, screen_key ASC
+      LIMIT 20
+    `),
+    rows(`
+      SELECT su.id,
+             COALESCE(NULLIF(su.full_name,''), NULLIF(CONCAT_WS(' ',su.first_name,su.surname),''), su.email) AS staff_name,
+             COALESCE(att.working_now,0) AS working_now,
+             att.first_clock_in,
+             att.last_activity,
+             COALESCE(iq.inquiries_handled,0) AS inquiries_handled,
+             COALESCE(tc.tasks_completed,0) AS tasks_completed,
+             COALESCE(toa.tasks_outstanding,0) AS tasks_outstanding,
+             COALESCE(aa.audit_actions,0) AS audit_actions
+      FROM staff_users su
+      LEFT JOIN (
+        SELECT staff_id,
+               MAX(CASE WHEN status='active' THEN 1 ELSE 0 END) AS working_now,
+               MIN(clock_in_at) AS first_clock_in,
+               MAX(COALESCE(clock_out_at,updated_at)) AS last_activity
+        FROM attendance_sessions
+        WHERE clock_in_at ${between}
+        GROUP BY staff_id
+      ) att ON att.staff_id=su.id
+      LEFT JOIN (
+        SELECT COALESCE(assigned_staff_id,staff_id) AS staff_id, COUNT(*) AS inquiries_handled
+        FROM inquiries
+        WHERE created_at ${between}
+        GROUP BY COALESCE(assigned_staff_id,staff_id)
+      ) iq ON iq.staff_id=su.id
+      LEFT JOIN (
+        SELECT assigned_to AS staff_id, COUNT(*) AS tasks_completed
+        FROM staff_tasks
+        WHERE completed_at ${between}
+        GROUP BY assigned_to
+      ) tc ON tc.staff_id=su.id
+      LEFT JOIN (
+        SELECT assigned_to AS staff_id, COUNT(*) AS tasks_outstanding
+        FROM staff_tasks
+        WHERE status NOT IN ('completed','cancelled')
+        GROUP BY assigned_to
+      ) toa ON toa.staff_id=su.id
+      LEFT JOIN (
+        SELECT staff_id, COUNT(*) AS audit_actions
+        FROM audit_log
+        WHERE created_at ${between}
+        GROUP BY staff_id
+      ) aa ON aa.staff_id=su.id
+      WHERE su.is_active=1
+      ORDER BY working_now DESC, staff_name ASC
+    `),
+    rows(`
+      SELECT x.staff_id,x.occurred_at,x.kind,x.summary
+      FROM (
+        SELECT COALESCE(i.assigned_staff_id,i.staff_id) AS staff_id, i.created_at AS occurred_at,
+               'Inquiry' AS kind,
+               CONCAT(COALESCE(NULLIF(i.client_name,''),'Customer'),' · ',LEFT(COALESCE(NULLIF(i.query_text,''),'New inquiry'),140)) AS summary
+        FROM inquiries i
+        WHERE i.created_at ${between}
+        UNION ALL
+        SELECT t.assigned_to AS staff_id, COALESCE(t.completed_at,t.updated_at,t.created_at) AS occurred_at,
+               CASE WHEN t.status='completed' THEN 'Task completed' ELSE 'Task' END AS kind,
+               LEFT(COALESCE(NULLIF(t.title,''),NULLIF(t.message,''),'Task'),160) AS summary
+        FROM staff_tasks t
+        WHERE COALESCE(t.completed_at,t.updated_at,t.created_at) ${between}
+        UNION ALL
+        SELECT al.staff_id, al.created_at AS occurred_at,
+               'CRM action' AS kind,
+               LEFT(COALESCE(NULLIF(al.description,''),al.action_type,'CRM action'),180) AS summary
+        FROM audit_log al
+        WHERE al.created_at ${between}
+      ) x
+      WHERE x.staff_id IS NOT NULL
+      ORDER BY x.occurred_at DESC
+      LIMIT 160
+    `),
+    rows(`
+      SELECT i.id,i.created_at,i.client_name,i.cell_number,i.status,i.query_text,
+             COALESCE(NULLIF(su.full_name,''),su.email,'Unassigned') AS staff_name
+      FROM inquiries i
+      LEFT JOIN staff_users su ON su.id=COALESCE(i.assigned_staff_id,i.staff_id)
+      WHERE i.created_at ${between}
+      ORDER BY i.created_at DESC
+      LIMIT 80
+    `),
+    rows(`
+      SELECT i.id,COALESCE(i.completed_at,i.updated_at) AS completed_at,i.client_name,i.cell_number,i.status,i.query_text,
+             COALESCE(NULLIF(su.full_name,''),su.email,'Unassigned') AS staff_name
+      FROM inquiries i
+      LEFT JOIN staff_users su ON su.id=COALESCE(i.assigned_staff_id,i.staff_id)
+      WHERE i.status IN ('closed','completed','resolved','cancelled')
+        AND COALESCE(i.completed_at,i.updated_at) ${between}
+      ORDER BY COALESCE(i.completed_at,i.updated_at) DESC
+      LIMIT 80
+    `),
+    rows(`
+      SELECT t.id,t.created_at,t.title,t.priority,t.status,t.due_at,
+             COALESCE(NULLIF(su.full_name,''),su.email,'Unassigned') AS staff_name
+      FROM staff_tasks t
+      LEFT JOIN staff_users su ON su.id=t.assigned_to
+      WHERE t.created_at ${between}
+      ORDER BY t.created_at DESC
+      LIMIT 80
+    `),
+    rows(`
+      SELECT t.id,t.completed_at,t.title,t.priority,t.status,t.due_at,
+             COALESCE(NULLIF(su.full_name,''),su.email,'Unassigned') AS staff_name
+      FROM staff_tasks t
+      LEFT JOIN staff_users su ON su.id=t.assigned_to
+      WHERE t.completed_at ${between}
+      ORDER BY t.completed_at DESC
+      LIMIT 80
+    `),
+    rows(`
+      SELECT t.id,t.created_at,t.title,t.priority,t.status,t.due_at,
+             COALESCE(NULLIF(su.full_name,''),su.email,'Unassigned') AS staff_name
+      FROM staff_tasks t
+      LEFT JOIN staff_users su ON su.id=t.assigned_to
+      WHERE t.status NOT IN ('completed','cancelled')
+      ORDER BY CASE WHEN t.due_at IS NULL THEN 1 ELSE 0 END,t.due_at ASC,t.created_at DESC
+      LIMIT 120
+    `),
+    rows(`
+      SELECT t.id,t.created_at,t.title,t.priority,t.status,t.due_at,
+             COALESCE(NULLIF(su.full_name,''),su.email,'Unassigned') AS staff_name
+      FROM staff_tasks t
+      LEFT JOIN staff_users su ON su.id=t.assigned_to
+      WHERE t.status NOT IN ('completed','cancelled') AND t.due_at IS NOT NULL AND t.due_at < NOW()
+      ORDER BY t.due_at ASC
+      LIMIT 120
+    `),
+    rows(`
+      SELECT c.id,c.created_at,c.client_name,c.cell_number,c.account_number,c.customer_type
+      FROM clients c
+      WHERE c.created_at ${between}
+      ORDER BY c.created_at DESC
+      LIMIT 80
+    `)
+  ]);
 
   const report = {
     generatedAt: new Date().toISOString(),
     range,
     metrics: [
-      metric('Staff working now', activeStaff),
-      metric('New inquiries', inquiryCreated),
-      metric('Inquiries completed', inquiryClosed),
-      metric('Tasks created', tasksCreated),
-      metric('Tasks completed', tasksCompleted),
-      metric('New customers / prospects', clientsCreated),
-      metric('Outstanding tasks', pendingTasks),
-      metric('Overdue tasks', overdueTasks),
-      metric('Audited CRM actions', auditedActions)
+      metric('staff_working','Staff working now',activeStaff,'staff'),
+      metric('new_inquiries','New inquiries',inquiryCreated,'new-inquiries'),
+      metric('inquiries_completed','Inquiries completed',inquiryClosed,'completed-inquiries'),
+      metric('tasks_created','Tasks created',tasksCreated,'tasks-created'),
+      metric('tasks_completed','Tasks completed',tasksCompleted,'tasks-completed'),
+      metric('new_customers','New customers / prospects',clientsCreated,'new-customers'),
+      metric('outstanding_tasks','Outstanding tasks',pendingTasks,'outstanding-tasks'),
+      metric('overdue_tasks','Overdue tasks',overdueTasks,'overdue-tasks'),
+      metric('audited_actions','Audited CRM actions',auditedActions,'crm-activity')
     ],
     staffActivity: staffActivity.rows,
+    staffSummary: staffSummary.rows,
+    staffRecentWork: staffRecentWork.rows,
     recentAudit: recentAudit.rows,
     screenUsage: screenUsage.rows,
-    availability: { staffActivity: staffActivity.available, recentAudit: recentAudit.available, screenUsage: screenUsage.available }
+    details: {
+      newInquiries: newInquiries.rows,
+      completedInquiries: completedInquiries.rows,
+      createdTasks: createdTasks.rows,
+      completedTasks: completedTaskRows.rows,
+      outstandingTasks: outstandingTaskRows.rows,
+      overdueTasks: overdueTaskRows.rows,
+      newCustomers: newCustomers.rows
+    },
+    availability: {
+      staffActivity: staffActivity.available,
+      staffSummary: staffSummary.available,
+      recentAudit: recentAudit.available,
+      screenUsage: screenUsage.available
+    }
   };
 
   try {

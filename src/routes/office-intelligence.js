@@ -34,8 +34,6 @@ function requireStandaloneAgentAccess(req, res, next) {
   next();
 }
 
-// Reuse the existing CRM authentication handler unchanged. This middleware only
-// changes presentation/landing for explicitly marked Agent/Office Intelligence logins.
 router.post('/login', (req, res, next) => {
   const returnTarget = String(req.query.return || '');
   if (!['office-intelligence', 'agent'].includes(returnTarget)) return next();
@@ -68,7 +66,6 @@ router.post('/login', (req, res, next) => {
   next();
 });
 
-// Reuse the existing CRM logout handler, but keep Agent users inside the Agent journey.
 router.post('/logout', (req, res, next) => {
   if (String(req.query.return || '') !== 'agent') return next();
   const originalRedirect = res.redirect.bind(res);
@@ -95,8 +92,8 @@ router.get('/agent/manifest.webmanifest', (req, res) => {
     start_url: `${basePath}/agent`,
     scope: `${basePath}/agent`,
     display: 'standalone',
-    background_color: '#07111f',
-    theme_color: '#07111f',
+    background_color: '#fff8ef',
+    theme_color: '#9d3f74',
     icons: [
       { src: `${basePath}/public/images/favicon-192x192.png`, sizes: '192x192', type: 'image/png' },
       { src: `${basePath}/public/images/favicon-512x512.png`, sizes: '512x512', type: 'image/png' },
@@ -132,7 +129,6 @@ router.get('/api/agent/check', requireStandaloneAgentAccess, async (req, res, ne
   } catch (error) { next(error); }
 });
 
-// Back Office version remains available through the CRM management UI.
 router.get('/office-intelligence/manifest.webmanifest', (req, res) => {
   const basePath = res.locals.basePath || '';
   res.type('application/manifest+json').send({
