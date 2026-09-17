@@ -1,7 +1,6 @@
 'use strict';
 
 const express = require('express');
-const { requireOwner } = require('../middleware/auth');
 const { buildOfficeReport, parseCommand } = require('../services/office-intelligence');
 
 const router = express.Router();
@@ -10,6 +9,34 @@ function sourceFromRequest(req) {
   const agent = String(req.get('user-agent') || '').toLowerCase();
   return /android|iphone|ipad|mobile/.test(agent) ? 'mobile' : 'backoffice';
 }
+
+function requireOfficeIntelligenceAccess(req, res, next) {
+  if (!req.session.user) {
+    return res.redirect(`${res.locals.basePath}/login?return=office-intelligence`);
+  }
+  if (!['owner', 'manager'].includes(req.session.user.role)) {
+    return res.status(403).render('error', {
+      title: 'Forbidden',
+      message: 'Owner or manager access required.'
+    });
+  }
+  next();
+}
+
+// Preserve the existing Talk2Me login handler, but when the login journey started
+// from Gerda Agent, replace only its normal /workspace landing with Office Intelligence.
+router.post('/login', (req, res, next) => {
+  if (String(req.query.return || '') !== 'office-intelligence') return next();
+  const originalRedirect = res.redirect.bind(res);
+  res.redirect = target => {
+    const normalWorkspace = `${res.locals.basePath}/workspace`;
+    if (String(target) === normalWorkspace) {
+      return originalRedirect(`${res.locals.basePath}/office-intelligence`);
+    }
+    return originalRedirect(target);
+  };
+  next();
+});
 
 router.get('/office-intelligence/manifest.webmanifest', (req, res) => {
   const basePath = res.locals.basePath || '';
@@ -31,7 +58,7 @@ router.get('/office-intelligence/manifest.webmanifest', (req, res) => {
   });
 });
 
-router.get('/office-intelligence', requireOwner, async (req, res, next) => {
+router.get('/office-intelligence', requireOfficeIntelligenceAccess, async (req, res, next) => {
   try {
     const rangeKey = String(req.query.range || 'today');
     const report = await buildOfficeReport({ rangeKey, requestedBy: req.session.user.id, requestSource: sourceFromRequest(req) });
@@ -39,7 +66,7 @@ router.get('/office-intelligence', requireOwner, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-router.post('/office-intelligence/check', requireOwner, async (req, res, next) => {
+router.post('/office-intelligence/check', requireOfficeIntelligenceAccess, async (req, res, next) => {
   try {
     const commandText = String(req.body.command || 'check for me').trim();
     const parsed = parseCommand(commandText);
@@ -48,7 +75,7 @@ router.post('/office-intelligence/check', requireOwner, async (req, res, next) =
   } catch (error) { next(error); }
 });
 
-router.get('/api/office-intelligence/check', requireOwner, async (req, res, next) => {
+router.get('/api/office-intelligence/check', requireOfficeIntelligenceAccess, async (req, res, next) => {
   try {
     const commandText = String(req.query.command || 'check for me').trim();
     const parsed = parseCommand(commandText);

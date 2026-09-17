@@ -20,6 +20,11 @@
       const form = document.getElementById('login-form');
       const email = document.getElementById('login-email');
       const password = document.getElementById('login-password');
+      const params = new URLSearchParams(window.location.search);
+      const returnTarget = params.get('return');
+      if (form && returnTarget === 'office-intelligence') {
+        form.action = <%- JSON.stringify(basePath + '/login?return=office-intelligence') %>;
+      }
       const clearLogin = () => {
         if (form) form.reset();
         if (email) email.value = '';
@@ -28,7 +33,7 @@
       clearLogin();
       window.addEventListener('pageshow', clearLogin);
       setTimeout(clearLogin, 150);
-      if (new URLSearchParams(window.location.search).get('reason') === 'default_logout') {
+      if (params.get('reason') === 'default_logout') {
         document.getElementById('default-logout-notice').hidden = false;
       }
     })();
