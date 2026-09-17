@@ -95,8 +95,8 @@ router.get('/agent/manifest.webmanifest', (req, res) => {
     start_url: `${basePath}/agent`,
     scope: `${basePath}/agent`,
     display: 'standalone',
-    background_color: '#07111f',
-    theme_color: '#07111f',
+    background_color: '#fbf8f3',
+    theme_color: '#f97316',
     icons: [
       { src: `${basePath}/public/images/favicon-192x192.png`, sizes: '192x192', type: 'image/png' },
       { src: `${basePath}/public/images/favicon-512x512.png`, sizes: '512x512', type: 'image/png' },
@@ -108,7 +108,15 @@ router.get('/agent/manifest.webmanifest', (req, res) => {
 router.get('/agent', requireStandaloneAgentAccess, async (req, res, next) => {
   try {
     const rangeKey = String(req.query.range || 'today');
-    const report = await buildOfficeReport({ rangeKey, requestedBy: req.session.user.id, requestSource: sourceFromRequest(req) });
+    const metricKey = String(req.query.metric || '').trim() || null;
+    const staffId = Number(req.query.staff || 0) || null;
+    const report = await buildOfficeReport({
+      rangeKey,
+      metricKey,
+      staffId,
+      requestedBy: req.session.user.id,
+      requestSource: sourceFromRequest(req)
+    });
     res.render('agent', { layout: false, title: 'Gerda Agent', report, commandText: '' });
   } catch (error) { next(error); }
 });
@@ -117,7 +125,12 @@ router.post('/agent/check', requireStandaloneAgentAccess, async (req, res, next)
   try {
     const commandText = String(req.body.command || 'check for me').trim();
     const parsed = parseCommand(commandText);
-    const report = await buildOfficeReport({ rangeKey: parsed.rangeKey, requestedBy: req.session.user.id, requestSource: sourceFromRequest(req), commandText });
+    const report = await buildOfficeReport({
+      rangeKey: parsed.rangeKey,
+      requestedBy: req.session.user.id,
+      requestSource: sourceFromRequest(req),
+      commandText
+    });
     res.render('agent', { layout: false, title: 'Gerda Agent', report, commandText });
   } catch (error) { next(error); }
 });
