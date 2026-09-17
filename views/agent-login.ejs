@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#08111f">
+  <title>Gerda Agent · Talk2Me</title>
+  <link rel="manifest" href="<%= basePath %>/agent/manifest.webmanifest">
+  <style>
+    *{box-sizing:border-box}html,body{margin:0;min-height:100%;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#07111f;color:#f8fafc}body{min-height:100vh;display:grid;place-items:center;padding:22px;background:radial-gradient(circle at 15% 10%,rgba(34,197,94,.16),transparent 32%),radial-gradient(circle at 85% 15%,rgba(59,130,246,.14),transparent 28%),linear-gradient(155deg,#07111f 0%,#0f1b2d 55%,#07111f 100%)}
+    .shell{width:min(100%,460px)}.brand{display:flex;align-items:center;gap:12px;margin-bottom:26px;color:#cbd5e1}.mark{width:46px;height:46px;border-radius:15px;display:grid;place-items:center;background:#f8fafc;color:#07111f;font-weight:1000;letter-spacing:-.08em;box-shadow:0 18px 50px rgba(0,0,0,.25)}.brand strong{display:block;color:#fff;font-size:1.05rem}.brand span{font-size:.78rem;text-transform:uppercase;letter-spacing:.14em;font-weight:800;color:#7dd3fc}
+    .card{background:rgba(15,27,45,.92);border:1px solid rgba(148,163,184,.2);border-radius:28px;padding:30px;box-shadow:0 30px 80px rgba(0,0,0,.38);backdrop-filter:blur(18px)}.eyebrow{font-size:.76rem;text-transform:uppercase;letter-spacing:.15em;color:#86efac;font-weight:900}.card h1{font-size:clamp(2.35rem,10vw,3.5rem);line-height:.98;letter-spacing:-.05em;margin:11px 0 12px}.intro{margin:0 0 26px;color:#aebbd0;line-height:1.55}.alert{background:#431c24;border:1px solid #7f1d1d;color:#fecaca;border-radius:14px;padding:12px 14px;margin-bottom:18px;font-size:.92rem}
+    label{display:block;margin:15px 0 7px;font-size:.82rem;color:#cbd5e1;font-weight:800}input{width:100%;border:1px solid #334155;background:#091525;color:#fff;border-radius:15px;padding:14px 15px;font:inherit;outline:none;transition:.18s}input:focus{border-color:#4ade80;box-shadow:0 0 0 4px rgba(74,222,128,.11)}button{width:100%;margin-top:20px;border:0;border-radius:15px;padding:15px 18px;background:#4ade80;color:#052e16;font:inherit;font-weight:1000;cursor:pointer;box-shadow:0 14px 28px rgba(74,222,128,.16)}button:hover{filter:brightness(1.04)}.security{margin-top:18px;padding-top:18px;border-top:1px solid rgba(148,163,184,.15);color:#8090a8;font-size:.8rem;line-height:1.5}.live{display:inline-flex;align-items:center;gap:7px}.dot{width:8px;height:8px;border-radius:50%;background:#4ade80;box-shadow:0 0 0 5px rgba(74,222,128,.08)}
+    @media(max-width:520px){body{padding:16px}.card{padding:24px 20px;border-radius:22px}.brand{margin-left:4px}.card h1{font-size:2.75rem}}
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <div class="brand"><div class="mark">T2M</div><div><strong>Talk2Me</strong><span>Private Management Agent</span></div></div>
+    <section class="card">
+      <div class="eyebrow"><span class="live"><i class="dot"></i> Secure live access</span></div>
+      <h1>Gerda<br>Agent</h1>
+      <p class="intro">A private view of what is happening in the business right now. Sign in with your normal Talk2Me credentials.</p>
+      <% if (error) { %><div class="alert"><%= error %></div><% } %>
+      <form method="post" action="<%= basePath %>/login?return=agent" autocomplete="off">
+        <label for="agent-login">Email / Username</label>
+        <input id="agent-login" name="email" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" required autofocus>
+        <label for="agent-password">Password</label>
+        <input id="agent-password" name="password" type="password" autocomplete="current-password" required>
+        <button type="submit">Open Agent</button>
+      </form>
+      <div class="security">Uses the same Talk2Me user account, password rules and secure server session. This route does not open the CRM workspace.</div>
+    </section>
+  </main>
+</body>
+</html>
