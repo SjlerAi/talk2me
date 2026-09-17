@@ -244,6 +244,10 @@ const osRoutes = require('./src/routes/os');
 app.use('/', osRoutes);
 if (BASE_PATH) app.use(BASE_PATH, osRoutes);
 
+const officeIntelligence = require('./src/routes/office-intelligence');
+app.use('/', officeIntelligence);
+if (BASE_PATH) app.use(BASE_PATH, officeIntelligence);
+
 const routes = require('./src/routes');
 app.use('/', routes);
 if (BASE_PATH) app.use(BASE_PATH, routes);
