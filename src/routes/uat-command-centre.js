@@ -64,4 +64,6 @@ router.get('/command-centre', requireAuth, async (req, res, next) => {
   }
 });
 
+router.use(require('./uat-staff-management').router);
+
 module.exports = router;

@@ -1,22 +1,83 @@
 <section class="page-head">
-  <div><h1>Staff Management</h1><p>Manage shop users, access levels and staff records.</p></div>
+  <div><h1>Staff Management</h1><p>Manage shop users, access levels and staff records. Only the Owner can change staff access in UAT.</p></div>
   <a class="btn primary" href="<%= basePath %>/backoffice/staff/new">Add Staff Member</a>
 </section>
 <div class="card table-card">
   <table class="data-table">
-    <thead><tr><th>Staff member</th><th>Login</th><th>Role</th><th>Contact</th><th>Status</th><th>Last login</th><th></th></tr></thead>
+    <thead><tr><th>Staff member</th><th>Login</th><th>Role</th><th>Contact</th><th>Status</th><th>Last login</th><th>Actions</th></tr></thead>
     <tbody>
       <% staff.forEach(person => { %>
-      <tr>
+      <tr data-staff-row="<%= person.id %>">
         <td><div class="staff-cell"><% if (person.profile_photo_path) { %><img src="<%= basePath %>/backoffice/staff/<%= person.id %>/photo" alt=""><% } else { %><span class="avatar-placeholder"><%= (person.full_name || '?').charAt(0) %></span><% } %><div><strong><%= person.full_name %></strong><small><%= person.role ? person.role.charAt(0).toUpperCase()+person.role.slice(1) : 'Staff' %></small></div></div></td>
         <td><%= person.email || person.username || '—' %></td>
         <td><span class="role-badge"><%= person.role %></span></td>
         <td><%= person.contact_number || '—' %></td>
-        <td><span class="status-pill <%= person.is_active ? 'active' : 'inactive' %>"><%= person.is_active ? 'Active' : 'Inactive' %></span></td>
+        <td><span class="status-pill <%= person.is_active ? 'active' : 'inactive' %>" data-staff-status><%= person.is_active ? 'Active' : 'Inactive' %></span></td>
         <td><%= person.last_login_at ? new Date(person.last_login_at).toLocaleString('en-ZA') : 'Never' %></td>
-        <td><a class="btn small" href="<%= basePath %>/backoffice/staff/<%= person.id %>">Open</a></td>
+        <td>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+            <a class="btn small" href="<%= basePath %>/backoffice/staff/<%= person.id %>">Open</a>
+            <% if (typeof ownerStaffControls !== 'undefined' && ownerStaffControls) { %>
+              <% if (person.is_active) { %>
+                <button class="btn small" type="button" data-staff-action="deactivate" data-staff-id="<%= person.id %>" <%= Number(person.id)===Number(currentStaffId) ? 'disabled title="You cannot deactivate your own logged-in Owner account"' : '' %>>Deactivate</button>
+              <% } else { %>
+                <button class="btn small" type="button" data-staff-action="activate" data-staff-id="<%= person.id %>">Activate</button>
+              <% } %>
+              <button class="btn small danger" type="button" data-staff-action="delete" data-staff-id="<%= person.id %>" data-staff-name="<%= person.full_name %>" <%= Number(person.id)===Number(currentStaffId) ? 'disabled title="You cannot delete your own logged-in Owner account"' : '' %>>Delete</button>
+            <% } %>
+          </div>
+        </td>
       </tr>
       <% }) %>
     </tbody>
   </table>
 </div>
+<% if (typeof ownerStaffControls !== 'undefined' && ownerStaffControls) { %>
+<script>
+(() => {
+  const basePath = <%- JSON.stringify(basePath) %>;
+  async function send(url, body) {
+    const response = await fetch(basePath + url, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify(body || {})
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data.ok === false) throw new Error(data.error || `Request failed (${response.status})`);
+    return data;
+  }
+
+  document.querySelectorAll('[data-staff-action]').forEach(button => {
+    button.addEventListener('click', async () => {
+      if (button.disabled) return;
+      const id = Number(button.dataset.staffId);
+      const action = button.dataset.staffAction;
+      try {
+        button.disabled = true;
+        if (action === 'delete') {
+          const name = button.dataset.staffName || 'this staff member';
+          if (!window.confirm(`Delete ${name}?\n\nThey will immediately lose login access. Historical CRM work remains preserved.`)) {
+            button.disabled = false;
+            return;
+          }
+          await send(`/api/uat/staff/${id}/delete`);
+        } else {
+          const active = action === 'activate' ? 1 : 0;
+          const verb = active ? 'activate' : 'deactivate';
+          if (!window.confirm(`Are you sure you want to ${verb} this staff account?`)) {
+            button.disabled = false;
+            return;
+          }
+          await send(`/api/uat/staff/${id}/status`, { active });
+        }
+        window.location.reload();
+      } catch (error) {
+        window.alert(error.message);
+        button.disabled = false;
+      }
+    });
+  });
+})();
+</script>
+<% } %>
