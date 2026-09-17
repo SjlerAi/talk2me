@@ -2,6 +2,7 @@
 
 const express = require('express');
 const { buildOfficeReport, parseCommand } = require('../services/office-intelligence');
+const { buildAgentOfficeReport } = require('../services/office-intelligence-agent');
 
 const router = express.Router();
 
@@ -34,8 +35,6 @@ function requireStandaloneAgentAccess(req, res, next) {
   next();
 }
 
-// Reuse the existing CRM authentication handler unchanged. This middleware only
-// changes presentation/landing for explicitly marked Agent/Office Intelligence logins.
 router.post('/login', (req, res, next) => {
   const returnTarget = String(req.query.return || '');
   if (!['office-intelligence', 'agent'].includes(returnTarget)) return next();
@@ -68,7 +67,6 @@ router.post('/login', (req, res, next) => {
   next();
 });
 
-// Reuse the existing CRM logout handler, but keep Agent users inside the Agent journey.
 router.post('/logout', (req, res, next) => {
   if (String(req.query.return || '') !== 'agent') return next();
   const originalRedirect = res.redirect.bind(res);
@@ -110,7 +108,7 @@ router.get('/agent', requireStandaloneAgentAccess, async (req, res, next) => {
     const rangeKey = String(req.query.range || 'today');
     const metricKey = String(req.query.metric || '').trim() || null;
     const staffId = Number(req.query.staff || 0) || null;
-    const report = await buildOfficeReport({
+    const report = await buildAgentOfficeReport({
       rangeKey,
       metricKey,
       staffId,
@@ -125,7 +123,7 @@ router.post('/agent/check', requireStandaloneAgentAccess, async (req, res, next)
   try {
     const commandText = String(req.body.command || 'check for me').trim();
     const parsed = parseCommand(commandText);
-    const report = await buildOfficeReport({
+    const report = await buildAgentOfficeReport({
       rangeKey: parsed.rangeKey,
       requestedBy: req.session.user.id,
       requestSource: sourceFromRequest(req),
@@ -139,13 +137,17 @@ router.get('/api/agent/check', requireStandaloneAgentAccess, async (req, res, ne
   try {
     const commandText = String(req.query.command || 'check for me').trim();
     const parsed = parseCommand(commandText);
-    const report = await buildOfficeReport({ rangeKey: parsed.rangeKey, requestedBy: req.session.user.id, requestSource: sourceFromRequest(req), commandText });
+    const report = await buildAgentOfficeReport({
+      rangeKey: parsed.rangeKey,
+      requestedBy: req.session.user.id,
+      requestSource: sourceFromRequest(req),
+      commandText
+    });
     res.set('Cache-Control', 'no-store');
     res.json(report);
   } catch (error) { next(error); }
 });
 
-// Back Office version remains available through the CRM management UI.
 router.get('/office-intelligence/manifest.webmanifest', (req, res) => {
   const basePath = res.locals.basePath || '';
   res.type('application/manifest+json').send({
