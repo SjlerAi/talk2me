@@ -16,7 +16,7 @@
   <main class="app">
     <header class="top">
       <div class="brand"><div class="mark">T2M</div><div><strong>Talk2Me</strong><span>Private Management Agent</span></div></div>
-      <div class="user"><span class="name"><%= currentUser.full_name || currentUser.email %></span><form method="post" action="<%= basePath %>/logout"><button class="logout" type="submit">Sign out</button></form></div>
+      <div class="user"><span class="name"><%= currentUser.full_name || currentUser.email %></span><form method="post" action="<%= basePath %>/logout?return=agent"><button class="logout" type="submit">Sign out</button></form></div>
     </header>
 
     <section class="hero">
