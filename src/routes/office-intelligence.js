@@ -68,6 +68,18 @@ router.post('/login', (req, res, next) => {
   next();
 });
 
+// Reuse the existing CRM logout handler, but keep Agent users inside the Agent journey.
+router.post('/logout', (req, res, next) => {
+  if (String(req.query.return || '') !== 'agent') return next();
+  const originalRedirect = res.redirect.bind(res);
+  res.redirect = target => {
+    const normalLogin = `${res.locals.basePath}/login`;
+    if (String(target) === normalLogin) return originalRedirect(`${res.locals.basePath}/agent/login`);
+    return originalRedirect(target);
+  };
+  next();
+});
+
 router.get('/agent/login', (req, res) => {
   if (hasAgentAccess(req.session.user)) return res.redirect(`${res.locals.basePath}/agent`);
   res.render('agent-login', { layout: false, title: 'Gerda Agent', error: null });
