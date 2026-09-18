@@ -37,7 +37,7 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" bash -s -- "$GITHUB_SHA" <<'REMOTE'
+          ssh -tt -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" bash -s -- "$GITHUB_SHA" <<'REMOTE'
           set -Eeuo pipefail
           expected_sha="$1"
           repo=/home/uent/repositories/talk2me-ui-uat
