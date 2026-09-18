@@ -3,14 +3,14 @@
   "schema": 1,
   "repository": "SjlerAi/talk2me",
   "environment": "ui-uat",
-  "action": "deploy",
+  "action": "hold",
   "status": "HOLD",
-  "requestId": "gerda-deadline-reminder-20260918-0825z",
+  "requestId": "hold-after-gerda-deadline-reminder-20260918-0830z",
   "sourceBranch": "release/talk2me-ui-uat-2026-09-18-gerda-deadline-reminder",
   "sourceSha": "45180ff96c4f30beb8e63ce593fbb18e03e2bf93",
   "commit": null,
   "workflowRunId": null,
   "artifact": null,
   "sha256": null,
-  "requestedAt": "2026-09-18T06:25:00Z"
+  "requestedAt": null
 }
