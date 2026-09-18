@@ -2,7 +2,8 @@
 
 const express = require('express');
 const { buildOfficeReport, parseCommand } = require('../services/office-intelligence');
-const { buildAgentOfficeReport } = require('../services/office-intelligence-agent');
+const { buildAgentOfficeReport, sendAgentInstruction, markResponsibilityComplete } = require('../services/office-intelligence-agent');
+const { audit } = require('../services/audit');
 
 const router = express.Router();
 
@@ -130,6 +131,61 @@ router.post('/agent/check', requireStandaloneAgentAccess, async (req, res, next)
       commandText
     });
     res.render('agent', { layout: false, title: 'Gerda Agent', report, commandText });
+  } catch (error) { next(error); }
+});
+
+router.post('/agent/instructions', requireStandaloneAgentAccess, async (req, res, next) => {
+  try {
+    const result = await sendAgentInstruction({
+      issuedBy: req.session.user.id,
+      assignedTo: req.body.assigned_to,
+      title: req.body.title,
+      message: req.body.message,
+      dueAt: req.body.due_at,
+      priority: req.body.priority
+    });
+    await audit(req, {
+      actionType: 'agent_instruction_sent',
+      entityType: 'staff_tasks',
+      entityId: result.taskId,
+      description: `Management instruction sent to ${result.staffName}, due ${result.dueAt}`,
+      after: { assigned_to: Number(req.body.assigned_to), due_at: result.dueAt, priority: req.body.priority || 'normal' }
+    });
+    res.redirect(`${res.locals.basePath}/agent?range=today&staff=${Number(req.body.assigned_to)}&sent=1#staff-detail`);
+  } catch (error) {
+    res.status(400);
+    try {
+      const report = await buildAgentOfficeReport({
+        rangeKey: 'today',
+        staffId: Number(req.body.assigned_to || 0) || null,
+        requestedBy: req.session.user.id,
+        requestSource: sourceFromRequest(req)
+      });
+      return res.render('agent', { layout:false, title:'Gerda Agent', report, commandText:'', agentError:error.message });
+    } catch (_) {
+      next(error);
+    }
+  }
+});
+
+router.post('/agent/responsibilities/complete', requireStandaloneAgentAccess, async (req, res, next) => {
+  try {
+    const staffId = Number(req.body.staff_id || 0);
+    await markResponsibilityComplete({
+      staffId,
+      sourceType: req.body.source_type,
+      sourceKey: req.body.source_key,
+      completedBy: req.session.user.id,
+      note: req.body.note
+    });
+    await audit(req, {
+      actionType: 'agent_responsibility_completed',
+      entityType: String(req.body.source_type || 'responsibility'),
+      entityId: null,
+      description: `Daily responsibility marked complete for staff #${staffId}`,
+      after: { source_type:req.body.source_type, source_key:req.body.source_key }
+    });
+    res.redirect(`${res.locals.basePath}/agent?range=today&staff=${staffId}#staff-detail`);
   } catch (error) { next(error); }
 });
 
