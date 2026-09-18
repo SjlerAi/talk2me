@@ -1,4 +1,5 @@
 require('dotenv').config();
+const { startAgentDeadlineScheduler } = require('./src/services/agent-deadline-scheduler');
 const express = require('express');
 const path = require('path');
 const session = require('express-session');
@@ -311,6 +312,8 @@ app.use((err, req, res, next) => {
   console.error(err);
   res.status(500).render('error', { title: 'Server error', message: 'Something went wrong. Check server logs.' });
 });
+startAgentDeadlineScheduler();
+
 app.listen(PORT, () => {
   console.log(`Talk2Me CRM running on port ${PORT} with base path ${BASE_PATH}`);
   startNightlyLogoutWorker();
