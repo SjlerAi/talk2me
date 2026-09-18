@@ -1,0 +1,53 @@
+name: Bootstrap Talk2Me UI UAT V2 agent
+
+on:
+  push:
+    branches:
+      - uat/talk2me-ui-redesign
+    paths:
+      - .github/workflows/bootstrap-ui-uat-v2-agent.yml
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type BOOTSTRAP UI UAT V2 AGENT
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  bootstrap:
+    if: github.event_name == 'push' || inputs.confirmation == 'BOOTSTRAP UI UAT V2 AGENT'
+    runs-on: ubuntu-latest
+    environment: talk2me-uat
+    env:
+      SSH_HOST: 164.160.91.40
+      SSH_PORT: "41414"
+      SSH_USER: uent
+      ELITEHOST_SSH_PRIVATE_KEY: ${{ secrets.ELITEHOST_SSH_PRIVATE_KEY }}
+      ELITEHOST_SSH_KEY_PASSPHRASE: ${{ secrets.ELITEHOST_SSH_KEY_PASSPHRASE }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Configure commissioning SSH
+        run: bash scripts/setup-elitehost-ssh.sh
+
+      - name: Commission permanent V2 UI UAT poller
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" bash -s -- "$GITHUB_SHA" <<'REMOTE'
+          set -Eeuo pipefail
+          expected_sha="$1"
+          repo=/home/uent/repositories/talk2me-ui-uat
+          test -d "$repo/.git"
+          git -C "$repo" diff --quiet
+          git -C "$repo" diff --cached --quiet
+          git -C "$repo" fetch origin uat/talk2me-ui-redesign:refs/remotes/origin/uat/talk2me-ui-redesign
+          test "$(git -C "$repo" rev-parse origin/uat/talk2me-ui-redesign)" = "$expected_sha"
+          git -C "$repo" checkout -q -B uat/talk2me-ui-redesign "$expected_sha"
+          bash "$repo/scripts/install-talk2me-ui-uat-agent.sh"
+          /home/uent/bin/talk2me-ui-uat-agent --status | tee /tmp/talk2me-ui-uat-agent-status
+          grep -Fq 'control=hold' /tmp/talk2me-ui-uat-agent-status
+          REMOTE
