@@ -1,11 +1,16 @@
 {
+  "version": 1,
   "schema": 1,
   "repository": "SjlerAi/talk2me",
   "environment": "ui-uat",
-  "status": "HOLD",
-  "commit": null,
-  "workflowRunId": null,
-  "artifact": null,
-  "sha256": null,
-  "requestedAt": null
+  "action": "deploy",
+  "status": "DEPLOY",
+  "requestId": "gerda-daily-responsibility-20260918-01",
+  "sourceBranch": "release/talk2me-ui-uat-2026-09-18-gerda-daily-responsibility",
+  "sourceSha": "5ba23c99d5a871743fc545a3f0e4f5842559cbb8",
+  "commit": "5ba23c99d5a871743fc545a3f0e4f5842559cbb8",
+  "workflowRunId": 2026091801,
+  "artifact": "talk2me-ui-uat-5ba23c99d5a871743fc545a3f0e4f5842559cbb8-2026091801.tar.gz",
+  "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "requestedAt": "2026-09-18T04:20:00Z"
 }
