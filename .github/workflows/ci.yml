@@ -25,3 +25,5 @@ jobs:
         run: node --check src/services/imported-email.js && node --check src/routes/contact-list-builder.js
       - name: Validate shell scripts
         run: bash -n deploy.sh scripts/setup-elitehost-ssh.sh scripts/install-talk2me-uat-agent.sh scripts/talk2me-uat-agent.sh scripts/deploy-uat-artifact.sh scripts/install-talk2me-ui-uat-agent.sh scripts/talk2me-ui-uat-agent.sh scripts/deploy-ui-uat.sh
+      - name: Validate Deployment Bible V2 lock
+        run: node scripts/validate-ui-uat-deployment-v2.js
