@@ -531,7 +531,7 @@ async function markResponsibilityComplete({ staffId, sourceType, sourceKey, comp
 
 async function refreshOverdueWatches() {
   await ensureAgentResponsibilitySchema();
-  const candidates = await rows(`SELECT w.id,w.task_id,w.issued_by,w.assigned_to,w.due_at,t.title,
+  const candidates = await rows(`SELECT w.id,w.task_id,w.issued_by,w.assigned_to,w.due_at,t.title,t.message,
     DATE_FORMAT(w.due_at,'%d %b %Y %H:%i') AS due_label,
     COALESCE(NULLIF(su.full_name,''),su.email,'Staff') AS assignee_name
     FROM agent_task_watches w
@@ -562,13 +562,15 @@ async function refreshOverdueWatches() {
       });
 
       if (Number(item.assigned_to) !== Number(item.issued_by)) {
+        const originalInstruction = String(item.message || item.title || '').trim();
+        const reminderText = `Deadline reminder: “${item.title}” was due ${item.due_label} and is still outstanding. Original instruction: ${originalInstruction}. Please complete it now.`.slice(0,500);
         await conn.execute(`INSERT INTO staff_task_notifications
           (task_id,recipient_staff_id,actor_staff_id,event_type,notification_text,action_required)
           VALUES (:taskId,:recipientId,:actorId,'agent_deadline_reminder',:text,1)`, {
           taskId:item.task_id,
           recipientId:item.assigned_to,
           actorId:item.issued_by,
-          text:`Deadline reminder: “${item.title}” was due ${item.due_label} and is still outstanding. Please complete it now.`
+          text:reminderText
         });
       }
 
