@@ -3,14 +3,14 @@
   "schema": 1,
   "repository": "SjlerAi/talk2me",
   "environment": "ui-uat",
-  "action": "hold",
+  "action": "deploy",
   "status": "HOLD",
-  "requestId": "hold-bible-safe-20260918-01",
-  "sourceBranch": "release/talk2me-ui-uat-2026-09-18-gerda-daily-responsibility",
-  "sourceSha": "5ba23c99d5a871743fc545a3f0e4f5842559cbb8",
+  "requestId": "gerda-daily-responsibility-bible-v2-20260918-0452z",
+  "sourceBranch": "release/talk2me-ui-uat-2026-09-18-gerda-bible-v2",
+  "sourceSha": "1e5efb6dbe647b13ea868d652f07801b986c8c34",
   "commit": null,
   "workflowRunId": null,
   "artifact": null,
   "sha256": null,
-  "requestedAt": null
+  "requestedAt": "2026-09-18T04:52:00Z"
 }
