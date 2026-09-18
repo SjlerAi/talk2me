@@ -4,7 +4,6 @@ set -Eeuo pipefail
 SOURCE_REPO=/home/uent/repositories/talk2me-ui-uat
 CONTROL_DIR=/home/uent/talk2me-ui-uat-deploy-control
 STATE_DIR=/home/uent/.talk2me-ui-uat-deploy
-INBOX_DIR=/home/uent/.config/talk2me-ui-uat/inbox
 BIN_DIR=/home/uent/bin
 CONTROL_BRANCH=deploy/ui-uat-control
 CRON_MARKER='talk2me-ui-uat-deploy-agent'
@@ -12,12 +11,12 @@ CRON_MARKER='talk2me-ui-uat-deploy-agent'
 test "$(whoami)" = uent
 test -d "$SOURCE_REPO/.git"
 test -f "$SOURCE_REPO/scripts/talk2me-ui-uat-agent.sh"
-test -f "$SOURCE_REPO/scripts/deploy-ui-uat-artifact.sh"
+test -f "$SOURCE_REPO/scripts/deploy-ui-uat.sh"
 
-mkdir -p "$BIN_DIR" "$STATE_DIR" "$INBOX_DIR"
-chmod 700 "$STATE_DIR" "$INBOX_DIR"
+mkdir -p "$BIN_DIR" "$STATE_DIR" "$STATE_DIR/logs"
+chmod 700 "$STATE_DIR" "$STATE_DIR/logs"
 install -m 700 "$SOURCE_REPO/scripts/talk2me-ui-uat-agent.sh" "$BIN_DIR/talk2me-ui-uat-agent"
-install -m 700 "$SOURCE_REPO/scripts/deploy-ui-uat-artifact.sh" "$BIN_DIR/talk2me-deploy-ui-uat"
+install -m 700 "$SOURCE_REPO/scripts/deploy-ui-uat.sh" "$BIN_DIR/talk2me-deploy-ui-uat"
 
 remote_url="$(git -C "$SOURCE_REPO" remote get-url origin)"
 if [ -d "$CONTROL_DIR/.git" ]; then
@@ -39,4 +38,4 @@ clean_cron="$(printf '%s\n' "$existing_cron" | grep -Fv "$CRON_MARKER" || true)"
 touch "$STATE_DIR/cron.log"
 chmod 600 "$STATE_DIR/cron.log"
 "$BIN_DIR/talk2me-ui-uat-agent" --status
-echo "Talk2Me UI UAT deployment agent installed."
+echo "Talk2Me UI UAT V2 deployment agent commissioned."

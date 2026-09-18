@@ -24,4 +24,4 @@ jobs:
       - name: Validate customer communication import files
         run: node --check src/services/imported-email.js && node --check src/routes/contact-list-builder.js
       - name: Validate shell scripts
-        run: bash -n deploy.sh scripts/setup-elitehost-ssh.sh scripts/install-talk2me-uat-agent.sh scripts/talk2me-uat-agent.sh scripts/deploy-uat-artifact.sh
+        run: bash -n deploy.sh scripts/setup-elitehost-ssh.sh scripts/install-talk2me-uat-agent.sh scripts/talk2me-uat-agent.sh scripts/deploy-uat-artifact.sh scripts/install-talk2me-ui-uat-agent.sh scripts/talk2me-ui-uat-agent.sh scripts/deploy-ui-uat.sh
