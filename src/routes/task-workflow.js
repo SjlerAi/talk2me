@@ -222,6 +222,7 @@ router.post('/tasks/:id/status',requireAuth,async(req,res,next)=>{
       await db.execute(`UPDATE staff_tasks SET status='completed',seen_at=COALESCE(seen_at,NOW()),started_at=COALESCE(started_at,NOW()),completed_at=NOW(),completion_note=:note WHERE id=:taskId`,{taskId,note});
       await db.execute(`UPDATE staff_task_workflow SET workflow_state=:state,completed_by=:userId,completed_at=NOW(),acknowledged_by=:ackBy,acknowledged_at=:ackAt,returned_by=NULL,returned_at=NULL,return_reason=NULL WHERE task_id=:taskId`,{taskId,userId,state:selfAssigned?'accepted':'awaiting_sender_ack',ackBy:selfAssigned?userId:null,ackAt:selfAssigned?new Date():null});
       await db.execute(`INSERT INTO staff_task_comments (task_id,staff_id,comment) VALUES (:taskId,:userId,:comment)`,{taskId,userId,comment:`${task.type==='notification'?'Message acknowledged':'Task completed'} — ${note}`});
+      await resolveActions(taskId,Number(task.assigned_to));
       if(!selfAssigned)await notify({taskId,recipientId:Number(task.created_by),actorId:userId,eventType:'completed',actionRequired:true,message:`${task.assigned_name} completed “${task.title}”. Review and accept it or return it for more work.`});
     }else if(status==='cancelled'){
       await db.execute(`UPDATE staff_tasks SET status='cancelled',completed_at=NOW() WHERE id=:taskId`,{taskId});await db.execute(`UPDATE staff_task_workflow SET workflow_state='cancelled' WHERE task_id=:taskId`,{taskId});await resolveActions(taskId,Number(task.created_by));

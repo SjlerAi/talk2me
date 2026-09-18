@@ -531,39 +531,65 @@ async function markResponsibilityComplete({ staffId, sourceType, sourceKey, comp
 
 async function refreshOverdueWatches() {
   await ensureAgentResponsibilitySchema();
-  const candidates = await rows(`SELECT w.id,w.task_id,w.issued_by,w.assigned_to,w.due_at,t.title,
+  const candidates = await rows(`SELECT w.id,w.task_id,w.issued_by,w.assigned_to,w.due_at,t.title,t.message,
+    DATE_FORMAT(w.due_at,'%d %b %Y %H:%i') AS due_label,
     COALESCE(NULLIF(su.full_name,''),su.email,'Staff') AS assignee_name
     FROM agent_task_watches w
     JOIN staff_tasks t ON t.id=w.task_id
-    LEFT JOIN staff_task_workflow tw ON tw.task_id=t.id
     LEFT JOIN staff_users su ON su.id=w.assigned_to
     WHERE w.alert_enabled=1 AND w.overdue_alerted_at IS NULL AND w.due_at<NOW()
-      AND (t.status IN ('unread','seen','in_progress') OR (t.status='completed' AND tw.workflow_state='awaiting_sender_ack'))
+      AND t.status IN ('unread','seen','in_progress')
     ORDER BY w.due_at`);
 
   for (const item of candidates.rows) {
-    const [claim] = await db.execute(`UPDATE agent_task_watches
-      SET overdue_alerted_at=NOW(),updated_at=NOW()
-      WHERE id=:id AND overdue_alerted_at IS NULL`, { id:item.id });
-    if (!claim.affectedRows) continue;
+    const conn = await db.getConnection();
     try {
-      await db.execute(`INSERT INTO staff_task_notifications
+      await conn.beginTransaction();
+      const [claim] = await conn.execute(`UPDATE agent_task_watches
+        SET overdue_alerted_at=NOW(),updated_at=NOW()
+        WHERE id=:id AND overdue_alerted_at IS NULL`, { id:item.id });
+      if (!claim.affectedRows) {
+        await conn.rollback();
+        continue;
+      }
+
+      await conn.execute(`INSERT INTO staff_task_notifications
         (task_id,recipient_staff_id,actor_staff_id,event_type,notification_text,action_required)
         VALUES (:taskId,:recipientId,NULL,'agent_deadline_missed',:text,0)`, {
-        taskId:item.task_id,recipientId:item.issued_by,
-        text:`Deadline missed: ${item.assignee_name} has not completed “${item.title}”.`
+        taskId:item.task_id,
+        recipientId:item.issued_by,
+        text:`Deadline missed: ${item.assignee_name} has not completed “${item.title}” due ${item.due_label}.`
       });
-    } catch (_) {}
+
+      if (Number(item.assigned_to) !== Number(item.issued_by)) {
+        const originalInstruction = String(item.message || item.title || '').trim();
+        const reminderText = `Deadline reminder: “${item.title}” was due ${item.due_label} and is still outstanding. Original instruction: ${originalInstruction}. Please complete it now.`.slice(0,500);
+        await conn.execute(`INSERT INTO staff_task_notifications
+          (task_id,recipient_staff_id,actor_staff_id,event_type,notification_text,action_required)
+          VALUES (:taskId,:recipientId,:actorId,'agent_deadline_reminder',:text,1)`, {
+          taskId:item.task_id,
+          recipientId:item.assigned_to,
+          actorId:item.issued_by,
+          text:reminderText
+        });
+      }
+
+      await conn.commit();
+    } catch (error) {
+      await conn.rollback();
+      console.error('[agent-deadline-watch]', error && error.message ? error.message : error);
+    } finally {
+      conn.release();
+    }
   }
 
   const current = await rows(`SELECT w.id,w.task_id,w.issued_by,w.assigned_to,w.due_at,w.overdue_alerted_at,t.title,t.status,
     COALESCE(NULLIF(su.full_name,''),su.email,'Staff') AS assignee_name
     FROM agent_task_watches w
     JOIN staff_tasks t ON t.id=w.task_id
-    LEFT JOIN staff_task_workflow tw ON tw.task_id=t.id
     LEFT JOIN staff_users su ON su.id=w.assigned_to
     WHERE w.alert_enabled=1 AND w.due_at<NOW()
-      AND (t.status IN ('unread','seen','in_progress') OR (t.status='completed' AND tw.workflow_state='awaiting_sender_ack'))
+      AND t.status IN ('unread','seen','in_progress')
     ORDER BY w.due_at ASC
     LIMIT 100`);
   return current.rows;
