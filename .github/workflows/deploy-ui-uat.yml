@@ -98,8 +98,21 @@ jobs:
       - name: Refresh lean permanent UI UAT deployment scripts
         run: |
           set -Eeuo pipefail
-          scp -P "$SSH_PORT" scripts/talk2me-ui-uat-agent.sh scripts/deploy-ui-uat-artifact.sh "$SSH_USER@$SSH_HOST:/home/uent/.config/talk2me-ui-uat/"
-          ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" 'set -eu; install -m 700 /home/uent/.config/talk2me-ui-uat/talk2me-ui-uat-agent.sh /home/uent/bin/talk2me-ui-uat-agent; install -m 700 /home/uent/.config/talk2me-ui-uat/deploy-ui-uat-artifact.sh /home/uent/bin/talk2me-deploy-ui-uat; tmp=/home/uent/.talk2me-ui-uat-deploy/cron.new; (crontab -l 2>/dev/null || true) | grep -Fv "talk2me-ui-uat-deploy-agent" > "$tmp" || true; printf "%s\n" "*/5 * * * * /home/uent/bin/talk2me-ui-uat-agent >> /home/uent/.talk2me-ui-uat-deploy/cron.log 2>&1 # talk2me-ui-uat-deploy-agent" >> "$tmp"; crontab "$tmp"; rm -f "$tmp"'
+          retry() {
+            local attempt=1
+            local max=5
+            until "$@"; do
+              if [ "$attempt" -ge "$max" ]; then
+                echo "Command failed after $attempt attempts: $*" >&2
+                return 1
+              fi
+              echo "Transient SSH/SCP failure; retrying in $((attempt * 3))s (attempt $((attempt + 1))/$max)..."
+              sleep $((attempt * 3))
+              attempt=$((attempt + 1))
+            done
+          }
+          retry scp -o ServerAliveInterval=15 -o ServerAliveCountMax=4 -P "$SSH_PORT" scripts/talk2me-ui-uat-agent.sh scripts/deploy-ui-uat-artifact.sh "$SSH_USER@$SSH_HOST:/home/uent/.config/talk2me-ui-uat/"
+          retry ssh -o ServerAliveInterval=15 -o ServerAliveCountMax=4 -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" 'set -eu; install -m 700 /home/uent/.config/talk2me-ui-uat/talk2me-ui-uat-agent.sh /home/uent/bin/talk2me-ui-uat-agent; install -m 700 /home/uent/.config/talk2me-ui-uat/deploy-ui-uat-artifact.sh /home/uent/bin/talk2me-deploy-ui-uat; tmp=/home/uent/.talk2me-ui-uat-deploy/cron.new; (crontab -l 2>/dev/null || true) | grep -Fv "talk2me-ui-uat-deploy-agent" > "$tmp" || true; printf "%s\n" "*/5 * * * * /home/uent/bin/talk2me-ui-uat-agent >> /home/uent/.talk2me-ui-uat-deploy/cron.log 2>&1 # talk2me-ui-uat-deploy-agent" >> "$tmp"; crontab "$tmp"; rm -f "$tmp"'
 
       - name: Verify permanent UI UAT deployment agent
         run: |
@@ -111,7 +124,17 @@ jobs:
           ARTIFACT_NAME: ${{ steps.release.outputs.artifact_name }}
         run: |
           set -Eeuo pipefail
-          scp -P "$SSH_PORT" "$ARTIFACT_NAME" "$ARTIFACT_NAME.sha256" "$SSH_USER@$SSH_HOST:/home/uent/.config/talk2me-ui-uat/inbox/"
+          attempt=1
+          max=5
+          until scp -o ServerAliveInterval=15 -o ServerAliveCountMax=4 -P "$SSH_PORT" "$ARTIFACT_NAME" "$ARTIFACT_NAME.sha256" "$SSH_USER@$SSH_HOST:/home/uent/.config/talk2me-ui-uat/inbox/"; do
+            if [ "$attempt" -ge "$max" ]; then
+              echo "Artifact transfer failed after $attempt attempts." >&2
+              exit 1
+            fi
+            echo "Transient artifact transfer failure; retrying in $((attempt * 3))s (attempt $((attempt + 1))/$max)..."
+            sleep $((attempt * 3))
+            attempt=$((attempt + 1))
+          done
 
       - uses: actions/checkout@v6
         with:
