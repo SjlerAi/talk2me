@@ -37,9 +37,10 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          ssh -tt -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" bash -s -- "$GITHUB_SHA" <<'REMOTE'
+          {
+            printf "expected_sha=%q\n" "$GITHUB_SHA"
+            cat <<'REMOTE'
           set -Eeuo pipefail
-          expected_sha="$1"
           repo=/home/uent/repositories/talk2me-ui-uat
           test -d "$repo/.git"
           git -C "$repo" diff --quiet
@@ -50,4 +51,6 @@ jobs:
           bash "$repo/scripts/install-talk2me-ui-uat-agent.sh"
           /home/uent/bin/talk2me-ui-uat-agent --status | tee /tmp/talk2me-ui-uat-agent-status
           grep -Fq 'control=hold' /tmp/talk2me-ui-uat-agent-status
+          exit
           REMOTE
+          } | ssh -tt -p "$SSH_PORT" "$SSH_USER@$SSH_HOST"
