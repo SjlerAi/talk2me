@@ -20,7 +20,7 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: npm run check
       - name: Validate Office Intelligence agent
-        run: node --check src/services/office-intelligence.js && node --check src/services/office-intelligence-agent.js && node --check src/routes/office-intelligence.js && node -e "const fs=require('fs'),ejs=require('ejs');['views/office-intelligence.ejs','views/agent-login.ejs','views/agent.ejs'].forEach(file=>ejs.compile(fs.readFileSync(file,'utf8')));"
+        run: node --check src/services/office-intelligence.js && node --check src/services/office-intelligence-agent.js && node --check src/services/agent-deadline-scheduler.js && node --check src/routes/office-intelligence.js && node -e "const fs=require('fs'),ejs=require('ejs');['views/office-intelligence.ejs','views/agent-login.ejs','views/agent.ejs'].forEach(file=>ejs.compile(fs.readFileSync(file,'utf8')));"
       - name: Validate customer communication import files
         run: node --check src/services/imported-email.js && node --check src/routes/contact-list-builder.js
       - name: Validate shell scripts
