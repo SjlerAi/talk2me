@@ -212,7 +212,7 @@ async function ensureAgentResponsibilitySchema() {
   if (responsibilitySchemaPromise) return responsibilitySchemaPromise;
 
   responsibilitySchemaPromise = (async () => {
-    await db.execute(\`CREATE TABLE IF NOT EXISTS agent_task_watches (
+    await db.execute(`CREATE TABLE IF NOT EXISTS agent_task_watches (
       id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
       task_id BIGINT UNSIGNED NOT NULL,
       issued_by BIGINT UNSIGNED NOT NULL,
@@ -227,9 +227,9 @@ async function ensureAgentResponsibilitySchema() {
       KEY idx_agent_task_watch_due (alert_enabled,due_at,overdue_alerted_at),
       KEY idx_agent_task_watch_assignee (assigned_to,due_at),
       KEY idx_agent_task_watch_issuer (issued_by,due_at)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci\`);
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
 
-    await db.execute(\`CREATE TABLE IF NOT EXISTS agent_responsibility_checks (
+    await db.execute(`CREATE TABLE IF NOT EXISTS agent_responsibility_checks (
       id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
       work_date DATE NOT NULL,
       staff_id BIGINT UNSIGNED NOT NULL,
@@ -244,9 +244,9 @@ async function ensureAgentResponsibilitySchema() {
       PRIMARY KEY (id),
       UNIQUE KEY uq_agent_responsibility_check (work_date,staff_id,source_type,source_key),
       KEY idx_agent_responsibility_staff_date (staff_id,work_date,status)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci\`);
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
 
-    await db.execute(\`CREATE TABLE IF NOT EXISTS staff_task_workflow (
+    await db.execute(`CREATE TABLE IF NOT EXISTS staff_task_workflow (
       task_id BIGINT UNSIGNED NOT NULL,
       workflow_state VARCHAR(40) NOT NULL DEFAULT 'active',
       my_priority_date DATE NULL,
@@ -261,9 +261,9 @@ async function ensureAgentResponsibilitySchema() {
       PRIMARY KEY (task_id),
       KEY idx_task_workflow_state (workflow_state,updated_at),
       KEY idx_task_workflow_priority (my_priority_date)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci\`);
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
 
-    await db.execute(\`CREATE TABLE IF NOT EXISTS staff_task_notifications (
+    await db.execute(`CREATE TABLE IF NOT EXISTS staff_task_notifications (
       id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
       task_id BIGINT UNSIGNED NOT NULL,
       recipient_staff_id BIGINT UNSIGNED NOT NULL,
@@ -278,7 +278,7 @@ async function ensureAgentResponsibilitySchema() {
       PRIMARY KEY (id),
       KEY idx_task_notifications_recipient (recipient_staff_id,resolved_at,is_read,created_at),
       KEY idx_task_notifications_task (task_id,recipient_staff_id,action_required,resolved_at)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci\`);
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
 
     responsibilitySchemaReady = true;
   })().finally(() => { responsibilitySchemaPromise = null; });
@@ -291,7 +291,7 @@ function normaliseAgentDateTime(value) {
   if (!raw) return null;
   const match = raw.match(/^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})(?::(\d{2}))?/);
   if (!match) return null;
-  return \`\${match[1]} \${match[2]}:\${match[3] || '00'}\`;
+  return `${match[1]} ${match[2]}:${match[3] || '00'}`;
 }
 
 function responsibilityState({ completed=false, dueAt=null, waitingApproval=false, checked=false }) {
@@ -306,26 +306,26 @@ async function buildDailyResponsibilities(staffId) {
   if (!id) return { items: [], upcomingUpgrades: [], summary: { expected:0, completed:0, outstanding:0, overdue:0 } };
 
   const [checks,tasks,followups,callbacks,inquiries,birthdays,upgrades,upcomingUpgrades] = await Promise.all([
-    rows(\`SELECT source_type,source_key,status,completed_at,completed_by,note
+    rows(`SELECT source_type,source_key,status,completed_at,completed_by,note
       FROM agent_responsibility_checks
-      WHERE staff_id=:id AND work_date=CURRENT_DATE()\`, { id }),
+      WHERE staff_id=:id AND work_date=CURRENT_DATE()`, { id }),
 
-    rows(\`SELECT t.id,t.title,t.message,t.priority,t.status,t.due_at,t.created_at,t.updated_at,t.completed_at,
+    rows(`SELECT t.id,t.title,t.message,t.priority,t.status,t.due_at,t.created_at,t.updated_at,t.completed_at,
       COALESCE(w.workflow_state,CASE WHEN t.status='completed' THEN 'accepted' ELSE 'active' END) AS workflow_state
       FROM staff_tasks t
       LEFT JOIN staff_task_workflow w ON w.task_id=t.id
       WHERE t.assigned_to=:id
         AND (
           DATE(t.due_at)=CURRENT_DATE()
-          OR (\${ACTIVE_TASK} AND t.due_at IS NOT NULL AND t.due_at<NOW())
+          OR (${ACTIVE_TASK} AND t.due_at IS NOT NULL AND t.due_at<NOW())
           OR DATE(t.completed_at)=CURRENT_DATE()
           OR (DATE(t.created_at)=CURRENT_DATE() AND t.due_at IS NULL)
         )
-      ORDER BY CASE WHEN \${ACTIVE_TASK} AND t.due_at IS NOT NULL AND t.due_at<NOW() THEN 0 ELSE 1 END,
+      ORDER BY CASE WHEN ${ACTIVE_TASK} AND t.due_at IS NOT NULL AND t.due_at<NOW() THEN 0 ELSE 1 END,
         t.due_at IS NULL,t.due_at,t.created_at DESC
-      LIMIT 250\`, { id }),
+      LIMIT 250`, { id }),
 
-    rows(\`SELECT id,client_id,customer_name,contact_number,reason,notes,scheduled_at,status,completed_at,created_at
+    rows(`SELECT id,client_id,customer_name,contact_number,reason,notes,scheduled_at,status,completed_at,created_at
       FROM customer_followups
       WHERE assigned_to=:id
         AND (
@@ -334,9 +334,9 @@ async function buildDailyResponsibilities(staffId) {
           OR DATE(completed_at)=CURRENT_DATE()
         )
       ORDER BY CASE WHEN status='open' AND scheduled_at<NOW() THEN 0 ELSE 1 END,scheduled_at
-      LIMIT 150\`, { id }),
+      LIMIT 150`, { id }),
 
-    rows(\`SELECT id,client_id,customer_name,contact_number,reason,notes,scheduled_at,status,completed_at,created_at
+    rows(`SELECT id,client_id,customer_name,contact_number,reason,notes,scheduled_at,status,completed_at,created_at
       FROM customer_callbacks
       WHERE assigned_to=:id
         AND (
@@ -345,38 +345,38 @@ async function buildDailyResponsibilities(staffId) {
           OR DATE(completed_at)=CURRENT_DATE()
         )
       ORDER BY CASE WHEN status='scheduled' AND scheduled_at<NOW() THEN 0 ELSE 1 END,scheduled_at
-      LIMIT 150\`, { id }),
+      LIMIT 150`, { id }),
 
-    rows(\`SELECT i.id,i.client_id,i.client_name,i.cell_number,i.query_text,i.status,i.follow_up_at,i.created_at,i.updated_at,i.completed_at
+    rows(`SELECT i.id,i.client_id,i.client_name,i.cell_number,i.query_text,i.status,i.follow_up_at,i.created_at,i.updated_at,i.completed_at
       FROM inquiries i
       WHERE COALESCE(i.assigned_staff_id,i.staff_id)=:id
         AND (
-          \${OPEN_INQUIRY}
+          ${OPEN_INQUIRY}
           OR DATE(COALESCE(i.completed_at,i.updated_at))=CURRENT_DATE()
         )
-      ORDER BY CASE WHEN \${OPEN_INQUIRY} AND i.follow_up_at IS NOT NULL AND i.follow_up_at<NOW() THEN 0 ELSE 1 END,
+      ORDER BY CASE WHEN ${OPEN_INQUIRY} AND i.follow_up_at IS NOT NULL AND i.follow_up_at<NOW() THEN 0 ELSE 1 END,
         i.follow_up_at IS NULL,i.follow_up_at,COALESCE(i.updated_at,i.created_at) DESC
-      LIMIT 200\`, { id }),
+      LIMIT 200`, { id }),
 
-    rows(\`SELECT DISTINCT c.id,c.client_name,c.cell_number,c.birthday,c.account_number
+    rows(`SELECT DISTINCT c.id,c.client_name,c.cell_number,c.birthday,c.account_number
       FROM clients c
       JOIN client_assignments ca ON ca.is_active=1 AND ca.assigned_staff_id=:id
         AND (ca.client_id=c.id OR (COALESCE(ca.account_number,'')<>'' AND ca.account_number=c.account_number))
       WHERE c.is_active=1 AND c.birthday IS NOT NULL
         AND MONTH(c.birthday)=MONTH(CURRENT_DATE()) AND DAY(c.birthday)=DAY(CURRENT_DATE())
       ORDER BY c.client_name
-      LIMIT 150\`, { id }),
+      LIMIT 150`, { id }),
 
-    rows(\`SELECT DISTINCT c.id,c.client_name,c.cell_number,c.next_upgrade_date,c.account_number,c.package_name
+    rows(`SELECT DISTINCT c.id,c.client_name,c.cell_number,c.next_upgrade_date,c.account_number,c.package_name
       FROM clients c
       JOIN client_assignments ca ON ca.is_active=1 AND ca.assigned_staff_id=:id
         AND (ca.client_id=c.id OR (COALESCE(ca.account_number,'')<>'' AND ca.account_number=c.account_number))
       WHERE c.is_active=1 AND COALESCE(c.line_status,'active')<>'cancelled'
         AND c.next_upgrade_date IS NOT NULL AND DATE(c.next_upgrade_date)=CURRENT_DATE()
       ORDER BY c.client_name
-      LIMIT 150\`, { id }),
+      LIMIT 150`, { id }),
 
-    rows(\`SELECT DISTINCT c.id,c.client_name,c.cell_number,c.next_upgrade_date,c.account_number,c.package_name
+    rows(`SELECT DISTINCT c.id,c.client_name,c.cell_number,c.next_upgrade_date,c.account_number,c.package_name
       FROM clients c
       JOIN client_assignments ca ON ca.is_active=1 AND ca.assigned_staff_id=:id
         AND (ca.client_id=c.id OR (COALESCE(ca.account_number,'')<>'' AND ca.account_number=c.account_number))
@@ -385,10 +385,10 @@ async function buildDailyResponsibilities(staffId) {
         AND DATE(c.next_upgrade_date) > CURRENT_DATE()
         AND DATE(c.next_upgrade_date) <= DATE_ADD(CURRENT_DATE(),INTERVAL 7 DAY)
       ORDER BY c.next_upgrade_date,c.client_name
-      LIMIT 150\`, { id })
+      LIMIT 150`, { id })
   ]);
 
-  const checked = new Map(checks.rows.map(x => [\`\${x.source_type}:\${x.source_key}\`, x]));
+  const checked = new Map(checks.rows.map(x => [`${x.source_type}:${x.source_key}`, x]));
   const items = [];
 
   for (const t of tasks.rows) {
@@ -403,7 +403,7 @@ async function buildDailyResponsibilities(staffId) {
 
   for (const f of followups.rows) {
     items.push({
-      sourceType:'follow_up',sourceKey:String(f.id),title:\`Follow-up · \${f.customer_name || 'Customer'}\`,
+      sourceType:'follow_up',sourceKey:String(f.id),title:`Follow-up · ${f.customer_name || 'Customer'}`,
       detail:f.reason || f.notes || '',dueAt:f.scheduled_at,occurredAt:f.completed_at || f.created_at,
       status:responsibilityState({completed:String(f.status)==='completed',dueAt:f.scheduled_at}),priority:'normal'
     });
@@ -411,7 +411,7 @@ async function buildDailyResponsibilities(staffId) {
 
   for (const cb of callbacks.rows) {
     items.push({
-      sourceType:'callback',sourceKey:String(cb.id),title:\`Callback · \${cb.customer_name || 'Customer'}\`,
+      sourceType:'callback',sourceKey:String(cb.id),title:`Callback · ${cb.customer_name || 'Customer'}`,
       detail:cb.reason || cb.notes || '',dueAt:cb.scheduled_at,occurredAt:cb.completed_at || cb.created_at,
       status:responsibilityState({completed:String(cb.status)==='completed',dueAt:cb.scheduled_at}),priority:'normal'
     });
@@ -420,27 +420,27 @@ async function buildDailyResponsibilities(staffId) {
   for (const i of inquiries.rows) {
     const completed = ['closed','completed','resolved','cancelled'].includes(String(i.status));
     items.push({
-      sourceType:'inquiry',sourceKey:String(i.id),title:\`Inquiry · \${i.client_name || i.cell_number || 'Customer'}\`,
+      sourceType:'inquiry',sourceKey:String(i.id),title:`Inquiry · ${i.client_name || i.cell_number || 'Customer'}`,
       detail:i.query_text || '',dueAt:i.follow_up_at,occurredAt:i.completed_at || i.updated_at || i.created_at,
       status:responsibilityState({completed,dueAt:i.follow_up_at}),priority:'normal'
     });
   }
 
   for (const b of birthdays.rows) {
-    const key = \`client:\${b.id}\`;
-    const check = checked.get(\`birthday:\${key}\`);
+    const key = `client:${b.id}`;
+    const check = checked.get(`birthday:${key}`);
     items.push({
-      sourceType:'birthday',sourceKey:key,title:\`Birthday · \${b.client_name || 'Customer'}\`,
+      sourceType:'birthday',sourceKey:key,title:`Birthday · ${b.client_name || 'Customer'}`,
       detail:b.cell_number || b.account_number || '',dueAt:null,occurredAt:b.birthday,
       status:responsibilityState({checked:Boolean(check && check.status==='completed')}),priority:'normal',manualCheck:true
     });
   }
 
   for (const u of upgrades.rows) {
-    const key = \`client:\${u.id}\`;
-    const check = checked.get(\`upgrade:\${key}\`);
+    const key = `client:${u.id}`;
+    const check = checked.get(`upgrade:${key}`);
     items.push({
-      sourceType:'upgrade',sourceKey:key,title:\`Upgrade due · \${u.client_name || 'Customer'}\`,
+      sourceType:'upgrade',sourceKey:key,title:`Upgrade due · ${u.client_name || 'Customer'}`,
       detail:[u.cell_number,u.package_name].filter(Boolean).join(' · '),dueAt:u.next_upgrade_date,occurredAt:u.next_upgrade_date,
       status:responsibilityState({checked:Boolean(check && check.status==='completed'),dueAt:u.next_upgrade_date}),priority:'normal',manualCheck:true
     });
@@ -478,28 +478,28 @@ async function sendAgentInstruction({ issuedBy, assignedTo, title, message, dueA
     const [[staff]] = await conn.execute('SELECT id,full_name,email,is_active FROM staff_users WHERE id=:id LIMIT 1',{id:assigneeId});
     if (!staff || !Number(staff.is_active)) throw new Error('The selected staff member is not active.');
 
-    const [created] = await conn.execute(\`INSERT INTO staff_tasks
+    const [created] = await conn.execute(`INSERT INTO staff_tasks
       (type,title,message,priority,status,assigned_to,created_by,due_at,email_status)
-      VALUES ('task',:title,:message,:priority,'unread',:assignedTo,:createdBy,:dueAt,'not_configured')\`, {
+      VALUES ('task',:title,:message,:priority,'unread',:assignedTo,:createdBy,:dueAt,'not_configured')`, {
       title:cleanTitle,message:cleanMessage || cleanTitle,priority:cleanPriority,
       assignedTo:assigneeId,createdBy:issuerId,dueAt:cleanDueAt
     });
     const taskId = created.insertId;
 
-    await conn.execute(\`INSERT INTO staff_task_workflow (task_id,workflow_state)
-      VALUES (:taskId,'active') ON DUPLICATE KEY UPDATE task_id=VALUES(task_id)\`, { taskId });
+    await conn.execute(`INSERT INTO staff_task_workflow (task_id,workflow_state)
+      VALUES (:taskId,'active') ON DUPLICATE KEY UPDATE task_id=VALUES(task_id)`, { taskId });
 
-    await conn.execute(\`INSERT INTO staff_task_notifications
+    await conn.execute(`INSERT INTO staff_task_notifications
       (task_id,recipient_staff_id,actor_staff_id,event_type,notification_text,action_required)
-      VALUES (:taskId,:recipientId,:actorId,'agent_instruction',:text,1)\`, {
+      VALUES (:taskId,:recipientId,:actorId,'agent_instruction',:text,1)`, {
       taskId,recipientId:assigneeId,actorId:issuerId,
-      text:\`Management instruction: \${cleanTitle} · due \${cleanDueAt}\`
+      text:`Management instruction: ${cleanTitle} · due ${cleanDueAt}`
     });
 
-    await conn.execute(\`INSERT INTO agent_task_watches
+    await conn.execute(`INSERT INTO agent_task_watches
       (task_id,issued_by,assigned_to,due_at,alert_enabled)
       VALUES (:taskId,:issuedBy,:assignedTo,:dueAt,1)
-      ON DUPLICATE KEY UPDATE due_at=VALUES(due_at),alert_enabled=1,updated_at=NOW()\`, {
+      ON DUPLICATE KEY UPDATE due_at=VALUES(due_at),alert_enabled=1,updated_at=NOW()`, {
       taskId,issuedBy:issuerId,assignedTo:assigneeId,dueAt:cleanDueAt
     });
 
@@ -521,17 +521,17 @@ async function markResponsibilityComplete({ staffId, sourceType, sourceKey, comp
   const key = String(sourceKey || '').slice(0,160);
   if (!id || !actor || !['birthday','upgrade'].includes(type) || !key) throw new Error('Invalid responsibility completion request.');
 
-  await db.execute(\`INSERT INTO agent_responsibility_checks
+  await db.execute(`INSERT INTO agent_responsibility_checks
     (work_date,staff_id,source_type,source_key,status,completed_at,completed_by,note)
     VALUES (CURRENT_DATE(),:staffId,:sourceType,:sourceKey,'completed',NOW(),:completedBy,:note)
-    ON DUPLICATE KEY UPDATE status='completed',completed_at=NOW(),completed_by=VALUES(completed_by),note=VALUES(note),updated_at=NOW()\`, {
+    ON DUPLICATE KEY UPDATE status='completed',completed_at=NOW(),completed_by=VALUES(completed_by),note=VALUES(note),updated_at=NOW()`, {
     staffId:id,sourceType:type,sourceKey:key,completedBy:actor,note:String(note || '').trim().slice(0,500) || null
   });
 }
 
 async function refreshOverdueWatches() {
   await ensureAgentResponsibilitySchema();
-  const candidates = await rows(\`SELECT w.id,w.task_id,w.issued_by,w.assigned_to,w.due_at,t.title,
+  const candidates = await rows(`SELECT w.id,w.task_id,w.issued_by,w.assigned_to,w.due_at,t.title,
     COALESCE(NULLIF(su.full_name,''),su.email,'Staff') AS assignee_name
     FROM agent_task_watches w
     JOIN staff_tasks t ON t.id=w.task_id
@@ -539,24 +539,24 @@ async function refreshOverdueWatches() {
     LEFT JOIN staff_users su ON su.id=w.assigned_to
     WHERE w.alert_enabled=1 AND w.overdue_alerted_at IS NULL AND w.due_at<NOW()
       AND (t.status IN ('unread','seen','in_progress') OR (t.status='completed' AND tw.workflow_state='awaiting_sender_ack'))
-    ORDER BY w.due_at\`);
+    ORDER BY w.due_at`);
 
   for (const item of candidates.rows) {
-    const [claim] = await db.execute(\`UPDATE agent_task_watches
+    const [claim] = await db.execute(`UPDATE agent_task_watches
       SET overdue_alerted_at=NOW(),updated_at=NOW()
-      WHERE id=:id AND overdue_alerted_at IS NULL\`, { id:item.id });
+      WHERE id=:id AND overdue_alerted_at IS NULL`, { id:item.id });
     if (!claim.affectedRows) continue;
     try {
-      await db.execute(\`INSERT INTO staff_task_notifications
+      await db.execute(`INSERT INTO staff_task_notifications
         (task_id,recipient_staff_id,actor_staff_id,event_type,notification_text,action_required)
-        VALUES (:taskId,:recipientId,NULL,'agent_deadline_missed',:text,0)\`, {
+        VALUES (:taskId,:recipientId,NULL,'agent_deadline_missed',:text,0)`, {
         taskId:item.task_id,recipientId:item.issued_by,
-        text:\`Deadline missed: \${item.assignee_name} has not completed “\${item.title}”.\`
+        text:`Deadline missed: ${item.assignee_name} has not completed “${item.title}”.`
       });
     } catch (_) {}
   }
 
-  const current = await rows(\`SELECT w.id,w.task_id,w.issued_by,w.assigned_to,w.due_at,w.overdue_alerted_at,t.title,t.status,
+  const current = await rows(`SELECT w.id,w.task_id,w.issued_by,w.assigned_to,w.due_at,w.overdue_alerted_at,t.title,t.status,
     COALESCE(NULLIF(su.full_name,''),su.email,'Staff') AS assignee_name
     FROM agent_task_watches w
     JOIN staff_tasks t ON t.id=w.task_id
@@ -565,7 +565,7 @@ async function refreshOverdueWatches() {
     WHERE w.alert_enabled=1 AND w.due_at<NOW()
       AND (t.status IN ('unread','seen','in_progress') OR (t.status='completed' AND tw.workflow_state='awaiting_sender_ack'))
     ORDER BY w.due_at ASC
-    LIMIT 100\`);
+    LIMIT 100`);
   return current.rows;
 }
 
