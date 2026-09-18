@@ -1,8 +1,16 @@
 {
   "version": 1,
+  "schema": 1,
+  "repository": "SjlerAi/talk2me",
   "environment": "ui-uat",
   "action": "hold",
-  "requestId": "hold-after-invalid-mixed-request-20260918-01",
+  "status": "HOLD",
+  "requestId": "hold-bible-safe-20260918-01",
   "sourceBranch": "release/talk2me-ui-uat-2026-09-18-gerda-daily-responsibility",
-  "sourceSha": "5ba23c99d5a871743fc545a3f0e4f5842559cbb8"
+  "sourceSha": "5ba23c99d5a871743fc545a3f0e4f5842559cbb8",
+  "commit": null,
+  "workflowRunId": null,
+  "artifact": null,
+  "sha256": null,
+  "requestedAt": null
 }
