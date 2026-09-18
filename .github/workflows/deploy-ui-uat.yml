@@ -98,25 +98,8 @@ jobs:
       - name: Refresh lean permanent UI UAT deployment scripts
         run: |
           set -Eeuo pipefail
-          retry_stream() {
-            local source="$1"
-            local target="$2"
-            local attempt=1
-            local max=5
-            until ssh -o ServerAliveInterval=15 -o ServerAliveCountMax=4 -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" "cat > '$target'" < "$source"; do
-              if [ "$attempt" -ge "$max" ]; then
-                echo "SSH stream failed after $attempt attempts: $source -> $target" >&2
-                return 1
-              fi
-              echo "Transient SSH stream failure; retrying in $((attempt * 3))s (attempt $((attempt + 1))/$max)..."
-              sleep $((attempt * 3))
-              attempt=$((attempt + 1))
-            done
-          }
-          ssh -o ServerAliveInterval=15 -o ServerAliveCountMax=4 -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" 'mkdir -p /home/uent/.config/talk2me-ui-uat'
-          retry_stream scripts/talk2me-ui-uat-agent.sh /home/uent/.config/talk2me-ui-uat/talk2me-ui-uat-agent.sh
-          retry_stream scripts/deploy-ui-uat-artifact.sh /home/uent/.config/talk2me-ui-uat/deploy-ui-uat-artifact.sh
-          ssh -o ServerAliveInterval=15 -o ServerAliveCountMax=4 -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" 'set -eu; install -m 700 /home/uent/.config/talk2me-ui-uat/talk2me-ui-uat-agent.sh /home/uent/bin/talk2me-ui-uat-agent; install -m 700 /home/uent/.config/talk2me-ui-uat/deploy-ui-uat-artifact.sh /home/uent/bin/talk2me-deploy-ui-uat; tmp=/home/uent/.talk2me-ui-uat-deploy/cron.new; (crontab -l 2>/dev/null || true) | grep -Fv "talk2me-ui-uat-deploy-agent" > "$tmp" || true; printf "%s\n" "*/5 * * * * /home/uent/bin/talk2me-ui-uat-agent >> /home/uent/.talk2me-ui-uat-deploy/cron.log 2>&1 # talk2me-ui-uat-deploy-agent" >> "$tmp"; crontab "$tmp"; rm -f "$tmp"'
+          scp -P "$SSH_PORT" scripts/talk2me-ui-uat-agent.sh scripts/deploy-ui-uat-artifact.sh "$SSH_USER@$SSH_HOST:/home/uent/.config/talk2me-ui-uat/"
+          ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" 'set -eu; install -m 700 /home/uent/.config/talk2me-ui-uat/talk2me-ui-uat-agent.sh /home/uent/bin/talk2me-ui-uat-agent; install -m 700 /home/uent/.config/talk2me-ui-uat/deploy-ui-uat-artifact.sh /home/uent/bin/talk2me-deploy-ui-uat; tmp=/home/uent/.talk2me-ui-uat-deploy/cron.new; (crontab -l 2>/dev/null || true) | grep -Fv "talk2me-ui-uat-deploy-agent" > "$tmp" || true; printf "%s\n" "*/5 * * * * /home/uent/bin/talk2me-ui-uat-agent >> /home/uent/.talk2me-ui-uat-deploy/cron.log 2>&1 # talk2me-ui-uat-deploy-agent" >> "$tmp"; crontab "$tmp"; rm -f "$tmp"'
 
       - name: Verify permanent UI UAT deployment agent
         run: |
@@ -128,24 +111,7 @@ jobs:
           ARTIFACT_NAME: ${{ steps.release.outputs.artifact_name }}
         run: |
           set -Eeuo pipefail
-          stream_file() {
-            local source="$1"
-            local target="$2"
-            local attempt=1
-            local max=5
-            until ssh -o ServerAliveInterval=15 -o ServerAliveCountMax=4 -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" "cat > '$target'" < "$source"; do
-              if [ "$attempt" -ge "$max" ]; then
-                echo "Artifact SSH stream failed after $attempt attempts: $source" >&2
-                return 1
-              fi
-              echo "Transient artifact stream failure; retrying in $((attempt * 3))s (attempt $((attempt + 1))/$max)..."
-              sleep $((attempt * 3))
-              attempt=$((attempt + 1))
-            done
-          }
-          ssh -o ServerAliveInterval=15 -o ServerAliveCountMax=4 -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" 'mkdir -p /home/uent/.config/talk2me-ui-uat/inbox'
-          stream_file "$ARTIFACT_NAME" "/home/uent/.config/talk2me-ui-uat/inbox/$ARTIFACT_NAME"
-          stream_file "$ARTIFACT_NAME.sha256" "/home/uent/.config/talk2me-ui-uat/inbox/$ARTIFACT_NAME.sha256"
+          scp -P "$SSH_PORT" "$ARTIFACT_NAME" "$ARTIFACT_NAME.sha256" "$SSH_USER@$SSH_HOST:/home/uent/.config/talk2me-ui-uat/inbox/"
 
       - uses: actions/checkout@v6
         with:
