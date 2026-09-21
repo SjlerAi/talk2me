@@ -4,9 +4,9 @@
 <% if (!['owner','manager','admin'].includes(currentUser.role) && staffScope) { %>
 <div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 14px;margin-bottom:12px">
   <div><strong>Customer visibility</strong><br><small>All shows your customers plus customers that are still available. My Own shows only customers assigned to you.</small></div>
-  <div class="t2m-home-scope" role="group" aria-label="Customer visibility">
-    <a class="<%= staffScope==='all'?'is-active':'' %>" style="text-decoration:none;padding:9px 14px" href="<%= basePath %>/backoffice/clients?view=<%= encodeURIComponent(view) %>&scope=all">All</a>
-    <a class="<%= staffScope==='mine'?'is-active':'' %>" style="text-decoration:none;padding:9px 14px" href="<%= basePath %>/backoffice/clients?view=<%= encodeURIComponent(view) %>&scope=mine">My Own</a>
+  <div style="display:flex;gap:8px" role="group" aria-label="Customer visibility">
+    <a class="btn small <%= staffScope==='all'?'primary':'' %>" href="<%= basePath %>/backoffice/clients?view=<%= encodeURIComponent(view) %>&scope=all">All</a>
+    <a class="btn small <%= staffScope==='mine'?'primary':'' %>" href="<%= basePath %>/backoffice/clients?view=<%= encodeURIComponent(view) %>&scope=mine">My Own</a>
   </div>
 </div>
 <% } %>
