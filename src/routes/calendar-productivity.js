@@ -187,7 +187,10 @@ router.get('/api/calendar/events', requireAuth, async (req, res, next) => {
     await ensureSchema();
     const userId = Number(req.session.user.id);
     const management = isManagement(req.session.user);
-    const scope = management && String(req.query.scope || '') === 'team' ? 'team' : 'mine';
+    const requestedScope = String(req.query.scope || '').trim().toLowerCase();
+    const scope = management
+      ? (requestedScope === 'team' ? 'team' : 'mine')
+      : (requestedScope === 'all' ? 'all' : 'mine');
     const today = sqlDate(new Date());
     const start = dateOnly(req.query.start) || addDays(today, -7);
     const end = dateOnly(req.query.end) || addDays(today, 35);
@@ -195,7 +198,8 @@ router.get('/api/calendar/events', requireAuth, async (req, res, next) => {
     if (span < 0 || span > 70) return res.status(400).json({ ok: false, error: 'Calendar range must be between 0 and 70 days.' });
 
     const team = scope === 'team' ? 1 : 0;
-    const params = { userId, start, end, team };
+    const staffAll = !management && scope === 'all' ? 1 : 0;
+    const params = { userId, start, end, team, staffAll };
     const events = [];
 
     const [personal] = await db.execute(`SELECT p.*,ass.full_name assigned_name,c.client_name
@@ -203,7 +207,7 @@ router.get('/api/calendar/events', requireAuth, async (req, res, next) => {
       JOIN staff_users ass ON ass.id=p.assigned_to
       LEFT JOIN clients c ON c.id=p.client_id
       WHERE DATE(p.starts_at) BETWEEN :start AND :end
-        AND (:team=1 OR p.assigned_to=:userId)
+        AND (:team=1 OR p.assigned_to=:userId OR (:staffAll=1 AND p.assigned_to IS NULL))
       ORDER BY p.starts_at,p.id`, params);
     for (const row of personal) {
       events.push({
@@ -218,10 +222,10 @@ router.get('/api/calendar/events', requireAuth, async (req, res, next) => {
 
     const [tasks] = await db.execute(`SELECT t.id,t.title,t.message,t.priority,t.status,t.due_at,t.assigned_to,
       ass.full_name assigned_name,t.related_client_id,c.client_name
-      FROM staff_tasks t JOIN staff_users ass ON ass.id=t.assigned_to
+      FROM staff_tasks t LEFT JOIN staff_users ass ON ass.id=t.assigned_to
       LEFT JOIN clients c ON c.id=t.related_client_id
       WHERE t.due_at IS NOT NULL AND DATE(t.due_at) BETWEEN :start AND :end
-        AND (:team=1 OR t.assigned_to=:userId)
+        AND (:team=1 OR t.assigned_to=:userId OR (:staffAll=1 AND t.assigned_to IS NULL))
       ORDER BY t.due_at,t.id`, params);
     for (const row of tasks) {
       events.push({
@@ -235,9 +239,9 @@ router.get('/api/calendar/events', requireAuth, async (req, res, next) => {
 
     const [followups] = await db.execute(`SELECT f.id,f.client_id,f.customer_name,f.contact_number,f.reason,f.notes,f.scheduled_at,
       f.assigned_to,f.status,ass.full_name assigned_name
-      FROM customer_followups f JOIN staff_users ass ON ass.id=f.assigned_to
+      FROM customer_followups f LEFT JOIN staff_users ass ON ass.id=f.assigned_to
       WHERE DATE(f.scheduled_at) BETWEEN :start AND :end
-        AND (:team=1 OR f.assigned_to=:userId)
+        AND (:team=1 OR f.assigned_to=:userId OR (:staffAll=1 AND f.assigned_to IS NULL))
       ORDER BY f.scheduled_at,f.id`, params);
     for (const row of followups) {
       events.push({
@@ -254,9 +258,9 @@ router.get('/api/calendar/events', requireAuth, async (req, res, next) => {
 
     const [callbacks] = await db.execute(`SELECT c.id,c.client_id,c.customer_name,c.contact_number,c.reason,c.notes,c.scheduled_at,
       c.assigned_to,c.status,ass.full_name assigned_name
-      FROM customer_callbacks c JOIN staff_users ass ON ass.id=c.assigned_to
+      FROM customer_callbacks c LEFT JOIN staff_users ass ON ass.id=c.assigned_to
       WHERE DATE(c.scheduled_at) BETWEEN :start AND :end
-        AND (:team=1 OR c.assigned_to=:userId)
+        AND (:team=1 OR c.assigned_to=:userId OR (:staffAll=1 AND c.assigned_to IS NULL))
       ORDER BY c.scheduled_at,c.id`, params);
     for (const row of callbacks) {
       events.push({
@@ -277,7 +281,7 @@ router.get('/api/calendar/events', requireAuth, async (req, res, next) => {
       LEFT JOIN staff_users ass ON ass.id=COALESCE(i.assigned_staff_id,i.staff_id)
       WHERE i.follow_up_at IS NOT NULL AND DATE(i.follow_up_at) BETWEEN :start AND :end
         AND i.status IN ${OPEN_INQUIRY_STATUSES}
-        AND (:team=1 OR COALESCE(i.assigned_staff_id,i.staff_id)=:userId)
+        AND (:team=1 OR COALESCE(i.assigned_staff_id,i.staff_id)=:userId OR (:staffAll=1 AND COALESCE(i.assigned_staff_id,i.staff_id) IS NULL))
       ORDER BY i.follow_up_at,i.id`, params);
     for (const row of legacyFollowups) {
       events.push({
@@ -294,7 +298,9 @@ router.get('/api/calendar/events', requireAuth, async (req, res, next) => {
 
     const assignmentScope = team
       ? ''
-      : 'AND a.assigned_staff_id=:userId';
+      : staffAll
+        ? 'AND (a.assigned_staff_id=:userId OR a.assigned_staff_id IS NULL)'
+        : 'AND a.assigned_staff_id=:userId';
     const [clients] = await db.execute(`SELECT DISTINCT c.id,c.id_number,c.account_number,c.client_name,c.cell_number,c.birthday,
       c.next_upgrade_date,c.upgrade_date,a.assigned_staff_id,ass.full_name assigned_name
       FROM clients c
