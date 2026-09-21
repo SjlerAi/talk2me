@@ -61,7 +61,7 @@ router.get('/search/all', requireAuth, async (req, res, next) => {
       SELECT c.id,c.account_number,c.client_name,c.cell_number,c.email,c.handset,c.package_name,
         'mobile' record_type
       FROM clients c
-      WHERE (
+      WHERE ((
           :phone IS NOT NULL AND (
             c.cell_number_normalised=:phone
             OR REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(TRIM(COALESCE(c.cell_number,'')),'+',''),' ',''),'-',''),'(',''),')','') IN (:phone,:phoneLocal)
@@ -151,7 +151,7 @@ router.get('/search/all', requireAuth, async (req, res, next) => {
         fs.id fixed_service_id,fs.branch_name,fs.solution_id,fs.order_number,'fixed' record_type
       FROM fixed_accounts fa
       LEFT JOIN fixed_services fs ON fs.fixed_account_id=fa.id
-      WHERE (:phone IS NOT NULL AND (
+      WHERE ((:phone IS NOT NULL AND (
           fa.contact_number_normalised=:phone
           OR REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(TRIM(COALESCE(fa.contact_number,'')),'+',''),' ',''),'-',''),'(',''),')','') IN (:phone,:phoneLocal)
         ))
