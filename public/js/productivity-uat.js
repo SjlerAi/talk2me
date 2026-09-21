@@ -297,7 +297,7 @@
         const state = {
           month: monthStart(today),
           selected: isoDate(today),
-          scope: osConfig?.isManagement ? 'team' : 'mine',
+          scope: osConfig?.isManagement ? 'team' : 'all',
           events: [],
           loading: true,
           error: ''
@@ -396,7 +396,7 @@
               </div>
               <button type="button" data-calendar-next aria-label="Next month">›</button>
               <button type="button" class="t2m-calendar-today" data-calendar-today>Today</button>
-              ${osConfig?.isManagement ? `<div class="t2m-calendar-scope" role="group" aria-label="Calendar scope"><button type="button" data-calendar-scope="mine" class="${state.scope === 'mine' ? 'is-active' : ''}">Mine</button><button type="button" data-calendar-scope="team" class="${state.scope === 'team' ? 'is-active' : ''}">Team</button></div>` : '<span></span>'}
+              ${osConfig?.isManagement ? `<div class="t2m-calendar-scope" role="group" aria-label="Calendar scope"><button type="button" data-calendar-scope="mine" class="${state.scope === 'mine' ? 'is-active' : ''}">Mine</button><button type="button" data-calendar-scope="team" class="${state.scope === 'team' ? 'is-active' : ''}">Team</button></div>` : `<div class="t2m-calendar-scope" role="group" aria-label="Calendar scope"><button type="button" data-calendar-scope="all" class="${state.scope === 'all' ? 'is-active' : ''}">All</button><button type="button" data-calendar-scope="mine" class="${state.scope === 'mine' ? 'is-active' : ''}">My Own</button></div>`}
             </header>
             <div class="t2m-calendar-live-main">
               <section class="t2m-calendar-month-live">
@@ -558,7 +558,7 @@
   const status = document.getElementById('calendar-form-status');
   const scopeButton = document.getElementById('calendar-scope');
   let selectedDate = calendarConfig.selectedDate;
-  let scope = calendarConfig.isManagement ? 'team' : 'mine';
+  let scope = calendarConfig.isManagement ? 'team' : 'all';
   let cursor = monthStart(new Date(`${selectedDate}T12:00:00`));
   let events = [];
 
@@ -578,7 +578,7 @@
     const range = rangeForPageMonth();
     label.textContent = monthLabel(cursor);
     agendaDate.textContent = longDate(selectedDate);
-    if (scopeButton) scopeButton.textContent = scope === 'team' ? 'Show mine' : 'Show team';
+    if (scopeButton) scopeButton.textContent = calendarConfig.isManagement ? (scope === 'team' ? 'Show mine' : 'Show team') : (scope === 'all' ? 'Show my own' : 'Show all');
     const today = isoDate(new Date());
     grid.innerHTML = '';
 
@@ -629,7 +629,7 @@
   document.getElementById('calendar-today').onclick = () => { selectedDate = isoDate(new Date()); cursor = monthStart(new Date()); loadPage().catch(showPageError); };
   document.getElementById('calendar-add').onclick = () => openPageAdd();
   document.getElementById('agenda-add').onclick = () => openPageAdd();
-  if (scopeButton) scopeButton.onclick = () => { scope = scope === 'mine' ? 'team' : 'mine'; loadPage().catch(showPageError); };
+  if (scopeButton) scopeButton.onclick = () => { scope = calendarConfig.isManagement ? (scope === 'mine' ? 'team' : 'mine') : (scope === 'mine' ? 'all' : 'mine'); loadPage().catch(showPageError); };
 
   document.getElementById('calendar-save').onclick = async () => {
     status.textContent = 'Saving…';
