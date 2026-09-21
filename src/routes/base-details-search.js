@@ -8,6 +8,11 @@ const { materializeBaseAccount } = require('../services/base-details-client-mate
 
 const router = express.Router();
 const IS_UAT = String(process.env.UAT_MODE || '').trim().toLowerCase() === 'true';
+const MANAGEMENT_ROLES = new Set(['owner','manager','admin']);
+
+function isManagement(user) {
+  return Boolean(user && MANAGEMENT_ROLES.has(String(user.role || '').trim().toLowerCase()));
+}
 
 function accountKey(value) {
   return String(value || '').trim().toUpperCase();
@@ -48,12 +53,15 @@ router.get('/search/all', requireAuth, async (req, res, next) => {
     const like = `%${q}%`;
     const phone = normaliseSouthAfricanMobile(q) || null;
     const phoneLocal = phone ? `0${phone.slice(2)}` : null;
+    const management = isManagement(req.session.user) ? 1 : 0;
+    const userId = Number(req.session.user.id);
+    const searchParams = { phone, phoneLocal, like, management, userId };
 
     const [mobile] = await db.execute(`
       SELECT c.id,c.account_number,c.client_name,c.cell_number,c.email,c.handset,c.package_name,
         'mobile' record_type
       FROM clients c
-      WHERE (
+      WHERE ((
           :phone IS NOT NULL AND (
             c.cell_number_normalised=:phone
             OR REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(TRIM(COALESCE(c.cell_number,'')),'+',''),' ',''),'-',''),'(',''),')','') IN (:phone,:phoneLocal)
@@ -61,12 +69,27 @@ router.get('/search/all', requireAuth, async (req, res, next) => {
         )
          OR c.client_name LIKE :like OR c.cell_number LIKE :like OR c.email LIKE :like
          OR c.account_number LIKE :like OR c.id_number LIKE :like
+        )
+        AND (
+          :management=1
+          OR EXISTS (
+            SELECT 1 FROM client_assignments vis
+            WHERE vis.is_active=1
+              AND (vis.client_id=c.id OR (COALESCE(vis.account_number,'')<>'' AND vis.account_number=c.account_number))
+              AND vis.assigned_staff_id=:userId
+          )
+          OR NOT EXISTS (
+            SELECT 1 FROM client_assignments vis2
+            WHERE vis2.is_active=1
+              AND (vis2.client_id=c.id OR (COALESCE(vis2.account_number,'')<>'' AND vis2.account_number=c.account_number))
+          )
+        )
       ORDER BY CASE WHEN :phone IS NOT NULL AND (
         c.cell_number_normalised=:phone
         OR REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(TRIM(COALESCE(c.cell_number,'')),'+',''),' ',''),'-',''),'(',''),')','') IN (:phone,:phoneLocal)
       ) THEN 0 ELSE 1 END,c.client_name
       LIMIT 12
-    `, { phone, phoneLocal, like });
+    `, searchParams);
 
     let currentBase = [];
     if (await baseSchemaReady()) {
@@ -99,13 +122,27 @@ router.get('/search/all', requireAuth, async (req, res, next) => {
             OR mb.first_name LIKE :like OR mb.surname LIKE :like OR mb.email_address LIKE :like
             OR mb.id_number LIKE :like OR mb.icc_id LIKE :like OR mb.imsi LIKE :like
           )
+          AND (
+            :management=1
+            OR EXISTS (
+              SELECT 1 FROM client_assignments bvis
+              WHERE bvis.is_active=1
+                AND (bvis.client_id=mb.client_id OR (COALESCE(bvis.account_number,'')<>'' AND bvis.account_number=mb.account_code))
+                AND bvis.assigned_staff_id=:userId
+            )
+            OR NOT EXISTS (
+              SELECT 1 FROM client_assignments bvis2
+              WHERE bvis2.is_active=1
+                AND (bvis2.client_id=mb.client_id OR (COALESCE(bvis2.account_number,'')<>'' AND bvis2.account_number=mb.account_code))
+            )
+          )
         ORDER BY CASE WHEN :phone IS NOT NULL AND (
           mb.msisdn_normalised=:phone
           OR REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(TRIM(COALESCE(mb.msisdn_original,'')),'+',''),' ',''),'-',''),'(',''),')','') IN (:phone,:phoneLocal)
         ) THEN 0 ELSE 1 END,
           mb.account_name,mb.msisdn_normalised
         LIMIT 12
-      `, { phone, phoneLocal, like });
+      `, searchParams);
     }
 
     const [fixed] = await db.execute(`
@@ -114,16 +151,18 @@ router.get('/search/all', requireAuth, async (req, res, next) => {
         fs.id fixed_service_id,fs.branch_name,fs.solution_id,fs.order_number,'fixed' record_type
       FROM fixed_accounts fa
       LEFT JOIN fixed_services fs ON fs.fixed_account_id=fa.id
-      WHERE (:phone IS NOT NULL AND (
+      WHERE ((:phone IS NOT NULL AND (
           fa.contact_number_normalised=:phone
           OR REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(TRIM(COALESCE(fa.contact_number,'')),'+',''),' ',''),'-',''),'(',''),')','') IN (:phone,:phoneLocal)
         ))
          OR fa.customer_name LIKE :like OR fa.contact_name LIKE :like OR fa.contact_number LIKE :like
          OR fa.email LIKE :like OR fa.account_number LIKE :like OR fs.branch_name LIKE :like
          OR fs.solution_id LIKE :like OR fs.order_number LIKE :like OR fs.sim_number LIKE :like OR fs.mac_address LIKE :like
+        )
+        AND (:management=1 OR fa.assigned_staff_id=:userId OR fa.assigned_staff_id IS NULL)
       ORDER BY fa.customer_name,fs.branch_name
       LIMIT 12
-    `, { phone, phoneLocal, like });
+    `, searchParams);
 
     const crmRows = mobile.map(row => ({ ...row, url: `${res.locals.basePath}/customers/${row.id}/360` }));
     const crmClientIds = new Set(crmRows.map(row => Number(row.id)).filter(Number.isSafeInteger));

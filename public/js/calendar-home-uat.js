@@ -125,7 +125,7 @@
         <button type="button" data-home-today-button>Today</button>
         <strong data-home-month></strong>
         <button type="button" data-home-next aria-label="Next month">›</button>
-        ${isManagement ? '<div class="t2m-home-scope"><button type="button" data-home-scope="mine">Mine</button><button type="button" data-home-scope="team">Team</button></div>' : '<span></span>'}
+        ${isManagement ? '<div class="t2m-home-scope"><button type="button" data-home-scope="mine">Mine</button><button type="button" data-home-scope="team">Team</button></div>' : '<div class="t2m-home-scope"><button type="button" data-home-scope="all">All</button><button type="button" data-home-scope="mine">My Own</button></div>'}
       </div>
       <div class="t2m-home-team-filter" data-home-team-filter hidden></div>
       <div class="t2m-home-calendar-layout">
@@ -153,7 +153,7 @@
     const state = {
       month: monthStart(new Date()),
       selected: today,
-      scope: isManagement ? 'team' : 'mine',
+      scope: isManagement ? 'team' : 'all',
       staffFilter: null,
       events: [],
       loading: false,
