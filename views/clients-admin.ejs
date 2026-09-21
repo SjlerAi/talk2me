@@ -1,14 +1,24 @@
 <section class="page-head"><div><h1>Customers</h1><p>Find clients and lines from the central database. Protected changes follow the approval workflow.</p></div><% if(['owner','manager'].includes(currentUser.role)){ %><a class="btn primary" href="<%= basePath %>/backoffice/clients/new">Add Client / Prospect</a><% } else { %><a class="btn primary" href="<%= basePath %>/queries/new">Quick Add / New Inquiry</a><% } %></section>
 <% if (saved) { %><div class="success-box">Client assignment saved.</div><% } %>
+<% const staffScope = typeof staffVisibilityScope === 'string' ? staffVisibilityScope : null; %>
+<% if (!['owner','manager','admin'].includes(currentUser.role) && staffScope) { %>
+<div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 14px;margin-bottom:12px">
+  <div><strong>Customer visibility</strong><br><small>All shows your customers plus customers that are still available. My Own shows only customers assigned to you.</small></div>
+  <div class="t2m-home-scope" role="group" aria-label="Customer visibility">
+    <a class="<%= staffScope==='all'?'is-active':'' %>" style="text-decoration:none;padding:9px 14px" href="<%= basePath %>/backoffice/clients?view=<%= encodeURIComponent(view) %>&scope=all">All</a>
+    <a class="<%= staffScope==='mine'?'is-active':'' %>" style="text-decoration:none;padding:9px 14px" href="<%= basePath %>/backoffice/clients?view=<%= encodeURIComponent(view) %>&scope=mine">My Own</a>
+  </div>
+</div>
+<% } %>
 <nav class="client-tabs" aria-label="Client views">
-  <a class="<%= view==='all'?'active':'' %>" href="<%= basePath %>/backoffice/clients?view=all">All active <span><%= counts.active_count||0 %></span></a>
-  <a class="<%= view==='prospects'?'active':'' %>" href="<%= basePath %>/backoffice/clients?view=prospects">Prospects <span><%= counts.prospect_count||0 %></span></a>
-  <a class="<%= view==='incomplete'?'active':'' %>" href="<%= basePath %>/backoffice/clients?view=incomplete">Incomplete <span><%= counts.incomplete_count||0 %></span></a>
-  <a class="<%= view==='unassigned'?'active':'' %>" href="<%= basePath %>/backoffice/clients?view=unassigned">Unassigned <span><%= counts.unassigned_count||0 %></span></a>
-  <a class="<%= view==='archived'?'active':'' %>" href="<%= basePath %>/backoffice/clients?view=archived">Archived <span><%= counts.archived_count||0 %></span></a>
+  <a class="<%= view==='all'?'active':'' %>" href="<%= basePath %>/backoffice/clients?view=all<%= staffScope ? '&scope='+encodeURIComponent(staffScope) : '' %>">All active <span><%= counts.active_count||0 %></span></a>
+  <a class="<%= view==='prospects'?'active':'' %>" href="<%= basePath %>/backoffice/clients?view=prospects<%= staffScope ? '&scope='+encodeURIComponent(staffScope) : '' %>">Prospects <span><%= counts.prospect_count||0 %></span></a>
+  <a class="<%= view==='incomplete'?'active':'' %>" href="<%= basePath %>/backoffice/clients?view=incomplete<%= staffScope ? '&scope='+encodeURIComponent(staffScope) : '' %>">Incomplete <span><%= counts.incomplete_count||0 %></span></a>
+  <a class="<%= view==='unassigned'?'active':'' %>" href="<%= basePath %>/backoffice/clients?view=unassigned<%= staffScope ? '&scope='+encodeURIComponent(staffScope) : '' %>">Unassigned <span><%= counts.unassigned_count||0 %></span></a>
+  <a class="<%= view==='archived'?'active':'' %>" href="<%= basePath %>/backoffice/clients?view=archived<%= staffScope ? '&scope='+encodeURIComponent(staffScope) : '' %>">Archived <span><%= counts.archived_count||0 %></span></a>
 </nav>
 <div class="card form-card" id="customer-list-filter">
-  <form method="get" id="customer-list-filter-form"><input type="hidden" name="view" value="<%= view %>"><label>Filter this customer list</label><div class="search-row"><input id="customer-list-filter-input" name="q" value="<%= q %>" autocomplete="off" placeholder="Start typing a name, contact number, email, account or ID"><button class="primary">Search</button></div><small class="customer-list-filter-help">The selected <%= view.replace('_',' ') %> list filters automatically after three letters or digits.</small></form>
+  <form method="get" id="customer-list-filter-form"><input type="hidden" name="view" value="<%= view %>"><% if (staffScope) { %><input type="hidden" name="scope" value="<%= staffScope %>"><% } %><label>Filter this customer list</label><div class="search-row"><input id="customer-list-filter-input" name="q" value="<%= q %>" autocomplete="off" placeholder="Start typing a name, contact number, email, account or ID"><button class="primary">Search</button></div><small class="customer-list-filter-help">The selected <%= view.replace('_',' ') %> list filters automatically after three letters or digits.</small></form>
 </div>
 <div class="card table-card"><table class="data-table customer-admin-table"><thead><tr><th>Client</th><th>Type</th><th>Contact</th><th>Latest inquiry</th><th>Town</th><th>Next Upgrade</th><th>Assigned staff</th><th aria-label="Edit"></th></tr></thead><tbody>
 <% if(!clients.length){ %><tr><td colspan="8">No records found in this view.</td></tr><% } %>
