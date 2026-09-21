@@ -287,6 +287,10 @@ if (UAT_MODE) {
   const uatCommandCentre = require('./src/routes/uat-command-centre');
   app.use('/', uatCommandCentre);
   if (BASE_PATH) app.use(BASE_PATH, uatCommandCentre);
+
+  const uatClientVisibility = require('./src/routes/uat-client-visibility');
+  app.use('/', uatClientVisibility);
+  if (BASE_PATH) app.use(BASE_PATH, uatClientVisibility);
 }
 
 const osProductivity = require('./src/routes/os-productivity');
