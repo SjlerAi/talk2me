@@ -34,8 +34,13 @@ need(widget, "await openTask(t.id);window.dispatchEvent", 'completion confirmati
 
 const calendarRoute = read('src/routes/calendar-productivity.js');
 const calendarHome = read('public/js/calendar-home-uat.js');
+const officeAgent = read('src/services/office-intelligence-agent.js');
+const staffDigest = read('scripts/send-staff-work-digest.js');
 need(calendarRoute, "latest_followup_reason", 'calendar follow-up reason query');
 need(calendarRoute, "type: hasFollowupReason ? 'follow-up' : 'task'", 'rescheduled task calendar follow-up type');
 need(calendarHome, "window.addEventListener('workspace:refresh'", 'My Day refresh after task update');
+need(officeAgent, "detail:t.latest_followup_reason || t.message || ''", 'daily responsibility current follow-up reason');
+need(officeAgent, "Follow-up reminder:", 'deadline reminder current follow-up wording');
+need(staffDigest, "Follow-up moved from %", 'morning digest current follow-up reason');
 
 console.log('UAT task follow-up validation passed.');
