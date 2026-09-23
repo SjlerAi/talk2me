@@ -407,6 +407,10 @@
       setTimeout(load, 250);
     });
 
+    window.addEventListener('workspace:refresh', () => {
+      setTimeout(load, 100);
+    });
+
     load();
   }
 
