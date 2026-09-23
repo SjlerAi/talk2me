@@ -215,7 +215,7 @@ router.get('/api/calendar/events', requireAuth, async (req, res, next) => {
         title: row.title, details: row.details || '', date: sqlDate(row.starts_at), time: sqlTime(row.starts_at),
         status: row.status, assignedTo: row.assigned_to, assignedName: row.assigned_name,
         clientId: row.client_id || null, clientName: row.client_name || null,
-        url: row.client_id ? `${res.locals.basePath}/customers/${row.client_id}/360` : null,
+        url: `${res.locals.basePath}/calendar/items/${row.id}`,
         editable: true
       });
     }
@@ -356,6 +356,36 @@ router.get('/api/calendar/events', requireAuth, async (req, res, next) => {
     const order = { callback: 1, 'follow-up': 2, task: 3, appointment: 4, reminder: 5, birthday: 6, upgrade: 7 };
     events.sort((a, b) => a.date.localeCompare(b.date) || String(a.time || '99:99').localeCompare(String(b.time || '99:99')) || (order[a.type] || 99) - (order[b.type] || 99) || a.title.localeCompare(b.title));
     res.json({ ok: true, scope, start, end, events });
+  } catch (error) { next(error); }
+});
+
+router.get('/calendar/items/:id', requireAuth, async (req, res, next) => {
+  try {
+    await ensureSchema();
+    const id = positiveId(req.params.id);
+    if (!id) return res.sendStatus(404);
+    const userId = Number(req.session.user.id);
+    const management = isManagement(req.session.user);
+    const [[item]] = await db.execute(`SELECT
+      p.id,p.item_type,p.title,p.details,p.starts_at,p.ends_at,p.status,p.completed_at,p.created_at,p.updated_at,
+      p.assigned_to,p.created_by,p.client_id,
+      ass.full_name assigned_name,
+      creator.full_name created_by_name,
+      c.client_name,c.cell_number,c.account_number
+      FROM calendar_personal_items p
+      LEFT JOIN staff_users ass ON ass.id=p.assigned_to
+      LEFT JOIN staff_users creator ON creator.id=p.created_by
+      LEFT JOIN clients c ON c.id=p.client_id
+      WHERE p.id=:id
+        AND (:management=1 OR p.assigned_to=:userId OR p.created_by=:userId)
+      LIMIT 1`, { id, management: management ? 1 : 0, userId });
+    if (!item) return res.sendStatus(404);
+
+    return res.render('calendar-item-detail', {
+      layout: false,
+      title: item.title || 'Reminder',
+      item
+    });
   } catch (error) { next(error); }
 });
 

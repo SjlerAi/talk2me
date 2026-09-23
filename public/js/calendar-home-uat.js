@@ -232,7 +232,7 @@
           <span class="t2m-home-owner"><i></i>${esc(item.assignedName || 'Unassigned')}</span>
           ${item.details ? `<p>${esc(item.details)}</p>` : ''}
           <div class="t2m-home-agenda-actions">
-            ${item.url ? `<button type="button" data-open-calendar-item="${esc(item.id)}">Open</button>` : ''}
+            ${item.url ? `<button type="button" data-open-calendar-item="${esc(item.id)}">${item.source === 'personal' ? 'View' : 'Open'}</button>` : ''}
             ${item.editable ? `<button type="button" data-complete-calendar-item="${item.sourceId}" data-status="${esc(item.status || 'open')}">${item.status === 'completed' ? 'Reopen' : 'Complete'}</button><button type="button" data-delete-calendar-item="${item.sourceId}">Delete</button>` : ''}
           </div>
         </article>`;
@@ -403,8 +403,10 @@
     };
 
     window.addEventListener('message', event => {
-      if (event.origin !== location.origin || event.data?.type !== 'talk2me:quick-action-saved') return;
-      setTimeout(load, 250);
+      if (event.origin !== location.origin) return;
+      if (event.data?.type === 'talk2me:quick-action-saved' || event.data?.type === 'talk2me:calendar-item-updated') {
+        setTimeout(load, 150);
+      }
     });
 
     window.addEventListener('workspace:refresh', () => {
