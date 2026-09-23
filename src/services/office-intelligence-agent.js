@@ -311,7 +311,11 @@ async function buildDailyResponsibilities(staffId) {
       WHERE staff_id=:id AND work_date=CURRENT_DATE()`, { id }),
 
     rows(`SELECT t.id,t.title,t.message,t.priority,t.status,t.due_at,t.created_at,t.updated_at,t.completed_at,
-      COALESCE(w.workflow_state,CASE WHEN t.status='completed' THEN 'accepted' ELSE 'active' END) AS workflow_state
+      COALESCE(w.workflow_state,CASE WHEN t.status='completed' THEN 'accepted' ELSE 'active' END) AS workflow_state,
+      (SELECT SUBSTRING(tc.comment,LOCATE(' — ',tc.comment)+CHAR_LENGTH(' — '))
+        FROM staff_task_comments tc
+        WHERE tc.task_id=t.id AND tc.comment LIKE 'Follow-up moved from %' AND LOCATE(' — ',tc.comment)>0
+        ORDER BY tc.created_at DESC,tc.id DESC LIMIT 1) latest_followup_reason
       FROM staff_tasks t
       LEFT JOIN staff_task_workflow w ON w.task_id=t.id
       WHERE t.assigned_to=:id
@@ -394,7 +398,7 @@ async function buildDailyResponsibilities(staffId) {
   for (const t of tasks.rows) {
     const waitingApproval = String(t.status)==='completed' && String(t.workflow_state)==='awaiting_sender_ack';
     items.push({
-      sourceType:'task', sourceKey:String(t.id), title:t.title || 'Task', detail:t.message || '',
+      sourceType:'task', sourceKey:String(t.id), title:t.title || 'Task', detail:t.latest_followup_reason || t.message || '',
       dueAt:t.due_at, occurredAt:t.completed_at || t.updated_at || t.created_at,
       status:responsibilityState({completed:String(t.status)==='completed',dueAt:t.due_at,waitingApproval}),
       priority:t.priority || 'normal'
@@ -532,6 +536,10 @@ async function markResponsibilityComplete({ staffId, sourceType, sourceKey, comp
 async function refreshOverdueWatches() {
   await ensureAgentResponsibilitySchema();
   const candidates = await rows(`SELECT w.id,w.task_id,w.issued_by,w.assigned_to,w.due_at,t.title,t.message,
+    (SELECT SUBSTRING(tc.comment,LOCATE(' — ',tc.comment)+CHAR_LENGTH(' — '))
+      FROM staff_task_comments tc
+      WHERE tc.task_id=t.id AND tc.comment LIKE 'Follow-up moved from %' AND LOCATE(' — ',tc.comment)>0
+      ORDER BY tc.created_at DESC,tc.id DESC LIMIT 1) latest_followup_reason,
     DATE_FORMAT(w.due_at,'%d %b %Y %H:%i') AS due_label,
     COALESCE(NULLIF(su.full_name,''),su.email,'Staff') AS assignee_name
     FROM agent_task_watches w
@@ -562,8 +570,8 @@ async function refreshOverdueWatches() {
       });
 
       if (Number(item.assigned_to) !== Number(item.issued_by)) {
-        const originalInstruction = String(item.message || item.title || '').trim();
-        const reminderText = `Deadline reminder: “${item.title}” was due ${item.due_label} and is still outstanding. Original instruction: ${originalInstruction}. Please complete it now.`.slice(0,500);
+        const currentInstruction = String(item.latest_followup_reason || item.message || item.title || '').trim();
+        const reminderText = `Follow-up reminder: “${item.title}” was due ${item.due_label} and is still outstanding. Current follow-up: ${currentInstruction}. Please action it now.`.slice(0,500);
         await conn.execute(`INSERT INTO staff_task_notifications
           (task_id,recipient_staff_id,actor_staff_id,event_type,notification_text,action_required)
           VALUES (:taskId,:recipientId,:actorId,'agent_deadline_reminder',:text,1)`, {
