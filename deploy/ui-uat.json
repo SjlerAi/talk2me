@@ -5,12 +5,12 @@
   "environment": "ui-uat",
   "action": "deploy",
   "status": "DEPLOY",
-  "requestId": "task-reschedule-history-20260923-0334z",
-  "sourceBranch": "release/talk2me-ui-uat-2026-09-23-task-reschedule-history",
-  "sourceSha": "e448d6aa69cca2bdc7b999ded56a5f1d604e8f05",
+  "requestId": "task-save-client-filters-20260923-1049z",
+  "sourceBranch": "release/talk2me-ui-uat-2026-09-23-task-save-client-filters",
+  "sourceSha": "57c70c8bb1b0941074dd4892df88be667a2b8024",
   "commit": null,
   "workflowRunId": null,
   "artifact": null,
   "sha256": null,
-  "requestedAt": "2026-09-23T03:34:00Z"
+  "requestedAt": "2026-09-23T10:49:00Z"
 }
