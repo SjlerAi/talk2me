@@ -785,7 +785,14 @@ router.post('/backoffice/clients/:id/assign', requireAuth, requireRole('owner','
     const back=String(req.body.return_q||'').trim();
     const returnTo=String(req.body.return_to||'');
     if(returnTo==='customer360') return res.redirect(`${res.locals.basePath}/customers/${clientId}/360?assigned=1${String(req.body.panel||'')==='1'?'&panel=1':''}`);
-    res.redirect(`${res.locals.basePath}/backoffice/clients?q=${encodeURIComponent(back)}&saved=1`);
+    const returnView=['all','prospects','incomplete','unassigned','archived'].includes(String(req.body.return_view||''))?String(req.body.return_view):'all';
+    const returnScope=['all','mine','staff'].includes(String(req.body.return_scope||''))?String(req.body.return_scope):'';
+    const returnStaffId=Number(req.body.return_staff_id||0)||null;
+    const query=new URLSearchParams({view:returnView,saved:'1'});
+    if(back)query.set('q',back);
+    if(returnScope)query.set('scope',returnScope);
+    if(returnScope==='staff'&&returnStaffId)query.set('staff_id',String(returnStaffId));
+    res.redirect(`${res.locals.basePath}/backoffice/clients?${query.toString()}`);
   } catch(e){ next(e); }
 });
 

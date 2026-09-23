@@ -19,6 +19,6 @@
 .t2m-task-reschedule label{display:grid;gap:3px;color:#5b6774;font-size:8px;font-weight:900}
 .t2m-task-reschedule input{width:100%;box-sizing:border-box;border:1px solid #ccd6df;border-radius:7px;background:#fff;padding:7px;font:inherit;font-size:9px}
 .t2m-task-reschedule button{margin-top:6px;height:30px;border:0;border-radius:7px;background:#202832;color:#fff;padding:0 9px;font-size:9px;font-weight:900}
-.t2m-task-reschedule>small{display:block;margin-top:5px;color:#7b8794;font-size:8px;line-height:1.35}
+.t2m-task-reschedule>small{display:block;margin-top:5px;color:#7b8794;font-size:8px;line-height:1.35}.t2m-task-save-confirmation{margin-top:6px;padding:6px 8px;border:1px solid #bbf7d0;border-radius:7px;background:#f0fdf4;color:#166534;font-size:9px;font-weight:900}
 
 @media(max-width:620px){.t2m-float-widget{left:8px!important;right:8px!important;bottom:8px!important;top:auto!important;width:auto!important;height:min(620px,calc(100vh - 84px))!important;resize:none}.t2m-chat-main{grid-template-columns:94px minmax(0,1fr)}.t2m-chat-person{grid-template-columns:26px minmax(0,1fr);padding:5px}.t2m-chat-person-avatar{width:26px;height:26px}.t2m-task-form-grid{grid-template-columns:1fr}.t2m-task-reschedule-grid{grid-template-columns:1fr}}

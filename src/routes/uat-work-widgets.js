@@ -393,14 +393,18 @@ router.get('/api/uat/tasks', requireAuth, async (req, res, next) => {
         ? 'completed'
         : requested === 'team' && isManager
           ? 'team'
-          : 'mine';
+          : requested === 'all' && !isManager
+            ? 'all'
+            : 'mine';
     const where = scope === 'sent'
       ? 't.created_by=:userId'
       : scope === 'team'
         ? '1=1'
         : scope === 'completed'
           ? (isManager ? '1=1' : '(t.assigned_to=:userId OR t.created_by=:userId)')
-          : 't.assigned_to=:userId';
+          : scope === 'all'
+            ? '(t.assigned_to=:userId OR t.assigned_to IS NULL)'
+            : 't.assigned_to=:userId';
     const statusWhere = scope === 'completed'
       ? "t.status='completed'"
       : `(t.status IN ${ACTIVE_TASKS} OR (t.status='completed' AND w.workflow_state='awaiting_sender_ack'))`;
@@ -409,7 +413,7 @@ router.get('/api/uat/tasks', requireAuth, async (req, res, next) => {
       COALESCE(w.workflow_state,CASE WHEN t.status='completed' THEN 'accepted' ELSE 'active' END) workflow_state,
       w.completed_at workflow_completed_at,w.acknowledged_at
       FROM staff_tasks t
-      JOIN staff_users ass ON ass.id=t.assigned_to
+      LEFT JOIN staff_users ass ON ass.id=t.assigned_to
       JOIN staff_users creator ON creator.id=t.created_by
       LEFT JOIN clients cl ON cl.id=t.related_client_id
       LEFT JOIN staff_task_workflow w ON w.task_id=t.id
@@ -576,9 +580,20 @@ router.post('/api/uat/tasks/:id/reschedule', requireAuth, async (req, res, next)
       FROM staff_tasks WHERE id=:taskId LIMIT 1`, { dueAt, taskId });
 
     const conn = await db.getConnection();
+    let savedDueAt = null;
+    let savedDueLabel = null;
     try {
       await conn.beginTransaction();
       await conn.execute(`UPDATE staff_tasks SET due_at=:dueAt,updated_at=NOW() WHERE id=:taskId`, { dueAt, taskId });
+
+      const [[persisted]] = await conn.execute(`SELECT
+        DATE_FORMAT(due_at,'%Y-%m-%d %H:%i:%s') persisted_due,
+        DATE_FORMAT(due_at,'%d %b %Y %H:%i') persisted_label
+        FROM staff_tasks WHERE id=:taskId LIMIT 1`, { taskId });
+      savedDueAt = String(persisted?.persisted_due || '');
+      savedDueLabel = String(persisted?.persisted_label || '');
+      if (savedDueAt !== dueAt) throw new Error('The new follow-up date could not be verified after saving.');
+
       await conn.execute(`INSERT INTO staff_task_workflow (task_id,workflow_state,my_priority_date)
         VALUES (:taskId,'active',DATE(:dueAt))
         ON DUPLICATE KEY UPDATE my_priority_date=VALUES(my_priority_date),updated_at=NOW()`, { taskId, dueAt });
@@ -586,7 +601,7 @@ router.post('/api/uat/tasks/:id/reschedule', requireAuth, async (req, res, next)
         VALUES (:taskId,:userId,:comment)`, {
         taskId,
         userId,
-        comment: `Follow-up moved from ${labels?.old_due || 'no due date'} to ${labels?.new_due || dueAt} — ${reason}`
+        comment: `Follow-up moved from ${labels?.old_due || 'no due date'} to ${savedDueLabel || labels?.new_due || dueAt} — ${reason}`
       });
       await conn.execute(`INSERT INTO agent_task_watches
         (task_id,issued_by,assigned_to,due_at,alert_enabled,overdue_alerted_at)
@@ -615,9 +630,9 @@ router.post('/api/uat/tasks/:id/reschedule', requireAuth, async (req, res, next)
       recipientId: counterpart,
       actorId: userId,
       eventType: 'rescheduled',
-      message: `${req.session.user.full_name} moved “${task.title}” to ${labels?.new_due || dueAt}: ${reason}`
+      message: `${req.session.user.full_name} moved “${task.title}” to ${savedDueLabel || labels?.new_due || dueAt}: ${reason}`
     });
-    return res.json({ ok: true, dueAt });
+    return res.json({ ok: true, dueAt: savedDueAt, dueLabel: savedDueLabel, verified: true });
   } catch (error) { next(error); }
 });
 

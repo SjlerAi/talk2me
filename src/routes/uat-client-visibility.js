@@ -12,43 +12,69 @@ function isManagement(user) {
   return Boolean(user && MANAGEMENT_ROLES.has(String(user.role || '').trim().toLowerCase()));
 }
 
-function scopeClause(scope) {
-  if (scope === 'mine') {
-    return `EXISTS (
-      SELECT 1 FROM client_assignments vis
-      WHERE vis.is_active=1
-        AND (vis.client_id=c.id OR (COALESCE(vis.account_number,'')<>'' AND vis.account_number=c.account_number))
-        AND vis.assigned_staff_id=:userId
-    )`;
-  }
-  return `(
-    EXISTS (
-      SELECT 1 FROM client_assignments vis
-      WHERE vis.is_active=1
-        AND (vis.client_id=c.id OR (COALESCE(vis.account_number,'')<>'' AND vis.account_number=c.account_number))
-        AND vis.assigned_staff_id=:userId
-    )
-    OR NOT EXISTS (
-      SELECT 1 FROM client_assignments vis2
-      WHERE vis2.is_active=1
-        AND (vis2.client_id=c.id OR (COALESCE(vis2.account_number,'')<>'' AND vis2.account_number=c.account_number))
-    )
+function idOf(value) {
+  const id = Number(value);
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+function assignedToClause(paramName) {
+  return `EXISTS (
+    SELECT 1 FROM client_assignments vis
+    WHERE vis.is_active=1
+      AND (vis.client_id=c.id OR (COALESCE(vis.account_number,'')<>'' AND vis.account_number=c.account_number))
+      AND vis.assigned_staff_id=:${paramName}
   )`;
 }
 
+function unassignedClause() {
+  return `NOT EXISTS (
+    SELECT 1 FROM client_assignments vis2
+    WHERE vis2.is_active=1
+      AND (vis2.client_id=c.id OR (COALESCE(vis2.account_number,'')<>'' AND vis2.account_number=c.account_number))
+  )`;
+}
+
+function visibilityClause({ management, scope }) {
+  if (management && scope === 'all') return '1=1';
+  if (scope === 'mine' || scope === 'staff') return assignedToClause('visibilityStaffId');
+  return `(${assignedToClause('visibilityStaffId')} OR ${unassignedClause()})`;
+}
+
 router.get('/backoffice/clients', requireAuth, async (req, res, next) => {
-  if (!IS_UAT || isManagement(req.session.user)) return next();
+  if (!IS_UAT) return next();
 
   try {
     const userId = Number(req.session.user.id);
+    const management = isManagement(req.session.user);
     const q = String(req.query.q || '').trim();
     const view = ['all','prospects','incomplete','unassigned','archived'].includes(String(req.query.view || ''))
       ? String(req.query.view)
       : 'all';
-    const scope = String(req.query.scope || '').toLowerCase() === 'mine' ? 'mine' : 'all';
 
-    const where = [scopeClause(scope)];
-    const params = { userId };
+    const [staff] = await db.query(`SELECT id,full_name,email,role FROM staff_users WHERE is_active=1 ORDER BY full_name`);
+    let scope = 'all';
+    let selectedStaffId = null;
+
+    if (management) {
+      const requested = String(req.query.scope || 'all').trim().toLowerCase();
+      if (requested === 'mine') {
+        scope = 'mine';
+        selectedStaffId = userId;
+      } else if (requested === 'staff') {
+        const requestedStaffId = idOf(req.query.staff_id);
+        if (requestedStaffId && staff.some(person => Number(person.id) === requestedStaffId)) {
+          scope = 'staff';
+          selectedStaffId = requestedStaffId;
+        }
+      }
+    } else {
+      scope = String(req.query.scope || '').trim().toLowerCase() === 'mine' ? 'mine' : 'all';
+      selectedStaffId = userId;
+    }
+
+    const visibility = visibilityClause({ management, scope });
+    const params = { visibilityStaffId: selectedStaffId || userId };
+    const where = [visibility];
 
     if (q) {
       params.like = `%${q}%`;
@@ -56,7 +82,7 @@ router.get('/backoffice/clients', requireAuth, async (req, res, next) => {
     }
     if (view === 'prospects') where.push(`c.lifecycle_status='prospect' AND c.is_active=1`);
     if (view === 'incomplete') where.push(`c.lifecycle_status='prospect' AND c.is_active=1 AND (c.email IS NULL OR c.email='' OR c.city_town IS NULL OR c.city_town='' OR c.id_number IS NULL OR c.id_number='')`);
-    if (view === 'unassigned') where.push(`c.is_active=1 AND NOT EXISTS (SELECT 1 FROM client_assignments ca WHERE ca.is_active=1 AND (ca.client_id=c.id OR (c.account_number IS NOT NULL AND c.account_number<>'' AND ca.account_number=c.account_number)))`);
+    if (view === 'unassigned') where.push(`c.is_active=1 AND ${unassignedClause()}`);
     if (view === 'archived') where.push(`(c.lifecycle_status='archived' OR c.is_active=0)`);
     if (view === 'all') where.push(`c.is_active=1`);
 
@@ -81,29 +107,27 @@ router.get('/backoffice/clients', requireAuth, async (req, res, next) => {
       FROM clients c ${sqlWhere}
       ORDER BY CASE WHEN c.lifecycle_status='prospect' THEN 0 ELSE 1 END,c.created_at DESC,c.client_name ASC LIMIT 200`, params);
 
-    const visible = scopeClause(scope);
     const [[counts]] = await db.execute(`SELECT
       SUM(c.is_active=1) active_count,
       SUM(c.is_active=1 AND c.lifecycle_status='prospect') prospect_count,
       SUM(c.is_active=1 AND c.lifecycle_status='prospect' AND (c.email IS NULL OR c.email='' OR c.city_town IS NULL OR c.city_town='' OR c.id_number IS NULL OR c.id_number='')) incomplete_count,
       SUM(c.is_active=0 OR c.lifecycle_status='archived') archived_count
-      FROM clients c WHERE ${visible}`, { userId });
+      FROM clients c WHERE ${visibility}`, params);
 
     const [[unassigned]] = await db.execute(`SELECT COUNT(*) total FROM clients c
-      WHERE c.is_active=1
-        AND NOT EXISTS (SELECT 1 FROM client_assignments ca
-          WHERE ca.is_active=1
-            AND (ca.client_id=c.id OR (c.account_number IS NOT NULL AND c.account_number<>'' AND ca.account_number=c.account_number)))`);
+      WHERE c.is_active=1 AND ${visibility} AND ${unassignedClause()}`, params);
 
     return res.render('clients-admin', {
       title: 'Client Administration',
       q,
       view,
       clients,
-      staff: [],
+      staff: management ? staff : [],
       saved: req.query.saved,
       counts: { ...(counts || {}), unassigned_count: unassigned?.total || 0 },
-      staffVisibilityScope: scope
+      staffVisibilityScope: scope,
+      staffVisibilitySelectedId: selectedStaffId,
+      staffVisibilityManagement: management
     });
   } catch (error) {
     next(error);
