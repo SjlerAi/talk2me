@@ -3,14 +3,14 @@
   "schema": 1,
   "repository": "SjlerAi/talk2me",
   "environment": "ui-uat",
-  "action": "deploy",
-  "status": "DEPLOY",
-  "requestId": "reminder-view-20260923-1440z",
+  "action": "hold",
+  "status": "HOLD",
+  "requestId": "hold-after-reminder-view-20260923-1442z",
   "sourceBranch": "release/talk2me-ui-uat-2026-09-23-reminder-view",
   "sourceSha": "ad49391b2327ce1a5f68682d449c2f7daeb864d3",
   "commit": null,
   "workflowRunId": null,
   "artifact": null,
   "sha256": null,
-  "requestedAt": "2026-09-23T14:40:00Z"
+  "requestedAt": null
 }
