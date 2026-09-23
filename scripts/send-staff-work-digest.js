@@ -5,7 +5,12 @@ const {sendStaffWorkDigest}=require('../src/services/digest-mailer');
     FROM staff_users s LEFT JOIN staff_digest_preferences p ON p.staff_id=s.id
     WHERE s.is_active=1 AND s.email IS NOT NULL AND s.email<>''`);
   for(const staff of staffRows){ if(!staff.enabled) continue;
-    const [tasks]=await db.execute(`SELECT t.id,t.title,t.message,t.priority,t.due_at,cl.client_name,cl.cell_number,(t.due_at<CURRENT_DATE()) is_overdue
+    const [tasks]=await db.execute(`SELECT t.id,t.title,
+      COALESCE((SELECT SUBSTRING(tc.comment,LOCATE(' — ',tc.comment)+CHAR_LENGTH(' — '))
+        FROM staff_task_comments tc
+        WHERE tc.task_id=t.id AND tc.comment LIKE 'Follow-up moved from %' AND LOCATE(' — ',tc.comment)>0
+        ORDER BY tc.created_at DESC,tc.id DESC LIMIT 1),t.message) message,
+      t.priority,t.due_at,cl.client_name,cl.cell_number,(t.due_at<CURRENT_DATE()) is_overdue
       FROM staff_tasks t LEFT JOIN clients cl ON cl.id=t.related_client_id
       WHERE t.assigned_to=:id AND t.status IN ('unread','seen','in_progress') AND t.due_at IS NOT NULL AND DATE(t.due_at)<=CURRENT_DATE()
       ORDER BY t.due_at ASC`,{id:staff.id});
