@@ -5,6 +5,7 @@ const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { ensureAgentResponsibilitySchema } = require('../services/office-intelligence-agent');
 
 const router = express.Router();
 const IS_UAT = String(process.env.UAT_MODE || '').trim().toLowerCase() === 'true';
@@ -386,19 +387,36 @@ router.get('/api/uat/tasks', requireAuth, async (req, res, next) => {
     const userId = Number(req.session.user.id);
     const isManager = management(req.session.user);
     const requested = String(req.query.scope || 'mine');
-    const scope = requested === 'sent' ? 'sent' : requested === 'team' && isManager ? 'team' : 'mine';
-    const where = scope === 'sent' ? 't.created_by=:userId' : scope === 'team' ? '1=1' : 't.assigned_to=:userId';
-    const [tasks] = await db.execute(`SELECT t.id,t.title,t.message,t.priority,t.status,t.due_at,t.created_at,t.assigned_to,t.created_by,
+    const scope = requested === 'sent'
+      ? 'sent'
+      : requested === 'completed'
+        ? 'completed'
+        : requested === 'team' && isManager
+          ? 'team'
+          : 'mine';
+    const where = scope === 'sent'
+      ? 't.created_by=:userId'
+      : scope === 'team'
+        ? '1=1'
+        : scope === 'completed'
+          ? (isManager ? '1=1' : '(t.assigned_to=:userId OR t.created_by=:userId)')
+          : 't.assigned_to=:userId';
+    const statusWhere = scope === 'completed'
+      ? "t.status='completed'"
+      : `(t.status IN ${ACTIVE_TASKS} OR (t.status='completed' AND w.workflow_state='awaiting_sender_ack'))`;
+    const [tasks] = await db.execute(`SELECT t.id,t.title,t.message,t.priority,t.status,t.due_at,t.created_at,t.completed_at,t.completion_note,t.assigned_to,t.created_by,
       ass.full_name assigned_name,creator.full_name created_by_name,cl.client_name related_client_name,t.related_client_id,
-      COALESCE(w.workflow_state,CASE WHEN t.status='completed' THEN 'accepted' ELSE 'active' END) workflow_state
+      COALESCE(w.workflow_state,CASE WHEN t.status='completed' THEN 'accepted' ELSE 'active' END) workflow_state,
+      w.completed_at workflow_completed_at,w.acknowledged_at
       FROM staff_tasks t
       JOIN staff_users ass ON ass.id=t.assigned_to
       JOIN staff_users creator ON creator.id=t.created_by
       LEFT JOIN clients cl ON cl.id=t.related_client_id
       LEFT JOIN staff_task_workflow w ON w.task_id=t.id
-      WHERE ${where} AND (t.status IN ${ACTIVE_TASKS} OR (t.status='completed' AND w.workflow_state='awaiting_sender_ack'))
-      ORDER BY CASE WHEN t.due_at IS NOT NULL AND t.due_at<NOW() THEN 0 WHEN t.priority='urgent' THEN 1 WHEN t.priority='high' THEN 2 ELSE 3 END,
-        t.due_at IS NULL,t.due_at,t.created_at DESC LIMIT 120`, { userId });
+      WHERE ${where} AND ${statusWhere}
+      ORDER BY CASE WHEN :completedScope=1 THEN 0 WHEN t.due_at IS NOT NULL AND t.due_at<NOW() THEN 0 WHEN t.priority='urgent' THEN 1 WHEN t.priority='high' THEN 2 ELSE 3 END,
+        CASE WHEN :completedScope=1 THEN COALESCE(t.completed_at,t.updated_at,t.created_at) END DESC,
+        t.due_at IS NULL,t.due_at,t.created_at DESC LIMIT 120`, { userId, completedScope: scope === 'completed' ? 1 : 0 });
     const [staff] = await db.execute('SELECT id,full_name,role FROM staff_users WHERE is_active=1 ORDER BY full_name');
     res.json({ ok: true, scope, management: isManager, staff, tasks });
   } catch (error) { next(error); }
@@ -435,6 +453,7 @@ router.get('/api/uat/tasks/:id', requireAuth, async (req, res, next) => {
       comments,
       permissions: {
         canUpdate: (isManager || assignee) && !waitingApproval && !archived,
+        canReschedule: (isManager || assignee || creator) && !waitingApproval && !archived,
         canApprove: (isManager || creator) && waitingApproval,
         canComment: isManager || assignee || creator
       }
@@ -463,8 +482,21 @@ router.post('/api/uat/tasks', requireAuth, async (req, res, next) => {
       VALUES ('task',:title,:message,:priority,:assignedTo,:createdBy,:dueAt,:relatedClientId,'not_requested')`, {
       title, message, priority, assignedTo, createdBy: Number(req.session.user.id), dueAt, relatedClientId
     });
-    await db.execute(`INSERT INTO staff_task_workflow (task_id,workflow_state) VALUES (:taskId,'active') ON DUPLICATE KEY UPDATE task_id=VALUES(task_id)`, { taskId: result.insertId });
+    await db.execute(`INSERT INTO staff_task_workflow (task_id,workflow_state,my_priority_date) VALUES (:taskId,'active',DATE(:dueAt)) ON DUPLICATE KEY UPDATE task_id=VALUES(task_id),my_priority_date=VALUES(my_priority_date)`, { taskId: result.insertId, dueAt });
     await db.execute(`INSERT INTO staff_task_comments (task_id,staff_id,comment) VALUES (:taskId,:userId,'Task created')`, { taskId: result.insertId, userId: Number(req.session.user.id) });
+    if (dueAt) {
+      await ensureAgentResponsibilitySchema();
+      await db.execute(`INSERT INTO agent_task_watches
+        (task_id,issued_by,assigned_to,due_at,alert_enabled,overdue_alerted_at)
+        VALUES (:taskId,:issuedBy,:assignedTo,:dueAt,1,NULL)
+        ON DUPLICATE KEY UPDATE issued_by=VALUES(issued_by),assigned_to=VALUES(assigned_to),due_at=VALUES(due_at),
+          alert_enabled=1,overdue_alerted_at=NULL,updated_at=NOW()`, {
+        taskId: result.insertId,
+        issuedBy: Number(req.session.user.id),
+        assignedTo,
+        dueAt
+      });
+    }
     await taskNotification({
       taskId: result.insertId,
       recipientId: assignedTo,
@@ -497,10 +529,17 @@ router.post('/api/uat/tasks/:id/status', requireAuth, async (req, res, next) => 
         taskId, userId, state: selfAssigned ? 'accepted' : 'awaiting_sender_ack', ackBy: selfAssigned ? userId : null, ackAt: selfAssigned ? new Date() : null
       });
       await db.execute(`INSERT INTO staff_task_comments (task_id,staff_id,comment) VALUES (:taskId,:userId,:comment)`, { taskId, userId, comment: `Task completed — ${completionNote}` });
+      await ensureAgentResponsibilitySchema();
+      await db.execute(`UPDATE agent_task_watches SET alert_enabled=0,updated_at=NOW() WHERE task_id=:taskId`, { taskId });
+      await db.execute(`UPDATE staff_task_notifications
+        SET resolved_at=COALESCE(resolved_at,NOW()),is_read=1,read_at=COALESCE(read_at,NOW())
+        WHERE task_id=:taskId AND event_type IN ('agent_deadline_reminder','agent_deadline_missed') AND resolved_at IS NULL`, { taskId });
       if (!selfAssigned) await taskNotification({ taskId, recipientId: task.created_by, actorId: userId, eventType: 'completed', actionRequired: true, message: `${task.assigned_name} completed “${task.title}”. Review it.` });
     } else if (status === 'cancelled') {
       await db.execute(`UPDATE staff_tasks SET status='cancelled',completed_at=NOW() WHERE id=:taskId`, { taskId });
       await db.execute(`UPDATE staff_task_workflow SET workflow_state='cancelled' WHERE task_id=:taskId`, { taskId });
+      await ensureAgentResponsibilitySchema();
+      await db.execute(`UPDATE agent_task_watches SET alert_enabled=0,updated_at=NOW() WHERE task_id=:taskId`, { taskId });
     } else {
       await db.execute(`UPDATE staff_tasks SET status=:status,seen_at=CASE WHEN :status IN ('seen','in_progress') THEN COALESCE(seen_at,NOW()) ELSE seen_at END,started_at=CASE WHEN :status='in_progress' THEN COALESCE(started_at,NOW()) ELSE started_at END WHERE id=:taskId`, { taskId, status });
       await db.execute(`UPDATE staff_task_workflow SET workflow_state=:state WHERE task_id=:taskId`, { taskId, state: status === 'in_progress' ? 'in_progress' : 'active' });
@@ -508,6 +547,77 @@ router.post('/api/uat/tasks/:id/status', requireAuth, async (req, res, next) => 
       await taskNotification({ taskId, recipientId: task.created_by, actorId: userId, eventType: status, message: `${task.assigned_name} changed “${task.title}” to ${status.replaceAll('_',' ')}.` });
     }
     res.json({ ok: true });
+  } catch (error) { next(error); }
+});
+
+router.post('/api/uat/tasks/:id/reschedule', requireAuth, async (req, res, next) => {
+  try {
+    await ensureSchema();
+    await ensureAgentResponsibilitySchema();
+    const taskId = idOf(req.params.id);
+    const task = await getTask(taskId);
+    if (!task) return res.sendStatus(404);
+    const userId = Number(req.session.user.id);
+    const isManager = management(req.session.user);
+    const assignee = Number(task.assigned_to) === userId;
+    const creator = Number(task.created_by) === userId;
+    const waitingApproval = task.status === 'completed' && task.workflow_state === 'awaiting_sender_ack';
+    const archived = task.status === 'cancelled' || (task.status === 'completed' && task.workflow_state === 'accepted');
+    if ((!isManager && !assignee && !creator) || waitingApproval || archived) return res.sendStatus(403);
+
+    const dueAt = sqlDateTime(req.body.due_at);
+    const reason = clean(req.body.reason, 2000);
+    if (!dueAt) return res.status(400).json({ ok: false, error: 'Choose the new follow-up date and time.' });
+    if (!reason) return res.status(400).json({ ok: false, error: 'Add a short reason for moving the task.' });
+
+    const [[labels]] = await db.execute(`SELECT
+      DATE_FORMAT(due_at,'%d %b %Y %H:%i') old_due,
+      DATE_FORMAT(:dueAt,'%d %b %Y %H:%i') new_due
+      FROM staff_tasks WHERE id=:taskId LIMIT 1`, { dueAt, taskId });
+
+    const conn = await db.getConnection();
+    try {
+      await conn.beginTransaction();
+      await conn.execute(`UPDATE staff_tasks SET due_at=:dueAt,updated_at=NOW() WHERE id=:taskId`, { dueAt, taskId });
+      await conn.execute(`INSERT INTO staff_task_workflow (task_id,workflow_state,my_priority_date)
+        VALUES (:taskId,'active',DATE(:dueAt))
+        ON DUPLICATE KEY UPDATE my_priority_date=VALUES(my_priority_date),updated_at=NOW()`, { taskId, dueAt });
+      await conn.execute(`INSERT INTO staff_task_comments (task_id,staff_id,comment)
+        VALUES (:taskId,:userId,:comment)`, {
+        taskId,
+        userId,
+        comment: `Follow-up moved from ${labels?.old_due || 'no due date'} to ${labels?.new_due || dueAt} — ${reason}`
+      });
+      await conn.execute(`INSERT INTO agent_task_watches
+        (task_id,issued_by,assigned_to,due_at,alert_enabled,overdue_alerted_at)
+        VALUES (:taskId,:issuedBy,:assignedTo,:dueAt,1,NULL)
+        ON DUPLICATE KEY UPDATE issued_by=VALUES(issued_by),assigned_to=VALUES(assigned_to),due_at=VALUES(due_at),
+          alert_enabled=1,overdue_alerted_at=NULL,updated_at=NOW()`, {
+        taskId,
+        issuedBy: task.created_by,
+        assignedTo: task.assigned_to,
+        dueAt
+      });
+      await conn.execute(`UPDATE staff_task_notifications
+        SET resolved_at=COALESCE(resolved_at,NOW()),is_read=1,read_at=COALESCE(read_at,NOW())
+        WHERE task_id=:taskId AND event_type IN ('agent_deadline_reminder','agent_deadline_missed') AND resolved_at IS NULL`, { taskId });
+      await conn.commit();
+    } catch (error) {
+      await conn.rollback();
+      throw error;
+    } finally {
+      conn.release();
+    }
+
+    const counterpart = assignee ? task.created_by : task.assigned_to;
+    await taskNotification({
+      taskId,
+      recipientId: counterpart,
+      actorId: userId,
+      eventType: 'rescheduled',
+      message: `${req.session.user.full_name} moved “${task.title}” to ${labels?.new_due || dueAt}: ${reason}`
+    });
+    return res.json({ ok: true, dueAt });
   } catch (error) { next(error); }
 });
 
@@ -533,6 +643,19 @@ router.post('/api/uat/tasks/:id/decision', requireAuth, async (req, res, next) =
       if (!reason) return res.status(400).json({ ok: false, error: 'Explain what still needs to be done.' });
       await db.execute(`UPDATE staff_tasks SET status='in_progress',completed_at=NULL,completion_note=NULL WHERE id=:taskId`, { taskId });
       await db.execute(`UPDATE staff_task_workflow SET workflow_state='returned',returned_by=:userId,returned_at=NOW(),return_reason=:reason,acknowledged_by=NULL,acknowledged_at=NULL WHERE task_id=:taskId`, { taskId, userId, reason });
+      await ensureAgentResponsibilitySchema();
+      if (task.due_at) {
+        await db.execute(`INSERT INTO agent_task_watches
+          (task_id,issued_by,assigned_to,due_at,alert_enabled,overdue_alerted_at)
+          VALUES (:taskId,:issuedBy,:assignedTo,:dueAt,1,NULL)
+          ON DUPLICATE KEY UPDATE issued_by=VALUES(issued_by),assigned_to=VALUES(assigned_to),due_at=VALUES(due_at),
+            alert_enabled=1,overdue_alerted_at=NULL,updated_at=NOW()`, {
+          taskId,
+          issuedBy: task.created_by,
+          assignedTo: task.assigned_to,
+          dueAt: task.due_at
+        });
+      }
       await db.execute(`UPDATE staff_task_notifications SET resolved_at=NOW(),is_read=1,read_at=COALESCE(read_at,NOW()) WHERE task_id=:taskId AND recipient_staff_id=:userId AND action_required=1 AND resolved_at IS NULL`, { taskId, userId });
       await db.execute(`INSERT INTO staff_task_comments (task_id,staff_id,comment) VALUES (:taskId,:userId,:comment)`, { taskId, userId, comment: `Returned for more work — ${reason}` });
       await taskNotification({ taskId, recipientId: task.assigned_to, actorId: userId, eventType: 'returned', actionRequired: true, message: `${req.session.user.full_name} returned “${task.title}”: ${reason}` });
