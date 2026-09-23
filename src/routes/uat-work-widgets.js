@@ -643,6 +643,19 @@ router.post('/api/uat/tasks/:id/decision', requireAuth, async (req, res, next) =
       if (!reason) return res.status(400).json({ ok: false, error: 'Explain what still needs to be done.' });
       await db.execute(`UPDATE staff_tasks SET status='in_progress',completed_at=NULL,completion_note=NULL WHERE id=:taskId`, { taskId });
       await db.execute(`UPDATE staff_task_workflow SET workflow_state='returned',returned_by=:userId,returned_at=NOW(),return_reason=:reason,acknowledged_by=NULL,acknowledged_at=NULL WHERE task_id=:taskId`, { taskId, userId, reason });
+      await ensureAgentResponsibilitySchema();
+      if (task.due_at) {
+        await db.execute(`INSERT INTO agent_task_watches
+          (task_id,issued_by,assigned_to,due_at,alert_enabled,overdue_alerted_at)
+          VALUES (:taskId,:issuedBy,:assignedTo,:dueAt,1,NULL)
+          ON DUPLICATE KEY UPDATE issued_by=VALUES(issued_by),assigned_to=VALUES(assigned_to),due_at=VALUES(due_at),
+            alert_enabled=1,overdue_alerted_at=NULL,updated_at=NOW()`, {
+          taskId,
+          issuedBy: task.created_by,
+          assignedTo: task.assigned_to,
+          dueAt: task.due_at
+        });
+      }
       await db.execute(`UPDATE staff_task_notifications SET resolved_at=NOW(),is_read=1,read_at=COALESCE(read_at,NOW()) WHERE task_id=:taskId AND recipient_staff_id=:userId AND action_required=1 AND resolved_at IS NULL`, { taskId, userId });
       await db.execute(`INSERT INTO staff_task_comments (task_id,staff_id,comment) VALUES (:taskId,:userId,:comment)`, { taskId, userId, comment: `Returned for more work — ${reason}` });
       await taskNotification({ taskId, recipientId: task.assigned_to, actorId: userId, eventType: 'returned', actionRequired: true, message: `${req.session.user.full_name} returned “${task.title}”: ${reason}` });
