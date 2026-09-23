@@ -584,8 +584,7 @@ router.post('/api/uat/tasks/:id/reschedule', requireAuth, async (req, res, next)
     let savedDueLabel = null;
     try {
       await conn.beginTransaction();
-      const [updated] = await conn.execute(`UPDATE staff_tasks SET due_at=:dueAt,updated_at=NOW() WHERE id=:taskId`, { dueAt, taskId });
-      if (!updated.affectedRows) throw new Error('The task due date was not updated.');
+      await conn.execute(`UPDATE staff_tasks SET due_at=:dueAt,updated_at=NOW() WHERE id=:taskId`, { dueAt, taskId });
 
       const [[persisted]] = await conn.execute(`SELECT
         DATE_FORMAT(due_at,'%Y-%m-%d %H:%i:%s') persisted_due,
