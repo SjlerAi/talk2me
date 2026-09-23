@@ -24,9 +24,23 @@ need(route, "Task completed —", 'completion history entry');
 need(widget, 'data-task-scope="completed"', 'Completed task tab');
 need(widget, 'data-task-reschedule', 'task reschedule control');
 need(widget, 'Update follow-up date', 'reschedule action label');
+need(widget, 'Current follow-up', 'prominent current follow-up summary');
+need(widget, 'data-task-reschedule-reason', 'follow-up reason editor');
+need(widget, 'latestFollowupReason', 'latest follow-up reason rendering');
 need(widget, 'Completed work will appear here with its completion date.', 'completed history empty state');
 need(widget, 'data-chat-related-task', 'linked task control in chat');
 need(widget, 'Open follow-up task', 'chat linked task label');
 need(widget, "await openTask(t.id);window.dispatchEvent", 'completion confirmation stays visible');
+
+const calendarRoute = read('src/routes/calendar-productivity.js');
+const calendarHome = read('public/js/calendar-home-uat.js');
+const officeAgent = read('src/services/office-intelligence-agent.js');
+const staffDigest = read('scripts/send-staff-work-digest.js');
+need(calendarRoute, "latest_followup_reason", 'calendar follow-up reason query');
+need(calendarRoute, "type: hasFollowupReason ? 'follow-up' : 'task'", 'rescheduled task calendar follow-up type');
+need(calendarHome, "window.addEventListener('workspace:refresh'", 'My Day refresh after task update');
+need(officeAgent, "detail:t.latest_followup_reason || t.message || ''", 'daily responsibility current follow-up reason');
+need(officeAgent, "Follow-up reminder:", 'deadline reminder current follow-up wording');
+need(staffDigest, "Follow-up moved from %", 'morning digest current follow-up reason');
 
 console.log('UAT task follow-up validation passed.');

@@ -221,16 +221,21 @@ router.get('/api/calendar/events', requireAuth, async (req, res, next) => {
     }
 
     const [tasks] = await db.execute(`SELECT t.id,t.title,t.message,t.priority,t.status,t.due_at,t.assigned_to,
-      ass.full_name assigned_name,t.related_client_id,c.client_name
+      ass.full_name assigned_name,t.related_client_id,c.client_name,
+      (SELECT SUBSTRING(tc.comment,LOCATE(' — ',tc.comment)+CHAR_LENGTH(' — '))
+        FROM staff_task_comments tc
+        WHERE tc.task_id=t.id AND tc.comment LIKE 'Follow-up moved from %' AND LOCATE(' — ',tc.comment)>0
+        ORDER BY tc.created_at DESC,tc.id DESC LIMIT 1) latest_followup_reason
       FROM staff_tasks t LEFT JOIN staff_users ass ON ass.id=t.assigned_to
       LEFT JOIN clients c ON c.id=t.related_client_id
       WHERE t.due_at IS NOT NULL AND DATE(t.due_at) BETWEEN :start AND :end
         AND (:team=1 OR t.assigned_to=:userId OR (:staffAll=1 AND t.assigned_to IS NULL))
       ORDER BY t.due_at,t.id`, params);
     for (const row of tasks) {
+      const hasFollowupReason = Boolean(String(row.latest_followup_reason || '').trim());
       events.push({
-        id: `task:${row.id}`, source: 'task', sourceId: row.id, type: 'task', title: row.title,
-        details: row.message || '', date: sqlDate(row.due_at), time: sqlTime(row.due_at), status: row.status,
+        id: `task:${row.id}`, source: 'task', sourceId: row.id, type: hasFollowupReason ? 'follow-up' : 'task', title: row.title,
+        details: hasFollowupReason ? row.latest_followup_reason : (row.message || ''), date: sqlDate(row.due_at), time: sqlTime(row.due_at), status: row.status,
         priority: row.priority, assignedTo: row.assigned_to, assignedName: row.assigned_name,
         clientId: row.related_client_id || null, clientName: row.client_name || null,
         url: `${res.locals.basePath}/tasks/${row.id}`, editable: false
