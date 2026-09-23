@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title><%= title %></title>
+  <style>
+    :root{font-family:Arial,Helvetica,sans-serif;color:#202832;background:#f5f7fa}
+    *{box-sizing:border-box}
+    body{margin:0;padding:18px;background:#f5f7fa}
+    .reminder-card{max-width:720px;margin:0 auto;background:#fff;border:1px solid #dfe5ea;border-radius:16px;box-shadow:0 12px 32px rgba(31,41,55,.08);overflow:hidden}
+    .reminder-head{padding:18px 20px;border-bottom:1px solid #edf0f3;background:#fff}
+    .eyebrow{font-size:11px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;color:#b42318}
+    h1{margin:5px 0 0;font-size:24px;line-height:1.2}
+    .status{display:inline-flex;margin-top:10px;padding:5px 9px;border-radius:999px;background:#eef2f5;font-size:11px;font-weight:900;text-transform:capitalize}
+    .status.completed{background:#ecfdf3;color:#166534}
+    .detail{padding:18px 20px;display:grid;gap:16px}
+    .note{padding:15px;border:1px solid #dbe3ea;border-radius:12px;background:#f8fafc;white-space:pre-wrap;overflow-wrap:anywhere;font-size:15px;line-height:1.5}
+    .note.empty{color:#7b8794;font-style:italic}
+    .meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+    .meta div{padding:10px 12px;border:1px solid #e5e9ed;border-radius:10px;background:#fff;min-width:0}
+    .meta label{display:block;margin-bottom:4px;font-size:10px;font-weight:900;color:#6b7785;text-transform:uppercase;letter-spacing:.05em}
+    .meta strong,.meta span{display:block;font-size:13px;overflow-wrap:anywhere}
+    .client{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px;border:1px solid #dbe3ea;border-radius:10px;background:#fff}
+    .client a{font-weight:900;color:#202832}
+    .actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-top:2px}
+    button{border:1px solid #202832;border-radius:8px;background:#202832;color:#fff;padding:9px 12px;font-weight:900;cursor:pointer}
+    button.secondary{background:#fff;color:#202832;border-color:#ccd6df}
+    .notice{font-size:12px;font-weight:800;color:#166534}
+    @media(max-width:560px){body{padding:10px}.meta{grid-template-columns:1fr}.reminder-head,.detail{padding-left:14px;padding-right:14px}h1{font-size:20px}}
+  </style>
+</head>
+<body>
+  <main class="reminder-card">
+    <header class="reminder-head">
+      <div class="eyebrow"><%= String(item.item_type || 'reminder').replaceAll('_',' ') %></div>
+      <h1><%= item.title %></h1>
+      <span class="status <%= item.status === 'completed' ? 'completed' : '' %>" data-reminder-status><%= item.status || 'open' %></span>
+    </header>
+
+    <section class="detail">
+      <div class="note <%= item.details ? '' : 'empty' %>"><%= item.details || 'No additional notes were added to this reminder.' %></div>
+
+      <div class="meta">
+        <div><label>Assigned to</label><strong><%= item.assigned_name || 'Unassigned' %></strong></div>
+        <div><label>Created by</label><strong><%= item.created_by_name || 'Unknown' %></strong></div>
+        <div><label>Reminder date & time</label><strong><%= item.starts_at instanceof Date ? item.starts_at.toLocaleString('en-ZA') : item.starts_at %></strong></div>
+        <div><label>Created</label><span><%= item.created_at instanceof Date ? item.created_at.toLocaleString('en-ZA') : item.created_at %></span></div>
+        <div><label>Last updated</label><span><%= item.updated_at instanceof Date ? item.updated_at.toLocaleString('en-ZA') : item.updated_at %></span></div>
+        <div><label>Completed</label><span><%= item.completed_at ? (item.completed_at instanceof Date ? item.completed_at.toLocaleString('en-ZA') : item.completed_at) : 'Not completed' %></span></div>
+      </div>
+
+      <% if (item.client_id) { %>
+      <div class="client">
+        <div><strong><%= item.client_name || 'Linked customer' %></strong><span><%= item.cell_number || item.account_number || '' %></span></div>
+        <a href="<%= basePath %>/customers/<%= item.client_id %>/360">Open customer</a>
+      </div>
+      <% } %>
+
+      <div class="actions">
+        <button type="button" data-reminder-toggle class="<%= item.status === 'completed' ? 'secondary' : '' %>"><%= item.status === 'completed' ? 'Reopen reminder' : 'Complete reminder' %></button>
+        <span class="notice" data-reminder-notice></span>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    (() => {
+      const button = document.querySelector('[data-reminder-toggle]');
+      const notice = document.querySelector('[data-reminder-notice]');
+      const status = document.querySelector('[data-reminder-status]');
+      if (!button) return;
+      button.addEventListener('click', async () => {
+        const next = String(status.textContent || '').trim() === 'completed' ? 'open' : 'completed';
+        button.disabled = true;
+        try {
+          const response = await fetch('<%= basePath %>/api/calendar/items/<%= item.id %>/status', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ status: next })
+          });
+          if (!response.ok) throw new Error('Could not update reminder.');
+          status.textContent = next;
+          status.classList.toggle('completed', next === 'completed');
+          button.textContent = next === 'completed' ? 'Reopen reminder' : 'Complete reminder';
+          button.classList.toggle('secondary', next === 'completed');
+          notice.textContent = next === 'completed' ? '✓ Reminder completed.' : '✓ Reminder reopened.';
+          window.parent?.postMessage({ type: 'talk2me:calendar-item-updated', id: <%= item.id %> }, location.origin);
+        } catch (error) {
+          notice.textContent = error.message || 'Could not update reminder.';
+        } finally {
+          button.disabled = false;
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
