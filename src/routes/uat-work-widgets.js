@@ -393,14 +393,18 @@ router.get('/api/uat/tasks', requireAuth, async (req, res, next) => {
         ? 'completed'
         : requested === 'team' && isManager
           ? 'team'
-          : 'mine';
+          : requested === 'all' && !isManager
+            ? 'all'
+            : 'mine';
     const where = scope === 'sent'
       ? 't.created_by=:userId'
       : scope === 'team'
         ? '1=1'
         : scope === 'completed'
           ? (isManager ? '1=1' : '(t.assigned_to=:userId OR t.created_by=:userId)')
-          : 't.assigned_to=:userId';
+          : scope === 'all'
+            ? '(t.assigned_to=:userId OR t.assigned_to IS NULL)'
+            : 't.assigned_to=:userId';
     const statusWhere = scope === 'completed'
       ? "t.status='completed'"
       : `(t.status IN ${ACTIVE_TASKS} OR (t.status='completed' AND w.workflow_state='awaiting_sender_ack'))`;
@@ -409,7 +413,7 @@ router.get('/api/uat/tasks', requireAuth, async (req, res, next) => {
       COALESCE(w.workflow_state,CASE WHEN t.status='completed' THEN 'accepted' ELSE 'active' END) workflow_state,
       w.completed_at workflow_completed_at,w.acknowledged_at
       FROM staff_tasks t
-      JOIN staff_users ass ON ass.id=t.assigned_to
+      LEFT JOIN staff_users ass ON ass.id=t.assigned_to
       JOIN staff_users creator ON creator.id=t.created_by
       LEFT JOIN clients cl ON cl.id=t.related_client_id
       LEFT JOIN staff_task_workflow w ON w.task_id=t.id
