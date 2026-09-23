@@ -576,9 +576,21 @@ router.post('/api/uat/tasks/:id/reschedule', requireAuth, async (req, res, next)
       FROM staff_tasks WHERE id=:taskId LIMIT 1`, { dueAt, taskId });
 
     const conn = await db.getConnection();
+    let savedDueAt = null;
+    let savedDueLabel = null;
     try {
       await conn.beginTransaction();
-      await conn.execute(`UPDATE staff_tasks SET due_at=:dueAt,updated_at=NOW() WHERE id=:taskId`, { dueAt, taskId });
+      const [updated] = await conn.execute(`UPDATE staff_tasks SET due_at=:dueAt,updated_at=NOW() WHERE id=:taskId`, { dueAt, taskId });
+      if (!updated.affectedRows) throw new Error('The task due date was not updated.');
+
+      const [[persisted]] = await conn.execute(`SELECT
+        DATE_FORMAT(due_at,'%Y-%m-%d %H:%i:%s') persisted_due,
+        DATE_FORMAT(due_at,'%d %b %Y %H:%i') persisted_label
+        FROM staff_tasks WHERE id=:taskId LIMIT 1`, { taskId });
+      savedDueAt = String(persisted?.persisted_due || '');
+      savedDueLabel = String(persisted?.persisted_label || '');
+      if (savedDueAt !== dueAt) throw new Error('The new follow-up date could not be verified after saving.');
+
       await conn.execute(`INSERT INTO staff_task_workflow (task_id,workflow_state,my_priority_date)
         VALUES (:taskId,'active',DATE(:dueAt))
         ON DUPLICATE KEY UPDATE my_priority_date=VALUES(my_priority_date),updated_at=NOW()`, { taskId, dueAt });
@@ -586,7 +598,7 @@ router.post('/api/uat/tasks/:id/reschedule', requireAuth, async (req, res, next)
         VALUES (:taskId,:userId,:comment)`, {
         taskId,
         userId,
-        comment: `Follow-up moved from ${labels?.old_due || 'no due date'} to ${labels?.new_due || dueAt} — ${reason}`
+        comment: `Follow-up moved from ${labels?.old_due || 'no due date'} to ${savedDueLabel || labels?.new_due || dueAt} — ${reason}`
       });
       await conn.execute(`INSERT INTO agent_task_watches
         (task_id,issued_by,assigned_to,due_at,alert_enabled,overdue_alerted_at)
@@ -615,9 +627,9 @@ router.post('/api/uat/tasks/:id/reschedule', requireAuth, async (req, res, next)
       recipientId: counterpart,
       actorId: userId,
       eventType: 'rescheduled',
-      message: `${req.session.user.full_name} moved “${task.title}” to ${labels?.new_due || dueAt}: ${reason}`
+      message: `${req.session.user.full_name} moved “${task.title}” to ${savedDueLabel || labels?.new_due || dueAt}: ${reason}`
     });
-    return res.json({ ok: true, dueAt });
+    return res.json({ ok: true, dueAt: savedDueAt, dueLabel: savedDueLabel, verified: true });
   } catch (error) { next(error); }
 });
 
