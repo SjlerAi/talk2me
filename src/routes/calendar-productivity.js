@@ -222,9 +222,9 @@ router.get('/api/calendar/events', requireAuth, async (req, res, next) => {
 
     const [tasks] = await db.execute(`SELECT t.id,t.title,t.message,t.priority,t.status,t.due_at,t.assigned_to,
       ass.full_name assigned_name,t.related_client_id,c.client_name,
-      (SELECT SUBSTRING_INDEX(tc.comment,' — ',-1)
+      (SELECT SUBSTRING(tc.comment,LOCATE(' — ',tc.comment)+CHAR_LENGTH(' — '))
         FROM staff_task_comments tc
-        WHERE tc.task_id=t.id AND tc.comment LIKE 'Follow-up moved from %'
+        WHERE tc.task_id=t.id AND tc.comment LIKE 'Follow-up moved from %' AND LOCATE(' — ',tc.comment)>0
         ORDER BY tc.created_at DESC,tc.id DESC LIMIT 1) latest_followup_reason
       FROM staff_tasks t LEFT JOIN staff_users ass ON ass.id=t.assigned_to
       LEFT JOIN clients c ON c.id=t.related_client_id
