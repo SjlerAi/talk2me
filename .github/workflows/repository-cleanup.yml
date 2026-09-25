@@ -24,25 +24,20 @@ jobs:
         run: |
           set -Eeuo pipefail
           cutoff="$(date -u -d '7 days ago' +%s)"
-          page=1
-          while :; do
-            payload="$(gh api "repos/$REPO/actions/artifacts?per_page=100&page=$page")"
-            count="$(jq '.artifacts | length' <<<"$payload")"
-            [ "$count" -eq 0 ] && break
+          gh api --paginate "repos/$REPO/actions/artifacts?per_page=100" --jq '.artifacts[] | @base64' > /tmp/artifacts.txt
+          while read -r row; do
+            [ -z "$row" ] && continue
+            artifact="$(printf '%s' "$row" | base64 -d)"
+            id="$(jq -r '.id' <<<"$artifact")"
+            created="$(jq -r '.created_at' <<<"$artifact")"
+            created_epoch="$(date -u -d "$created" +%s)"
+            if [ "$created_epoch" -lt "$cutoff" ]; then
+              echo "Deleting artifact $id older than 7 days"
+              gh api --method DELETE "repos/$REPO/actions/artifacts/$id"
+            fi
+          done < /tmp/artifacts.txt
 
-            jq -c '.artifacts[]' <<<"$payload" | while read -r artifact; do
-              id="$(jq -r '.id' <<<"$artifact")"
-              created="$(jq -r '.created_at' <<<"$artifact")"
-              created_epoch="$(date -u -d "$created" +%s)"
-              if [ "$created_epoch" -lt "$cutoff" ]; then
-                echo "Deleting artifact $id older than 7 days"
-                gh api --method DELETE "repos/$REPO/actions/artifacts/$id"
-              fi
-            done
-            page=$((page + 1))
-          done
-
-      - name: Remove merged stale branches
+      - name: Remove safely merged stale branches
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
@@ -50,35 +45,40 @@ jobs:
         run: |
           set -Eeuo pipefail
           gh api --paginate "repos/$REPO/pulls?state=open&per_page=100" --jq '.[].head.ref' | sort -u > /tmp/open-pr-heads.txt
+          gh api --paginate "repos/$REPO/pulls?state=closed&per_page=100" --jq '.[] | select(.merged_at != null) | .head.ref' | sort -u > /tmp/merged-pr-heads.txt
+          gh api --paginate "repos/$REPO/branches?per_page=100" --jq '.[].name' > /tmp/branches.txt
 
-          page=1
-          while :; do
-            payload="$(gh api "repos/$REPO/branches?per_page=100&page=$page")"
-            count="$(jq 'length' <<<"$payload")"
-            [ "$count" -eq 0 ] && break
-
-            jq -r '.[].name' <<<"$payload" | while read -r branch; do
-              case "$branch" in
-                main|master|develop|staging|deploy/*|release/*|rollback/*|recovery/*)
-                  echo "Keeping protected branch: $branch"
-                  continue
-                  ;;
-              esac
-
-              if grep -Fxq "$branch" /tmp/open-pr-heads.txt; then
-                echo "Keeping open-PR branch: $branch"
+          while read -r branch; do
+            [ -z "$branch" ] && continue
+            case "$branch" in
+              main|master|develop|staging|deploy/*|release/*|rollback/*|recovery/*)
+                echo "Keeping protected branch: $branch"
                 continue
-              fi
+                ;;
+            esac
+            if grep -Fxq "$branch" /tmp/open-pr-heads.txt; then
+              echo "Keeping open-PR branch: $branch"
+              continue
+            fi
 
+            delete=false
+            reason=""
+            if grep -Fxq "$branch" /tmp/merged-pr-heads.txt; then
+              delete=true
+              reason="merged pull request"
+            else
               encoded_branch="$(jq -rn --arg v "$branch" '$v|@uri')"
               ahead="$(gh api "repos/$REPO/compare/main...$encoded_branch" --jq '.ahead_by' 2>/dev/null || echo 1)"
               if [ "$ahead" = "0" ]; then
-                encoded_ref="$(jq -rn --arg v "heads/$branch" '$v|@uri')"
-                echo "Deleting merged branch: $branch"
-                gh api --method DELETE "repos/$REPO/git/refs/$encoded_ref"
-              else
-                echo "Keeping branch with unique commits: $branch"
+                delete=true
+                reason="no commits ahead of main"
               fi
-            done
-            page=$((page + 1))
-          done
+            fi
+            if [ "$delete" = true ]; then
+              encoded_ref="$(jq -rn --arg v "heads/$branch" '$v|@uri')"
+              echo "Deleting branch $branch: $reason"
+              gh api --method DELETE "repos/$REPO/git/refs/$encoded_ref"
+            else
+              echo "Keeping branch with unmerged unique work: $branch"
+            fi
+          done < /tmp/branches.txt
