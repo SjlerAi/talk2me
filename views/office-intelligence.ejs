@@ -1,0 +1,89 @@
+<style>
+  .oi{max-width:1180px;margin:0 auto}.oi-hero{background:linear-gradient(135deg,#0f172a,#1e293b);color:#fff;border-radius:24px;padding:28px;margin-bottom:20px;box-shadow:0 18px 50px rgba(15,23,42,.18)}
+  .oi-kicker{font-size:.78rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#94a3b8}.oi-hero h1{margin:8px 0 6px;font-size:clamp(1.8rem,5vw,3rem)}.oi-hero p{margin:0;color:#cbd5e1;max-width:760px;line-height:1.55}
+  .oi-live{display:inline-flex;align-items:center;gap:8px;margin-top:18px;padding:8px 12px;border-radius:999px;background:rgba(34,197,94,.12);color:#86efac;font-weight:800}.oi-live i{width:9px;height:9px;border-radius:50%;background:#22c55e;box-shadow:0 0 0 5px rgba(34,197,94,.12)}
+  .oi-command{background:#fff;border:1px solid #e2e8f0;border-radius:20px;padding:18px;margin-bottom:20px;box-shadow:0 10px 28px rgba(15,23,42,.07)}.oi-command label{display:block;font-weight:900;margin-bottom:8px}.oi-command-row{display:grid;grid-template-columns:1fr auto;gap:10px}.oi-command input{width:100%;min-width:0;border:1px solid #cbd5e1;border-radius:14px;padding:14px 16px;font:inherit}.oi-command button{border:0;border-radius:14px;padding:0 22px;background:#111827;color:#fff;font-weight:900;cursor:pointer}.oi-quick{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.oi-quick a{padding:8px 12px;border-radius:999px;background:#f1f5f9;color:#0f172a;text-decoration:none;font-weight:800;font-size:.88rem}
+  .oi-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-bottom:20px}.oi-card{background:#fff;border:1px solid #e2e8f0;border-radius:18px;padding:18px;box-shadow:0 8px 24px rgba(15,23,42,.05)}.oi-card span{display:block;color:#64748b;font-size:.82rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em}.oi-card strong{display:block;font-size:2rem;margin-top:6px}.oi-card.unavailable{opacity:.55}.oi-section{background:#fff;border:1px solid #e2e8f0;border-radius:20px;padding:20px;margin-bottom:20px;overflow:hidden}.oi-section h2{margin:0 0 4px}.oi-section>p{margin:0 0 16px;color:#64748b}.oi-table-wrap{overflow:auto}.oi-table{width:100%;border-collapse:collapse;min-width:640px}.oi-table th,.oi-table td{text-align:left;padding:11px 10px;border-bottom:1px solid #e2e8f0;font-size:.9rem}.oi-table th{color:#64748b;font-size:.76rem;text-transform:uppercase;letter-spacing:.04em}.oi-empty{padding:20px;border-radius:14px;background:#f8fafc;color:#64748b}.oi-note{font-size:.86rem;color:#64748b;margin-top:10px}.oi-install{display:none;margin-top:14px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#fff;border-radius:12px;padding:10px 14px;font-weight:800;cursor:pointer}
+  @media(max-width:760px){.oi{padding:0 2px}.oi-hero{border-radius:18px;padding:22px 18px}.oi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.oi-command-row{grid-template-columns:1fr}.oi-command button{padding:13px 18px}.oi-card strong{font-size:1.65rem}.oi-section{padding:16px}.oi-install{display:inline-flex}.command-page{padding-left:10px!important;padding-right:10px!important}}
+  @media(max-width:430px){.oi-grid{grid-template-columns:1fr 1fr;gap:10px}.oi-card{padding:14px}.oi-card span{font-size:.72rem}.oi-card strong{font-size:1.5rem}}
+</style>
+
+<section class="oi">
+  <div class="oi-hero">
+    <div class="oi-kicker">Talk2Me · Office Intelligence</div>
+    <h1>Gerda Agent</h1>
+    <p>Live management view of what is happening in the shop. Use it from the Back Office or install this screen on your phone.</p>
+    <div class="oi-live"><i></i> LIVE · <%= report.range.label %></div>
+    <button class="oi-install" id="oi-install" type="button">Add Gerda Agent to phone</button>
+  </div>
+
+  <form class="oi-command" method="post" action="<%= basePath %>/office-intelligence/check">
+    <label for="oi-command">What would you like me to check?</label>
+    <div class="oi-command-row">
+      <input id="oi-command" name="command" value="<%= commandText || '' %>" placeholder="e.g. Check for me, check weekly, check last 7 days" autocomplete="off">
+      <button type="submit">Check now</button>
+    </div>
+    <div class="oi-quick">
+      <a href="<%= basePath %>/office-intelligence?range=today">Today</a>
+      <a href="<%= basePath %>/office-intelligence?range=this_week">This week</a>
+      <a href="<%= basePath %>/office-intelligence?range=last_7_days">Last 7 days</a>
+      <a href="<%= basePath %>/office-intelligence?range=month_to_date">Month to date</a>
+    </div>
+  </form>
+
+  <div class="oi-grid">
+    <% report.metrics.forEach(function(m){ %>
+      <article class="oi-card <%= m.available ? '' : 'unavailable' %>">
+        <span><%= m.name %></span>
+        <strong><%= m.available ? m.value : '—' %></strong>
+      </article>
+    <% }) %>
+  </div>
+
+  <section class="oi-section">
+    <h2>Who has been working</h2>
+    <p>Attendance evidence for <%= report.range.label.toLowerCase() %>.</p>
+    <% if(report.staffActivity.length){ %>
+      <div class="oi-table-wrap"><table class="oi-table"><thead><tr><th>Staff member</th><th>First clock-in</th><th>Last activity</th><th>Working now</th></tr></thead><tbody>
+      <% report.staffActivity.forEach(function(row){ %><tr><td><strong><%= row.staff_name %></strong></td><td><%= row.first_clock_in || '—' %></td><td><%= row.last_activity || '—' %></td><td><%= Number(row.active_sessions||0) > 0 ? 'Yes' : 'No' %></td></tr><% }) %>
+      </tbody></table></div>
+    <% } else { %><div class="oi-empty">No attendance activity was found for this period.</div><% } %>
+  </section>
+
+  <section class="oi-section">
+    <h2>Recent CRM activity</h2>
+    <p>Most recent centrally audited actions for the selected period.</p>
+    <% if(report.recentAudit.length){ %>
+      <div class="oi-table-wrap"><table class="oi-table"><thead><tr><th>Time</th><th>Staff</th><th>Action</th><th>Details</th></tr></thead><tbody>
+      <% report.recentAudit.forEach(function(row){ %><tr><td><%= row.created_at || '—' %></td><td><%= row.staff_name || 'System' %></td><td><%= row.action_type || '—' %></td><td><%= row.description || '' %></td></tr><% }) %>
+      </tbody></table></div>
+    <% } else { %><div class="oi-empty">No centrally audited actions were found for this period. Some CRM modules still need telemetry added.</div><% } %>
+  </section>
+
+  <section class="oi-section">
+    <h2>CRM screen usage</h2>
+    <p>This starts becoming accurate once the new usage telemetry is enabled.</p>
+    <% if(report.screenUsage.length){ %>
+      <div class="oi-table-wrap"><table class="oi-table"><thead><tr><th>Screen</th><th>Uses</th><th>Staff</th><th>Last used</th></tr></thead><tbody>
+      <% report.screenUsage.forEach(function(row){ %><tr><td><strong><%= row.screen_key %></strong></td><td><%= row.uses %></td><td><%= row.staff_count %></td><td><%= row.last_used_at || '—' %></td></tr><% }) %>
+      </tbody></table></div>
+    <% } else { %><div class="oi-empty">No screen telemetry has been collected yet. This is expected before the telemetry layer is activated.</div><% } %>
+    <div class="oi-note">Generated <%= report.generatedAt %>. This page is read/report focused and does not expose destructive database actions.</div>
+  </section>
+</section>
+
+<script>
+(() => {
+  const manifest = <%- JSON.stringify(officeIntelligenceManifest) %>;
+  let link = document.querySelector('link[rel="manifest"]');
+  if (!link) { link = document.createElement('link'); link.rel = 'manifest'; document.head.appendChild(link); }
+  link.href = manifest;
+  let deferredPrompt = null;
+  const button = document.getElementById('oi-install');
+  window.addEventListener('beforeinstallprompt', event => { event.preventDefault(); deferredPrompt = event; if(button) button.style.display='inline-flex'; });
+  if(button) button.addEventListener('click', async () => {
+    if (deferredPrompt) { deferredPrompt.prompt(); await deferredPrompt.userChoice; deferredPrompt = null; return; }
+    alert('On iPhone use Share → Add to Home Screen. On Android use the browser menu → Add to Home screen / Install app.');
+  });
+})();
+</script>
