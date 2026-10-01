@@ -24,6 +24,33 @@
 @media(max-width:620px){.t2m-float-widget{left:8px!important;right:8px!important;bottom:8px!important;top:auto!important;width:auto!important;height:min(620px,calc(100vh - 84px))!important;resize:none}.t2m-chat-main{grid-template-columns:94px minmax(0,1fr)}.t2m-chat-person{grid-template-columns:26px minmax(0,1fr);padding:5px}.t2m-chat-person-avatar{width:26px;height:26px}.t2m-task-form-grid{grid-template-columns:1fr}.t2m-task-reschedule-grid{grid-template-columns:1fr}}
 
 
+
+.t2m-widget-resize-grip{
+  position:absolute;
+  right:3px;
+  bottom:3px;
+  z-index:8;
+  width:22px;
+  height:22px;
+  cursor:nwse-resize;
+  touch-action:none;
+  opacity:.72
+}
+.t2m-widget-resize-grip::before,
+.t2m-widget-resize-grip::after{
+  content:"";
+  position:absolute;
+  right:3px;
+  bottom:3px;
+  border-right:2px solid #7b8794;
+  border-bottom:2px solid #7b8794;
+  border-radius:1px
+}
+.t2m-widget-resize-grip::before{width:13px;height:13px}
+.t2m-widget-resize-grip::after{width:7px;height:7px}
+.t2m-float-widget.is-collapsed .t2m-widget-resize-grip,
+.t2m-float-widget.is-maximized .t2m-widget-resize-grip{display:none}
+
 /* UAT usability sizing: keep floating work windows readable and allow maximise/restore. */
 .t2m-float-widget:not(.is-collapsed):not(.is-maximized){min-width:380px;min-height:460px}
 .t2m-float-widget.is-maximized{
@@ -32,10 +59,10 @@
   min-width:0!important;min-height:0!important;resize:none!important
 }
 .t2m-float-widget.is-maximized .t2m-float-widget-body{min-height:0}
-#t2m-messenger-widget:not(.is-collapsed):not(.is-maximized){min-width:440px;min-height:500px}
-#t2m-task-widget:not(.is-collapsed):not(.is-maximized){min-width:520px;min-height:580px}
-#t2m-task-widget .t2m-float-widget-body{overflow:hidden}
-#t2m-task-widget .t2m-task-detail{height:100%;min-height:0;overflow:auto;padding:14px 16px 18px}
+#t2m-messenger-widget:not(.is-collapsed):not(.is-maximized){min-width:500px;min-height:560px}
+#t2m-task-widget:not(.is-collapsed):not(.is-maximized){min-width:580px;min-height:640px}
+#t2m-task-widget .t2m-float-widget-body{overflow:auto!important;overscroll-behavior:contain}
+#t2m-task-widget .t2m-task-detail{height:auto;min-height:100%;overflow:visible;padding:14px 16px 24px}
 #t2m-task-widget .t2m-task-detail-card{padding:15px;overflow:visible}
 #t2m-task-widget .t2m-task-detail-card h3{font-size:18px;line-height:1.25}
 #t2m-task-widget .t2m-task-detail-card .lead{font-size:12px;line-height:1.5}
