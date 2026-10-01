@@ -115,11 +115,43 @@
       clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>remember(widget,key),150);
     }).observe(widget);
   }
+  function enableResize(widget,grip,key,size={}){
+    if(!grip)return;
+    grip.addEventListener('pointerdown',event=>{
+      if(event.button!==0||widget.classList.contains('is-collapsed')||widget.classList.contains('is-maximized'))return;
+      if(window.matchMedia('(max-width:620px)').matches)return;
+      event.preventDefault();event.stopPropagation();
+      const start=widget.getBoundingClientRect();
+      const sx=event.clientX,sy=event.clientY;
+      const minWidth=Math.min(Number(size.minWidth)||380,window.innerWidth-24);
+      const minHeight=Math.min(Number(size.minHeight)||460,window.innerHeight-96);
+      grip.setPointerCapture(event.pointerId);
+      const move=e=>{
+        const maxWidth=Math.max(minWidth,window.innerWidth-start.left-4);
+        const maxHeight=Math.max(minHeight,window.innerHeight-start.top-4);
+        const width=Math.max(minWidth,Math.min(maxWidth,start.width+(e.clientX-sx)));
+        const height=Math.max(minHeight,Math.min(maxHeight,start.height+(e.clientY-sy)));
+        widget.style.width=`${Math.round(width)}px`;
+        widget.style.height=`${Math.round(height)}px`;
+        widget.style.right='auto';widget.style.bottom='auto';
+      };
+      const done=()=>{
+        grip.removeEventListener('pointermove',move);
+        grip.removeEventListener('pointerup',done);
+        grip.removeEventListener('pointercancel',done);
+        remember(widget,key);
+      };
+      grip.addEventListener('pointermove',move);
+      grip.addEventListener('pointerup',done);
+      grip.addEventListener('pointercancel',done);
+    });
+  }
+
   function makeWidget({id,title,subtitle,icon,key,size={}}){
     let widget=document.getElementById(id);if(widget)return widget;
     widget=document.createElement('section');widget.id=id;widget.className='t2m-float-widget';widget.hidden=true;
-    widget.innerHTML=`<header class="t2m-float-widget-head" data-widget-drag><span class="avatar">${esc(icon)}</span><span class="t2m-float-widget-head-copy"><strong>${esc(title)}</strong><small>${esc(subtitle)}</small></span><span class="t2m-float-widget-head-actions"><button type="button" data-widget-min title="Minimise">—</button><button type="button" data-widget-max title="Maximise">□</button><button type="button" data-widget-close title="Hide">×</button></span></header><div class="t2m-float-widget-body" data-widget-body></div>`;
-    document.body.appendChild(widget);restore(widget,key,size);enableDrag(widget,widget.querySelector('[data-widget-drag]'),key);
+    widget.innerHTML=`<header class="t2m-float-widget-head" data-widget-drag><span class="avatar">${esc(icon)}</span><span class="t2m-float-widget-head-copy"><strong>${esc(title)}</strong><small>${esc(subtitle)}</small></span><span class="t2m-float-widget-head-actions"><button type="button" data-widget-min title="Minimise">—</button><button type="button" data-widget-max title="Maximise">□</button><button type="button" data-widget-close title="Hide">×</button></span></header><div class="t2m-float-widget-body" data-widget-body></div><span class="t2m-widget-resize-grip" data-widget-resize title="Drag to resize" aria-hidden="true"></span>`;
+    document.body.appendChild(widget);restore(widget,key,size);enableDrag(widget,widget.querySelector('[data-widget-drag]'),key);enableResize(widget,widget.querySelector('[data-widget-resize]'),key,size);
     widget.querySelector('[data-widget-min]').onclick=()=>{
       if(widget.classList.contains('is-maximized'))toggleMaximize(widget,key);
       widget.classList.toggle('is-collapsed');remember(widget,key);
@@ -129,7 +161,7 @@
     return widget;
   }
 
-  const chatWidget=makeWidget({id:'t2m-messenger-widget',title:'Talk2Me Chat',subtitle:'People, office and system',icon:'●',key:`t2m-chat-widget-${user.id}`,size:{width:520,height:660,minWidth:440,minHeight:500}});
+  const chatWidget=makeWidget({id:'t2m-messenger-widget',title:'Talk2Me Chat',subtitle:'People, office and system',icon:'●',key:`t2m-chat-widget-${user.id}`,size:{width:600,height:700,minWidth:500,minHeight:560}});
   const chatBody=chatWidget.querySelector('[data-widget-body]');
   let chatBootstrap=null,chatConversation='office',chatTab='people',chatMessages=[],chatPoll=null,recorder=null,voiceChunks=[],voiceStarted=0,cancelRecording=false;
   const conversationByToken=token=>chatBootstrap?.conversations?.find(item=>item.token===token);
@@ -188,7 +220,7 @@
 
   async function openChat(){chatWidget.hidden=false;chatWidget.classList.remove('is-collapsed');try{await refreshBootstrap();chatMessages=[];renderChatShell();if(chatTab==='system')await loadSystem();else await loadConversation(chatConversation);}catch(error){chatBody.innerHTML=`<div class="t2m-chat-empty"><strong>Could not open chat</strong><span>${esc(error.message)}</span></div>`;}clearInterval(chatPoll);chatPoll=setInterval(async()=>{if(chatWidget.hidden)return;try{await refreshBootstrap();if(chatTab!=='system')await loadConversation(chatConversation);else{renderChatShell();await loadSystem();}}catch(_){}},12000);}
 
-  const taskWidget=makeWidget({id:'t2m-task-widget',title:'Tasks',subtitle:'Quick work cards',icon:'✓',key:`t2m-task-widget-${user.id}`,size:{width:620,height:720,minWidth:520,minHeight:580}});
+  const taskWidget=makeWidget({id:'t2m-task-widget',title:'Tasks',subtitle:'Quick work cards',icon:'✓',key:`t2m-task-widget-${user.id}`,size:{width:680,height:760,minWidth:580,minHeight:640}});
   const taskBody=taskWidget.querySelector('[data-widget-body]');
   let taskState={scope:'mine',tasks:[],staff:[],management:false,mode:'list',selected:null};
 
