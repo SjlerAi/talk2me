@@ -3,14 +3,14 @@
   "schema": 1,
   "repository": "SjlerAi/talk2me",
   "environment": "ui-uat",
-  "action": "deploy",
-  "status": "DEPLOY",
-  "requestId": "widget-sizing-20261001-0516z",
+  "action": "hold",
+  "status": "HOLD",
+  "requestId": "hold-after-widget-sizing-20261001-0518z",
   "sourceBranch": "release/talk2me-ui-uat-2026-10-01-widget-sizing",
   "sourceSha": "b34fa1881fc6331a87917062a03816e885db7149",
   "commit": null,
   "workflowRunId": null,
   "artifact": null,
   "sha256": null,
-  "requestedAt": "2026-10-01T05:16:00Z"
+  "requestedAt": null
 }
