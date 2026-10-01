@@ -100,12 +100,12 @@
     }
   }
 
-  function compactSize(widget, width, height) {
-    if (!widget || widget.dataset.compactSized === '1') return;
+  function ensureUsableSize(widget, minWidth, minHeight) {
+    if (!widget || widget.classList.contains('is-collapsed') || widget.classList.contains('is-maximized')) return;
+    if (window.matchMedia('(max-width:620px)').matches) return;
     const rect = widget.getBoundingClientRect();
-    if (rect.width > width) widget.style.width = `${width}px`;
-    if (rect.height > height) widget.style.height = `${height}px`;
-    widget.dataset.compactSized = '1';
+    if (rect.width < minWidth) widget.style.width = `${Math.min(minWidth, window.innerWidth - 24)}px`;
+    if (rect.height < minHeight) widget.style.height = `${Math.min(minHeight, window.innerHeight - 96)}px`;
   }
 
   function restoreChatComposer(widget) {
@@ -263,7 +263,7 @@
   function polishChat() {
     const widget = document.getElementById('t2m-messenger-widget');
     if (!widget) return;
-    compactSize(widget, 340, 430);
+    ensureUsableSize(widget, 500, 560);
     bindChatComposerOnce(widget);
     const subtitle = widget.querySelector('.t2m-float-widget-head-copy small');
     if (subtitle) subtitle.textContent = 'People & Office';
@@ -323,7 +323,7 @@
   function polishTasks() {
     const widget = document.getElementById('t2m-task-widget');
     if (!widget) return;
-    compactSize(widget, 340, 440);
+    ensureUsableSize(widget, 580, 640);
   }
 
   function polishAll() {
