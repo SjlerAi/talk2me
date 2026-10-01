@@ -22,3 +22,61 @@
 .t2m-task-reschedule>small{display:block;margin-top:5px;color:#7b8794;font-size:8px;line-height:1.35}.t2m-task-save-confirmation{margin-top:6px;padding:6px 8px;border:1px solid #bbf7d0;border-radius:7px;background:#f0fdf4;color:#166534;font-size:9px;font-weight:900}
 
 @media(max-width:620px){.t2m-float-widget{left:8px!important;right:8px!important;bottom:8px!important;top:auto!important;width:auto!important;height:min(620px,calc(100vh - 84px))!important;resize:none}.t2m-chat-main{grid-template-columns:94px minmax(0,1fr)}.t2m-chat-person{grid-template-columns:26px minmax(0,1fr);padding:5px}.t2m-chat-person-avatar{width:26px;height:26px}.t2m-task-form-grid{grid-template-columns:1fr}.t2m-task-reschedule-grid{grid-template-columns:1fr}}
+
+
+/* UAT usability sizing: keep floating work windows readable and allow maximise/restore. */
+.t2m-float-widget:not(.is-collapsed):not(.is-maximized){min-width:380px;min-height:460px}
+.t2m-float-widget.is-maximized{
+  left:16px!important;right:16px!important;top:86px!important;bottom:16px!important;
+  width:auto!important;height:auto!important;max-width:none!important;max-height:none!important;
+  min-width:0!important;min-height:0!important;resize:none!important
+}
+.t2m-float-widget.is-maximized .t2m-float-widget-body{min-height:0}
+#t2m-messenger-widget:not(.is-collapsed):not(.is-maximized){min-width:440px;min-height:500px}
+#t2m-task-widget:not(.is-collapsed):not(.is-maximized){min-width:520px;min-height:580px}
+#t2m-task-widget .t2m-float-widget-body{overflow:hidden}
+#t2m-task-widget .t2m-task-detail{height:100%;min-height:0;overflow:auto;padding:14px 16px 18px}
+#t2m-task-widget .t2m-task-detail-card{padding:15px;overflow:visible}
+#t2m-task-widget .t2m-task-detail-card h3{font-size:18px;line-height:1.25}
+#t2m-task-widget .t2m-task-detail-card .lead{font-size:12px;line-height:1.5}
+#t2m-task-widget .t2m-task-detail-meta{gap:7px 12px;padding:9px 0;font-size:10px;line-height:1.35}
+#t2m-task-widget .t2m-task-current-followup{padding:12px 13px}
+#t2m-task-widget .t2m-task-current-followup span{font-size:10px}
+#t2m-task-widget .t2m-task-current-followup strong{font-size:14px;line-height:1.45}
+#t2m-task-widget .t2m-task-current-followup small{font-size:10px;line-height:1.4}
+#t2m-task-widget .t2m-task-reschedule{padding:12px}
+#t2m-task-widget .t2m-task-reschedule>strong{font-size:14px;margin-bottom:9px}
+#t2m-task-widget .t2m-task-reschedule-grid{
+  display:grid!important;grid-template-columns:minmax(0,1fr)!important;gap:10px!important;min-width:0!important
+}
+#t2m-task-widget .t2m-task-reschedule label{display:grid!important;grid-template-columns:minmax(0,1fr)!important;gap:5px!important;font-size:11px!important;min-width:0}
+#t2m-task-widget .t2m-task-reschedule input,
+#t2m-task-widget .t2m-task-reschedule textarea{
+  display:block!important;width:100%!important;min-width:0!important;max-width:100%!important;
+  box-sizing:border-box!important;padding:10px!important;font-size:12px!important;line-height:1.4!important
+}
+#t2m-task-widget .t2m-task-reschedule textarea{min-height:76px!important;resize:vertical}
+#t2m-task-widget .t2m-task-reschedule input{min-height:42px}
+#t2m-task-widget .t2m-task-reschedule button{min-height:38px;height:auto;padding:8px 12px;font-size:11px}
+#t2m-task-widget .t2m-task-reschedule>small{font-size:10px;line-height:1.45}
+#t2m-task-widget .t2m-task-status-actions button,
+#t2m-task-widget .t2m-task-complete button{min-height:36px;height:auto;padding:8px 11px;font-size:11px}
+#t2m-task-widget .t2m-task-complete{padding:11px}
+#t2m-task-widget .t2m-task-complete textarea{min-height:88px;padding:10px;font-size:12px;line-height:1.45}
+#t2m-task-widget .t2m-task-comments h4{font-size:12px}
+#t2m-task-widget .t2m-task-comment{padding:8px 0}
+#t2m-task-widget .t2m-task-comment strong{font-size:11px}
+#t2m-task-widget .t2m-task-comment small{font-size:9px}
+#t2m-task-widget .t2m-task-comment p{font-size:11px;line-height:1.45;overflow-wrap:anywhere}
+#t2m-task-widget .t2m-task-comment-compose input{min-height:38px;padding:9px;font-size:11px}
+#t2m-task-widget .t2m-task-comment-compose button{min-height:38px;font-size:11px}
+#t2m-task-widget .t2m-task-detail-back{font-size:11px;padding-bottom:10px}
+
+@media(max-width:760px){
+  #t2m-task-widget:not(.is-collapsed):not(.is-maximized),
+  #t2m-messenger-widget:not(.is-collapsed):not(.is-maximized){min-width:0}
+}
+@media(max-width:620px){
+  .t2m-float-widget.is-maximized{left:8px!important;right:8px!important;top:76px!important;bottom:8px!important}
+  #t2m-task-widget .t2m-task-detail{padding:10px}
+}

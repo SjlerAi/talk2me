@@ -27,12 +27,109 @@
     return payload;
   }
 
-  function restore(widget,key){try{const s=JSON.parse(localStorage.getItem(key)||'{}');if(Number.isFinite(s.left))widget.style.left=`${s.left}px`;if(Number.isFinite(s.top))widget.style.top=`${s.top}px`;if(Number.isFinite(s.width))widget.style.width=`${s.width}px`;if(Number.isFinite(s.height))widget.style.height=`${s.height}px`;if(s.collapsed)widget.classList.add('is-collapsed');if(s.left||s.top){widget.style.right='auto';widget.style.bottom='auto';}}catch(_){}}
-  function remember(widget,key){if(widget.hidden)return;const r=widget.getBoundingClientRect();localStorage.setItem(key,JSON.stringify({left:Math.round(r.left),top:Math.round(r.top),width:Math.round(r.width),height:Math.round(r.height),collapsed:widget.classList.contains('is-collapsed')}));}
-  function enableDrag(widget,handle,key){let resizeTimer;handle.addEventListener('pointerdown',event=>{if(event.button!==0||event.target.closest('button'))return;const r=widget.getBoundingClientRect(),sx=event.clientX,sy=event.clientY;handle.setPointerCapture(event.pointerId);const move=e=>{const l=Math.max(4,Math.min(window.innerWidth-widget.offsetWidth-4,r.left+e.clientX-sx));const t=Math.max(76,Math.min(window.innerHeight-widget.offsetHeight-4,r.top+e.clientY-sy));Object.assign(widget.style,{left:`${l}px`,top:`${t}px`,right:'auto',bottom:'auto'});};const done=()=>{handle.removeEventListener('pointermove',move);handle.removeEventListener('pointerup',done);handle.removeEventListener('pointercancel',done);remember(widget,key);};handle.addEventListener('pointermove',move);handle.addEventListener('pointerup',done);handle.addEventListener('pointercancel',done);});if(window.ResizeObserver)new ResizeObserver(()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>remember(widget,key),150);}).observe(widget);}
-  function makeWidget({id,title,subtitle,icon,key}){let widget=document.getElementById(id);if(widget)return widget;widget=document.createElement('section');widget.id=id;widget.className='t2m-float-widget';widget.hidden=true;widget.innerHTML=`<header class="t2m-float-widget-head" data-widget-drag><span class="avatar">${esc(icon)}</span><span class="t2m-float-widget-head-copy"><strong>${esc(title)}</strong><small>${esc(subtitle)}</small></span><span class="t2m-float-widget-head-actions"><button type="button" data-widget-min title="Minimise">—</button><button type="button" data-widget-close title="Hide">×</button></span></header><div class="t2m-float-widget-body" data-widget-body></div>`;document.body.appendChild(widget);restore(widget,key);enableDrag(widget,widget.querySelector('[data-widget-drag]'),key);widget.querySelector('[data-widget-min]').onclick=()=>{widget.classList.toggle('is-collapsed');remember(widget,key);};widget.querySelector('[data-widget-close]').onclick=()=>{remember(widget,key);widget.hidden=true;};return widget;}
+  function restore(widget,key,size={}){
+    try{
+      const saved=JSON.parse(localStorage.getItem(key)||'{}');
+      const mobile=window.matchMedia('(max-width:620px)').matches;
+      if(!mobile){
+        const maxWidth=Math.max(320,window.innerWidth-24);
+        const maxHeight=Math.max(360,window.innerHeight-96);
+        const minWidth=Math.min(Number(size.minWidth)||380,maxWidth);
+        const minHeight=Math.min(Number(size.minHeight)||460,maxHeight);
+        const wantedWidth=Number.isFinite(saved.width)?saved.width:(Number(size.width)||460);
+        const wantedHeight=Number.isFinite(saved.height)?saved.height:(Number(size.height)||620);
+        const width=Math.min(maxWidth,Math.max(minWidth,wantedWidth));
+        const height=Math.min(maxHeight,Math.max(minHeight,wantedHeight));
+        widget.style.width=`${Math.round(width)}px`;
+        widget.style.height=`${Math.round(height)}px`;
+        if(Number.isFinite(saved.left)){
+          widget.style.left=`${Math.round(Math.max(4,Math.min(saved.left,window.innerWidth-width-4)))}px`;
+          widget.style.right='auto';
+        }
+        if(Number.isFinite(saved.top)){
+          widget.style.top=`${Math.round(Math.max(82,Math.min(saved.top,window.innerHeight-height-4)))}px`;
+          widget.style.bottom='auto';
+        }
+      }
+      if(saved.collapsed)widget.classList.add('is-collapsed');
+    }catch(_){}
+  }
+  function widgetBoundsForSave(widget){
+    if(widget.classList.contains('is-maximized')&&widget.dataset.restoreBounds){
+      try{return JSON.parse(widget.dataset.restoreBounds);}catch(_){}
+    }
+    const r=widget.getBoundingClientRect();
+    return {left:r.left,top:r.top,width:r.width,height:r.height};
+  }
+  function remember(widget,key){
+    if(widget.hidden)return;
+    const r=widgetBoundsForSave(widget);
+    localStorage.setItem(key,JSON.stringify({
+      left:Math.round(r.left),top:Math.round(r.top),width:Math.round(r.width),height:Math.round(r.height),
+      collapsed:widget.classList.contains('is-collapsed')
+    }));
+  }
+  function toggleMaximize(widget,key){
+    const button=widget.querySelector('[data-widget-max]');
+    if(widget.classList.contains('is-maximized')){
+      widget.classList.remove('is-maximized');
+      try{
+        const r=JSON.parse(widget.dataset.restoreBounds||'{}');
+        if(Number.isFinite(r.left))widget.style.left=`${r.left}px`;
+        if(Number.isFinite(r.top))widget.style.top=`${r.top}px`;
+        if(Number.isFinite(r.width))widget.style.width=`${r.width}px`;
+        if(Number.isFinite(r.height))widget.style.height=`${r.height}px`;
+        widget.style.right='auto';widget.style.bottom='auto';
+      }catch(_){}
+      delete widget.dataset.restoreBounds;
+      if(button){button.textContent='□';button.title='Maximise';}
+      remember(widget,key);
+      return;
+    }
+    if(widget.classList.contains('is-collapsed'))widget.classList.remove('is-collapsed');
+    const r=widget.getBoundingClientRect();
+    widget.dataset.restoreBounds=JSON.stringify({left:r.left,top:r.top,width:r.width,height:r.height});
+    widget.classList.add('is-maximized');
+    if(button){button.textContent='❐';button.title='Restore';}
+  }
+  function enableDrag(widget,handle,key){
+    let resizeTimer;
+    handle.addEventListener('pointerdown',event=>{
+      if(event.button!==0||event.target.closest('button')||widget.classList.contains('is-maximized'))return;
+      const r=widget.getBoundingClientRect(),sx=event.clientX,sy=event.clientY;
+      handle.setPointerCapture(event.pointerId);
+      const move=e=>{
+        const l=Math.max(4,Math.min(window.innerWidth-widget.offsetWidth-4,r.left+e.clientX-sx));
+        const t=Math.max(76,Math.min(window.innerHeight-widget.offsetHeight-4,r.top+e.clientY-sy));
+        Object.assign(widget.style,{left:`${l}px`,top:`${t}px`,right:'auto',bottom:'auto'});
+      };
+      const done=()=>{
+        handle.removeEventListener('pointermove',move);handle.removeEventListener('pointerup',done);handle.removeEventListener('pointercancel',done);
+        remember(widget,key);
+      };
+      handle.addEventListener('pointermove',move);handle.addEventListener('pointerup',done);handle.addEventListener('pointercancel',done);
+    });
+    handle.addEventListener('dblclick',event=>{if(event.target.closest('button'))return;toggleMaximize(widget,key);});
+    if(window.ResizeObserver)new ResizeObserver(()=>{
+      if(widget.classList.contains('is-maximized'))return;
+      clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>remember(widget,key),150);
+    }).observe(widget);
+  }
+  function makeWidget({id,title,subtitle,icon,key,size={}}){
+    let widget=document.getElementById(id);if(widget)return widget;
+    widget=document.createElement('section');widget.id=id;widget.className='t2m-float-widget';widget.hidden=true;
+    widget.innerHTML=`<header class="t2m-float-widget-head" data-widget-drag><span class="avatar">${esc(icon)}</span><span class="t2m-float-widget-head-copy"><strong>${esc(title)}</strong><small>${esc(subtitle)}</small></span><span class="t2m-float-widget-head-actions"><button type="button" data-widget-min title="Minimise">—</button><button type="button" data-widget-max title="Maximise">□</button><button type="button" data-widget-close title="Hide">×</button></span></header><div class="t2m-float-widget-body" data-widget-body></div>`;
+    document.body.appendChild(widget);restore(widget,key,size);enableDrag(widget,widget.querySelector('[data-widget-drag]'),key);
+    widget.querySelector('[data-widget-min]').onclick=()=>{
+      if(widget.classList.contains('is-maximized'))toggleMaximize(widget,key);
+      widget.classList.toggle('is-collapsed');remember(widget,key);
+    };
+    widget.querySelector('[data-widget-max]').onclick=()=>toggleMaximize(widget,key);
+    widget.querySelector('[data-widget-close]').onclick=()=>{remember(widget,key);widget.hidden=true;};
+    return widget;
+  }
 
-  const chatWidget=makeWidget({id:'t2m-messenger-widget',title:'Talk2Me Chat',subtitle:'People, office and system',icon:'●',key:`t2m-chat-widget-${user.id}`});
+  const chatWidget=makeWidget({id:'t2m-messenger-widget',title:'Talk2Me Chat',subtitle:'People, office and system',icon:'●',key:`t2m-chat-widget-${user.id}`,size:{width:520,height:660,minWidth:440,minHeight:500}});
   const chatBody=chatWidget.querySelector('[data-widget-body]');
   let chatBootstrap=null,chatConversation='office',chatTab='people',chatMessages=[],chatPoll=null,recorder=null,voiceChunks=[],voiceStarted=0,cancelRecording=false;
   const conversationByToken=token=>chatBootstrap?.conversations?.find(item=>item.token===token);
@@ -91,7 +188,7 @@
 
   async function openChat(){chatWidget.hidden=false;chatWidget.classList.remove('is-collapsed');try{await refreshBootstrap();chatMessages=[];renderChatShell();if(chatTab==='system')await loadSystem();else await loadConversation(chatConversation);}catch(error){chatBody.innerHTML=`<div class="t2m-chat-empty"><strong>Could not open chat</strong><span>${esc(error.message)}</span></div>`;}clearInterval(chatPoll);chatPoll=setInterval(async()=>{if(chatWidget.hidden)return;try{await refreshBootstrap();if(chatTab!=='system')await loadConversation(chatConversation);else{renderChatShell();await loadSystem();}}catch(_){}},12000);}
 
-  const taskWidget=makeWidget({id:'t2m-task-widget',title:'Tasks',subtitle:'Quick work cards',icon:'✓',key:`t2m-task-widget-${user.id}`});
+  const taskWidget=makeWidget({id:'t2m-task-widget',title:'Tasks',subtitle:'Quick work cards',icon:'✓',key:`t2m-task-widget-${user.id}`,size:{width:620,height:720,minWidth:520,minHeight:580}});
   const taskBody=taskWidget.querySelector('[data-widget-body]');
   let taskState={scope:'mine',tasks:[],staff:[],management:false,mode:'list',selected:null};
 
