@@ -1,41 +1,107 @@
-/* UAT compact widget polish: fast, movable office tools rather than full-screen forms. */
-#t2m-messenger-widget,#t2m-task-widget{min-width:300px;min-height:260px}
-#t2m-messenger-widget .t2m-float-widget-head-copy small{display:none}
-#t2m-messenger-widget .t2m-chat-shell{grid-template-rows:auto minmax(0,1fr)}
-#t2m-messenger-widget .t2m-chat-tabs{display:grid;grid-template-columns:minmax(0,1fr) 92px;gap:6px;padding:6px}
-#t2m-messenger-widget .t2m-chat-tabs [data-chat-tab="people"],
-#t2m-messenger-widget .t2m-chat-tabs [data-chat-tab="system"]{display:none!important}
-#t2m-messenger-widget .t2m-chat-tabs [data-chat-tab="office"]{grid-column:2;height:32px;border:1px solid #d9e1e7;background:#f3f6f8;color:#344054}
-#t2m-messenger-widget .t2m-chat-tabs [data-chat-tab="office"].is-active{background:#202832;border-color:#202832;color:#fff}
-#t2m-messenger-widget .t2m-chat-staff-select{grid-column:1;grid-row:1;width:100%;height:32px;border:1px solid #ccd6df;border-radius:8px;background:#fff;padding:0 30px 0 9px;color:#344054;font-size:10px;font-weight:850;outline:none}
+/* UAT Messages & Tasks usability layer.
+   Keep the staff selector convenience, but never shrink or hide core workflow functions. */
+
+#t2m-messenger-widget{min-width:500px;min-height:560px}
+#t2m-task-widget{min-width:580px;min-height:640px}
+
+#t2m-messenger-widget .t2m-float-widget-head-copy small,
+#t2m-task-widget .t2m-float-widget-head-copy small{display:block;font-size:9px;color:#c5d0da}
+
+/* Messages: direct staff selector + Office + System must all remain available. */
+#t2m-messenger-widget .t2m-chat-shell{height:100%;min-height:0;grid-template-rows:auto minmax(0,1fr)}
+#t2m-messenger-widget .t2m-chat-tabs{
+  display:grid;
+  grid-template-columns:minmax(190px,1fr) 88px 88px;
+  gap:7px;
+  padding:8px;
+  align-items:center
+}
+#t2m-messenger-widget .t2m-chat-tabs [data-chat-tab="people"]{display:none!important}
+#t2m-messenger-widget .t2m-chat-tabs [data-chat-tab="office"]{grid-column:2}
+#t2m-messenger-widget .t2m-chat-tabs [data-chat-tab="system"]{grid-column:3;display:block!important}
+#t2m-messenger-widget .t2m-chat-tabs [data-chat-tab="office"],
+#t2m-messenger-widget .t2m-chat-tabs [data-chat-tab="system"]{
+  height:38px;
+  border:1px solid #d9e1e7;
+  background:#f3f6f8;
+  color:#344054;
+  font-size:11px
+}
+#t2m-messenger-widget .t2m-chat-tabs button.is-active{background:#202832!important;border-color:#202832!important;color:#fff!important}
+#t2m-messenger-widget .t2m-chat-staff-select{
+  grid-column:1;
+  grid-row:1;
+  width:100%;
+  min-width:0;
+  height:38px;
+  border:1px solid #ccd6df;
+  border-radius:9px;
+  background:#fff;
+  padding:0 32px 0 10px;
+  color:#344054;
+  font-size:12px;
+  font-weight:850;
+  outline:none
+}
 #t2m-messenger-widget .t2m-chat-staff-select:focus{border-color:#202832;box-shadow:0 0 0 2px rgba(32,40,50,.08)}
-#t2m-messenger-widget .t2m-chat-main{grid-template-columns:minmax(0,1fr)}
+#t2m-messenger-widget .t2m-chat-main{min-height:0;grid-template-columns:minmax(0,1fr)}
 #t2m-messenger-widget .t2m-chat-people{display:none!important}
-#t2m-messenger-widget .t2m-chat-conversation-head{padding:7px 9px}
-#t2m-messenger-widget .t2m-chat-conversation-head strong{font-size:11px}
-#t2m-messenger-widget .t2m-chat-conversation-head small{font-size:8px}
-#t2m-messenger-widget .t2m-chat-office-note{padding:5px 9px;font-size:8px}
-#t2m-messenger-widget .t2m-chat-messages{padding:7px 8px}
-#t2m-messenger-widget .t2m-chat-empty{padding:12px}
-#t2m-messenger-widget .t2m-chat-empty strong{font-size:11px}
-#t2m-messenger-widget .t2m-chat-empty span{font-size:8px}
-#t2m-messenger-widget .t2m-chat-composer{padding:6px}
-#t2m-messenger-widget .t2m-chat-compose-row{grid-template-columns:32px minmax(0,1fr) 48px;gap:5px}
-#t2m-messenger-widget .t2m-chat-compose-row textarea{min-height:32px;max-height:68px;padding:7px 8px;border-radius:9px;font-size:10px}
-#t2m-messenger-widget .t2m-chat-compose-row button{height:32px;border-radius:9px;font-size:10px}
-#t2m-messenger-widget .t2m-chat-compose-row .voice{font-size:14px}
-#t2m-task-widget .t2m-float-widget-head-copy small{display:none}
-#t2m-task-widget .t2m-task-toolbar{padding:6px;gap:4px}
-#t2m-task-widget .t2m-task-toolbar button{height:29px;padding:0 8px;font-size:8px}
-#t2m-task-widget .t2m-task-content{padding:6px}
-#t2m-task-widget .t2m-task-card{margin-bottom:5px;border-radius:9px}
-#t2m-task-widget .t2m-task-card-body{padding:7px 8px}
-#t2m-task-widget .t2m-task-form{gap:6px;padding:8px}
-#t2m-task-widget .t2m-task-form h3{font-size:13px}
-#t2m-task-widget .t2m-task-form input,#t2m-task-widget .t2m-task-form select,#t2m-task-widget .t2m-task-form textarea{padding:7px;font-size:9px}
-#t2m-task-widget .t2m-task-form textarea{min-height:58px}
-#t2m-task-widget .t2m-task-detail{padding:8px}
-@media(max-width:620px){
+#t2m-messenger-widget .t2m-chat-conversation{min-height:0}
+#t2m-messenger-widget .t2m-chat-conversation-head{padding:9px 11px}
+#t2m-messenger-widget .t2m-chat-conversation-head strong{font-size:13px}
+#t2m-messenger-widget .t2m-chat-conversation-head small{font-size:10px}
+#t2m-messenger-widget .t2m-chat-office-note{padding:7px 10px;font-size:10px}
+#t2m-messenger-widget .t2m-chat-messages{min-height:0;overflow:auto;padding:10px}
+#t2m-messenger-widget .t2m-chat-bubble p{font-size:12px;line-height:1.5}
+#t2m-messenger-widget .t2m-chat-bubble-head{font-size:9px}
+#t2m-messenger-widget .t2m-chat-composer{padding:8px}
+#t2m-messenger-widget .t2m-chat-compose-row{grid-template-columns:38px minmax(0,1fr) 58px;gap:7px}
+#t2m-messenger-widget .t2m-chat-compose-row textarea{min-height:42px;max-height:130px;padding:10px;border-radius:9px;font-size:12px;line-height:1.4;resize:vertical}
+#t2m-messenger-widget .t2m-chat-compose-row button{height:42px;border-radius:9px;font-size:11px}
+
+/* Tasks: make all modes readable and scrollable, including New Task / staff assignment. */
+#t2m-task-widget .t2m-float-widget-body{min-height:0;overflow:auto!important}
+#t2m-task-widget .t2m-task-shell{min-height:100%;height:100%}
+#t2m-task-widget .t2m-task-toolbar{padding:9px;gap:6px;flex-wrap:wrap;position:sticky;top:0;z-index:2}
+#t2m-task-widget .t2m-task-toolbar button{min-height:34px;height:auto;padding:7px 10px;font-size:10px}
+#t2m-task-widget .t2m-task-toolbar .new-task{margin-left:auto}
+#t2m-task-widget .t2m-task-content{padding:10px}
+#t2m-task-widget .t2m-task-card{margin-bottom:8px;border-radius:10px}
+#t2m-task-widget .t2m-task-card-body{padding:10px 11px}
+#t2m-task-widget .t2m-task-card-top strong{font-size:13px}
+#t2m-task-widget .t2m-task-card p{font-size:11px;line-height:1.45}
+#t2m-task-widget .t2m-task-card-meta{font-size:10px}
+#t2m-task-widget .t2m-task-card-actions button{font-size:11px}
+
+#t2m-task-widget .t2m-task-form{gap:10px;padding:14px;min-height:max-content}
+#t2m-task-widget .t2m-task-form h3{font-size:18px}
+#t2m-task-widget .t2m-task-form label{gap:5px;font-size:11px}
+#t2m-task-widget .t2m-task-form input,
+#t2m-task-widget .t2m-task-form select,
+#t2m-task-widget .t2m-task-form textarea{
+  min-height:42px;
+  padding:10px;
+  font-size:12px;
+  line-height:1.4
+}
+#t2m-task-widget .t2m-task-form textarea{min-height:95px}
+#t2m-task-widget .t2m-task-form-grid{grid-template-columns:1fr 1fr;gap:10px}
+#t2m-task-widget .t2m-task-form-actions button{min-height:40px;height:auto;font-size:11px;padding:8px 13px}
+
+#t2m-task-widget .t2m-task-detail{height:auto!important;min-height:100%;overflow:visible!important;padding:14px 16px 24px!important}
+#t2m-task-widget .t2m-task-detail-card{padding:15px!important}
+#t2m-task-widget .t2m-task-detail-card h3{font-size:18px!important}
+#t2m-task-widget .t2m-task-detail-card .lead{font-size:12px!important;line-height:1.5!important}
+#t2m-task-widget .t2m-task-detail-meta{font-size:10px!important}
+#t2m-task-widget .t2m-task-comment-compose{position:relative}
+#t2m-task-widget .t2m-task-comment-compose input{font-size:11px;min-height:40px}
+#t2m-task-widget .t2m-task-comment-compose button{font-size:11px;min-height:40px}
+
+/* Narrow desktop/tablet: use the available viewport instead of forcing a tiny popup. */
+@media(max-width:760px){
   #t2m-messenger-widget,#t2m-task-widget{min-width:0;min-height:0}
-  #t2m-messenger-widget .t2m-chat-tabs{grid-template-columns:minmax(0,1fr) 78px}
+  #t2m-messenger-widget .t2m-chat-tabs{grid-template-columns:minmax(135px,1fr) 72px 72px;gap:5px}
+  #t2m-messenger-widget .t2m-chat-tabs [data-chat-tab="office"],
+  #t2m-messenger-widget .t2m-chat-tabs [data-chat-tab="system"]{font-size:9px}
+  #t2m-task-widget .t2m-task-form-grid{grid-template-columns:1fr}
 }
