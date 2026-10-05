@@ -42,6 +42,7 @@
     addStylesheet('data-uat-launcher-strip', `${basePath}/public/css/uat-launcher-strip.css?v=${encodeURIComponent(uatAssetVersion)}`);
     addStylesheet('data-uat-work-widgets', `${basePath}/public/css/uat-work-widgets.css?v=${encodeURIComponent(uatAssetVersion)}`);
     addStylesheet('data-uat-widget-polish', `${basePath}/public/css/uat-widget-polish.css?v=${encodeURIComponent(uatAssetVersion)}`);
+    addStylesheet('data-uat-mobile-first', `${basePath}/public/css/uat-mobile-first.css?v=${encodeURIComponent(uatAssetVersion)}`);
     addScript('data-uat-responsive-polish', `${basePath}/public/js/uat-responsive-polish.js?v=${encodeURIComponent(uatAssetVersion)}`);
     addScript('data-uat-reminder-fix', `${basePath}/public/js/uat-reminder-dialog-fix.js?v=${encodeURIComponent(uatAssetVersion)}`);
     addScript('data-uat-productivity', `${basePath}/public/js/productivity-uat.js?v=${encodeURIComponent(uatAssetVersion)}`, () => {
