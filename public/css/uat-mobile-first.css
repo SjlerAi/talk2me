@@ -306,137 +306,204 @@ html,body{max-width:100%}
 }
 
 
-/* Mobile CRM navigation drawer. Desktop sidebar is hidden on phones, so this is the phone replacement. */
+/* Mobile CRM navigation popover. Desktop sidebar is hidden on phones, so this is the phone replacement. */
 .t2m-mobile-menu-toggle,
 .t2m-mobile-menu,
 .t2m-mobile-menu-backdrop{display:none}
 
 @media (max-width:760px){
-  .t2m-mobile-menu-toggle{
+  /* Keep all red counters inside their top buttons instead of floating outside. */
+  .t2m-os-top-actions .t2m-os-icon-button{
+    position:relative!important;
+    overflow:visible!important;
+  }
+  .t2m-os-top-actions .t2m-os-icon-button>.t2m-os-badge{
+    top:2px!important;
+    right:2px!important;
+    min-width:18px!important;
+    height:18px!important;
+    padding:0 4px!important;
+    transform:none!important;
+    font-size:9px!important;
+    line-height:18px!important;
+    border:2px solid #fff!important;
+    box-shadow:none!important;
+  }
+
+  /* The hamburger itself is always a clear black action. */
+  .t2m-os-top-actions .t2m-mobile-menu-toggle{
     display:grid!important;
     place-items:center!important;
     flex:0 0 40px!important;
     width:40px!important;
     min-width:40px!important;
     height:40px!important;
-    border:1px solid #202832!important;
+    padding:0!important;
+    border:1px solid #111820!important;
     border-radius:10px!important;
-    background:#202832!important;
+    background:#111820!important;
+    color:#fff!important;
+    box-shadow:none!important;
+    font-size:21px!important;
+    line-height:1!important;
+  }
+  .t2m-os-top-actions .t2m-mobile-menu-toggle>span{
+    display:block!important;
     color:#fff!important;
     font-size:21px!important;
     line-height:1!important;
   }
+
+  /* Full-screen tap-away layer, menu itself stays compact under the action row. */
   .t2m-mobile-menu-backdrop{
-    display:block;
-    position:fixed;
-    z-index:25000;
-    inset:116px 0 46px;
-    width:100%;
-    border:0;
-    background:rgba(21,29,38,.38);
+    display:block!important;
+    position:fixed!important;
+    z-index:24990!important;
+    inset:0!important;
+    width:100vw!important;
+    height:100dvh!important;
+    margin:0!important;
+    padding:0!important;
+    border:0!important;
+    border-radius:0!important;
+    background:rgba(17,24,32,.28)!important;
     backdrop-filter:blur(1px);
   }
   .t2m-mobile-menu{
-    display:block;
-    position:fixed;
-    z-index:26000;
-    top:122px;
-    left:8px;
-    right:8px;
-    max-height:calc(100dvh - 176px);
-    overflow:auto;
-    padding:10px;
-    border:1px solid #d7e0e8;
-    border-radius:16px;
-    background:#fff;
-    box-shadow:0 24px 70px rgba(21,29,38,.28);
-    color:#202832;
+    display:block!important;
+    position:fixed!important;
+    z-index:26000!important;
+    top:108px!important;
+    right:8px!important;
+    left:auto!important;
+    bottom:auto!important;
+    width:min(330px,calc(100vw - 16px))!important;
+    max-width:calc(100vw - 16px)!important;
+    max-height:calc(100dvh - 124px)!important;
+    margin:0!important;
+    padding:8px!important;
+    overflow:auto!important;
+    border:1px solid #111820!important;
+    border-radius:14px!important;
+    background:#111820!important;
+    box-shadow:0 18px 46px rgba(0,0,0,.34)!important;
+    color:#fff!important;
     -webkit-overflow-scrolling:touch;
   }
   .t2m-mobile-menu[hidden],
   .t2m-mobile-menu-backdrop[hidden]{display:none!important}
+
   .t2m-mobile-menu>header{
-    position:sticky;
-    top:-10px;
-    z-index:2;
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    gap:10px;
-    margin:-10px -10px 8px;
-    padding:10px 12px;
-    border-bottom:1px solid #e7ebef;
-    background:#fff;
+    position:sticky!important;
+    top:-8px!important;
+    z-index:2!important;
+    display:flex!important;
+    align-items:center!important;
+    justify-content:space-between!important;
+    gap:10px!important;
+    margin:-8px -8px 7px!important;
+    padding:9px 10px!important;
+    border-bottom:1px solid rgba(255,255,255,.12)!important;
+    background:#111820!important;
+    color:#fff!important;
   }
-  .t2m-mobile-menu>header div{display:grid;gap:1px}
+  .t2m-mobile-menu>header div{
+    display:flex!important;
+    align-items:center!important;
+    gap:6px!important;
+  }
   .t2m-mobile-menu>header span{
-    color:#7b8794;
-    font-size:9px;
-    font-weight:900;
-    letter-spacing:.12em;
-    text-transform:uppercase;
+    display:none!important;
   }
-  .t2m-mobile-menu>header strong{font-size:18px}
+  .t2m-mobile-menu>header strong{
+    color:#fff!important;
+    font-size:15px!important;
+    font-weight:900!important;
+  }
   .t2m-mobile-menu>header button{
-    width:36px;
-    height:36px;
-    border:1px solid #d7e0e8;
-    border-radius:9px;
-    background:#f5f7f9;
-    color:#202832;
-    font-size:22px;
+    width:32px!important;
+    height:32px!important;
+    padding:0!important;
+    border:1px solid rgba(255,255,255,.18)!important;
+    border-radius:8px!important;
+    background:rgba(255,255,255,.08)!important;
+    color:#fff!important;
+    font-size:20px!important;
+    line-height:1!important;
   }
+
+  /* One clean vertical navigation list: icon, label, optional count. */
   .t2m-mobile-menu-grid{
-    display:grid;
-    grid-template-columns:repeat(2,minmax(0,1fr));
-    gap:8px;
+    display:grid!important;
+    grid-template-columns:1fr!important;
+    gap:5px!important;
   }
   .t2m-mobile-menu-grid>button{
-    position:relative;
-    min-width:0;
-    min-height:58px;
-    display:grid;
-    grid-template-columns:36px minmax(0,1fr) auto;
-    align-items:center;
-    gap:8px;
-    padding:9px 10px;
-    border:1px solid #dbe2e8;
-    border-radius:11px;
-    background:#f8fafc;
-    color:#202832;
-    text-align:left;
+    position:relative!important;
+    width:100%!important;
+    min-width:0!important;
+    min-height:46px!important;
+    display:grid!important;
+    grid-template-columns:34px minmax(0,1fr) auto!important;
+    align-items:center!important;
+    gap:9px!important;
+    margin:0!important;
+    padding:6px 9px!important;
+    border:1px solid rgba(255,255,255,.10)!important;
+    border-radius:9px!important;
+    background:rgba(255,255,255,.055)!important;
+    color:#fff!important;
+    box-shadow:none!important;
+    text-align:left!important;
+    font:inherit!important;
+  }
+  .t2m-mobile-menu-grid>button:hover,
+  .t2m-mobile-menu-grid>button:focus{
+    border-color:rgba(255,255,255,.24)!important;
+    background:rgba(255,255,255,.11)!important;
+    outline:none!important;
   }
   .t2m-mobile-menu-grid>button>span{
-    width:34px;
-    height:34px;
-    display:grid;
-    place-items:center;
-    border-radius:9px;
-    background:#e7f3fb;
-    color:#17608b;
-    font-weight:900;
+    width:32px!important;
+    height:32px!important;
+    display:grid!important;
+    place-items:center!important;
+    margin:0!important;
+    border:0!important;
+    border-radius:8px!important;
+    background:rgba(255,255,255,.10)!important;
+    color:#fff!important;
+    font-size:15px!important;
+    font-weight:900!important;
   }
   .t2m-mobile-menu-grid>button>strong{
-    min-width:0;
-    font-size:12px;
-    overflow:hidden;
-    text-overflow:ellipsis;
+    min-width:0!important;
+    color:#fff!important;
+    font-size:12px!important;
+    font-weight:850!important;
+    white-space:nowrap!important;
+    overflow:hidden!important;
+    text-overflow:ellipsis!important;
   }
   .t2m-mobile-menu-grid>button>b{
-    display:grid;
-    place-items:center;
-    min-width:20px;
-    height:20px;
-    padding:0 5px;
-    border-radius:999px;
-    background:#ed1c24;
-    color:#fff;
-    font-size:9px;
+    position:static!important;
+    display:grid!important;
+    place-items:center!important;
+    min-width:22px!important;
+    height:22px!important;
+    margin:0!important;
+    padding:0 5px!important;
+    border:0!important;
+    border-radius:999px!important;
+    background:#ed1c24!important;
+    color:#fff!important;
+    font-size:9px!important;
+    font-weight:900!important;
   }
   .t2m-mobile-menu-grid>button.is-current{
-    border-color:#202832;
-    background:#eef2f5;
-    box-shadow:inset 3px 0 #ed1c24;
+    border-color:rgba(255,255,255,.28)!important;
+    background:#202832!important;
+    box-shadow:inset 3px 0 #ed1c24!important;
   }
   .t2m-os-search-results{
     z-index:30000!important;

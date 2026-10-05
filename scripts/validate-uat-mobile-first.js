@@ -29,7 +29,13 @@ assert(calendar.includes('data-mobile-menu-grid'), 'mobile navigation drawer mus
 assert(calendar.includes("{ app: 'tasks'"), 'mobile navigation must expose Tasks');
 assert(calendar.includes("{ app: 'messages'"), 'mobile navigation must expose Messages');
 assert(mobile.includes('.t2m-mobile-menu{'), 'mobile navigation drawer must be styled');
-assert(mobile.includes('inset:116px 0 46px'), 'mobile menu backdrop must start below the header stack');
+assert(mobile.includes('inset:0!important'), 'mobile menu backdrop must cover the screen for tap-away closing');
 assert(mobile.includes('z-index:12000!important'), 'mobile top bar must stay above launcher content');
+assert(mobile.includes('background:#111820!important'), 'mobile hamburger/menu must use the dark Talk2Me treatment');
+assert(mobile.includes('width:min(330px,calc(100vw - 16px))!important'), 'mobile navigation must be a compact popover, not a full page block');
+assert(mobile.includes('grid-template-columns:1fr!important'), 'mobile menu choices must use a clean one-column list');
+assert(mobile.includes('.t2m-os-top-actions .t2m-os-icon-button>.t2m-os-badge'), 'top mobile badges must have an explicit inset rule');
+assert(mobile.includes('top:2px!important'), 'top mobile badges must sit inside their buttons');
+assert(loader.includes('widgets-3'), 'UAT asset version must change so phones receive the new mobile CSS');
 
 console.log('UAT mobile-first responsive validation passed at phone/tablet breakpoints.');
