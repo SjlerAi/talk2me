@@ -13,6 +13,7 @@ const MANAGEMENT_ROLES = new Set(['owner', 'admin', 'manager']);
 const ACTIVE_TASKS = "('unread','seen','in_progress')";
 const privateRoot = String(process.env.PRIVATE_UPLOAD_DIR || '').trim();
 const voiceDir = path.join(privateRoot, 'messages', 'voice');
+const taskAttachmentDir = path.join(privateRoot, 'tasks', 'attachments');
 let schemaPromise;
 
 function management(user) {
@@ -66,6 +67,7 @@ async function ensureSchema() {
     schemaPromise = (async () => {
       if (!privateRoot || privateRoot === '/home/uent/talk2me_private_uploads') throw new Error('UAT work widgets require the isolated private upload directory.');
       fs.mkdirSync(voiceDir, { recursive: true, mode: 0o700 });
+      fs.mkdirSync(taskAttachmentDir, { recursive: true, mode: 0o700 });
       await db.query(`CREATE TABLE IF NOT EXISTS staff_chat_messages (
         id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
         conversation_key VARCHAR(80) NOT NULL,
@@ -122,6 +124,20 @@ async function ensureSchema() {
         KEY idx_task_notifications_recipient (recipient_staff_id,resolved_at,is_read,created_at),
         KEY idx_task_notifications_task (task_id,recipient_staff_id,action_required,resolved_at)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+      await db.query(`CREATE TABLE IF NOT EXISTS staff_task_attachments (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        task_id BIGINT UNSIGNED NOT NULL,
+        comment_id BIGINT UNSIGNED NULL,
+        uploaded_by BIGINT UNSIGNED NOT NULL,
+        original_name VARCHAR(255) NOT NULL,
+        stored_filename VARCHAR(255) NOT NULL,
+        mime_type VARCHAR(120) NOT NULL,
+        file_bytes BIGINT UNSIGNED NOT NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        KEY idx_task_attachments_task (task_id,created_at),
+        KEY idx_task_attachments_comment (comment_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
     })().catch(error => {
       schemaPromise = null;
       throw error;
@@ -160,6 +176,90 @@ const uploadVoice = multer({
     callback(mimeExtensions[mime] ? null : new Error('Unsupported voice-note format.'), Boolean(mimeExtensions[mime]));
   }
 }).single('voice');
+
+
+const taskFileTypes = new Map([
+  ['.pdf', new Set(['application/pdf'])],
+  ['.doc', new Set(['application/msword'])],
+  ['.docx', new Set(['application/vnd.openxmlformats-officedocument.wordprocessingml.document'])],
+  ['.xls', new Set(['application/vnd.ms-excel'])],
+  ['.xlsx', new Set(['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'])],
+  ['.ppt', new Set(['application/vnd.ms-powerpoint'])],
+  ['.pptx', new Set(['application/vnd.openxmlformats-officedocument.presentationml.presentation'])],
+  ['.csv', new Set(['text/csv','application/csv','application/vnd.ms-excel','text/plain'])],
+  ['.txt', new Set(['text/plain'])],
+  ['.rtf', new Set(['application/rtf','text/rtf'])],
+  ['.jpg', new Set(['image/jpeg'])],
+  ['.jpeg', new Set(['image/jpeg'])],
+  ['.png', new Set(['image/png'])],
+  ['.webp', new Set(['image/webp'])]
+]);
+
+function taskFileExtension(file) {
+  return path.extname(String(file?.originalname || '')).toLowerCase();
+}
+
+const taskAttachmentStorage = multer.diskStorage({
+  destination(req, file, callback) {
+    try {
+      fs.mkdirSync(taskAttachmentDir, { recursive: true, mode: 0o700 });
+      callback(null, taskAttachmentDir);
+    } catch (error) { callback(error); }
+  },
+  filename(req, file, callback) {
+    const extension = taskFileExtension(file);
+    callback(null, `${Date.now()}-${crypto.randomBytes(16).toString('hex')}${extension}`);
+  }
+});
+
+const uploadTaskFiles = multer({
+  storage: taskAttachmentStorage,
+  limits: { fileSize: 15 * 1024 * 1024, files: 5 },
+  fileFilter(req, file, callback) {
+    const extension = taskFileExtension(file);
+    const allowedMimes = taskFileTypes.get(extension);
+    const mime = String(file.mimetype || '').toLowerCase();
+    const allowed = Boolean(allowedMimes && allowedMimes.has(mime));
+    callback(allowed ? null : new Error('Only PDF, Word, Excel, PowerPoint, CSV, text, RTF and common image files can be attached.'), allowed);
+  }
+}).array('attachments', 5);
+
+function cleanupTaskFiles(files) {
+  for (const file of Array.isArray(files) ? files : []) {
+    if (file?.path) fs.unlink(file.path, () => {});
+  }
+}
+
+function taskUploadMiddleware(req, res, next) {
+  uploadTaskFiles(req, res, error => {
+    if (!error) return next();
+    cleanupTaskFiles(req.files);
+    return res.status(400).json({ ok: false, error: error.message || 'The attachment could not be uploaded.' });
+  });
+}
+
+async function saveTaskAttachments({ taskId, commentId, userId, files }) {
+  const received = Array.isArray(files) ? files : [];
+  for (const file of received) {
+    await db.execute(`INSERT INTO staff_task_attachments
+      (task_id,comment_id,uploaded_by,original_name,stored_filename,mime_type,file_bytes)
+      VALUES (:taskId,:commentId,:userId,:originalName,:storedFilename,:mimeType,:fileBytes)`, {
+      taskId,
+      commentId: commentId || null,
+      userId,
+      originalName: clean(path.basename(String(file.originalname || 'attachment')), 255),
+      storedFilename: path.basename(String(file.filename || '')),
+      mimeType: clean(file.mimetype, 120),
+      fileBytes: Number(file.size || 0)
+    });
+  }
+  return received.length;
+}
+
+function taskAccessibleTo(task, user) {
+  const userId = Number(user?.id);
+  return Boolean(task && (management(user) || Number(task.assigned_to) === userId || Number(task.created_by) === userId));
+}
 
 async function markConversationRead(userId, key, messageId) {
   if (!messageId) return;
@@ -224,13 +324,14 @@ router.get('/api/uat/widgets/health', async (req, res) => {
   try {
     await ensureSchema();
     const [rows] = await db.execute(`SELECT TABLE_NAME FROM information_schema.TABLES
-      WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN ('staff_chat_messages','staff_chat_reads','staff_tasks','staff_task_workflow')`);
+      WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN ('staff_chat_messages','staff_chat_reads','staff_tasks','staff_task_workflow','staff_task_attachments')`);
     const names = new Set(rows.map(row => row.TABLE_NAME));
     res.json({
-      status: names.size === 4 ? 'ok' : 'error',
+      status: names.size === 5 ? 'ok' : 'error',
       environment: 'uat',
       chat: names.has('staff_chat_messages') && names.has('staff_chat_reads'),
       tasks: names.has('staff_tasks') && names.has('staff_task_workflow'),
+      taskAttachments: names.has('staff_task_attachments'),
       voiceDirectory: privateRoot === '/home/uent/talk2me_uat_private_uploads'
     });
   } catch (error) {
@@ -449,12 +550,27 @@ router.get('/api/uat/tasks/:id', requireAuth, async (req, res, next) => {
       WHERE task_id=:taskId AND recipient_staff_id=:userId AND action_required=0`, { taskId, userId });
     const [comments] = await db.execute(`SELECT c.id,c.comment,c.created_at,c.staff_id,s.full_name
       FROM staff_task_comments c JOIN staff_users s ON s.id=c.staff_id WHERE c.task_id=:taskId ORDER BY c.created_at ASC,c.id ASC`, { taskId });
+    const [attachments] = await db.execute(`SELECT a.id,a.task_id,a.comment_id,a.uploaded_by,a.original_name,a.mime_type,a.file_bytes,a.created_at,s.full_name uploaded_by_name
+      FROM staff_task_attachments a JOIN staff_users s ON s.id=a.uploaded_by
+      WHERE a.task_id=:taskId ORDER BY a.created_at ASC,a.id ASC`, { taskId });
     const waitingApproval = task.status === 'completed' && task.workflow_state === 'awaiting_sender_ack';
     const archived = task.status === 'cancelled' || (task.status === 'completed' && task.workflow_state === 'accepted');
     res.json({
       ok: true,
       task,
       comments,
+      attachments: attachments.map(item => ({
+        id: item.id,
+        taskId: item.task_id,
+        commentId: item.comment_id,
+        uploadedBy: item.uploaded_by,
+        uploadedByName: item.uploaded_by_name,
+        name: item.original_name,
+        mime: item.mime_type,
+        bytes: Number(item.file_bytes || 0),
+        createdAt: item.created_at,
+        url: `${res.locals.basePath}/api/uat/tasks/${taskId}/attachments/${item.id}`
+      })),
       permissions: {
         canUpdate: (isManager || assignee) && !waitingApproval && !archived,
         canReschedule: (isManager || assignee || creator) && !waitingApproval && !archived,
@@ -465,7 +581,8 @@ router.get('/api/uat/tasks/:id', requireAuth, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-router.post('/api/uat/tasks', requireAuth, async (req, res, next) => {
+router.post('/api/uat/tasks', requireAuth, taskUploadMiddleware, async (req, res, next) => {
+  let taskFilesPersisted = false;
   try {
     await ensureSchema();
     const title = clean(req.body.title, 180);
@@ -474,12 +591,12 @@ router.post('/api/uat/tasks', requireAuth, async (req, res, next) => {
     const priority = ['normal','high','urgent'].includes(String(req.body.priority || '')) ? String(req.body.priority) : 'normal';
     const dueAt = sqlDateTime(req.body.due_at);
     const relatedClientId = idOf(req.body.related_client_id);
-    if (!title || !message || !assignedTo) return res.status(400).json({ ok: false, error: 'Choose a person and enter a title and task.' });
+    if (!title || !message || !assignedTo) { cleanupTaskFiles(req.files); return res.status(400).json({ ok: false, error: 'Choose a person and enter a title and task.' }); }
     const [[recipient]] = await db.execute('SELECT id,full_name FROM staff_users WHERE id=:id AND is_active=1 LIMIT 1', { id: assignedTo });
-    if (!recipient) return res.status(400).json({ ok: false, error: 'The assigned staff member was not found.' });
+    if (!recipient) { cleanupTaskFiles(req.files); return res.status(400).json({ ok: false, error: 'The assigned staff member was not found.' }); }
     if (relatedClientId) {
       const [[client]] = await db.execute('SELECT id FROM clients WHERE id=:id LIMIT 1', { id: relatedClientId });
-      if (!client) return res.status(400).json({ ok: false, error: 'The related customer was not found.' });
+      if (!client) { cleanupTaskFiles(req.files); return res.status(400).json({ ok: false, error: 'The related customer was not found.' }); }
     }
     const [result] = await db.execute(`INSERT INTO staff_tasks
       (type,title,message,priority,assigned_to,created_by,due_at,related_client_id,email_status)
@@ -487,7 +604,14 @@ router.post('/api/uat/tasks', requireAuth, async (req, res, next) => {
       title, message, priority, assignedTo, createdBy: Number(req.session.user.id), dueAt, relatedClientId
     });
     await db.execute(`INSERT INTO staff_task_workflow (task_id,workflow_state,my_priority_date) VALUES (:taskId,'active',DATE(:dueAt)) ON DUPLICATE KEY UPDATE task_id=VALUES(task_id),my_priority_date=VALUES(my_priority_date)`, { taskId: result.insertId, dueAt });
-    await db.execute(`INSERT INTO staff_task_comments (task_id,staff_id,comment) VALUES (:taskId,:userId,'Task created')`, { taskId: result.insertId, userId: Number(req.session.user.id) });
+    const [createdComment] = await db.execute(`INSERT INTO staff_task_comments (task_id,staff_id,comment) VALUES (:taskId,:userId,'Task created')`, { taskId: result.insertId, userId: Number(req.session.user.id) });
+    await saveTaskAttachments({
+      taskId: result.insertId,
+      commentId: createdComment.insertId,
+      userId: Number(req.session.user.id),
+      files: req.files
+    });
+    taskFilesPersisted = true;
     if (dueAt) {
       await ensureAgentResponsibilitySchema();
       await db.execute(`INSERT INTO agent_task_watches
@@ -509,7 +633,7 @@ router.post('/api/uat/tasks', requireAuth, async (req, res, next) => {
       message: `${req.session.user.full_name} assigned “${title}” to you.`
     });
     res.json({ ok: true, id: result.insertId });
-  } catch (error) { next(error); }
+  } catch (error) { if (!taskFilesPersisted) cleanupTaskFiles(req.files); next(error); }
 });
 
 router.post('/api/uat/tasks/:id/status', requireAuth, async (req, res, next) => {
@@ -680,22 +804,56 @@ router.post('/api/uat/tasks/:id/decision', requireAuth, async (req, res, next) =
   } catch (error) { next(error); }
 });
 
-router.post('/api/uat/tasks/:id/comments', requireAuth, async (req, res, next) => {
+
+router.get('/api/uat/tasks/:id/attachments/:attachmentId', requireAuth, async (req, res, next) => {
+  try {
+    await ensureSchema();
+    const taskId = idOf(req.params.id);
+    const attachmentId = idOf(req.params.attachmentId);
+    if (!taskId || !attachmentId) return res.sendStatus(404);
+    const task = await getTask(taskId);
+    if (!task || !taskAccessibleTo(task, req.session.user)) return res.sendStatus(404);
+    const [[attachment]] = await db.execute(`SELECT id,stored_filename,original_name,mime_type
+      FROM staff_task_attachments WHERE id=:attachmentId AND task_id=:taskId LIMIT 1`, { attachmentId, taskId });
+    if (!attachment) return res.sendStatus(404);
+    const filename = path.basename(String(attachment.stored_filename || ''));
+    const filePath = path.join(taskAttachmentDir, filename);
+    if (!filename || !fs.existsSync(filePath)) return res.sendStatus(404);
+    const displayName = path.basename(String(attachment.original_name || 'attachment')).replace(/["\r\n]/g, '_');
+    res.set('Cache-Control', 'private, no-store');
+    res.set('Content-Disposition', `inline; filename="${displayName}"`);
+    res.type(attachment.mime_type || 'application/octet-stream');
+    return res.sendFile(filePath);
+  } catch (error) { next(error); }
+});
+
+router.post('/api/uat/tasks/:id/comments', requireAuth, taskUploadMiddleware, async (req, res, next) => {
+  let taskFilesPersisted = false;
   try {
     await ensureSchema();
     const taskId = idOf(req.params.id);
     const task = await getTask(taskId);
-    if (!task) return res.sendStatus(404);
+    if (!task) { cleanupTaskFiles(req.files); return res.sendStatus(404); }
     const userId = Number(req.session.user.id);
-    if (!management(req.session.user) && Number(task.assigned_to) !== userId && Number(task.created_by) !== userId) return res.sendStatus(403);
+    if (!taskAccessibleTo(task, req.session.user)) { cleanupTaskFiles(req.files); return res.sendStatus(403); }
     const comment = clean(req.body.comment, 5000);
-    if (!comment) return res.status(400).json({ ok: false, error: 'Type an update.' });
-    await db.execute(`INSERT INTO staff_task_comments (task_id,staff_id,comment) VALUES (:taskId,:userId,:comment)`, { taskId, userId, comment });
+    const fileCount = Array.isArray(req.files) ? req.files.length : 0;
+    if (!comment && !fileCount) { cleanupTaskFiles(req.files); return res.status(400).json({ ok: false, error: 'Type an update or attach a file.' }); }
+    const commentText = comment || (fileCount === 1 ? 'Attached 1 file' : `Attached ${fileCount} files`);
+    const [commentResult] = await db.execute(`INSERT INTO staff_task_comments (task_id,staff_id,comment) VALUES (:taskId,:userId,:comment)`, { taskId, userId, comment: commentText });
+    await saveTaskAttachments({ taskId, commentId: commentResult.insertId, userId, files: req.files });
+    taskFilesPersisted = true;
     const recipients = new Set([Number(task.assigned_to), Number(task.created_by)]);
     recipients.delete(userId);
-    for (const recipientId of recipients) await taskNotification({ taskId, recipientId, actorId: userId, eventType: 'comment', message: `${req.session.user.full_name} added an update to “${task.title}”: ${comment}` });
-    res.json({ ok: true });
-  } catch (error) { next(error); }
+    const notice = comment
+      ? `${req.session.user.full_name} added an update to “${task.title}”: ${comment}`
+      : `${req.session.user.full_name} attached ${fileCount} file${fileCount === 1 ? '' : 's'} to “${task.title}”.`;
+    for (const recipientId of recipients) await taskNotification({ taskId, recipientId, actorId: userId, eventType: 'comment', message: notice });
+    res.json({ ok: true, attachments: fileCount });
+  } catch (error) {
+    if (!taskFilesPersisted) cleanupTaskFiles(req.files);
+    next(error);
+  }
 });
 
 module.exports = router;
