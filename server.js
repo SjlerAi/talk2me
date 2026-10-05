@@ -119,6 +119,34 @@ if (UAT_MODE) {
       res.status(503).json({ status: 'error', environment: 'uat', database: 'unavailable', chat: false, tasks: false, taskAttachments: false, voiceDirectory: false });
     }
   });
+  const { ensureUsageSchema } = require('./src/services/usage-telemetry');
+  registerPublicGet('/api/uat/telemetry/health', async (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    try {
+      await ensureUsageSchema();
+      const [[usage]] = await db.execute(`SELECT COUNT(*) total,MAX(occurred_at) last_event_at FROM crm_usage_events`);
+      const [[logout]] = await db.execute(`SELECT enabled,TIME_FORMAT(logout_time,'%H:%i:%s') logout_time,timezone
+        FROM nightly_logout_settings WHERE id=1 LIMIT 1`);
+      const healthy = Boolean(logout) && Number(logout.enabled) === 1 && String(logout.logout_time) === '18:00:00';
+      res.status(healthy ? 200 : 503).json({
+        status: healthy ? 'ok' : 'error',
+        environment: 'uat',
+        telemetry: true,
+        totalEvents: Number(usage?.total || 0),
+        lastEventAt: usage?.last_event_at || null,
+        dailyLogin: true,
+        automaticLogout: logout ? {
+          enabled: Boolean(logout.enabled),
+          time: logout.logout_time,
+          timezone: logout.timezone
+        } : null
+      });
+    } catch (error) {
+      console.error('Public UAT telemetry health check failed:', error.message);
+      res.status(503).json({ status:'error',environment:'uat',telemetry:false,dailyLogin:true,automaticLogout:null });
+    }
+  });
+
 }
 
 app.use(session({
