@@ -191,7 +191,13 @@ router.get('/', (req, res) => {
   res.redirect(`${res.locals.basePath}${defaultLanding(req.session.user)}`);
 });
 
-router.get('/login', (req, res) => res.render('login', { title: 'Login', error: null }));
+router.get('/login', (req, res) => {
+  const reason = String(req.query.reason || '');
+  const error = reason === 'daily'
+    ? 'Please sign in for today. Talk2Me starts a fresh staff session each working day.'
+    : null;
+  res.render('login', { title: 'Login', error });
+});
 
 router.post('/login', async (req, res, next) => {
   try {
