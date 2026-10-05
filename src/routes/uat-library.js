@@ -397,9 +397,9 @@ router.post('/api/uat/library/documents',requireAuth,requireManager,uploadMiddle
   const connection=await db.getConnection();
   try{
     await ensureSchema();
-    if(!req.file){connection.release();return res.status(400).json({ok:false,error:'Choose a file.'});}
+    if(!req.file)return res.status(400).json({ok:false,error:'Choose a file.'});
     const title=clean(req.body.title,180);
-    if(!title){removeUploaded(req);connection.release();return res.status(400).json({ok:false,error:'Enter a document title.'});}
+    if(!title){removeUploaded(req);return res.status(400).json({ok:false,error:'Enter a document title.'});}
     const userId=Number(req.session.user.id);
     const category=safeCategory(req.body.category);
     const description=clean(req.body.description,5000);
@@ -443,9 +443,9 @@ router.post('/api/uat/library/documents/:id/version',requireAuth,requireManager,
   try{
     await ensureSchema();
     const documentId=idOf(req.params.id);
-    if(!documentId||!req.file){removeUploaded(req);connection.release();return res.status(400).json({ok:false,error:'Document and file are required.'});}
+    if(!documentId||!req.file){removeUploaded(req);return res.status(400).json({ok:false,error:'Document and file are required.'});}
     const [[doc]]=await connection.execute('SELECT id,status FROM library_documents WHERE id=:id LIMIT 1',{id:documentId});
-    if(!doc){removeUploaded(req);connection.release();return res.sendStatus(404);}
+    if(!doc){removeUploaded(req);return res.sendStatus(404);}
     const [[maxVersion]]=await connection.execute('SELECT COALESCE(MAX(version_number),0) max_version FROM library_versions WHERE document_id=:id',{id:documentId});
     const versionNumber=Number(maxVersion?.max_version||0)+1;
     const userId=Number(req.session.user.id);
