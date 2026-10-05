@@ -79,19 +79,21 @@
 
       <section data-admin-panel="upload">
         <form class="library-admin-form" data-library-upload-form enctype="multipart/form-data">
-          <h2>Add a document</h2>
+          <h2>Add documents</h2>
+          <p class="library-form-help">Select up to 10 files from the same folder. Talk2Me creates one Library item per file and uses each filename as its starting title.</p>
           <div class="library-form-grid">
-            <label>Title<input name="title" maxlength="180" required placeholder="e.g. Fibre Pricing October 2026"></label>
             <label>Category<input name="category" list="library-category-options" maxlength="80" required placeholder="Pricing"></label>
+            <label>Who can see it<select name="access_level"><option value="all">All staff</option><option value="management">Managers / admins only</option></select></label>
           </div>
           <label>Description<textarea name="description" rows="3" maxlength="5000" placeholder="What staff should know about this file"></textarea></label>
           <div class="library-form-grid">
-            <label>Who can see it<select name="access_level"><option value="all">All staff</option><option value="management">Managers / admins only</option></select></label>
             <label class="check"><input type="checkbox" name="company_favourite" value="1"> Company favourite / Quick access</label>
+            <div></div>
           </div>
-          <label class="library-dropzone">Choose file
-            <input type="file" name="file" required accept=".pdf,.xlsx,.xls,.csv,.doc,.docx,.ppt,.pptx,.txt,.rtf,.jpg,.jpeg,.png,.webp,.gif">
-            <small>PDF, images, Excel/CSV, Word, PowerPoint, text or RTF · up to 40 MB</small>
+          <label class="library-dropzone">Choose up to 10 files
+            <input type="file" name="files" required multiple accept=".pdf,.xlsx,.xls,.csv,.doc,.docx,.ppt,.pptx,.txt,.rtf,.jpg,.jpeg,.png,.webp,.gif">
+            <small>Choose several files together · maximum 10 files · maximum 40 MB per file</small>
+            <div class="library-selected-files" data-upload-files></div>
           </label>
           <div class="library-form-actions"><span data-upload-status></span><button type="submit" class="primary">Upload & publish</button></div>
         </form>

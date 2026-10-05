@@ -33,6 +33,8 @@
   const replaceDialog=document.querySelector('[data-library-replace-dialog]');
   const replaceForm=document.querySelector('[data-library-replace-form]');
   const categoryOptions=document.getElementById('library-category-options');
+  const uploadFiles=uploadForm.querySelector('[name="files"]');
+  const uploadFilesList=uploadForm.querySelector('[data-upload-files]');
 
   const esc=value=>String(value==null?'':value).replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
   const formatBytes=value=>{
@@ -48,6 +50,7 @@
     return d.toLocaleString([],{year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
   };
   const iconFor=doc=>({image:'▧',pdf:'PDF',spreadsheet:'XL',document:'W',presentation:'P',text:'TXT',download:'FILE'}[doc.previewKind]||'FILE');
+  const officeLabel=doc=>({document:'Open in Word',spreadsheet:'Open in Excel',presentation:'Open in PowerPoint'}[doc.previewKind]||'');
 
   async function request(url,options={}){
     const response=await fetch(basePath+url,{credentials:'same-origin',cache:'no-store',...options});
@@ -72,7 +75,7 @@
         <span>${esc(doc.category)} · V${doc.versionNumber||1}</span>
         <strong title="${esc(doc.title)}">${esc(doc.title)}</strong>
         ${compact?'':`<p>${esc(doc.description||doc.originalName||'')}</p>`}
-        <div class="library-card-meta"><span>${esc(doc.extension||'file')}</span><span>${esc(formatBytes(doc.bytes))}</span></div>
+        <div class="library-card-meta"><span>${esc(officeLabel(doc)||doc.extension||'file')}</span><span>${esc(formatBytes(doc.bytes))}</span></div>
       </div>
     </article>`;
   }
@@ -196,7 +199,16 @@
     const star=event.target.closest('[data-library-star]');
     if(star){event.preventDefault();event.stopPropagation();toggleFavourite(Number(star.dataset.libraryStar)).catch(error=>alert(error.message));return;}
     const card=event.target.closest('[data-library-open]');
-    if(card){openDocument(Number(card.dataset.libraryOpen)).catch(error=>alert(error.message));return;}
+    if(card){
+      const id=Number(card.dataset.libraryOpen);
+      const doc=state.documents.find(item=>Number(item.id)===id);
+      if(doc?.nativeLaunch&&['document','spreadsheet','presentation'].includes(doc.previewKind)){
+        window.location.href=doc.nativeLaunch;
+        return;
+      }
+      openDocument(id).catch(error=>alert(error.message));
+      return;
+    }
     const category=event.target.closest('[data-library-category]');
     if(category){state.category=category.dataset.libraryCategory;render();return;}
   });
@@ -236,16 +248,37 @@
     if(button.dataset.adminTab==='snapshots')loadSnapshots().catch(error=>alert(error.message));
   });
 
+  function renderSelectedFiles(){
+    const files=[...(uploadFiles?.files||[])];
+    if(!uploadFilesList)return;
+    if(!files.length){uploadFilesList.innerHTML='';return;}
+    uploadFilesList.innerHTML=files.map((file,index)=>`<span><b>${index+1}</b><strong>${esc(file.name)}</strong><small>${formatBytes(file.size)}</small></span>`).join('');
+  }
+
+  uploadFiles?.addEventListener('change',()=>{
+    const files=[...(uploadFiles.files||[])];
+    if(files.length>10){
+      alert('Choose a maximum of 10 files at once.');
+      uploadFiles.value='';
+    }
+    renderSelectedFiles();
+  });
+
   uploadForm.onsubmit=async event=>{
     event.preventDefault();
     const status=uploadForm.querySelector('[data-upload-status]');
     const submit=uploadForm.querySelector('button[type="submit"]');
-    submit.disabled=true;status.textContent='Uploading…';
+    const files=[...(uploadFiles?.files||[])];
+    if(!files.length){status.textContent='Choose at least one file.';return;}
+    if(files.length>10){status.textContent='Choose a maximum of 10 files.';return;}
+    submit.disabled=true;status.textContent=`Uploading ${files.length} file${files.length===1?'':'s'}…`;
     try{
       const form=new FormData(uploadForm);
       form.set('company_favourite',uploadForm.querySelector('[name="company_favourite"]').checked?'1':'0');
-      await request('/api/uat/library/documents',{method:'POST',body:form});
-      uploadForm.reset();status.textContent='✓ Published';
+      const result=await request('/api/uat/library/documents/batch',{method:'POST',body:form});
+      uploadForm.reset();
+      renderSelectedFiles();
+      status.textContent=`✓ Published ${result.count} file${result.count===1?'':'s'}`;
       await load();
       renderAdminDocuments();
     }catch(error){status.textContent=error.message;}

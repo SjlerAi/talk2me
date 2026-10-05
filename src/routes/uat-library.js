@@ -67,6 +67,60 @@ function previewKind(extension, mime) {
   return 'download';
 }
 
+const OFFICE_PROTOCOLS = {
+  document: 'ms-word',
+  spreadsheet: 'ms-excel',
+  presentation: 'ms-powerpoint'
+};
+
+function nativeSecret() {
+  const secret = String(process.env.SESSION_SECRET || '');
+  if (!secret) throw new Error('SESSION_SECRET is required for secure native Office links.');
+  return secret;
+}
+
+function makeNativeToken(versionId) {
+  const payload = Buffer.from(JSON.stringify({
+    v: Number(versionId),
+    e: Date.now() + (15 * 60 * 1000),
+    n: crypto.randomBytes(10).toString('hex')
+  }), 'utf8').toString('base64url');
+  const signature = crypto.createHmac('sha256', nativeSecret()).update(payload).digest('base64url');
+  return `${payload}.${signature}`;
+}
+
+function verifyNativeToken(token) {
+  const raw = String(token || '');
+  const dot = raw.lastIndexOf('.');
+  if (dot <= 0) return null;
+  const payload = raw.slice(0, dot);
+  const signature = raw.slice(dot + 1);
+  const expected = crypto.createHmac('sha256', nativeSecret()).update(payload).digest('base64url');
+  const actualBuffer = Buffer.from(signature);
+  const expectedBuffer = Buffer.from(expected);
+  if (actualBuffer.length !== expectedBuffer.length || !crypto.timingSafeEqual(actualBuffer, expectedBuffer)) return null;
+  try {
+    const decoded = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    const versionId = idOf(decoded.v);
+    const expiresAt = Number(decoded.e || 0);
+    if (!versionId || !Number.isFinite(expiresAt) || expiresAt < Date.now()) return null;
+    return versionId;
+  } catch (_) {
+    return null;
+  }
+}
+
+function nativeLaunchFor(req, basePath, row) {
+  const kind = previewKind(row.extension, row.mime_type);
+  const protocol = OFFICE_PROTOCOLS[kind];
+  const versionId = idOf(row.version_id || row.current_version_id || row.id);
+  if (!protocol || !versionId) return null;
+  const token = makeNativeToken(versionId);
+  const root = `${req.protocol}://${req.get('host')}`;
+  const fileUrl = `${root}${basePath || ''}/api/uat/library/native/${encodeURIComponent(token)}`;
+  return `${protocol}:ofv|u|${fileUrl}`;
+}
+
 async function ensureSchema() {
   if (!IS_UAT) throw new Error('Talk2Me Library UAT route is disabled outside UAT.');
   if (!privateRoot || privateRoot === '/home/uent/talk2me_private_uploads') {
@@ -178,6 +232,32 @@ const uploadOne = multer({
   }
 }).single('file');
 
+const uploadBatch = multer({
+  storage,
+  limits:{fileSize:40*1024*1024,files:10},
+  fileFilter(req,file,callback){
+    const ext=extensionOf(file);
+    const mimes=allowed.get(ext);
+    const mime=String(file.mimetype||'').toLowerCase();
+    const ok=Boolean(mimes && mimes.has(mime));
+    callback(ok?null:new Error('Unsupported file. Use PDF, images, Excel/CSV, Word, PowerPoint, text or RTF.'),ok);
+  }
+}).array('files',10);
+
+function cleanupFiles(files) {
+  for (const file of Array.isArray(files) ? files : []) {
+    if (file?.path) fs.unlink(file.path,()=>{});
+  }
+}
+
+function uploadBatchMiddleware(req,res,next) {
+  uploadBatch(req,res,error=>{
+    if(!error) return next();
+    cleanupFiles(req.files);
+    res.status(400).json({ok:false,error:error.message||'The files could not be uploaded.'});
+  });
+}
+
 function uploadMiddleware(req,res,next) {
   uploadOne(req,res,error=>{
     if(!error) return next();
@@ -218,7 +298,7 @@ async function visibleDocuments(user,{status='active'}={}) {
   return rows;
 }
 
-function mapDocument(row,favourites=new Set()) {
+function mapDocument(row,favourites=new Set(),nativeLaunch=null) {
   return {
     id:Number(row.id),
     title:row.title,
@@ -237,7 +317,8 @@ function mapDocument(row,favourites=new Set()) {
     bytes:Number(row.file_bytes||0),
     versionCreatedAt:row.version_created_at||null,
     uploadedByName:row.uploaded_by_name||'',
-    previewKind:previewKind(row.extension,row.mime_type)
+    previewKind:previewKind(row.extension,row.mime_type),
+    nativeLaunch
   };
 }
 
@@ -358,7 +439,7 @@ router.get('/api/uat/library/bootstrap',requireAuth,async(req,res,next)=>{
     const requestedStatus=clean(req.query.status,20);
     const rows=await visibleDocuments(req.session.user,{status:requestedStatus==='all'&&canManage?'all':'active'});
     const favourites=await favouriteSet(userId);
-    const documents=rows.map(row=>mapDocument(row,favourites));
+    const documents=rows.map(row=>mapDocument(row,favourites,nativeLaunchFor(req,res.locals.basePath,row)));
     const categories=[...new Set(documents.map(item=>item.category).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
     res.json({
       ok:true,
@@ -383,13 +464,64 @@ router.get('/api/uat/library/documents/:id',requireAuth,async(req,res,next)=>{
     const favs=await favouriteSet(Number(req.session.user.id));
     res.json({
       ok:true,
-      document:mapDocument({...document,version_id:document.current_version_id},favs),
+      document:mapDocument({...document,version_id:document.current_version_id},favs,nativeLaunchFor(req,res.locals.basePath,{...document,version_id:document.current_version_id})),
       versions:management(req.session.user)?versions.map(v=>({
         id:Number(v.id),versionNumber:Number(v.version_number),originalName:v.original_name,mime:v.mime_type,
         extension:v.extension,bytes:Number(v.file_bytes||0),createdAt:v.created_at,uploadedByName:v.uploaded_by_name||''
       })):[]
     });
   }catch(error){next(error);}
+});
+
+router.post('/api/uat/library/documents/batch',requireAuth,requireManager,uploadBatchMiddleware,async(req,res,next)=>{
+  let persisted=false;
+  const connection=await db.getConnection();
+  try{
+    await ensureSchema();
+    const files=Array.isArray(req.files)?req.files:[];
+    if(!files.length)return res.status(400).json({ok:false,error:'Choose at least one file.'});
+    if(files.length>10){cleanupFiles(files);return res.status(400).json({ok:false,error:'Upload a maximum of 10 files at once.'});}
+    const userId=Number(req.session.user.id);
+    const category=safeCategory(req.body.category);
+    const description=clean(req.body.description,5000);
+    const accessLevel=clean(req.body.access_level,30)==='management'?'management':'all';
+    const favourite=String(req.body.company_favourite||'')==='1'?1:0;
+    const created=[];
+    await connection.beginTransaction();
+    for(const file of files){
+      const ext=extensionOf(file);
+      const basename=path.basename(String(file.originalname||'document'),ext);
+      const title=clean(basename.replace(/[_-]+/g,' ').replace(/\s+/g,' '),180)||'Document';
+      const [docResult]=await connection.execute(`INSERT INTO library_documents
+        (title,description,category,access_level,company_favourite,status,created_by,updated_by)
+        VALUES (:title,:description,:category,:accessLevel,:favourite,'active',:userId,:userId)`,
+        {title,description,category,accessLevel,favourite,userId});
+      const [versionResult]=await connection.execute(`INSERT INTO library_versions
+        (document_id,version_number,original_name,stored_filename,mime_type,extension,file_bytes,uploaded_by)
+        VALUES (:documentId,1,:originalName,:storedFilename,:mime,:extension,:bytes,:userId)`,{
+          documentId:docResult.insertId,
+          originalName:clean(path.basename(file.originalname),255),
+          storedFilename:path.basename(file.filename),
+          mime:clean(file.mimetype,140),
+          extension:ext,
+          bytes:Number(file.size||0),
+          userId
+        });
+      await connection.execute('UPDATE library_documents SET current_version_id=:versionId WHERE id=:documentId',{
+        versionId:versionResult.insertId,documentId:docResult.insertId
+      });
+      created.push({id:Number(docResult.insertId),title,versionId:Number(versionResult.insertId)});
+    }
+    await connection.commit();
+    persisted=true;
+    res.json({ok:true,count:created.length,documents:created});
+  }catch(error){
+    try{await connection.rollback();}catch(_){}
+    if(!persisted) cleanupFiles(req.files);
+    next(error);
+  }finally{
+    try{connection.release();}catch(_){}
+  }
 });
 
 router.post('/api/uat/library/documents',requireAuth,requireManager,uploadMiddleware,async(req,res,next)=>{
@@ -527,6 +659,28 @@ router.post('/api/uat/library/documents/:id/favourite',requireAuth,async(req,res
     }
     await db.execute('INSERT INTO library_favourites (staff_id,document_id) VALUES (:staffId,:documentId)',{staffId,documentId});
     res.json({ok:true,favourite:true});
+  }catch(error){next(error);}
+});
+
+router.get('/api/uat/library/native/:token',async(req,res,next)=>{
+  try{
+    await ensureSchema();
+    const versionId=verifyNativeToken(req.params.token);
+    if(!versionId)return res.status(403).type('text/plain').send('This secure Library link has expired. Return to Talk2Me and open the document again.');
+    const [[row]]=await db.execute(`SELECT v.*,d.status
+      FROM library_versions v JOIN library_documents d ON d.id=v.document_id
+      WHERE v.id=:versionId LIMIT 1`,{versionId});
+    if(!row||row.status!=='active')return res.sendStatus(404);
+    const kind=previewKind(row.extension,row.mime_type);
+    if(!OFFICE_PROTOCOLS[kind])return res.status(400).type('text/plain').send('This file type does not use a desktop Office application.');
+    const target=filePathFor(row);
+    if(!target||!fs.existsSync(target))return res.sendStatus(404);
+    const display=path.basename(String(row.original_name||'document')).replace(/["\r\n]/g,'_');
+    res.set('Cache-Control','private, no-store');
+    res.set('X-Content-Type-Options','nosniff');
+    res.set('Content-Disposition',`inline; filename="${display}"`);
+    res.type(row.mime_type||'application/octet-stream');
+    res.sendFile(target);
   }catch(error){next(error);}
 });
 
