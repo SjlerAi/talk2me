@@ -22,7 +22,12 @@ const loader = fs.readFileSync('public/js/os-v6-alpha21-17.js','utf8');
 assert(shell.includes('data-os-app="work"'), 'OS shell must expose one Work application');
 assert(!shell.includes('data-os-app="tasks" aria-label="Tasks"'), 'OS shell must not present Tasks as a separate app');
 assert(!shell.includes('data-os-app="messages" aria-label="Messages"'), 'OS shell must not present Messages as a separate app');
+assert(!shell.includes('data-os-app="notifications"'), 'duplicate top notification counter must be removed');
+assert(shell.includes('data-badge="work"'), 'sidebar Work entry must retain the one Work counter');
+assert(widgets.includes("document.querySelectorAll('[data-badge=\"work\"]')"), 'Work counter must be refreshed from unified Work state');
+assert(!widgets.includes("data-badge=\"notifications\""), 'Work widget code must not maintain a second notification counter');
 assert(calendar.includes("dataset.osApp = 'work'"), 'desktop launcher must expose unified Work');
+assert(calendar.includes('data-badge="work" hidden'), 'desktop Work launcher must carry the single Work counter');
 assert(calendar.includes('data-os-app="work"'), 'mobile/simple navigation must expose unified Work');
 
 assert(widgets.includes("title:'Work'"), 'shared floating widget must be titled Work');
@@ -30,6 +35,10 @@ assert(widgets.includes('const chatWidget=workWidget'), 'Messages must use the s
 assert(widgets.includes('const taskWidget=workWidget'), 'Tasks must use the shared Work window');
 assert(widgets.includes("data-work-mode=\"inbox\""), 'Work window must contain inbox mode');
 assert(widgets.includes("data-work-mode=\"messages\""), 'Work window must contain messages mode');
+assert(widgets.includes("data-work-mode=\"new\""), 'Work window must contain New task mode');
+assert(widgets.includes("workModeNav('new')"), 'New task form must keep the Work navigation visible');
+assert(widgets.includes("else if(next==='new')openTaskWidget({new:true})"), 'New task tab must open inside the shared Work window');
+assert(widgetCss.includes('.t2m-work-mode-nav + .t2m-task-form'), 'New task form must fit below the shared Work tabs');
 assert(widgets.includes("workMode!=='messages'"), 'chat poller must not repaint Work inbox mode');
 assert(widgets.includes("clearInterval(chatPoll);showWidget(workWidget)"), 'switching to Work inbox must stop the message poller');
 assert(widgetCss.includes('.t2m-work-mode-nav'), 'unified Work mode switch must be styled');
@@ -73,6 +82,6 @@ assert(officeView.includes('Last 14 days'), 'management UI must expose last 14 d
 assert(officeView.includes('Feature and action usage'), 'management UI must show feature usage');
 assert(officeView.includes('Login / logout compliance'), 'management UI must show logout compliance');
 
-assert(loader.includes('widgets-4'), 'UAT asset version must be bumped for unified Work release');
+assert(loader.includes('widgets-5'), 'UAT asset version must be bumped for final unified Work controls');
 
 console.log('UAT unified Work, telemetry and daily-login validation passed.');
