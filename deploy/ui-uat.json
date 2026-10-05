@@ -3,14 +3,14 @@
   "schema": 1,
   "repository": "SjlerAi/talk2me",
   "environment": "ui-uat",
-  "action": "deploy",
-  "status": "DEPLOY",
-  "requestId": "mobile-popover-badges-20261005-1136z",
+  "action": "hold",
+  "status": "HOLD",
+  "requestId": "hold-after-mobile-popover-badges-20261005-1140z",
   "sourceBranch": "release/talk2me-ui-uat-2026-10-05-mobile-popover-badges",
   "sourceSha": "6c5ad95c1d76f601f3243c5f1249b5f616e0154d",
   "commit": null,
   "workflowRunId": null,
   "artifact": null,
   "sha256": null,
-  "requestedAt": "2026-10-05T11:36:00Z"
+  "requestedAt": null
 }
