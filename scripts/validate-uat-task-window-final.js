@@ -5,6 +5,7 @@ const ui=fs.readFileSync('public/js/uat-work-widgets.js','utf8');
 const polish=fs.readFileSync('public/js/uat-widget-polish.js','utf8');
 const css=fs.readFileSync('public/css/uat-work-widgets.css','utf8');
 const route=fs.readFileSync('src/routes/uat-work-widgets.js','utf8');
+const server=fs.readFileSync('server.js','utf8');
 assert(ui.includes('let floatingWidgetZ = 30000'), 'floating widgets must own a top-layer z-index manager');
 assert(ui.includes('t2m-task-widget-v3-'), 'task geometry storage must be versioned');
 assert(ui.includes('name="attachments"'), 'task UI must support file attachments');
@@ -19,4 +20,7 @@ assert(route.includes("array('attachments', 5)"), 'task uploads must cap attachm
 assert(route.includes('15 * 1024 * 1024'), 'task uploads must cap per-file size');
 assert(route.includes('/api/uat/tasks/:id/attachments/:attachmentId'), 'task attachment download must be task-scoped');
 assert(route.includes('taskAccessibleTo'), 'task attachment access must use task participants/management permissions');
+assert(server.includes("'staff_task_attachments'"), 'public widget health must query the task attachment table');
+assert(server.includes('taskAttachments,'), 'public widget health must expose taskAttachments');
+assert(server.includes('chat && tasks && taskAttachments && voiceDirectory'), 'public widget health must fail closed when attachment schema is missing');
 console.log('UAT task communication window regression checks passed.');
