@@ -349,7 +349,9 @@
       <div class="t2m-task-inbox-context">
         <div class="t2m-task-context-switch">
           <button class="${taskState.scope==='mine'?'is-active':''}" data-task-context="mine">Mine</button>
-          ${taskState.management?`<button class="${taskState.scope==='team'?'is-active':''}" data-task-context="team">Team</button>`:''}
+          ${taskState.management
+            ? `<button class="${taskState.scope==='team'?'is-active':''}" data-task-context="team">Team</button>`
+            : `<button class="${taskState.scope==='all'?'is-active':''}" data-task-context="all">All</button>`}
         </div>
         <button class="new-task" data-task-new>+ Task</button>
       </div>`;
