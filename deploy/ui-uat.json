@@ -3,14 +3,14 @@
   "schema": 1,
   "repository": "SjlerAi/talk2me",
   "environment": "ui-uat",
-  "action": "hold",
-  "status": "HOLD",
-  "requestId": "hold-after-task-window-attachments-v2-20261005-1029z",
-  "sourceBranch": "release/talk2me-ui-uat-2026-10-05-task-window-attachments-v2",
-  "sourceSha": "d802c3c23c6c73d847109ef73f25da82ca4ebe76",
+  "action": "deploy",
+  "status": "DEPLOY",
+  "requestId": "new-task-scroll-actions-20261005-1037z",
+  "sourceBranch": "release/talk2me-ui-uat-2026-10-05-new-task-scroll-actions",
+  "sourceSha": "5bcdaaf52f20bbe76e3d1120648066fc8fa07974",
   "commit": null,
   "workflowRunId": null,
   "artifact": null,
   "sha256": null,
-  "requestedAt": null
+  "requestedAt": "2026-10-05T10:37:00Z"
 }
