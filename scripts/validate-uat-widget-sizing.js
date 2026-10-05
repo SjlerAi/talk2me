@@ -23,8 +23,9 @@ need(js, 'data-widget-max', 'widget maximise button');
 need(js, 'toggleMaximize(widget,key)', 'widget maximise/restore logic');
 need(js, 'data-widget-resize', 'visible resize handle');
 need(js, 'enableResize(widget,grip,key,size={})', 'pointer resize logic');
-need(js, "size:{width:740,height:650,minWidth:520,minHeight:360}", 'flexible task default size');
-need(js, "size:{width:600,height:700,minWidth:500,minHeight:560}", 'larger chat default size');
+need(js, "size:{width:780,height:680,minWidth:520,minHeight:360}", 'shared Work default size');
+need(js, 'const chatWidget=workWidget', 'Messages must use shared Work window');
+need(js, 'const taskWidget=workWidget', 'Tasks must use shared Work window');
 need(js, 'Math.max(minWidth,wantedWidth)', 'old saved width clamp');
 need(js, "handle.addEventListener('dblclick'", 'double-click header maximise');
 
@@ -45,4 +46,4 @@ need(polishCss, '.t2m-chat-staff-select', 'staff member selector');
 need(polishCss, '#t2m-task-widget .t2m-float-widget-body{overflow:hidden!important}', 'task scrolling controlled by core window layer');
 need(polishCss, '#t2m-task-widget .t2m-task-form select', 'readable task staff assignment control');
 
-console.log('UAT Messages and Tasks window validation passed.');
+console.log('UAT unified Work window sizing validation passed.');
