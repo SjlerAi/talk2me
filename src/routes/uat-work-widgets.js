@@ -495,7 +495,9 @@ router.get('/api/uat/tasks', requireAuth, async (req, res, next) => {
       ? 'sent'
       : requestedScope === 'team' && isManager
         ? 'team'
-        : 'mine';
+        : requestedScope === 'all' && !isManager
+          ? 'all'
+          : 'mine';
     const view = ['latest','urgent','attention'].includes(requestedView) ? requestedView : 'latest';
     const filter = legacyCompleted
       ? 'completed'
@@ -507,7 +509,9 @@ router.get('/api/uat/tasks', requireAuth, async (req, res, next) => {
       ? 't.created_by=:userId'
       : scope === 'team'
         ? '1=1'
-        : '(t.assigned_to=:userId OR t.created_by=:userId)';
+        : scope === 'all'
+          ? '(t.assigned_to=:userId OR t.created_by=:userId OR t.assigned_to IS NULL)'
+          : '(t.assigned_to=:userId OR t.created_by=:userId)';
 
     const activeStatusWhere = `(t.status IN ${ACTIVE_TASKS} OR (t.status='completed' AND w.workflow_state='awaiting_sender_ack'))`;
     const statusWhere = filter === 'completed' ? "t.status='completed'" : activeStatusWhere;
