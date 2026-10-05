@@ -243,3 +243,18 @@
   .t2m-work-mode-nav>button{padding:5px!important;font-size:10px!important}
   .t2m-work-mode-nav>button>span{display:none}
 }
+
+.t2m-os-launcher [data-badge="work"]{
+  position:static!important;
+  display:grid;
+  place-items:center;
+  min-width:20px;
+  height:20px;
+  padding:0 5px;
+  border-radius:999px;
+  background:#ed1c24;
+  color:#fff;
+  font-size:9px;
+  font-weight:900;
+}
+.t2m-os-launcher [data-badge="work"][hidden]{display:none!important}
