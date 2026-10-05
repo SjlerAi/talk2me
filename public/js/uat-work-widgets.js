@@ -200,8 +200,9 @@
 
   function workModeNav(active){
     return `<div class="t2m-work-mode-nav" role="tablist" aria-label="Work sections">
-      <button type="button" class="${active==='inbox'?'is-active':''}" data-work-mode="inbox"><span>✓</span><strong>Work inbox</strong></button>
+      <button type="button" class="${active==='inbox'?'is-active':''}" data-work-mode="inbox"><span>✓</span><strong>Inbox</strong></button>
       <button type="button" class="${active==='messages'?'is-active':''}" data-work-mode="messages"><span>●</span><strong>Messages</strong><b ${chatBootstrap?.unreadTotal?'':'hidden'}>${Number(chatBootstrap?.unreadTotal||0)}</b></button>
+      <button type="button" class="${active==='new'?'is-active':''}" data-work-mode="new"><span>＋</span><strong>New task</strong></button>
     </div>`;
   }
 
@@ -209,20 +210,22 @@
     root?.querySelectorAll('[data-work-mode]').forEach(button=>button.onclick=()=>{
       const next=button.dataset.workMode;
       if(next==='messages')openChat();
+      else if(next==='new')openTaskWidget({new:true});
       else openTaskWidget();
     });
   }
   const conversationByToken=token=>chatBootstrap?.conversations?.find(item=>item.token===token);
 
-  function paintBell(){
-    if(!chatBootstrap)return;
-    const total=Number(chatBootstrap.unreadTotal||0)+Number(taskState?.counts?.attention||0);
-    document.querySelectorAll('[data-badge="notifications"]').forEach(node=>{
+  function paintWorkCount(){
+    const taskAttention=Number(taskState?.counts?.attention||config.status?.taskCount||0);
+    const messageUnread=Number(chatBootstrap?.unreadTotal||0);
+    const total=taskAttention+messageUnread;
+    document.querySelectorAll('[data-badge="work"]').forEach(node=>{
       node.textContent=String(total);
       node.hidden=!total;
     });
   }
-  async function refreshBootstrap(){chatBootstrap=await jsonFetch('/api/uat/chat/bootstrap');paintBell();return chatBootstrap;}
+  async function refreshBootstrap(){chatBootstrap=await jsonFetch('/api/uat/chat/bootstrap');paintWorkCount();return chatBootstrap;}
 
   function renderMessageHtml(){if(!chatMessages.length)return '<div class="t2m-chat-empty"><strong>Start the conversation</strong><span>Quick, informal office communication stays here.</span></div>';return chatMessages.map(message=>{const mine=Number(message.senderId)===Number(user.id);return `<div class="t2m-chat-bubble-row ${mine?'is-me':''}"><article class="t2m-chat-bubble"><div class="t2m-chat-bubble-head"><strong>${esc(mine?'You':message.senderName)}</strong><span>${esc(prettyTime(message.createdAt))}</span></div>${message.type==='voice'?`<audio controls preload="metadata" src="${esc(message.voiceUrl)}"></audio>`:`<p>${esc(message.body)}</p>`}${message.relatedTaskId?`<button type="button" class="t2m-chat-task-link" data-chat-related-task="${Number(message.relatedTaskId)}">Open follow-up task</button>`:''}</article></div>`;}).join('');}
 
@@ -348,6 +351,8 @@
   }
 
   function renderTaskList(){
+    workMode='inbox';
+    paintWorkCount();
     fitWidgetMode(taskWidget,taskWidgetKey,{width:780,height:680,minWidth:520,minHeight:360});
     const counts=taskState.counts||{};
     const emptyTitle=taskState.filter==='completed'
@@ -452,9 +457,12 @@
   }
 
   function renderTaskNew(prefill={}){
-    fitWidgetMode(taskWidget,taskWidgetKey,{width:760,height:545,minWidth:520,minHeight:360});
+    workMode='new';
+    clearInterval(chatPoll);
+    fitWidgetMode(taskWidget,taskWidgetKey,{width:780,height:680,minWidth:520,minHeight:360});
     const defaultDue=prefill.date?`${prefill.date}T09:00`:'';
-    taskBody.innerHTML=`<form class="t2m-task-form t2m-task-form-new" data-task-form enctype="multipart/form-data"><div class="t2m-task-form-scroll" data-task-form-scroll><h3>New task</h3><label>Assign to<select name="assigned_to" required><option value="">Choose person</option>${(taskState.staff||[]).map(s=>`<option value="${s.id}">${esc(s.full_name)}</option>`).join('')}</select></label><label>Title<input name="title" maxlength="180" required placeholder="What needs doing?"></label><label>Task<textarea name="message" required placeholder="Short clear instruction"></textarea></label><div class="t2m-task-form-grid"><label>Due<input type="datetime-local" name="due_at" value="${esc(defaultDue)}"></label><label>Priority<select name="priority"><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></select></label></div><div class="t2m-task-file-picker"><div class="t2m-task-file-picker-row"><button type="button" data-task-files-choose>📎 Attach files</button><small>PDF, Word, Excel, PowerPoint, images and common office files · max 5 files, 15 MB each</small></div><input type="file" name="attachments" multiple accept="${taskFileAccept}" data-task-files hidden><div class="t2m-task-file-selection" data-task-files-list hidden></div></div></div><div class="t2m-task-form-actions" data-task-form-actions><button type="button" data-task-cancel>Cancel</button><button type="submit" class="primary">Create task</button></div></form>`;
+    taskBody.innerHTML=`${workModeNav('new')}<form class="t2m-task-form t2m-task-form-new" data-task-form enctype="multipart/form-data"><div class="t2m-task-form-scroll" data-task-form-scroll><h3>New task</h3><label>Assign to<select name="assigned_to" required><option value="">Choose person</option>${(taskState.staff||[]).map(s=>`<option value="${s.id}">${esc(s.full_name)}</option>`).join('')}</select></label><label>Title<input name="title" maxlength="180" required placeholder="What needs doing?"></label><label>Task<textarea name="message" required placeholder="Short clear instruction"></textarea></label><div class="t2m-task-form-grid"><label>Due<input type="datetime-local" name="due_at" value="${esc(defaultDue)}"></label><label>Priority<select name="priority"><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></select></label></div><div class="t2m-task-file-picker"><div class="t2m-task-file-picker-row"><button type="button" data-task-files-choose>📎 Attach files</button><small>PDF, Word, Excel, PowerPoint, images and common office files · max 5 files, 15 MB each</small></div><input type="file" name="attachments" multiple accept="${taskFileAccept}" data-task-files hidden><div class="t2m-task-file-selection" data-task-files-list hidden></div></div></div><div class="t2m-task-form-actions" data-task-form-actions><button type="button" data-task-cancel>Cancel</button><button type="submit" class="primary">Create task</button></div></form>`;
+    bindWorkModeNav(taskBody);
     const form=taskBody.querySelector('[data-task-form]');
     const formScroll=form.querySelector('[data-task-form-scroll]');
     bindTaskFilePicker(form);
@@ -483,7 +491,7 @@
       }catch(error){window.alert(error.message);}
       finally{if(submit.isConnected){submit.disabled=false;submit.textContent=old;}}
     };
-    taskBody.querySelector('[data-task-cancel]').onclick=()=>renderTaskList();
+    taskBody.querySelector('[data-task-cancel]').onclick=()=>openTaskWidget();
   }
 
   async function openTask(id){workMode='inbox';clearInterval(chatPoll);showWidget(workWidget);try{const data=await jsonFetch(`/api/uat/tasks/${id}`);taskState.mode='detail';taskState.selected=data;renderTaskDetail(data);}catch(error){taskBody.innerHTML=`<div class="t2m-chat-empty"><strong>Could not open task</strong><span>${esc(error.message)}</span></div>`;}}
@@ -538,7 +546,6 @@
 
   window.Talk2MeWidgets={openWork:openTaskWidget,openChat,openTasks:openTaskWidget,openTask};
   window.addEventListener('click',event=>{
-    const bell=event.target.closest?.('[data-os-app="notifications"]');if(bell){event.preventDefault();event.stopImmediatePropagation();openTaskWidget({view:'attention'});return;}
     const taskAdd=event.target.closest?.('[data-home-add-task]');if(taskAdd){event.preventDefault();event.stopImmediatePropagation();openTaskWidget({new:true});return;}
     const openCalendarTask=event.target.closest?.('[data-open-calendar-item]');if(openCalendarTask&&String(openCalendarTask.dataset.openCalendarItem||'').startsWith('task:')){event.preventDefault();event.stopImmediatePropagation();openTask(Number(String(openCalendarTask.dataset.openCalendarItem).split(':')[1]));return;}
     const taskApp=event.target.closest?.('[data-os-app="work"],[data-os-app="tasks"],[data-os-app="messages"]');if(taskApp){event.preventDefault();event.stopImmediatePropagation();taskApp.dataset.osApp==='messages'?openChat():openTaskWidget();}
