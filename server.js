@@ -144,6 +144,10 @@ app.use((req, res, next) => {
   next();
 });
 
+const { usageMiddleware } = require('./src/services/usage-telemetry');
+app.use(usageMiddleware());
+
+
 function registerPwaRoute(route, handler) {
   app.get(route, handler);
   if (BASE_PATH) app.get(`${BASE_PATH}${route}`, handler);
@@ -221,6 +225,10 @@ self.addEventListener('fetch', event => {
 
 app.use('/public', express.static(path.join(__dirname, 'public')));
 if (BASE_PATH) app.use(`${BASE_PATH}/public`, express.static(path.join(__dirname, 'public')));
+
+const usageTelemetry = require('./src/routes/usage-telemetry');
+app.use('/', usageTelemetry);
+if (BASE_PATH) app.use(BASE_PATH, usageTelemetry);
 
 const nightlyLogoutSettings = require('./src/routes/nightly-logout-settings');
 app.use('/', nightlyLogoutSettings);
