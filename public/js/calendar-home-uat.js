@@ -109,10 +109,7 @@
     const renderMenu = () => {
       const source = sidebar.querySelector('.t2m-simple-nav');
       const status = config.status || {};
-      const quick = [
-        { app: 'tasks', icon: '✓', label: 'Tasks', badge: Number(status.taskCount || 0) },
-        { app: 'messages', icon: '●', label: 'Messages', badge: Number(status.unreadMessageCount || 0) }
-      ];
+      const quick = [];
 
       menu.innerHTML = '<header><div><span>Talk2Me</span><strong>Menu</strong></div><button type="button" data-mobile-menu-close aria-label="Close menu">×</button></header><div class="t2m-mobile-menu-grid" data-mobile-menu-grid></div>';
       const grid = menu.querySelector('[data-mobile-menu-grid]');
@@ -173,6 +170,7 @@
     section.className = 't2m-os-sidebar-section t2m-simple-nav';
     section.innerHTML = `<span class="t2m-os-sidebar-label">Work</span>
       <button type="button" class="is-current" data-home-today aria-label="My Day" title="My Day"><span>□</span><strong>My Day</strong></button>
+      <button type="button" data-os-app="work" aria-label="Work" title="Work"><span>✓</span><strong>Work</strong></button>
       <button type="button" data-os-launch="customers" aria-label="Customers" title="Customers"><span>C</span><strong>Customers</strong></button>
       <button type="button" data-os-route="${basePath}/uat/library" data-route-title="Library" data-route-icon="L" aria-label="Library" title="Library"><span>L</span><strong>Library</strong></button>
       ${isManagement ? `<button type="button" data-os-route="${basePath}/command-centre" data-route-title="Team" data-route-icon="◆" aria-label="Team" title="Team"><span>◆</span><strong>Team</strong></button>
@@ -182,6 +180,19 @@
     sidebar.appendChild(section);
 
     const launcherScroll = launcher?.querySelector('.t2m-os-launcher-scroll');
+    if (launcherScroll && !launcherScroll.querySelector('[data-uat-work-launcher]')) {
+      const workLauncher = document.createElement('button');
+      workLauncher.type = 'button';
+      workLauncher.dataset.uatWorkLauncher = '1';
+      workLauncher.dataset.osApp = 'work';
+      workLauncher.setAttribute('aria-label', 'Work');
+      workLauncher.title = 'Work';
+      workLauncher.innerHTML = '<span class="t2m-brand-mark customer">W</span><strong>Work</strong>';
+      const customerLauncher = launcherScroll.querySelector('[data-os-launch="customers"]');
+      if (customerLauncher) launcherScroll.insertBefore(workLauncher, customerLauncher);
+      else launcherScroll.prepend(workLauncher);
+    }
+
     if (launcherScroll && !launcherScroll.querySelector('[data-uat-library-launcher]')) {
       const libraryLauncher = document.createElement('button');
       libraryLauncher.type = 'button';
