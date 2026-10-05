@@ -181,7 +181,8 @@
 }
 #t2m-task-widget .t2m-work-mode-nav + .t2m-task-shell,
 #t2m-task-widget .t2m-work-mode-nav + .t2m-chat-shell,
-#t2m-task-widget .t2m-work-mode-nav + .t2m-task-form{
+#t2m-task-widget .t2m-work-mode-nav + .t2m-task-form,
+#t2m-task-widget .t2m-work-mode-nav + .t2m-task-detail{
   height:calc(100% - 53px)!important;
   min-height:0!important;
 }
