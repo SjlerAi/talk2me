@@ -39,6 +39,8 @@ assert(widgets.includes("data-work-mode=\"new\""), 'Work window must contain New
 assert(widgets.includes("workModeNav('new')"), 'New task form must keep the Work navigation visible');
 assert(widgets.includes("else if(next==='new')openTaskWidget({new:true})"), 'New task tab must open inside the shared Work window');
 assert(widgetCss.includes('.t2m-work-mode-nav + .t2m-task-form'), 'New task form must fit below the shared Work tabs');
+assert(widgets.includes("${workModeNav('inbox')}<div class=\"t2m-task-detail\""), 'task detail must keep Work navigation visible');
+assert(widgetCss.includes('.t2m-work-mode-nav + .t2m-task-detail'), 'task detail must fit below the shared Work tabs');
 assert(widgets.includes("workMode!=='messages'"), 'chat poller must not repaint Work inbox mode');
 assert(widgets.includes("clearInterval(chatPoll);showWidget(workWidget)"), 'switching to Work inbox must stop the message poller');
 assert(widgetCss.includes('.t2m-work-mode-nav'), 'unified Work mode switch must be styled');
