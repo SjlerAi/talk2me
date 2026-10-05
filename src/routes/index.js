@@ -5,7 +5,8 @@ const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, businessDate } = require('../middleware/auth');
+const { trackEvent } = require('../services/usage-telemetry');
 const { sendTaskEmail } = require('../services/mailer');
 const { hasPermission, requirePermission, requireRole } = require('../middleware/permissions');
 const { audit } = require('../services/audit');
@@ -219,9 +220,22 @@ router.post('/login', async (req, res, next) => {
         });
         req.session.user=sessionUser;
         req.session.loginSessionId=loginRecord.insertId;
+        req.session.loginDate=businessDate();
         req.session.activityPingAt=Date.now();
         req.session.cookie.maxAge=8 * 60 * 60 * 1000;
         await db.execute('UPDATE staff_users SET last_login_at=NOW() WHERE id=:id', { id:user.id });
+        await trackEvent({
+          staffId:user.id,
+          eventType:'login',
+          screenKey:'login',
+          routePath:'/login',
+          moduleName:'attendance',
+          entityType:'staff_login_sessions',
+          entityId:loginRecord.insertId,
+          httpMethod:'POST',
+          httpStatus:302,
+          metadata:{ loginDate:req.session.loginDate }
+        });
         req.session.save(saveError => saveError ? next(saveError) : res.redirect(`${res.locals.basePath}${defaultLanding(sessionUser)}`));
       } catch(e){ next(e); }
     });
@@ -233,6 +247,11 @@ router.post('/logout', async (req, res) => {
     if(req.session.loginSessionId && req.session.user){
       await db.execute(`UPDATE staff_login_sessions SET logout_at=NOW(),last_activity_at=NOW(),session_status='logged_out',logout_reason='manual'
         WHERE id=:id AND staff_id=:staffId AND session_status='active'`,{id:req.session.loginSessionId,staffId:req.session.user.id});
+      await trackEvent({
+        staffId:req.session.user.id,eventType:'logout',screenKey:'logout',routePath:'/logout',
+        moduleName:'attendance',entityType:'staff_login_sessions',entityId:req.session.loginSessionId,
+        httpMethod:'POST',httpStatus:302,metadata:{reason:'manual'}
+      });
     }
   } catch(error){ console.error('Could not record logout',error); }
   req.session.destroy(() => res.redirect(`${res.locals.basePath}/login`));
