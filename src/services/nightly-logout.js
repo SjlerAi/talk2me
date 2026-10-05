@@ -1,7 +1,8 @@
 const db = require('../config/db');
 
 const DEFAULT_TIMEZONE = 'Africa/Johannesburg';
-const DEFAULT_LOGOUT_TIME = '22:00:00';
+const IS_UAT = String(process.env.UAT_MODE || '').trim().toLowerCase() === 'true';
+const DEFAULT_LOGOUT_TIME = IS_UAT ? '18:00:00' : '22:00:00';
 
 let schemaReady = false;
 let schemaPromise = null;
@@ -60,6 +61,14 @@ async function ensureNightlyLogoutSchema() {
       logoutTime: DEFAULT_LOGOUT_TIME,
       timezone: DEFAULT_TIMEZONE
     });
+
+    if (IS_UAT) {
+      // UAT office policy: any forgotten session is closed at 18:00.
+      // Manual logout remains preferred and is recorded separately.
+      await db.execute(`UPDATE nightly_logout_settings
+        SET logout_time=:logoutTime
+        WHERE id=1 AND logout_time='22:00:00'`, { logoutTime: DEFAULT_LOGOUT_TIME });
+    }
 
     schemaReady = true;
   })().finally(() => { schemaPromise = null; });
