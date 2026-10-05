@@ -98,22 +98,25 @@ if (UAT_MODE) {
     try {
       await publicUatWidgets.ensureSchema();
       const [rows] = await db.execute(`SELECT TABLE_NAME FROM information_schema.TABLES
-        WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN ('staff_chat_messages','staff_chat_reads','staff_tasks','staff_task_workflow')`);
+        WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN ('staff_chat_messages','staff_chat_reads','staff_tasks','staff_task_workflow','staff_task_attachments')`);
       const names = new Set(rows.map(row => row.TABLE_NAME));
       const chat = names.has('staff_chat_messages') && names.has('staff_chat_reads');
       const tasks = names.has('staff_tasks') && names.has('staff_task_workflow');
+      const taskAttachments = names.has('staff_task_attachments');
       const voiceDirectory = String(process.env.PRIVATE_UPLOAD_DIR || '').trim() === '/home/uent/talk2me_uat_private_uploads';
-      res.status(chat && tasks && voiceDirectory ? 200 : 503).json({
-        status: chat && tasks && voiceDirectory ? 'ok' : 'error',
+      const healthy = chat && tasks && taskAttachments && voiceDirectory;
+      res.status(healthy ? 200 : 503).json({
+        status: healthy ? 'ok' : 'error',
         environment: 'uat',
         database: 'connected',
         chat,
         tasks,
+        taskAttachments,
         voiceDirectory
       });
     } catch (error) {
       console.error('Public UAT widget health check failed:', error.message);
-      res.status(503).json({ status: 'error', environment: 'uat', database: 'unavailable', chat: false, tasks: false, voiceDirectory: false });
+      res.status(503).json({ status: 'error', environment: 'uat', database: 'unavailable', chat: false, tasks: false, taskAttachments: false, voiceDirectory: false });
     }
   });
 }
