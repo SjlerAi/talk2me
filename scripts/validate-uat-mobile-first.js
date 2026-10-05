@@ -26,8 +26,9 @@ assert(mobile.includes('.t2m-os-taskbar-label{display:none!important}'), 'mobile
 assert(mobile.includes('.assignment-form{'), 'UAT route assignment forms must stack on mobile');
 assert(calendar.includes('data-mobile-menu-toggle'), 'mobile navigation toggle must exist');
 assert(calendar.includes('data-mobile-menu-grid'), 'mobile navigation drawer must render CRM navigation');
-assert(calendar.includes("{ app: 'tasks'"), 'mobile navigation must expose Tasks');
-assert(calendar.includes("{ app: 'messages'"), 'mobile navigation must expose Messages');
+assert(calendar.includes('data-os-app="work"'), 'mobile navigation must expose unified Work');
+assert(!calendar.includes("{ app: 'tasks'"), 'mobile navigation must not duplicate Tasks after Work consolidation');
+assert(!calendar.includes("{ app: 'messages'"), 'mobile navigation must not duplicate Messages after Work consolidation');
 assert(mobile.includes('.t2m-mobile-menu{'), 'mobile navigation drawer must be styled');
 assert(mobile.includes('inset:0!important'), 'mobile menu backdrop must cover the screen for tap-away closing');
 assert(mobile.includes('z-index:12000!important'), 'mobile top bar must stay above launcher content');
@@ -36,6 +37,6 @@ assert(mobile.includes('width:min(330px,calc(100vw - 16px))!important'), 'mobile
 assert(mobile.includes('grid-template-columns:1fr!important'), 'mobile menu choices must use a clean one-column list');
 assert(mobile.includes('.t2m-os-top-actions .t2m-os-icon-button>.t2m-os-badge'), 'top mobile badges must have an explicit inset rule');
 assert(mobile.includes('top:2px!important'), 'top mobile badges must sit inside their buttons');
-assert(loader.includes('widgets-3'), 'UAT asset version must change so phones receive the new mobile CSS');
+assert(loader.includes('widgets-4'), 'UAT asset version must change so phones receive the unified Work/mobile release');
 
 console.log('UAT mobile-first responsive validation passed at phone/tablet breakpoints.');
