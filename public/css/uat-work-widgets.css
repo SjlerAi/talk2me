@@ -179,6 +179,11 @@
   background:#202832;
   color:#fff;
 }
+#t2m-task-widget .t2m-work-mode-nav + .t2m-task-shell,
+#t2m-task-widget .t2m-work-mode-nav + .t2m-chat-shell{
+  height:calc(100% - 53px)!important;
+  min-height:0!important;
+}
 .t2m-work-mode-nav>button>b{
   display:grid;
   place-items:center;
