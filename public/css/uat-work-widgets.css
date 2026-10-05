@@ -149,3 +149,84 @@
   #t2m-task-widget:not(.is-collapsed),#t2m-messenger-widget:not(.is-collapsed){left:0!important;right:0!important;top:70px!important;bottom:0!important;width:auto!important;height:auto!important;max-width:none!important;max-height:none!important;min-width:0!important;min-height:0!important;border-radius:0!important}
   #t2m-task-widget .t2m-task-thread-compose-row{grid-template-columns:40px minmax(0,1fr) auto}
 }
+
+
+/* Unified Work: Tasks + Messages share one floating workspace. */
+.t2m-work-mode-nav{
+  flex:0 0 auto;
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:6px;
+  padding:7px 8px;
+  border-bottom:1px solid #dfe5ea;
+  background:#f6f8fa;
+}
+.t2m-work-mode-nav>button{
+  min-height:38px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:7px;
+  border:1px solid #d6dee5;
+  border-radius:9px;
+  background:#fff;
+  color:#4b5865;
+  font-size:11px;
+  font-weight:850;
+}
+.t2m-work-mode-nav>button.is-active{
+  border-color:#202832;
+  background:#202832;
+  color:#fff;
+}
+.t2m-work-mode-nav>button>b{
+  display:grid;
+  place-items:center;
+  min-width:20px;
+  height:20px;
+  padding:0 5px;
+  border-radius:999px;
+  background:#ed1c24;
+  color:#fff;
+  font-size:9px;
+}
+.t2m-work-history-filters{
+  display:flex;
+  align-items:center;
+  gap:5px;
+  overflow-x:auto;
+  padding:6px 8px 2px;
+  scrollbar-width:thin;
+}
+.t2m-work-history-filters>span{
+  flex:0 0 auto;
+  color:#7b8793;
+  font-size:9px;
+  font-weight:900;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  margin-right:2px;
+}
+.t2m-work-history-filters>button{
+  flex:0 0 auto;
+  min-height:30px;
+  padding:5px 9px;
+  border:1px solid #d8e0e6;
+  border-radius:999px;
+  background:#fff;
+  color:#4f5c69;
+  font-size:9px;
+  font-weight:850;
+  white-space:nowrap;
+}
+.t2m-work-history-filters>button.is-active{
+  border-color:#202832;
+  background:#202832;
+  color:#fff;
+}
+@media(max-width:620px){
+  .t2m-work-mode-nav{padding:6px}
+  .t2m-work-mode-nav>button{min-height:40px;font-size:12px}
+  .t2m-work-history-filters{padding:6px 6px 3px}
+  .t2m-work-history-filters>button{min-height:34px;font-size:10px}
+}
