@@ -7,7 +7,6 @@ const loader=fs.readFileSync('public/js/os-v6-alpha21-17.js','utf8');
 const shell=fs.readFileSync('views/os-shell.ejs','utf8');
 const layout=fs.readFileSync('views/layout.ejs','utf8');
 const calendar=fs.readFileSync('public/js/calendar-home-uat.js','utf8');
-const loader=fs.readFileSync('public/js/os-v6-alpha21-17.js','utf8');
 
 assert(shell.includes('name="viewport" content="width=device-width, initial-scale=1"'), 'OS shell must declare a responsive viewport');
 assert(layout.includes('name="viewport" content="width=device-width,initial-scale=1"'), 'route layout must declare a responsive viewport');
