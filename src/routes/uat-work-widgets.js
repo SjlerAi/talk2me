@@ -507,7 +507,7 @@ router.get('/api/uat/tasks', requireAuth, async (req, res, next) => {
     const view = ['latest','urgent','attention'].includes(requestedView) ? requestedView : 'latest';
     const filter = legacyCompleted
       ? 'completed'
-      : ['all','new','old','7days','14days','month','today','week','overdue','upcoming','completed'].includes(requestedFilter)
+      : ['all','new','old','7days','14days','month','history_all','today','week','overdue','upcoming','completed'].includes(requestedFilter)
         ? requestedFilter
         : 'all';
 
@@ -520,7 +520,7 @@ router.get('/api/uat/tasks', requireAuth, async (req, res, next) => {
           : '(t.assigned_to=:userId OR t.created_by=:userId)';
 
     const activeStatusWhere = `(t.status IN ${ACTIVE_TASKS} OR (t.status='completed' AND w.workflow_state='awaiting_sender_ack'))`;
-    const historyFilter = ['new','old','7days','14days','month','all'].includes(filter);
+    const historyFilter = ['new','old','7days','14days','month','history_all'].includes(filter);
     const statusWhere = filter === 'completed'
       ? "t.status='completed'"
       : historyFilter
