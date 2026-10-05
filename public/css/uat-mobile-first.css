@@ -22,7 +22,7 @@ html,body{max-width:100%}
   /* Shell: search first, compact actions second, launcher third. */
   .t2m-calendar-home-shell{
     grid-template-columns:1fr!important;
-    grid-template-rows:108px 58px minmax(0,1fr) 46px!important;
+    grid-template-rows:116px 60px minmax(0,1fr) 46px!important;
     width:100%!important;
     max-width:100%!important;
     overflow:hidden!important;
@@ -33,14 +33,17 @@ html,body{max-width:100%}
     min-width:0!important;
     width:100%!important;
     height:auto!important;
-    min-height:108px!important;
+    min-height:116px!important;
     display:grid!important;
     grid-template-columns:minmax(0,1fr) auto!important;
-    grid-template-rows:48px 48px!important;
+    grid-template-rows:50px 50px!important;
     align-items:center!important;
-    gap:4px 6px!important;
-    padding:4px 8px!important;
-    overflow:hidden!important;
+    gap:6px!important;
+    padding:5px 8px!important;
+    overflow:visible!important;
+    position:relative!important;
+    z-index:12000!important;
+    border-bottom:3px solid #ed1c24!important;
   }
   .t2m-os-brand{display:none!important}
   .t2m-os-search{
@@ -101,9 +104,11 @@ html,body{max-width:100%}
     min-width:0!important;
     width:100%!important;
     max-width:100%!important;
-    height:58px!important;
-    min-height:58px!important;
-    padding:4px 5px!important;
+    height:60px!important;
+    min-height:60px!important;
+    padding:5px 5px!important;
+    position:relative!important;
+    z-index:9000!important;
     overflow:hidden!important;
   }
   .t2m-calendar-home-shell .t2m-os-launcher-scroll{
@@ -297,5 +302,143 @@ html,body{max-width:100%}
   .panel-page input,.panel-page select,.panel-page textarea,
   .command-page input,.command-page select,.command-page textarea{
     font-size:16px!important;
+  }
+}
+
+
+/* Mobile CRM navigation drawer. Desktop sidebar is hidden on phones, so this is the phone replacement. */
+.t2m-mobile-menu-toggle,
+.t2m-mobile-menu,
+.t2m-mobile-menu-backdrop{display:none}
+
+@media (max-width:760px){
+  .t2m-mobile-menu-toggle{
+    display:grid!important;
+    place-items:center!important;
+    flex:0 0 40px!important;
+    width:40px!important;
+    min-width:40px!important;
+    height:40px!important;
+    border:1px solid #202832!important;
+    border-radius:10px!important;
+    background:#202832!important;
+    color:#fff!important;
+    font-size:21px!important;
+    line-height:1!important;
+  }
+  .t2m-mobile-menu-backdrop{
+    display:block;
+    position:fixed;
+    z-index:25000;
+    inset:116px 0 46px;
+    width:100%;
+    border:0;
+    background:rgba(21,29,38,.38);
+    backdrop-filter:blur(1px);
+  }
+  .t2m-mobile-menu{
+    display:block;
+    position:fixed;
+    z-index:26000;
+    top:122px;
+    left:8px;
+    right:8px;
+    max-height:calc(100dvh - 176px);
+    overflow:auto;
+    padding:10px;
+    border:1px solid #d7e0e8;
+    border-radius:16px;
+    background:#fff;
+    box-shadow:0 24px 70px rgba(21,29,38,.28);
+    color:#202832;
+    -webkit-overflow-scrolling:touch;
+  }
+  .t2m-mobile-menu[hidden],
+  .t2m-mobile-menu-backdrop[hidden]{display:none!important}
+  .t2m-mobile-menu>header{
+    position:sticky;
+    top:-10px;
+    z-index:2;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    margin:-10px -10px 8px;
+    padding:10px 12px;
+    border-bottom:1px solid #e7ebef;
+    background:#fff;
+  }
+  .t2m-mobile-menu>header div{display:grid;gap:1px}
+  .t2m-mobile-menu>header span{
+    color:#7b8794;
+    font-size:9px;
+    font-weight:900;
+    letter-spacing:.12em;
+    text-transform:uppercase;
+  }
+  .t2m-mobile-menu>header strong{font-size:18px}
+  .t2m-mobile-menu>header button{
+    width:36px;
+    height:36px;
+    border:1px solid #d7e0e8;
+    border-radius:9px;
+    background:#f5f7f9;
+    color:#202832;
+    font-size:22px;
+  }
+  .t2m-mobile-menu-grid{
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:8px;
+  }
+  .t2m-mobile-menu-grid>button{
+    position:relative;
+    min-width:0;
+    min-height:58px;
+    display:grid;
+    grid-template-columns:36px minmax(0,1fr) auto;
+    align-items:center;
+    gap:8px;
+    padding:9px 10px;
+    border:1px solid #dbe2e8;
+    border-radius:11px;
+    background:#f8fafc;
+    color:#202832;
+    text-align:left;
+  }
+  .t2m-mobile-menu-grid>button>span{
+    width:34px;
+    height:34px;
+    display:grid;
+    place-items:center;
+    border-radius:9px;
+    background:#e7f3fb;
+    color:#17608b;
+    font-weight:900;
+  }
+  .t2m-mobile-menu-grid>button>strong{
+    min-width:0;
+    font-size:12px;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .t2m-mobile-menu-grid>button>b{
+    display:grid;
+    place-items:center;
+    min-width:20px;
+    height:20px;
+    padding:0 5px;
+    border-radius:999px;
+    background:#ed1c24;
+    color:#fff;
+    font-size:9px;
+  }
+  .t2m-mobile-menu-grid>button.is-current{
+    border-color:#202832;
+    background:#eef2f5;
+    box-shadow:inset 3px 0 #ed1c24;
+  }
+  .t2m-os-search-results{
+    z-index:30000!important;
   }
 }
