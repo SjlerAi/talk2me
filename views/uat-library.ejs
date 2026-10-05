@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#202832">
+  <title>Talk2Me Library</title>
+  <link rel="stylesheet" href="<%= basePath %>/public/css/uat-library.css?v=<%= encodeURIComponent(appVersion) %>">
+</head>
+<body>
+  <main class="library-app" data-library-app>
+    <header class="library-topbar">
+      <div>
+        <span>Talk2Me</span>
+        <h1>Library</h1>
+        <p>Everything staff need to show, open and share with customers.</p>
+      </div>
+      <div class="library-top-actions">
+        <button type="button" class="secondary" data-library-refresh>Refresh</button>
+        <button type="button" class="primary" data-library-admin hidden>Manage Library</button>
+      </div>
+    </header>
+
+    <section class="library-toolbar">
+      <label class="library-search">
+        <span aria-hidden="true">⌕</span>
+        <input type="search" placeholder="Search documents, prices, brochures..." data-library-search>
+      </label>
+      <div class="library-filter-row" data-library-filters></div>
+    </section>
+
+    <section class="library-featured" data-library-featured hidden>
+      <header><span>Quick access</span><strong>Company favourites</strong></header>
+      <div class="library-featured-grid" data-library-featured-grid></div>
+    </section>
+
+    <section class="library-content">
+      <aside class="library-categories">
+        <button type="button" class="is-active" data-library-category="all"><span>▦</span><strong>All files</strong></button>
+        <button type="button" data-library-category="favourites"><span>★</span><strong>My favourites</strong></button>
+        <div data-library-category-list></div>
+      </aside>
+      <section class="library-results">
+        <header>
+          <div><span data-library-result-kicker>Library</span><strong data-library-result-title>All files</strong></div>
+          <b data-library-count>0</b>
+        </header>
+        <div class="library-card-grid" data-library-grid></div>
+      </section>
+    </section>
+  </main>
+
+  <dialog class="library-viewer" data-library-viewer>
+    <div class="library-viewer-shell">
+      <header>
+        <div><span data-viewer-category></span><strong data-viewer-title></strong><small data-viewer-meta></small></div>
+        <div class="library-viewer-actions">
+          <button type="button" data-viewer-favourite>☆ Favourite</button>
+          <a data-viewer-download href="#" target="_blank" rel="noopener">Download original</a>
+          <button type="button" data-viewer-fullscreen>Full screen</button>
+          <button type="button" class="close" data-viewer-close aria-label="Close">×</button>
+        </div>
+      </header>
+      <div class="library-viewer-body" data-viewer-body></div>
+    </div>
+  </dialog>
+
+  <dialog class="library-admin" data-library-admin-dialog>
+    <div class="library-admin-shell">
+      <header>
+        <div><span>Administration</span><strong>Library Management</strong></div>
+        <button type="button" data-admin-close aria-label="Close">×</button>
+      </header>
+      <nav class="library-admin-tabs">
+        <button type="button" class="is-active" data-admin-tab="upload">Upload</button>
+        <button type="button" data-admin-tab="documents">Documents</button>
+        <button type="button" data-admin-tab="snapshots">Month-end</button>
+      </nav>
+
+      <section data-admin-panel="upload">
+        <form class="library-admin-form" data-library-upload-form enctype="multipart/form-data">
+          <h2>Add a document</h2>
+          <div class="library-form-grid">
+            <label>Title<input name="title" maxlength="180" required placeholder="e.g. Fibre Pricing October 2026"></label>
+            <label>Category<input name="category" list="library-category-options" maxlength="80" required placeholder="Pricing"></label>
+          </div>
+          <label>Description<textarea name="description" rows="3" maxlength="5000" placeholder="What staff should know about this file"></textarea></label>
+          <div class="library-form-grid">
+            <label>Who can see it<select name="access_level"><option value="all">All staff</option><option value="management">Managers / admins only</option></select></label>
+            <label class="check"><input type="checkbox" name="company_favourite" value="1"> Company favourite / Quick access</label>
+          </div>
+          <label class="library-dropzone">Choose file
+            <input type="file" name="file" required accept=".pdf,.xlsx,.xls,.csv,.doc,.docx,.ppt,.pptx,.txt,.rtf,.jpg,.jpeg,.png,.webp,.gif">
+            <small>PDF, images, Excel/CSV, Word, PowerPoint, text or RTF · up to 40 MB</small>
+          </label>
+          <div class="library-form-actions"><span data-upload-status></span><button type="submit" class="primary">Upload & publish</button></div>
+        </form>
+      </section>
+
+      <section data-admin-panel="documents" hidden>
+        <div class="library-admin-list" data-admin-documents></div>
+      </section>
+
+      <section data-admin-panel="snapshots" hidden>
+        <div class="library-snapshot-tools">
+          <div>
+            <h2>Take the Library out again</h2>
+            <p>Create a normal ZIP containing the original active files plus an Excel index.</p>
+          </div>
+          <div class="library-snapshot-actions">
+            <a class="secondary" href="<%= basePath %>/api/uat/library/export/current">Export current Library ZIP</a>
+            <label>Snapshot month<input type="month" data-snapshot-month></label>
+            <button type="button" class="primary" data-create-snapshot>Create month-end snapshot</button>
+          </div>
+        </div>
+        <div class="library-admin-list" data-snapshot-list></div>
+      </section>
+    </div>
+  </dialog>
+
+  <dialog class="library-replace" data-library-replace-dialog>
+    <form method="dialog" class="library-replace-shell" data-library-replace-form enctype="multipart/form-data">
+      <header><div><span>New version</span><strong data-replace-title></strong></div><button value="cancel" aria-label="Close">×</button></header>
+      <p>The old version stays in history. Staff will immediately see this new version.</p>
+      <input type="file" name="file" required accept=".pdf,.xlsx,.xls,.csv,.doc,.docx,.ppt,.pptx,.txt,.rtf,.jpg,.jpeg,.png,.webp,.gif">
+      <input type="hidden" name="document_id" data-replace-id>
+      <footer><span data-replace-status></span><button value="cancel" class="secondary">Cancel</button><button type="button" class="primary" data-replace-save>Upload new version</button></footer>
+    </form>
+  </dialog>
+
+  <datalist id="library-category-options"></datalist>
+  <script id="library-config" type="application/json"><%- JSON.stringify({basePath,user:{id:currentUser.id,name:currentUser.full_name,role:currentUser.role}}).replace(/</g,'\u003c') %></script>
+  <script src="<%= basePath %>/public/js/uat-library.js?v=<%= encodeURIComponent(appVersion) %>"></script>
+</body>
+</html>
