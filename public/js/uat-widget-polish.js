@@ -263,7 +263,7 @@
   function polishChat() {
     const widget = document.getElementById('t2m-messenger-widget');
     if (!widget) return;
-    ensureUsableSize(widget, 500, 560);
+    ensureUsableSize(widget, 480, 420);
     bindChatComposerOnce(widget);
     const subtitle = widget.querySelector('.t2m-float-widget-head-copy small');
     if (subtitle) subtitle.textContent = 'People & Office';
@@ -323,7 +323,7 @@
   function polishTasks() {
     const widget = document.getElementById('t2m-task-widget');
     if (!widget) return;
-    ensureUsableSize(widget, 580, 640);
+    ensureUsableSize(widget, 520, 360);
   }
 
   function polishAll() {

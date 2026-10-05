@@ -15,6 +15,8 @@
   const prettyTime = value => value ? new Date(value).toLocaleTimeString('en-ZA',{hour:'2-digit',minute:'2-digit'}) : '';
   const prettyDateTime = value => value ? new Date(value).toLocaleString('en-ZA',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
   const dateTimeInput = value => { if(!value)return ''; const date=new Date(value); if(Number.isNaN(date.getTime()))return String(value).replace(' ','T').slice(0,16); const local=new Date(date.getTime()-date.getTimezoneOffset()*60000); return local.toISOString().slice(0,16); };
+  let floatingWidgetZ = 30000;
+  const taskFileAccept = '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv,.txt,.rtf,.jpg,.jpeg,.png,.webp';
 
   async function jsonFetch(path, options={}) {
     const response = await fetch(`${basePath}${path}`, {
@@ -51,6 +53,7 @@
           widget.style.bottom='auto';
         }
       }
+      if(Number.isFinite(saved.width)||Number.isFinite(saved.height))widget.dataset.userSized='1';
       if(saved.collapsed)widget.classList.add('is-collapsed');
     }catch(_){}
   }
@@ -69,7 +72,32 @@
       collapsed:widget.classList.contains('is-collapsed')
     }));
   }
+  function bringWidgetToFront(widget){
+    if(!widget)return;
+    widget.style.zIndex=String(++floatingWidgetZ);
+    document.querySelectorAll('.t2m-float-widget').forEach(item=>item.classList.toggle('is-widget-focused',item===widget));
+  }
+  function showWidget(widget){
+    widget.hidden=false;
+    widget.classList.remove('is-collapsed');
+    bringWidgetToFront(widget);
+  }
+  function fitWidgetMode(widget,key,size={}){
+    if(!widget||widget.dataset.userSized==='1'||widget.classList.contains('is-maximized')||widget.classList.contains('is-collapsed'))return;
+    if(window.matchMedia('(max-width:620px)').matches)return;
+    const maxWidth=Math.max(360,window.innerWidth-24);
+    const maxHeight=Math.max(360,window.innerHeight-92);
+    const width=Math.min(maxWidth,Math.max(Number(size.minWidth)||520,Number(size.width)||720));
+    const height=Math.min(maxHeight,Math.max(Number(size.minHeight)||360,Number(size.height)||600));
+    widget.style.width=`${Math.round(width)}px`;
+    widget.style.height=`${Math.round(height)}px`;
+    const rect=widget.getBoundingClientRect();
+    if(rect.right>window.innerWidth-4)widget.style.left=`${Math.max(4,window.innerWidth-width-4)}px`;
+    if(rect.bottom>window.innerHeight-4)widget.style.top=`${Math.max(76,window.innerHeight-height-4)}px`;
+    widget.style.right='auto';widget.style.bottom='auto';
+  }
   function toggleMaximize(widget,key){
+    bringWidgetToFront(widget);
     const button=widget.querySelector('[data-widget-max]');
     if(widget.classList.contains('is-maximized')){
       widget.classList.remove('is-maximized');
@@ -139,6 +167,7 @@
         grip.removeEventListener('pointermove',move);
         grip.removeEventListener('pointerup',done);
         grip.removeEventListener('pointercancel',done);
+        widget.dataset.userSized='1';
         remember(widget,key);
       };
       grip.addEventListener('pointermove',move);
@@ -151,7 +180,7 @@
     let widget=document.getElementById(id);if(widget)return widget;
     widget=document.createElement('section');widget.id=id;widget.className='t2m-float-widget';widget.hidden=true;
     widget.innerHTML=`<header class="t2m-float-widget-head" data-widget-drag><span class="avatar">${esc(icon)}</span><span class="t2m-float-widget-head-copy"><strong>${esc(title)}</strong><small>${esc(subtitle)}</small></span><span class="t2m-float-widget-head-actions"><button type="button" data-widget-min title="Minimise">—</button><button type="button" data-widget-max title="Maximise">□</button><button type="button" data-widget-close title="Hide">×</button></span></header><div class="t2m-float-widget-body" data-widget-body></div><span class="t2m-widget-resize-grip" data-widget-resize title="Drag to resize" aria-hidden="true"></span>`;
-    document.body.appendChild(widget);restore(widget,key,size);enableDrag(widget,widget.querySelector('[data-widget-drag]'),key);enableResize(widget,widget.querySelector('[data-widget-resize]'),key,size);
+    document.body.appendChild(widget);restore(widget,key,size);enableDrag(widget,widget.querySelector('[data-widget-drag]'),key);enableResize(widget,widget.querySelector('[data-widget-resize]'),key,size);widget.addEventListener('pointerdown',()=>bringWidgetToFront(widget),true);
     widget.querySelector('[data-widget-min]').onclick=()=>{
       if(widget.classList.contains('is-maximized'))toggleMaximize(widget,key);
       widget.classList.toggle('is-collapsed');remember(widget,key);
@@ -218,37 +247,122 @@
   function cancelVoice(){if(recorder&&recorder.state==='recording'){cancelRecording=true;recorder.stop();}}
   function updateRecordingUI(){const bar=chatBody.querySelector('[data-recording]'),button=chatBody.querySelector('[data-chat-voice]');if(!recorder||recorder.state!=='recording'){if(bar)bar.hidden=true;if(button)button.classList.remove('is-recording');return;}if(bar)bar.hidden=false;if(button)button.classList.add('is-recording');const elapsed=Math.floor((Date.now()-voiceStarted)/1000),label=chatBody.querySelector('[data-recording-time]');if(label)label.textContent=`Recording ${Math.floor(elapsed/60)}:${String(elapsed%60).padStart(2,'0')} · tap mic to send`;if(elapsed>=180){cancelRecording=false;recorder.stop();}else setTimeout(updateRecordingUI,500);}
 
-  async function openChat(){chatWidget.hidden=false;chatWidget.classList.remove('is-collapsed');try{await refreshBootstrap();chatMessages=[];renderChatShell();if(chatTab==='system')await loadSystem();else await loadConversation(chatConversation);}catch(error){chatBody.innerHTML=`<div class="t2m-chat-empty"><strong>Could not open chat</strong><span>${esc(error.message)}</span></div>`;}clearInterval(chatPoll);chatPoll=setInterval(async()=>{if(chatWidget.hidden)return;try{await refreshBootstrap();if(chatTab!=='system')await loadConversation(chatConversation);else{renderChatShell();await loadSystem();}}catch(_){}},12000);}
+  async function openChat(){showWidget(chatWidget);try{await refreshBootstrap();chatMessages=[];renderChatShell();if(chatTab==='system')await loadSystem();else await loadConversation(chatConversation);}catch(error){chatBody.innerHTML=`<div class="t2m-chat-empty"><strong>Could not open chat</strong><span>${esc(error.message)}</span></div>`;}clearInterval(chatPoll);chatPoll=setInterval(async()=>{if(chatWidget.hidden)return;try{await refreshBootstrap();if(chatTab!=='system')await loadConversation(chatConversation);else{renderChatShell();await loadSystem();}}catch(_){}},12000);}
 
-  const taskWidget=makeWidget({id:'t2m-task-widget',title:'Tasks',subtitle:'Quick work cards',icon:'✓',key:`t2m-task-widget-${user.id}`,size:{width:680,height:760,minWidth:580,minHeight:640}});
+
+  function formatTaskBytes(bytes){
+    const value=Number(bytes||0);
+    if(value<1024)return `${value} B`;
+    if(value<1024*1024)return `${(value/1024).toFixed(value<10*1024?1:0)} KB`;
+    return `${(value/(1024*1024)).toFixed(1)} MB`;
+  }
+  function taskAttachmentsHtml(items=[]){
+    if(!items.length)return '';
+    return `<div class="t2m-task-attachment-list">${items.map(file=>`<a class="t2m-task-attachment" href="${esc(file.url)}" target="_blank" rel="noopener"><span>📎</span><strong>${esc(file.name)}</strong><small>${esc(formatTaskBytes(file.bytes))}</small></a>`).join('')}</div>`;
+  }
+  function bindTaskFilePicker(root){
+    if(!root)return;
+    const input=root.querySelector('[data-task-files]');
+    const choose=root.querySelector('[data-task-files-choose]');
+    const list=root.querySelector('[data-task-files-list]');
+    if(!input||!choose||!list)return;
+    const render=()=>{
+      const files=[...input.files];
+      list.innerHTML=files.map((file,index)=>`<span class="t2m-task-file-chip"><b>${esc(file.name)}</b><small>${esc(formatTaskBytes(file.size))}</small><button type="button" data-task-file-remove="${index}" aria-label="Remove ${esc(file.name)}">×</button></span>`).join('');
+      list.hidden=!files.length;
+      list.querySelectorAll('[data-task-file-remove]').forEach(button=>button.onclick=()=>{
+        const removeIndex=Number(button.dataset.taskFileRemove);
+        const transfer=new DataTransfer();
+        files.forEach((file,index)=>{if(index!==removeIndex)transfer.items.add(file);});
+        input.files=transfer.files;
+        render();
+      });
+    };
+    choose.onclick=()=>input.click();
+    input.onchange=render;
+    render();
+  }
+
+  const taskWidgetKey=`t2m-task-widget-v3-${user.id}`;
+  const taskWidget=makeWidget({id:'t2m-task-widget',title:'Tasks',subtitle:'Work, files & updates',icon:'✓',key:taskWidgetKey,size:{width:740,height:650,minWidth:520,minHeight:360}});
   const taskBody=taskWidget.querySelector('[data-widget-body]');
   let taskState={scope:'mine',tasks:[],staff:[],management:false,mode:'list',selected:null};
 
   async function loadTasks(scope=taskState.scope){const data=await jsonFetch(`/api/uat/tasks?scope=${encodeURIComponent(scope)}`);taskState={...taskState,...data,scope,mode:'list'};renderTaskList();}
-  function renderTaskList(){const completedView=taskState.scope==='completed';const visibilityButtons=taskState.management?`<button class="${taskState.scope==='mine'?'is-active':''}" data-task-scope="mine">Mine</button>`:`<button class="${taskState.scope==='all'?'is-active':''}" data-task-scope="all">All</button><button class="${taskState.scope==='mine'?'is-active':''}" data-task-scope="mine">My Own</button>`;taskBody.innerHTML=`<div class="t2m-task-shell"><div class="t2m-task-toolbar">${visibilityButtons}<button class="${taskState.scope==='sent'?'is-active':''}" data-task-scope="sent">Sent</button><button class="${completedView?'is-active':''}" data-task-scope="completed">Completed</button>${taskState.management?`<button class="${taskState.scope==='team'?'is-active':''}" data-task-scope="team">Team</button>`:''}<button class="new-task" data-task-new>+ Task</button></div><div class="t2m-task-content">${taskState.tasks.length?taskState.tasks.map(task=>`<article class="t2m-task-card ${task.status==='completed'?'is-completed':''}" style="--task-color:${personColor(task.assigned_to)}"><span class="t2m-task-card-mark"></span><div class="t2m-task-card-body"><div class="t2m-task-card-top"><strong>${esc(task.title)}</strong><em>${task.status==='completed'?'completed':esc(task.priority)}</em></div><p>${esc(String(task.message||'').slice(0,150))}</p><div class="t2m-task-card-meta"><span>To: ${esc(task.assigned_name||'Unassigned')}</span><span>${task.status==='completed'&&task.completed_at?`Completed ${esc(prettyDateTime(task.completed_at))}`:task.due_at?`Due ${esc(prettyDateTime(task.due_at))}`:'No due date'}</span>${task.related_client_name?`<span>${esc(task.related_client_name)}</span>`:''}</div>${task.status==='completed'&&task.completion_note?`<p class="t2m-task-completion-preview">✓ ${esc(task.completion_note)}</p>`:''}<div class="t2m-task-card-actions"><button data-task-open="${task.id}">Open</button></div></div></article>`).join(''):`<div class="t2m-chat-empty"><strong>${completedView?'No completed tasks':'No active tasks'}</strong><span>${completedView?'Completed work will appear here with its completion date.':'Use + Task to add one without leaving the calendar.'}</span></div>`}</div></div>`;taskBody.querySelectorAll('[data-task-scope]').forEach(button=>button.onclick=()=>loadTasks(button.dataset.taskScope));taskBody.querySelector('[data-task-new]').onclick=()=>renderTaskNew();taskBody.querySelectorAll('[data-task-open]').forEach(button=>button.onclick=()=>openTask(Number(button.dataset.taskOpen)));}
+  function renderTaskList(){fitWidgetMode(taskWidget,taskWidgetKey,{width:740,height:650,minWidth:520,minHeight:360});const completedView=taskState.scope==='completed';const visibilityButtons=taskState.management?`<button class="${taskState.scope==='mine'?'is-active':''}" data-task-scope="mine">Mine</button>`:`<button class="${taskState.scope==='all'?'is-active':''}" data-task-scope="all">All</button><button class="${taskState.scope==='mine'?'is-active':''}" data-task-scope="mine">My Own</button>`;taskBody.innerHTML=`<div class="t2m-task-shell"><div class="t2m-task-toolbar">${visibilityButtons}<button class="${taskState.scope==='sent'?'is-active':''}" data-task-scope="sent">Sent</button><button class="${completedView?'is-active':''}" data-task-scope="completed">Completed</button>${taskState.management?`<button class="${taskState.scope==='team'?'is-active':''}" data-task-scope="team">Team</button>`:''}<button class="new-task" data-task-new>+ Task</button></div><div class="t2m-task-content">${taskState.tasks.length?taskState.tasks.map(task=>`<article class="t2m-task-card ${task.status==='completed'?'is-completed':''}" style="--task-color:${personColor(task.assigned_to)}"><span class="t2m-task-card-mark"></span><div class="t2m-task-card-body"><div class="t2m-task-card-top"><strong>${esc(task.title)}</strong><em>${task.status==='completed'?'completed':esc(task.priority)}</em></div><p>${esc(String(task.message||'').slice(0,150))}</p><div class="t2m-task-card-meta"><span>To: ${esc(task.assigned_name||'Unassigned')}</span><span>${task.status==='completed'&&task.completed_at?`Completed ${esc(prettyDateTime(task.completed_at))}`:task.due_at?`Due ${esc(prettyDateTime(task.due_at))}`:'No due date'}</span>${task.related_client_name?`<span>${esc(task.related_client_name)}</span>`:''}</div>${task.status==='completed'&&task.completion_note?`<p class="t2m-task-completion-preview">✓ ${esc(task.completion_note)}</p>`:''}<div class="t2m-task-card-actions"><button data-task-open="${task.id}">Open</button></div></div></article>`).join(''):`<div class="t2m-chat-empty"><strong>${completedView?'No completed tasks':'No active tasks'}</strong><span>${completedView?'Completed work will appear here with its completion date.':'Use + Task to add one without leaving the calendar.'}</span></div>`}</div></div>`;taskBody.querySelectorAll('[data-task-scope]').forEach(button=>button.onclick=()=>loadTasks(button.dataset.taskScope));taskBody.querySelector('[data-task-new]').onclick=()=>renderTaskNew();taskBody.querySelectorAll('[data-task-open]').forEach(button=>button.onclick=()=>openTask(Number(button.dataset.taskOpen)));}
 
-  function renderTaskNew(prefill={}){const defaultDue=prefill.date?`${prefill.date}T09:00`:'';taskBody.innerHTML=`<form class="t2m-task-form" data-task-form><h3>New task</h3><label>Assign to<select name="assigned_to" required><option value="">Choose person</option>${(taskState.staff||[]).map(s=>`<option value="${s.id}">${esc(s.full_name)}</option>`).join('')}</select></label><label>Title<input name="title" maxlength="180" required placeholder="What needs doing?"></label><label>Task<textarea name="message" required placeholder="Short clear instruction"></textarea></label><div class="t2m-task-form-grid"><label>Due<input type="datetime-local" name="due_at" value="${esc(defaultDue)}"></label><label>Priority<select name="priority"><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></select></label></div><div class="t2m-task-form-actions"><button type="button" data-task-cancel>Cancel</button><button type="submit" class="primary">Create task</button></div></form>`;const form=taskBody.querySelector('[data-task-form]');form.onsubmit=async event=>{event.preventDefault();const values=Object.fromEntries(new FormData(form).entries());try{await jsonFetch('/api/uat/tasks',{method:'POST',body:JSON.stringify(values)});await loadTasks('mine');window.dispatchEvent(new Event('workspace:refresh'));}catch(error){window.alert(error.message);}};taskBody.querySelector('[data-task-cancel]').onclick=()=>renderTaskList();}
+  function renderTaskNew(prefill={}){
+    fitWidgetMode(taskWidget,taskWidgetKey,{width:760,height:545,minWidth:520,minHeight:360});
+    const defaultDue=prefill.date?`${prefill.date}T09:00`:'';
+    taskBody.innerHTML=`<form class="t2m-task-form" data-task-form enctype="multipart/form-data"><h3>New task</h3><label>Assign to<select name="assigned_to" required><option value="">Choose person</option>${(taskState.staff||[]).map(s=>`<option value="${s.id}">${esc(s.full_name)}</option>`).join('')}</select></label><label>Title<input name="title" maxlength="180" required placeholder="What needs doing?"></label><label>Task<textarea name="message" required placeholder="Short clear instruction"></textarea></label><div class="t2m-task-form-grid"><label>Due<input type="datetime-local" name="due_at" value="${esc(defaultDue)}"></label><label>Priority<select name="priority"><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></select></label></div><div class="t2m-task-file-picker"><div class="t2m-task-file-picker-row"><button type="button" data-task-files-choose>📎 Attach files</button><small>PDF, Word, Excel, PowerPoint, images and common office files · max 5 files, 15 MB each</small></div><input type="file" name="attachments" multiple accept="${taskFileAccept}" data-task-files hidden><div class="t2m-task-file-selection" data-task-files-list hidden></div></div><div class="t2m-task-form-actions"><button type="button" data-task-cancel>Cancel</button><button type="submit" class="primary">Create task</button></div></form>`;
+    const form=taskBody.querySelector('[data-task-form]');
+    bindTaskFilePicker(form);
+    form.onsubmit=async event=>{
+      event.preventDefault();
+      const submit=form.querySelector('button[type="submit"]');
+      submit.disabled=true;
+      const old=submit.textContent;
+      submit.textContent='Creating…';
+      try{
+        const values=new FormData(form);
+        await jsonFetch('/api/uat/tasks',{method:'POST',body:values});
+        await loadTasks('mine');
+        window.dispatchEvent(new Event('workspace:refresh'));
+      }catch(error){window.alert(error.message);}
+      finally{if(submit.isConnected){submit.disabled=false;submit.textContent=old;}}
+    };
+    taskBody.querySelector('[data-task-cancel]').onclick=()=>renderTaskList();
+  }
 
-  async function openTask(id){taskWidget.hidden=false;taskWidget.classList.remove('is-collapsed');try{const data=await jsonFetch(`/api/uat/tasks/${id}`);taskState.mode='detail';taskState.selected=data;renderTaskDetail(data);}catch(error){taskBody.innerHTML=`<div class="t2m-chat-empty"><strong>Could not open task</strong><span>${esc(error.message)}</span></div>`;}}
+  async function openTask(id){showWidget(taskWidget);try{const data=await jsonFetch(`/api/uat/tasks/${id}`);taskState.mode='detail';taskState.selected=data;renderTaskDetail(data);}catch(error){taskBody.innerHTML=`<div class="t2m-chat-empty"><strong>Could not open task</strong><span>${esc(error.message)}</span></div>`;}}
   function renderTaskDetail(data){
+    fitWidgetMode(taskWidget,taskWidgetKey,{width:780,height:700,minWidth:520,minHeight:360});
     const t=data.task,p=data.permissions||{};
     const completed=t.status==='completed';
     const waiting=t.workflow_state==='awaiting_sender_ack';
+    const attachments=Array.isArray(data.attachments)?data.attachments:[];
+    const filesByComment=new Map();
+    attachments.forEach(file=>{
+      const key=String(file.commentId||0);
+      if(!filesByComment.has(key))filesByComment.set(key,[]);
+      filesByComment.get(key).push(file);
+    });
     const followupComments=(data.comments||[]).filter(c=>String(c.comment||'').startsWith('Follow-up moved from '));
     const latestFollowup=followupComments.length?followupComments[followupComments.length-1]:null;
     const latestFollowupReason=latestFollowup?String(latestFollowup.comment||'').split(' — ').slice(1).join(' — ').trim():'';
     const completedPanel=completed?`<section class="t2m-task-completed-summary"><strong>✓ Completed ${t.completed_at?esc(prettyDateTime(t.completed_at)):''}</strong><p>${esc(t.completion_note||'Completed')}</p>${waiting?'<small>Waiting for the sender/manager to accept the completed task.</small>':t.acknowledged_at?`<small>Accepted ${esc(prettyDateTime(t.acknowledged_at))}</small>`:''}</section>`:'';
     const currentFollowup=latestFollowupReason?`<section class="t2m-task-current-followup"><span>Current follow-up${latestFollowup?.full_name?` · ${esc(latestFollowup.full_name)}`:''}</span><strong>${esc(latestFollowupReason)}</strong><small>${t.due_at?`Follow up: ${esc(prettyDateTime(t.due_at))}`:'No follow-up date set'}${latestFollowup?.created_at?` · Updated ${esc(prettyDateTime(latestFollowup.created_at))}`:''}</small></section>`:'';
     const reschedulePanel=p.canReschedule?`<section class="t2m-task-reschedule"><strong>Move follow-up / due date</strong><div class="t2m-task-reschedule-grid"><label>Reason<textarea data-task-reschedule-reason maxlength="2000" placeholder="No answer — call again"></textarea></label><label>New date & time<input type="datetime-local" data-task-reschedule-due value="${esc(dateTimeInput(t.due_at))}"></label></div><button type="button" data-task-reschedule>Update follow-up date</button><div class="t2m-task-save-confirmation" data-task-reschedule-notice hidden></div><small>The change is added to Updates and the deadline reminder moves to the new date.</small></section>`:'';
-    taskBody.innerHTML=`<div class="t2m-task-detail"><button class="t2m-task-detail-back" data-task-back>← Back to tasks</button><article class="t2m-task-detail-card"><h3>${esc(t.title)}</h3><p class="lead">${esc(t.message)}</p><div class="t2m-task-detail-meta"><span>From ${esc(t.created_by_name)}</span><span>To ${esc(t.assigned_name)}</span><span>${esc(t.priority)}</span><span>Status: ${esc(String(t.workflow_state||t.status||'active').replaceAll('_',' '))}</span>${!latestFollowupReason&&t.due_at?`<span>Due ${esc(prettyDateTime(t.due_at))}</span>`:''}</div>${completedPanel}${currentFollowup}${reschedulePanel}${p.canUpdate?`<div class="t2m-task-status-actions"><button data-task-status="in_progress">Start / In progress</button></div><div class="t2m-task-complete"><textarea data-task-completion placeholder="What was completed?"></textarea><button data-task-complete>Complete task</button></div>`:''}${p.canApprove?`<div class="t2m-task-status-actions"><button class="primary" data-task-decision="accept">Accept & archive</button><button data-task-decision="return">Return for more work</button></div>`:''}<section class="t2m-task-comments"><h4>Updates</h4>${(data.comments||[]).map(c=>`<div class="t2m-task-comment"><strong>${esc(c.full_name)}</strong><small>${esc(prettyDateTime(c.created_at))}</small><p>${esc(c.comment)}</p></div>`).join('')}${p.canComment?'<div class="t2m-task-comment-compose"><input data-task-comment placeholder="Add quick update"><button data-task-comment-send>Send</button></div>':''}</section></article></div>`;
+    const commentsHtml=(data.comments||[]).map(c=>`<div class="t2m-task-comment"><div><strong>${esc(c.full_name)}</strong><small>${esc(prettyDateTime(c.created_at))}</small></div><p>${esc(c.comment)}</p>${taskAttachmentsHtml(filesByComment.get(String(c.id))||[])}</div>`).join('');
+    const orphanFiles=filesByComment.get('0')||[];
+    const composer=p.canComment?`<form class="t2m-task-thread-composer" data-task-comment-form enctype="multipart/form-data"><div class="t2m-task-thread-files" data-task-files-list hidden></div><div class="t2m-task-thread-compose-row"><button type="button" class="t2m-task-attach-button" data-task-files-choose title="Attach files">📎</button><input type="file" name="attachments" multiple accept="${taskFileAccept}" data-task-files hidden><input name="comment" data-task-comment placeholder="Add update or send a file"><button type="submit" data-task-comment-send>Send</button></div></form>`:'';
+    taskBody.innerHTML=`<div class="t2m-task-detail"><button class="t2m-task-detail-back" data-task-back>← Back to tasks</button><div class="t2m-task-detail-scroll"><article class="t2m-task-detail-card"><h3>${esc(t.title)}</h3><p class="lead">${esc(t.message)}</p><div class="t2m-task-detail-meta"><span>From ${esc(t.created_by_name)}</span><span>To ${esc(t.assigned_name)}</span><span>${esc(t.priority)}</span><span>Status: ${esc(String(t.workflow_state||t.status||'active').replaceAll('_',' '))}</span>${!latestFollowupReason&&t.due_at?`<span>Due ${esc(prettyDateTime(t.due_at))}</span>`:''}</div>${completedPanel}${currentFollowup}${reschedulePanel}${p.canUpdate?`<div class="t2m-task-status-actions"><button data-task-status="in_progress">Start / In progress</button></div><div class="t2m-task-complete"><textarea data-task-completion placeholder="What was completed?"></textarea><button data-task-complete>Complete task</button></div>`:''}${p.canApprove?`<div class="t2m-task-status-actions"><button class="primary" data-task-decision="accept">Accept & archive</button><button data-task-decision="return">Return for more work</button></div>`:''}<section class="t2m-task-comments"><h4>Updates & files</h4>${commentsHtml}${orphanFiles.length?`<div class="t2m-task-comment"><strong>Files</strong>${taskAttachmentsHtml(orphanFiles)}</div>`:''}</section></article></div>${composer}</div>`;
     taskBody.querySelector('[data-task-back]').onclick=()=>loadTasks(taskState.scope);
     taskBody.querySelectorAll('[data-task-status]').forEach(button=>button.onclick=async()=>{await jsonFetch(`/api/uat/tasks/${t.id}/status`,{method:'POST',body:JSON.stringify({status:button.dataset.taskStatus})});await openTask(t.id);window.dispatchEvent(new Event('workspace:refresh'));});
     taskBody.querySelector('[data-task-reschedule]')?.addEventListener('click',async event=>{const button=event.currentTarget;const due=taskBody.querySelector('[data-task-reschedule-due]')?.value||'';const reason=String(taskBody.querySelector('[data-task-reschedule-reason]')?.value||'').trim();button.disabled=true;const previous=button.textContent;button.textContent='Saving…';try{const saved=await jsonFetch(`/api/uat/tasks/${t.id}/reschedule`,{method:'POST',body:JSON.stringify({due_at:due,reason})});if(!saved.verified)throw new Error('The new follow-up date was not verified.');await openTask(t.id);const notice=taskBody.querySelector('[data-task-reschedule-notice]');if(notice){notice.hidden=false;notice.textContent=`✓ Saved — follow-up is now ${saved.dueLabel||prettyDateTime(saved.dueAt)}`;}window.dispatchEvent(new Event('workspace:refresh'));}catch(error){window.alert(error.message);}finally{if(button.isConnected){button.disabled=false;button.textContent=previous;}}});
     taskBody.querySelector('[data-task-complete]')?.addEventListener('click',async()=>{const note=taskBody.querySelector('[data-task-completion]').value.trim();try{await jsonFetch(`/api/uat/tasks/${t.id}/status`,{method:'POST',body:JSON.stringify({status:'completed',completion_note:note})});await openTask(t.id);window.dispatchEvent(new Event('workspace:refresh'));}catch(error){window.alert(error.message);}});
     taskBody.querySelectorAll('[data-task-decision]').forEach(button=>button.onclick=async()=>{const action=button.dataset.taskDecision;let reason='';if(action==='return'){reason=window.prompt('What still needs to be done?')||'';if(!reason)return;}try{await jsonFetch(`/api/uat/tasks/${t.id}/decision`,{method:'POST',body:JSON.stringify({action,reason})});if(action==='accept')await loadTasks('completed');else await openTask(t.id);window.dispatchEvent(new Event('workspace:refresh'));}catch(error){window.alert(error.message);}});
-    taskBody.querySelector('[data-task-comment-send]')?.addEventListener('click',async()=>{const input=taskBody.querySelector('[data-task-comment]');const comment=input.value.trim();if(!comment)return;await jsonFetch(`/api/uat/tasks/${t.id}/comments`,{method:'POST',body:JSON.stringify({comment})});await openTask(t.id);});
+    const commentForm=taskBody.querySelector('[data-task-comment-form]');
+    if(commentForm){
+      bindTaskFilePicker(commentForm);
+      commentForm.onsubmit=async event=>{
+        event.preventDefault();
+        const comment=String(commentForm.querySelector('[data-task-comment]')?.value||'').trim();
+        const fileInput=commentForm.querySelector('[data-task-files]');
+        if(!comment&&!fileInput?.files?.length)return;
+        const send=commentForm.querySelector('[data-task-comment-send]');
+        send.disabled=true;
+        const old=send.textContent;
+        send.textContent='Sending…';
+        try{
+          await jsonFetch(`/api/uat/tasks/${t.id}/comments`,{method:'POST',body:new FormData(commentForm)});
+          await openTask(t.id);
+        }catch(error){window.alert(error.message);}
+        finally{if(send.isConnected){send.disabled=false;send.textContent=old;}}
+      };
+    }
   }
-  async function openTaskWidget(prefill={}){taskWidget.hidden=false;taskWidget.classList.remove('is-collapsed');try{const data=await jsonFetch('/api/uat/tasks?scope=all');taskState={...taskState,...data,scope:data.scope||'mine'};if(prefill.new)renderTaskNew(prefill);else renderTaskList();}catch(error){taskBody.innerHTML=`<div class="t2m-chat-empty"><strong>Could not open tasks</strong><span>${esc(error.message)}</span></div>`;}}
+  async function openTaskWidget(prefill={}){showWidget(taskWidget);try{const data=await jsonFetch('/api/uat/tasks?scope=all');taskState={...taskState,...data,scope:data.scope||'mine'};if(prefill.new)renderTaskNew(prefill);else renderTaskList();}catch(error){taskBody.innerHTML=`<div class="t2m-chat-empty"><strong>Could not open tasks</strong><span>${esc(error.message)}</span></div>`;}}
 
   window.Talk2MeWidgets={openChat,openTasks:openTaskWidget,openTask};
   window.addEventListener('click',event=>{
