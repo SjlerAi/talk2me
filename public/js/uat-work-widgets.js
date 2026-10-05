@@ -286,10 +286,131 @@
   const taskWidgetKey=`t2m-task-widget-v3-${user.id}`;
   const taskWidget=makeWidget({id:'t2m-task-widget',title:'Tasks',subtitle:'Work, files & updates',icon:'✓',key:taskWidgetKey,size:{width:740,height:650,minWidth:520,minHeight:360}});
   const taskBody=taskWidget.querySelector('[data-widget-body]');
-  let taskState={scope:'mine',tasks:[],staff:[],management:false,mode:'list',selected:null};
+  let taskState={scope:'mine',view:'latest',filter:'all',counts:{latest:0,urgent:0,attention:0},tasks:[],staff:[],management:false,mode:'list',selected:null};
 
-  async function loadTasks(scope=taskState.scope){const data=await jsonFetch(`/api/uat/tasks?scope=${encodeURIComponent(scope)}`);taskState={...taskState,...data,scope,mode:'list'};renderTaskList();}
-  function renderTaskList(){fitWidgetMode(taskWidget,taskWidgetKey,{width:740,height:650,minWidth:520,minHeight:360});const completedView=taskState.scope==='completed';const visibilityButtons=taskState.management?`<button class="${taskState.scope==='mine'?'is-active':''}" data-task-scope="mine">Mine</button>`:`<button class="${taskState.scope==='all'?'is-active':''}" data-task-scope="all">All</button><button class="${taskState.scope==='mine'?'is-active':''}" data-task-scope="mine">My Own</button>`;taskBody.innerHTML=`<div class="t2m-task-shell"><div class="t2m-task-toolbar">${visibilityButtons}<button class="${taskState.scope==='sent'?'is-active':''}" data-task-scope="sent">Sent</button><button class="${completedView?'is-active':''}" data-task-scope="completed">Completed</button>${taskState.management?`<button class="${taskState.scope==='team'?'is-active':''}" data-task-scope="team">Team</button>`:''}<button class="new-task" data-task-new>+ Task</button></div><div class="t2m-task-content">${taskState.tasks.length?taskState.tasks.map(task=>`<article class="t2m-task-card ${task.status==='completed'?'is-completed':''}" style="--task-color:${personColor(task.assigned_to)}"><span class="t2m-task-card-mark"></span><div class="t2m-task-card-body"><div class="t2m-task-card-top"><strong>${esc(task.title)}</strong><em>${task.status==='completed'?'completed':esc(task.priority)}</em></div><p>${esc(String(task.message||'').slice(0,150))}</p><div class="t2m-task-card-meta"><span>To: ${esc(task.assigned_name||'Unassigned')}</span><span>${task.status==='completed'&&task.completed_at?`Completed ${esc(prettyDateTime(task.completed_at))}`:task.due_at?`Due ${esc(prettyDateTime(task.due_at))}`:'No due date'}</span>${task.related_client_name?`<span>${esc(task.related_client_name)}</span>`:''}</div>${task.status==='completed'&&task.completion_note?`<p class="t2m-task-completion-preview">✓ ${esc(task.completion_note)}</p>`:''}<div class="t2m-task-card-actions"><button data-task-open="${task.id}">Open</button></div></div></article>`).join(''):`<div class="t2m-chat-empty"><strong>${completedView?'No completed tasks':'No active tasks'}</strong><span>${completedView?'Completed work will appear here with its completion date.':'Use + Task to add one without leaving the calendar.'}</span></div>`}</div></div>`;taskBody.querySelectorAll('[data-task-scope]').forEach(button=>button.onclick=()=>loadTasks(button.dataset.taskScope));taskBody.querySelector('[data-task-new]').onclick=()=>renderTaskNew();taskBody.querySelectorAll('[data-task-open]').forEach(button=>button.onclick=()=>openTask(Number(button.dataset.taskOpen)));}
+  async function loadTasks(options={}){
+    const next=typeof options==='string'?{scope:options}:options;
+    const scope=next.scope||taskState.scope||'mine';
+    const view=next.view||taskState.view||'latest';
+    const filter=next.filter||taskState.filter||'all';
+    const query=new URLSearchParams({scope,view,filter});
+    const data=await jsonFetch(`/api/uat/tasks?${query.toString()}`);
+    taskState={...taskState,...data,scope:data.scope||scope,view:data.view||view,filter:data.filter||filter,mode:'list'};
+    renderTaskList();
+  }
+
+  function taskInboxBadge(task){
+    if(Number(task.action_count||0)>0)return {label:'NEEDS ACTION',kind:'attention'};
+    if(Number(task.unread_count||0)>0||task.status==='unread')return {label:'NEW',kind:'new'};
+    if(Number(task.is_overdue||0)>0)return {label:'OVERDUE',kind:'overdue'};
+    if(Number(task.due_today||0)>0)return {label:'DUE TODAY',kind:'today'};
+    if(task.status==='completed'&&task.workflow_state==='awaiting_sender_ack')return {label:'COMPLETED · APPROVAL',kind:'attention'};
+    if(task.workflow_state==='returned')return {label:'RETURNED',kind:'attention'};
+    return {label:String(task.priority||'normal').toUpperCase(),kind:String(task.priority||'normal')};
+  }
+
+  function taskInboxPreview(task){
+    const update=String(task.latest_update||'').trim();
+    if(update&&update!=='Task created')return update;
+    return String(task.message||'').trim();
+  }
+
+  function taskInboxTime(task){
+    const value=task.last_activity_at||task.latest_update_at||task.created_at;
+    return value?prettyDateTime(value):'';
+  }
+
+  function renderTaskList(){
+    fitWidgetMode(taskWidget,taskWidgetKey,{width:780,height:680,minWidth:520,minHeight:360});
+    const counts=taskState.counts||{};
+    const emptyTitle=taskState.filter==='completed'
+      ? 'No completed tasks'
+      : taskState.view==='urgent'
+        ? 'Nothing urgent'
+        : taskState.view==='attention'
+          ? 'Nothing needs your attention'
+          : 'No active tasks';
+    const emptyCopy=taskState.filter==='completed'
+      ? 'Completed work will appear here with its completion date.'
+      : taskState.view==='urgent'
+        ? 'Overdue, due-today, urgent and returned work will appear here.'
+        : taskState.view==='attention'
+          ? 'New assignments, replies, returns and approvals will appear here.'
+          : 'New and recently active work will appear here.';
+
+    const primary=`
+      <div class="t2m-task-inbox-primary" role="tablist" aria-label="Task inbox views">
+        <button class="${taskState.view==='latest'&&taskState.filter!=='completed'?'is-active':''}" data-task-view="latest"><span>Latest</span><b>${Number(counts.latest||0)}</b></button>
+        <button class="${taskState.view==='urgent'?'is-active':''}" data-task-view="urgent"><span>Urgent</span><b>${Number(counts.urgent||0)}</b></button>
+        <button class="${taskState.view==='attention'?'is-active':''}" data-task-view="attention"><span>Needs attention</span><b>${Number(counts.attention||0)}</b></button>
+      </div>`;
+
+    const context=`
+      <div class="t2m-task-inbox-context">
+        <div class="t2m-task-context-switch">
+          <button class="${taskState.scope==='mine'?'is-active':''}" data-task-context="mine">Mine</button>
+          ${taskState.management
+            ? `<button class="${taskState.scope==='team'?'is-active':''}" data-task-context="team">Team</button>`
+            : `<button class="${taskState.scope==='all'?'is-active':''}" data-task-context="all">All</button>`}
+        </div>
+        <button class="new-task" data-task-new>+ Task</button>
+      </div>`;
+
+    const filters=`
+      <div class="t2m-task-inbox-filters" aria-label="Task filters">
+        <button class="${taskState.filter==='today'?'is-active':''}" data-task-filter="today">Today</button>
+        <button class="${taskState.filter==='week'?'is-active':''}" data-task-filter="week">This week</button>
+        <button class="${taskState.filter==='overdue'?'is-active':''}" data-task-filter="overdue">Overdue</button>
+        <button class="${taskState.filter==='upcoming'?'is-active':''}" data-task-filter="upcoming">Upcoming</button>
+        <button class="${taskState.filter==='completed'?'is-active':''}" data-task-filter="completed">Completed</button>
+        <button class="${taskState.scope==='sent'?'is-active':''}" data-task-context="sent">Sent</button>
+      </div>`;
+
+    const cards=taskState.tasks.length?taskState.tasks.map(task=>{
+      const badge=taskInboxBadge(task);
+      const preview=taskInboxPreview(task);
+      const due=task.status==='completed'&&task.completed_at
+        ? `Completed ${prettyDateTime(task.completed_at)}`
+        : task.due_at
+          ? `${Number(task.is_overdue||0)>0?'Due ':Number(task.due_today||0)>0?'Due today · ':'Due '}${prettyDateTime(task.due_at)}`
+          : 'No due date';
+      const latestBy=task.latest_update_by?`${esc(task.latest_update_by)} · `:'';
+      const attachments=Number(task.attachment_count||0);
+      const unread=Number(task.unread_count||0)>0||task.status==='unread';
+      return `<article class="t2m-task-card t2m-task-inbox-card ${unread?'is-unread':''} ${Number(task.is_overdue||0)>0?'is-overdue':''}" style="--task-color:${personColor(task.assigned_to)}" data-task-open="${task.id}">
+        <span class="t2m-task-card-mark"></span>
+        <div class="t2m-task-card-body">
+          <div class="t2m-task-inbox-card-head">
+            <span class="t2m-task-inbox-badge is-${esc(badge.kind)}">${esc(badge.label)}</span>
+            <time>${esc(taskInboxTime(task))}</time>
+          </div>
+          <div class="t2m-task-card-top"><strong>${esc(task.title)}</strong></div>
+          <div class="t2m-task-inbox-people"><span>${esc(task.created_by_name||'')}</span><b>→</b><span>${esc(task.assigned_name||'Unassigned')}</span></div>
+          <p class="t2m-task-inbox-preview">${esc(preview.slice(0,220))}</p>
+          <div class="t2m-task-card-meta">
+            <span class="${Number(task.is_overdue||0)>0?'is-danger':''}">${esc(due)}</span>
+            <span>Status: ${esc(String(task.workflow_state||task.status||'active').replaceAll('_',' '))}</span>
+            ${attachments?`<span>📎 ${attachments} file${attachments===1?'':'s'}</span>`:''}
+            ${task.related_client_name?`<span>${esc(task.related_client_name)}</span>`:''}
+          </div>
+          ${task.latest_update_by?`<small class="t2m-task-inbox-latest-by">${latestBy}latest update</small>`:''}
+          <div class="t2m-task-card-actions"><button type="button" data-task-open-button="${task.id}">Open</button></div>
+        </div>
+      </article>`;
+    }).join(''):`<div class="t2m-chat-empty"><strong>${emptyTitle}</strong><span>${emptyCopy}</span></div>`;
+
+    taskBody.innerHTML=`<div class="t2m-task-shell t2m-task-inbox-shell"><div class="t2m-task-inbox-head">${primary}${context}${filters}</div><div class="t2m-task-content">${cards}</div></div>`;
+
+    taskBody.querySelectorAll('[data-task-view]').forEach(button=>button.onclick=()=>loadTasks({scope:taskState.scope==='sent'?'mine':taskState.scope,view:button.dataset.taskView,filter:'all'}));
+    taskBody.querySelectorAll('[data-task-filter]').forEach(button=>button.onclick=()=>loadTasks({scope:taskState.scope==='sent'?'mine':taskState.scope,view:'latest',filter:button.dataset.taskFilter}));
+    taskBody.querySelectorAll('[data-task-context]').forEach(button=>button.onclick=()=>loadTasks({scope:button.dataset.taskContext,view:'latest',filter:'all'}));
+    taskBody.querySelector('[data-task-new]').onclick=()=>renderTaskNew();
+    taskBody.querySelectorAll('[data-task-open]').forEach(card=>card.onclick=event=>{
+      if(event.target.closest('button'))return;
+      openTask(Number(card.dataset.taskOpen));
+    });
+    taskBody.querySelectorAll('[data-task-open-button]').forEach(button=>button.onclick=()=>openTask(Number(button.dataset.taskOpenButton)));
+  }
 
   function renderTaskNew(prefill={}){
     fitWidgetMode(taskWidget,taskWidgetKey,{width:760,height:545,minWidth:520,minHeight:360});
@@ -318,7 +439,7 @@
       try{
         const values=new FormData(form);
         await jsonFetch('/api/uat/tasks',{method:'POST',body:values});
-        await loadTasks('mine');
+        await loadTasks({scope:'mine',view:'latest',filter:'all'});
         window.dispatchEvent(new Event('workspace:refresh'));
       }catch(error){window.alert(error.message);}
       finally{if(submit.isConnected){submit.disabled=false;submit.textContent=old;}}
@@ -349,11 +470,11 @@
     const orphanFiles=filesByComment.get('0')||[];
     const composer=p.canComment?`<form class="t2m-task-thread-composer" data-task-comment-form enctype="multipart/form-data"><div class="t2m-task-thread-files" data-task-files-list hidden></div><div class="t2m-task-thread-compose-row"><button type="button" class="t2m-task-attach-button" data-task-files-choose title="Attach files">📎</button><input type="file" name="attachments" multiple accept="${taskFileAccept}" data-task-files hidden><input name="comment" data-task-comment placeholder="Add update or send a file"><button type="submit" data-task-comment-send>Send</button></div></form>`:'';
     taskBody.innerHTML=`<div class="t2m-task-detail"><button class="t2m-task-detail-back" data-task-back>← Back to tasks</button><div class="t2m-task-detail-scroll"><article class="t2m-task-detail-card"><h3>${esc(t.title)}</h3><p class="lead">${esc(t.message)}</p><div class="t2m-task-detail-meta"><span>From ${esc(t.created_by_name)}</span><span>To ${esc(t.assigned_name)}</span><span>${esc(t.priority)}</span><span>Status: ${esc(String(t.workflow_state||t.status||'active').replaceAll('_',' '))}</span>${!latestFollowupReason&&t.due_at?`<span>Due ${esc(prettyDateTime(t.due_at))}</span>`:''}</div>${completedPanel}${currentFollowup}${reschedulePanel}${p.canUpdate?`<div class="t2m-task-status-actions"><button data-task-status="in_progress">Start / In progress</button></div><div class="t2m-task-complete"><textarea data-task-completion placeholder="What was completed?"></textarea><button data-task-complete>Complete task</button></div>`:''}${p.canApprove?`<div class="t2m-task-status-actions"><button class="primary" data-task-decision="accept">Accept & archive</button><button data-task-decision="return">Return for more work</button></div>`:''}<section class="t2m-task-comments"><h4>Updates & files</h4>${commentsHtml}${orphanFiles.length?`<div class="t2m-task-comment"><strong>Files</strong>${taskAttachmentsHtml(orphanFiles)}</div>`:''}</section></article></div>${composer}</div>`;
-    taskBody.querySelector('[data-task-back]').onclick=()=>loadTasks(taskState.scope);
+    taskBody.querySelector('[data-task-back]').onclick=()=>loadTasks();
     taskBody.querySelectorAll('[data-task-status]').forEach(button=>button.onclick=async()=>{await jsonFetch(`/api/uat/tasks/${t.id}/status`,{method:'POST',body:JSON.stringify({status:button.dataset.taskStatus})});await openTask(t.id);window.dispatchEvent(new Event('workspace:refresh'));});
     taskBody.querySelector('[data-task-reschedule]')?.addEventListener('click',async event=>{const button=event.currentTarget;const due=taskBody.querySelector('[data-task-reschedule-due]')?.value||'';const reason=String(taskBody.querySelector('[data-task-reschedule-reason]')?.value||'').trim();button.disabled=true;const previous=button.textContent;button.textContent='Saving…';try{const saved=await jsonFetch(`/api/uat/tasks/${t.id}/reschedule`,{method:'POST',body:JSON.stringify({due_at:due,reason})});if(!saved.verified)throw new Error('The new follow-up date was not verified.');await openTask(t.id);const notice=taskBody.querySelector('[data-task-reschedule-notice]');if(notice){notice.hidden=false;notice.textContent=`✓ Saved — follow-up is now ${saved.dueLabel||prettyDateTime(saved.dueAt)}`;}window.dispatchEvent(new Event('workspace:refresh'));}catch(error){window.alert(error.message);}finally{if(button.isConnected){button.disabled=false;button.textContent=previous;}}});
     taskBody.querySelector('[data-task-complete]')?.addEventListener('click',async()=>{const note=taskBody.querySelector('[data-task-completion]').value.trim();try{await jsonFetch(`/api/uat/tasks/${t.id}/status`,{method:'POST',body:JSON.stringify({status:'completed',completion_note:note})});await openTask(t.id);window.dispatchEvent(new Event('workspace:refresh'));}catch(error){window.alert(error.message);}});
-    taskBody.querySelectorAll('[data-task-decision]').forEach(button=>button.onclick=async()=>{const action=button.dataset.taskDecision;let reason='';if(action==='return'){reason=window.prompt('What still needs to be done?')||'';if(!reason)return;}try{await jsonFetch(`/api/uat/tasks/${t.id}/decision`,{method:'POST',body:JSON.stringify({action,reason})});if(action==='accept')await loadTasks('completed');else await openTask(t.id);window.dispatchEvent(new Event('workspace:refresh'));}catch(error){window.alert(error.message);}});
+    taskBody.querySelectorAll('[data-task-decision]').forEach(button=>button.onclick=async()=>{const action=button.dataset.taskDecision;let reason='';if(action==='return'){reason=window.prompt('What still needs to be done?')||'';if(!reason)return;}try{await jsonFetch(`/api/uat/tasks/${t.id}/decision`,{method:'POST',body:JSON.stringify({action,reason})});if(action==='accept')await loadTasks({scope:taskState.scope,view:'latest',filter:'completed'});else await openTask(t.id);window.dispatchEvent(new Event('workspace:refresh'));}catch(error){window.alert(error.message);}});
     const commentForm=taskBody.querySelector('[data-task-comment-form]');
     if(commentForm){
       bindTaskFilePicker(commentForm);
@@ -374,7 +495,7 @@
       };
     }
   }
-  async function openTaskWidget(prefill={}){showWidget(taskWidget);try{const data=await jsonFetch('/api/uat/tasks?scope=all');taskState={...taskState,...data,scope:data.scope||'mine'};if(prefill.new)renderTaskNew(prefill);else renderTaskList();}catch(error){taskBody.innerHTML=`<div class="t2m-chat-empty"><strong>Could not open tasks</strong><span>${esc(error.message)}</span></div>`;}}
+  async function openTaskWidget(prefill={}){showWidget(taskWidget);try{const query=new URLSearchParams({scope:'mine',view:'latest',filter:'all'});const data=await jsonFetch(`/api/uat/tasks?${query.toString()}`);taskState={...taskState,...data,scope:data.scope||'mine',view:'latest',filter:'all'};if(prefill.new)renderTaskNew(prefill);else renderTaskList();}catch(error){taskBody.innerHTML=`<div class="t2m-chat-empty"><strong>Could not open tasks</strong><span>${esc(error.message)}</span></div>`;}}
 
   window.Talk2MeWidgets={openChat,openTasks:openTaskWidget,openTask};
   window.addEventListener('click',event=>{

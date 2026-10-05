@@ -16,12 +16,12 @@ const widget = read('public/js/uat-work-widgets.js');
 need(route, "router.post('/api/uat/tasks/:id/reschedule'", 'task reschedule endpoint');
 need(route, "overdue_alerted_at=NULL", 'deadline watch reset');
 need(route, "event_type IN ('agent_deadline_reminder','agent_deadline_missed')", 'old deadline notification cleanup');
-need(route, "scope === 'completed'", 'completed task scope');
+need(route, "filter === 'completed'", 'completed task filter');
 need(route, "canReschedule", 'reschedule permission');
 need(route, "INSERT INTO agent_task_watches", 'task deadline watch creation');
 need(route, "Task completed —", 'completion history entry');
 
-need(widget, 'data-task-scope="completed"', 'Completed task tab');
+need(widget, 'data-task-filter="completed"', 'Completed task filter');
 need(widget, 'data-task-reschedule', 'task reschedule control');
 need(widget, 'Update follow-up date', 'reschedule action label');
 need(widget, 'Current follow-up', 'prominent current follow-up summary');
