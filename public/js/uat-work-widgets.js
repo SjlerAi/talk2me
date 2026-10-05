@@ -190,12 +190,38 @@
     return widget;
   }
 
-  const chatWidget=makeWidget({id:'t2m-messenger-widget',title:'Talk2Me Chat',subtitle:'People, office and system',icon:'●',key:`t2m-chat-widget-${user.id}`,size:{width:600,height:700,minWidth:500,minHeight:560}});
-  const chatBody=chatWidget.querySelector('[data-widget-body]');
+  const workWidgetKey=`t2m-work-widget-v1-${user.id}`;
+  const workWidget=makeWidget({id:'t2m-task-widget',title:'Work',subtitle:'Tasks, messages, files & follow-ups',icon:'✓',key:workWidgetKey,size:{width:780,height:680,minWidth:520,minHeight:360}});
+  const workBody=workWidget.querySelector('[data-widget-body]');
+  const chatWidget=workWidget;
+  const chatBody=workBody;
+  let workMode='inbox';
   let chatBootstrap=null,chatConversation='office',chatTab='people',chatMessages=[],chatPoll=null,recorder=null,voiceChunks=[],voiceStarted=0,cancelRecording=false;
+
+  function workModeNav(active){
+    return `<div class="t2m-work-mode-nav" role="tablist" aria-label="Work sections">
+      <button type="button" class="${active==='inbox'?'is-active':''}" data-work-mode="inbox"><span>✓</span><strong>Work inbox</strong></button>
+      <button type="button" class="${active==='messages'?'is-active':''}" data-work-mode="messages"><span>●</span><strong>Messages</strong><b ${chatBootstrap?.unreadTotal?'':'hidden'}>${Number(chatBootstrap?.unreadTotal||0)}</b></button>
+    </div>`;
+  }
+
+  function bindWorkModeNav(root){
+    root?.querySelectorAll('[data-work-mode]').forEach(button=>button.onclick=()=>{
+      const next=button.dataset.workMode;
+      if(next==='messages')openChat();
+      else openTaskWidget();
+    });
+  }
   const conversationByToken=token=>chatBootstrap?.conversations?.find(item=>item.token===token);
 
-  function paintBell(){if(!chatBootstrap)return;document.querySelectorAll('[data-badge="notifications"]').forEach(node=>{node.textContent=String(chatBootstrap.unreadTotal||0);node.hidden=!chatBootstrap.unreadTotal;});}
+  function paintBell(){
+    if(!chatBootstrap)return;
+    const total=Number(chatBootstrap.unreadTotal||0)+Number(taskState?.counts?.attention||0);
+    document.querySelectorAll('[data-badge="notifications"]').forEach(node=>{
+      node.textContent=String(total);
+      node.hidden=!total;
+    });
+  }
   async function refreshBootstrap(){chatBootstrap=await jsonFetch('/api/uat/chat/bootstrap');paintBell();return chatBootstrap;}
 
   function renderMessageHtml(){if(!chatMessages.length)return '<div class="t2m-chat-empty"><strong>Start the conversation</strong><span>Quick, informal office communication stays here.</span></div>';return chatMessages.map(message=>{const mine=Number(message.senderId)===Number(user.id);return `<div class="t2m-chat-bubble-row ${mine?'is-me':''}"><article class="t2m-chat-bubble"><div class="t2m-chat-bubble-head"><strong>${esc(mine?'You':message.senderName)}</strong><span>${esc(prettyTime(message.createdAt))}</span></div>${message.type==='voice'?`<audio controls preload="metadata" src="${esc(message.voiceUrl)}"></audio>`:`<p>${esc(message.body)}</p>`}${message.relatedTaskId?`<button type="button" class="t2m-chat-task-link" data-chat-related-task="${Number(message.relatedTaskId)}">Open follow-up task</button>`:''}</article></div>`;}).join('');}
@@ -205,11 +231,12 @@
     const conv=conversationByToken(chatConversation)||chatBootstrap.conversations[0];
     const direct=chatBootstrap.conversations.filter(c=>c.staffId);
     const office=chatBootstrap.conversations.find(c=>c.token==='office');
-    chatBody.innerHTML=`<div class="t2m-chat-shell"><div class="t2m-chat-tabs"><button data-chat-tab="people" class="${chatTab==='people'?'is-active':''}">People <span class="t2m-chat-tab-badge" ${chatBootstrap.unreadTotal?'':'hidden'}>${chatBootstrap.unreadTotal||0}</span></button><button data-chat-tab="office" class="${chatTab==='office'?'is-active':''}">Office</button><button data-chat-tab="system" class="${chatTab==='system'?'is-active':''}">System <span class="t2m-chat-tab-badge" ${chatBootstrap.systemUnread?'':'hidden'}>${chatBootstrap.systemUnread||0}</span></button></div>${chatTab==='system'?'<div class="t2m-chat-system" data-chat-system></div>':`<div class="t2m-chat-main"><aside class="t2m-chat-people">${chatTab==='office'?`<button class="t2m-chat-person is-active" data-chat-person="office"><span class="t2m-chat-person-avatar" style="--person-color:#202832">O</span><span class="t2m-chat-person-copy"><strong>Office</strong><small>${esc(office?.latest?.preview||'Everyone')}</small></span>${office?.unread?`<em>${office.unread}</em>`:''}</button>`:direct.map(c=>`<button class="t2m-chat-person ${c.token===chatConversation?'is-active':''}" data-chat-person="${esc(c.token)}"><span class="t2m-chat-person-avatar" style="--person-color:${personColor(c.staffId)}">${esc(initials(c.name))}</span><span class="t2m-chat-person-copy"><strong>${esc(c.name)}</strong><small>${esc(c.latest?.preview||'No messages yet')}</small></span>${c.unread?`<em>${c.unread}</em>`:''}</button>`).join('')}</aside><section class="t2m-chat-conversation"><header class="t2m-chat-conversation-head"><div><strong>${esc(conv?.name||'Office')}</strong><small>${chatTab==='office'?'Everyone in the office':'Direct conversation'}</small></div></header>${chatTab==='office'?'<div class="t2m-chat-office-note">Office chat is visible to all active staff.</div>':''}<div class="t2m-chat-messages" data-chat-messages>${renderMessageHtml()}</div><footer class="t2m-chat-composer"><div class="t2m-chat-recording" data-recording hidden><span data-recording-time>Recording 0:00</span><button type="button" data-recording-cancel>Cancel</button></div><div class="t2m-chat-compose-row"><button type="button" class="voice" data-chat-voice title="Voice note">🎙</button><textarea rows="1" data-chat-text placeholder="Type a message…"></textarea><button type="button" data-chat-send>Send</button></div></footer></section></div>`}</div>`;
+    chatBody.innerHTML=`${workModeNav('messages')}<div class="t2m-chat-shell"><div class="t2m-chat-tabs"><button data-chat-tab="people" class="${chatTab==='people'?'is-active':''}">People <span class="t2m-chat-tab-badge" ${chatBootstrap.unreadTotal?'':'hidden'}>${chatBootstrap.unreadTotal||0}</span></button><button data-chat-tab="office" class="${chatTab==='office'?'is-active':''}">Office</button><button data-chat-tab="system" class="${chatTab==='system'?'is-active':''}">System <span class="t2m-chat-tab-badge" ${chatBootstrap.systemUnread?'':'hidden'}>${chatBootstrap.systemUnread||0}</span></button></div>${chatTab==='system'?'<div class="t2m-chat-system" data-chat-system></div>':`<div class="t2m-chat-main"><aside class="t2m-chat-people">${chatTab==='office'?`<button class="t2m-chat-person is-active" data-chat-person="office"><span class="t2m-chat-person-avatar" style="--person-color:#202832">O</span><span class="t2m-chat-person-copy"><strong>Office</strong><small>${esc(office?.latest?.preview||'Everyone')}</small></span>${office?.unread?`<em>${office.unread}</em>`:''}</button>`:direct.map(c=>`<button class="t2m-chat-person ${c.token===chatConversation?'is-active':''}" data-chat-person="${esc(c.token)}"><span class="t2m-chat-person-avatar" style="--person-color:${personColor(c.staffId)}">${esc(initials(c.name))}</span><span class="t2m-chat-person-copy"><strong>${esc(c.name)}</strong><small>${esc(c.latest?.preview||'No messages yet')}</small></span>${c.unread?`<em>${c.unread}</em>`:''}</button>`).join('')}</aside><section class="t2m-chat-conversation"><header class="t2m-chat-conversation-head"><div><strong>${esc(conv?.name||'Office')}</strong><small>${chatTab==='office'?'Everyone in the office':'Direct conversation'}</small></div></header>${chatTab==='office'?'<div class="t2m-chat-office-note">Office chat is visible to all active staff.</div>':''}<div class="t2m-chat-messages" data-chat-messages>${renderMessageHtml()}</div><footer class="t2m-chat-composer"><div class="t2m-chat-recording" data-recording hidden><span data-recording-time>Recording 0:00</span><button type="button" data-recording-cancel>Cancel</button></div><div class="t2m-chat-compose-row"><button type="button" class="voice" data-chat-voice title="Voice note">🎙</button><textarea rows="1" data-chat-text placeholder="Type a message…"></textarea><button type="button" data-chat-send>Send</button></div></footer></section></div>`}</div>`;
     bindChatControls();
   }
 
   function bindChatControls(){
+    bindWorkModeNav(chatBody);
     chatBody.querySelectorAll('[data-chat-tab]').forEach(button=>button.onclick=async()=>{chatTab=button.dataset.chatTab;if(chatTab==='office')chatConversation='office';chatMessages=[];renderChatShell();if(chatTab==='system')await loadSystem();else await loadConversation(chatConversation);});
     chatBody.querySelectorAll('[data-chat-person]').forEach(button=>button.onclick=()=>loadConversation(button.dataset.chatPerson));
     chatBody.querySelector('[data-chat-send]')?.addEventListener('click',sendText);
@@ -247,7 +274,7 @@
   function cancelVoice(){if(recorder&&recorder.state==='recording'){cancelRecording=true;recorder.stop();}}
   function updateRecordingUI(){const bar=chatBody.querySelector('[data-recording]'),button=chatBody.querySelector('[data-chat-voice]');if(!recorder||recorder.state!=='recording'){if(bar)bar.hidden=true;if(button)button.classList.remove('is-recording');return;}if(bar)bar.hidden=false;if(button)button.classList.add('is-recording');const elapsed=Math.floor((Date.now()-voiceStarted)/1000),label=chatBody.querySelector('[data-recording-time]');if(label)label.textContent=`Recording ${Math.floor(elapsed/60)}:${String(elapsed%60).padStart(2,'0')} · tap mic to send`;if(elapsed>=180){cancelRecording=false;recorder.stop();}else setTimeout(updateRecordingUI,500);}
 
-  async function openChat(){showWidget(chatWidget);try{await refreshBootstrap();chatMessages=[];renderChatShell();if(chatTab==='system')await loadSystem();else await loadConversation(chatConversation);}catch(error){chatBody.innerHTML=`<div class="t2m-chat-empty"><strong>Could not open chat</strong><span>${esc(error.message)}</span></div>`;}clearInterval(chatPoll);chatPoll=setInterval(async()=>{if(chatWidget.hidden)return;try{await refreshBootstrap();if(chatTab!=='system')await loadConversation(chatConversation);else{renderChatShell();await loadSystem();}}catch(_){}},12000);}
+  async function openChat(){workMode='messages';showWidget(workWidget);try{await refreshBootstrap();chatMessages=[];renderChatShell();if(chatTab==='system')await loadSystem();else await loadConversation(chatConversation);}catch(error){chatBody.innerHTML=`<div class="t2m-chat-empty"><strong>Could not open chat</strong><span>${esc(error.message)}</span></div>`;}clearInterval(chatPoll);chatPoll=setInterval(async()=>{if(chatWidget.hidden||workMode!=='messages')return;try{await refreshBootstrap();if(chatTab!=='system')await loadConversation(chatConversation);else{renderChatShell();await loadSystem();}}catch(_){}},12000);}
 
 
   function formatTaskBytes(bytes){
@@ -283,9 +310,9 @@
     render();
   }
 
-  const taskWidgetKey=`t2m-task-widget-v3-${user.id}`;
-  const taskWidget=makeWidget({id:'t2m-task-widget',title:'Tasks',subtitle:'Work, files & updates',icon:'✓',key:taskWidgetKey,size:{width:740,height:650,minWidth:520,minHeight:360}});
-  const taskBody=taskWidget.querySelector('[data-widget-body]');
+  const taskWidgetKey=workWidgetKey;
+  const taskWidget=workWidget;
+  const taskBody=workBody;
   let taskState={scope:'mine',view:'latest',filter:'all',counts:{latest:0,urgent:0,attention:0},tasks:[],staff:[],management:false,mode:'list',selected:null};
 
   async function loadTasks(options={}){
@@ -339,7 +366,7 @@
           : 'New and recently active work will appear here.';
 
     const primary=`
-      <div class="t2m-task-inbox-primary" role="tablist" aria-label="Task inbox views">
+      <div class="t2m-task-inbox-primary" role="tablist" aria-label="Work inbox views">
         <button class="${taskState.view==='latest'&&taskState.filter!=='completed'?'is-active':''}" data-task-view="latest"><span>Latest</span><b>${Number(counts.latest||0)}</b></button>
         <button class="${taskState.view==='urgent'?'is-active':''}" data-task-view="urgent"><span>Urgent</span><b>${Number(counts.urgent||0)}</b></button>
         <button class="${taskState.view==='attention'?'is-active':''}" data-task-view="attention"><span>Needs attention</span><b>${Number(counts.attention||0)}</b></button>
@@ -356,8 +383,19 @@
         <button class="new-task" data-task-new>+ Task</button>
       </div>`;
 
+    const historyFilters=`
+      <div class="t2m-work-history-filters" aria-label="Work history">
+        <span>History</span>
+        <button class="${taskState.filter==='new'?'is-active':''}" data-task-filter="new">New</button>
+        <button class="${taskState.filter==='old'?'is-active':''}" data-task-filter="old">Old</button>
+        <button class="${taskState.filter==='7days'?'is-active':''}" data-task-filter="7days">7 days</button>
+        <button class="${taskState.filter==='14days'?'is-active':''}" data-task-filter="14days">14 days</button>
+        <button class="${taskState.filter==='month'?'is-active':''}" data-task-filter="month">Month</button>
+        <button class="${taskState.filter==='history_all'?'is-active':''}" data-task-filter="history_all">All</button>
+      </div>`;
+
     const filters=`
-      <div class="t2m-task-inbox-filters" aria-label="Task filters">
+      <div class="t2m-task-inbox-filters" aria-label="Work filters">
         <button class="${taskState.filter==='today'?'is-active':''}" data-task-filter="today">Today</button>
         <button class="${taskState.filter==='week'?'is-active':''}" data-task-filter="week">This week</button>
         <button class="${taskState.filter==='overdue'?'is-active':''}" data-task-filter="overdue">Overdue</button>
@@ -399,7 +437,8 @@
       </article>`;
     }).join(''):`<div class="t2m-chat-empty"><strong>${emptyTitle}</strong><span>${emptyCopy}</span></div>`;
 
-    taskBody.innerHTML=`<div class="t2m-task-shell t2m-task-inbox-shell"><div class="t2m-task-inbox-head">${primary}${context}${filters}</div><div class="t2m-task-content">${cards}</div></div>`;
+    taskBody.innerHTML=`${workModeNav('inbox')}<div class="t2m-task-shell t2m-task-inbox-shell"><div class="t2m-task-inbox-head">${primary}${context}${historyFilters}${filters}</div><div class="t2m-task-content">${cards}</div></div>`;
+    bindWorkModeNav(taskBody);
 
     taskBody.querySelectorAll('[data-task-view]').forEach(button=>button.onclick=()=>loadTasks({scope:taskState.scope==='sent'?'mine':taskState.scope,view:button.dataset.taskView,filter:'all'}));
     taskBody.querySelectorAll('[data-task-filter]').forEach(button=>button.onclick=()=>loadTasks({scope:taskState.scope==='sent'?'mine':taskState.scope,view:'latest',filter:button.dataset.taskFilter}));
@@ -447,7 +486,7 @@
     taskBody.querySelector('[data-task-cancel]').onclick=()=>renderTaskList();
   }
 
-  async function openTask(id){showWidget(taskWidget);try{const data=await jsonFetch(`/api/uat/tasks/${id}`);taskState.mode='detail';taskState.selected=data;renderTaskDetail(data);}catch(error){taskBody.innerHTML=`<div class="t2m-chat-empty"><strong>Could not open task</strong><span>${esc(error.message)}</span></div>`;}}
+  async function openTask(id){workMode='inbox';clearInterval(chatPoll);showWidget(workWidget);try{const data=await jsonFetch(`/api/uat/tasks/${id}`);taskState.mode='detail';taskState.selected=data;renderTaskDetail(data);}catch(error){taskBody.innerHTML=`<div class="t2m-chat-empty"><strong>Could not open task</strong><span>${esc(error.message)}</span></div>`;}}
   function renderTaskDetail(data){
     fitWidgetMode(taskWidget,taskWidgetKey,{width:780,height:700,minWidth:520,minHeight:360});
     const t=data.task,p=data.permissions||{};
@@ -469,7 +508,7 @@
     const commentsHtml=(data.comments||[]).map(c=>`<div class="t2m-task-comment"><div><strong>${esc(c.full_name)}</strong><small>${esc(prettyDateTime(c.created_at))}</small></div><p>${esc(c.comment)}</p>${taskAttachmentsHtml(filesByComment.get(String(c.id))||[])}</div>`).join('');
     const orphanFiles=filesByComment.get('0')||[];
     const composer=p.canComment?`<form class="t2m-task-thread-composer" data-task-comment-form enctype="multipart/form-data"><div class="t2m-task-thread-files" data-task-files-list hidden></div><div class="t2m-task-thread-compose-row"><button type="button" class="t2m-task-attach-button" data-task-files-choose title="Attach files">📎</button><input type="file" name="attachments" multiple accept="${taskFileAccept}" data-task-files hidden><input name="comment" data-task-comment placeholder="Add update or send a file"><button type="submit" data-task-comment-send>Send</button></div></form>`:'';
-    taskBody.innerHTML=`<div class="t2m-task-detail"><button class="t2m-task-detail-back" data-task-back>← Back to tasks</button><div class="t2m-task-detail-scroll"><article class="t2m-task-detail-card"><h3>${esc(t.title)}</h3><p class="lead">${esc(t.message)}</p><div class="t2m-task-detail-meta"><span>From ${esc(t.created_by_name)}</span><span>To ${esc(t.assigned_name)}</span><span>${esc(t.priority)}</span><span>Status: ${esc(String(t.workflow_state||t.status||'active').replaceAll('_',' '))}</span>${!latestFollowupReason&&t.due_at?`<span>Due ${esc(prettyDateTime(t.due_at))}</span>`:''}</div>${completedPanel}${currentFollowup}${reschedulePanel}${p.canUpdate?`<div class="t2m-task-status-actions"><button data-task-status="in_progress">Start / In progress</button></div><div class="t2m-task-complete"><textarea data-task-completion placeholder="What was completed?"></textarea><button data-task-complete>Complete task</button></div>`:''}${p.canApprove?`<div class="t2m-task-status-actions"><button class="primary" data-task-decision="accept">Accept & archive</button><button data-task-decision="return">Return for more work</button></div>`:''}<section class="t2m-task-comments"><h4>Updates & files</h4>${commentsHtml}${orphanFiles.length?`<div class="t2m-task-comment"><strong>Files</strong>${taskAttachmentsHtml(orphanFiles)}</div>`:''}</section></article></div>${composer}</div>`;
+    taskBody.innerHTML=`<div class="t2m-task-detail"><button class="t2m-task-detail-back" data-task-back>← Back to Work</button><div class="t2m-task-detail-scroll"><article class="t2m-task-detail-card"><h3>${esc(t.title)}</h3><p class="lead">${esc(t.message)}</p><div class="t2m-task-detail-meta"><span>From ${esc(t.created_by_name)}</span><span>To ${esc(t.assigned_name)}</span><span>${esc(t.priority)}</span><span>Status: ${esc(String(t.workflow_state||t.status||'active').replaceAll('_',' '))}</span>${!latestFollowupReason&&t.due_at?`<span>Due ${esc(prettyDateTime(t.due_at))}</span>`:''}</div>${completedPanel}${currentFollowup}${reschedulePanel}${p.canUpdate?`<div class="t2m-task-status-actions"><button data-task-status="in_progress">Start / In progress</button></div><div class="t2m-task-complete"><textarea data-task-completion placeholder="What was completed?"></textarea><button data-task-complete>Complete task</button></div>`:''}${p.canApprove?`<div class="t2m-task-status-actions"><button class="primary" data-task-decision="accept">Accept & archive</button><button data-task-decision="return">Return for more work</button></div>`:''}<section class="t2m-task-comments"><h4>Updates & files</h4>${commentsHtml}${orphanFiles.length?`<div class="t2m-task-comment"><strong>Files</strong>${taskAttachmentsHtml(orphanFiles)}</div>`:''}</section></article></div>${composer}</div>`;
     taskBody.querySelector('[data-task-back]').onclick=()=>loadTasks();
     taskBody.querySelectorAll('[data-task-status]').forEach(button=>button.onclick=async()=>{await jsonFetch(`/api/uat/tasks/${t.id}/status`,{method:'POST',body:JSON.stringify({status:button.dataset.taskStatus})});await openTask(t.id);window.dispatchEvent(new Event('workspace:refresh'));});
     taskBody.querySelector('[data-task-reschedule]')?.addEventListener('click',async event=>{const button=event.currentTarget;const due=taskBody.querySelector('[data-task-reschedule-due]')?.value||'';const reason=String(taskBody.querySelector('[data-task-reschedule-reason]')?.value||'').trim();button.disabled=true;const previous=button.textContent;button.textContent='Saving…';try{const saved=await jsonFetch(`/api/uat/tasks/${t.id}/reschedule`,{method:'POST',body:JSON.stringify({due_at:due,reason})});if(!saved.verified)throw new Error('The new follow-up date was not verified.');await openTask(t.id);const notice=taskBody.querySelector('[data-task-reschedule-notice]');if(notice){notice.hidden=false;notice.textContent=`✓ Saved — follow-up is now ${saved.dueLabel||prettyDateTime(saved.dueAt)}`;}window.dispatchEvent(new Event('workspace:refresh'));}catch(error){window.alert(error.message);}finally{if(button.isConnected){button.disabled=false;button.textContent=previous;}}});
@@ -495,14 +534,14 @@
       };
     }
   }
-  async function openTaskWidget(prefill={}){showWidget(taskWidget);try{const query=new URLSearchParams({scope:'mine',view:'latest',filter:'all'});const data=await jsonFetch(`/api/uat/tasks?${query.toString()}`);taskState={...taskState,...data,scope:data.scope||'mine',view:'latest',filter:'all'};if(prefill.new)renderTaskNew(prefill);else renderTaskList();}catch(error){taskBody.innerHTML=`<div class="t2m-chat-empty"><strong>Could not open tasks</strong><span>${esc(error.message)}</span></div>`;}}
+  async function openTaskWidget(prefill={}){workMode='inbox';clearInterval(chatPoll);showWidget(workWidget);try{const requestedView=prefill.view||'latest';const requestedFilter=prefill.filter||'all';const requestedScope=prefill.scope||'mine';const query=new URLSearchParams({scope:requestedScope,view:requestedView,filter:requestedFilter});const data=await jsonFetch(`/api/uat/tasks?${query.toString()}`);taskState={...taskState,...data,scope:data.scope||requestedScope,view:data.view||requestedView,filter:data.filter||requestedFilter};if(prefill.new)renderTaskNew(prefill);else renderTaskList();}catch(error){taskBody.innerHTML=`<div class="t2m-chat-empty"><strong>Could not open Work</strong><span>${esc(error.message)}</span></div>`;}}
 
-  window.Talk2MeWidgets={openChat,openTasks:openTaskWidget,openTask};
+  window.Talk2MeWidgets={openWork:openTaskWidget,openChat,openTasks:openTaskWidget,openTask};
   window.addEventListener('click',event=>{
-    const bell=event.target.closest?.('[data-os-app="notifications"]');if(bell){event.preventDefault();event.stopImmediatePropagation();openChat();return;}
+    const bell=event.target.closest?.('[data-os-app="notifications"]');if(bell){event.preventDefault();event.stopImmediatePropagation();openTaskWidget({view:'attention'});return;}
     const taskAdd=event.target.closest?.('[data-home-add-task]');if(taskAdd){event.preventDefault();event.stopImmediatePropagation();openTaskWidget({new:true});return;}
     const openCalendarTask=event.target.closest?.('[data-open-calendar-item]');if(openCalendarTask&&String(openCalendarTask.dataset.openCalendarItem||'').startsWith('task:')){event.preventDefault();event.stopImmediatePropagation();openTask(Number(String(openCalendarTask.dataset.openCalendarItem).split(':')[1]));return;}
-    const taskApp=event.target.closest?.('[data-os-app="tasks"],[data-os-app="messages"]');if(taskApp){event.preventDefault();event.stopImmediatePropagation();taskApp.dataset.osApp==='messages'?openChat():openTaskWidget();}
+    const taskApp=event.target.closest?.('[data-os-app="work"],[data-os-app="tasks"],[data-os-app="messages"]');if(taskApp){event.preventDefault();event.stopImmediatePropagation();taskApp.dataset.osApp==='messages'?openChat():openTaskWidget();}
   },true);
 
   refreshBootstrap().catch(()=>{});

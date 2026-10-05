@@ -6,6 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { ensureAgentResponsibilitySchema } = require('../services/office-intelligence-agent');
+const { trackEvent } = require('../services/usage-telemetry');
 
 const router = express.Router();
 const IS_UAT = String(process.env.UAT_MODE || '').trim().toLowerCase() === 'true';
@@ -405,6 +406,11 @@ router.post('/api/uat/chat/messages', requireAuth, async (req, res, next) => {
       key: conversation.key, userId, body, relatedClientId, relatedTaskId
     });
     await markConversationRead(userId, conversation.key, result.insertId);
+    await trackEvent({
+      staffId:userId,eventType:'work_message_sent',screenKey:'work_messages',routePath:'/api/uat/chat/messages',
+      moduleName:'work',entityType:'staff_chat_messages',entityId:result.insertId,httpMethod:'POST',httpStatus:200,
+      metadata:{conversationType:conversation.type}
+    });
     res.json({ ok: true, id: result.insertId });
   } catch (error) { next(error); }
 });
@@ -501,7 +507,7 @@ router.get('/api/uat/tasks', requireAuth, async (req, res, next) => {
     const view = ['latest','urgent','attention'].includes(requestedView) ? requestedView : 'latest';
     const filter = legacyCompleted
       ? 'completed'
-      : ['all','today','week','overdue','upcoming','completed'].includes(requestedFilter)
+      : ['all','new','old','7days','14days','month','history_all','today','week','overdue','upcoming','completed'].includes(requestedFilter)
         ? requestedFilter
         : 'all';
 
@@ -514,7 +520,12 @@ router.get('/api/uat/tasks', requireAuth, async (req, res, next) => {
           : '(t.assigned_to=:userId OR t.created_by=:userId)';
 
     const activeStatusWhere = `(t.status IN ${ACTIVE_TASKS} OR (t.status='completed' AND w.workflow_state='awaiting_sender_ack'))`;
-    const statusWhere = filter === 'completed' ? "t.status='completed'" : activeStatusWhere;
+    const historyFilter = ['new','old','7days','14days','month','history_all'].includes(filter);
+    const statusWhere = filter === 'completed'
+      ? "t.status='completed'"
+      : historyFilter
+        ? "t.status<>'cancelled'"
+        : activeStatusWhere;
     const unreadExpr = scope === 'team' ? 'COALESCE(an.unread_count,0)' : 'COALESCE(mn.unread_count,0)';
     const actionExpr = scope === 'team' ? 'COALESCE(an.action_count,0)' : 'COALESCE(mn.action_count,0)';
     const notificationExpr = scope === 'team' ? 'an.notification_at' : 'mn.notification_at';
@@ -538,15 +549,26 @@ router.get('/api/uat/tasks', requireAuth, async (req, res, next) => {
           ? attentionExpr
           : '1=1';
 
-    const filterWhere = filter === 'today'
-      ? 'DATE(t.due_at)=CURDATE()'
-      : filter === 'week'
-        ? 't.due_at>=DATE_SUB(CURDATE(),INTERVAL WEEKDAY(CURDATE()) DAY) AND t.due_at<DATE_ADD(DATE_SUB(CURDATE(),INTERVAL WEEKDAY(CURDATE()) DAY),INTERVAL 7 DAY)'
-        : filter === 'overdue'
-          ? "t.due_at<NOW() AND t.status<>'completed'"
-          : filter === 'upcoming'
-            ? 't.due_at>=DATE_ADD(CURDATE(),INTERVAL 1 DAY)'
-            : '1=1';
+    const activityExpr = `GREATEST(COALESCE(lc.latest_comment_at,t.created_at),COALESCE(w.updated_at,t.created_at),COALESCE(t.updated_at,t.created_at))`;
+    const filterWhere = filter === 'new'
+      ? `${activityExpr}>=DATE_SUB(NOW(),INTERVAL 1 DAY)`
+      : filter === 'old'
+        ? `${activityExpr}<DATE_SUB(NOW(),INTERVAL 14 DAY)`
+        : filter === '7days'
+          ? `${activityExpr}>=DATE_SUB(NOW(),INTERVAL 7 DAY)`
+          : filter === '14days'
+            ? `${activityExpr}>=DATE_SUB(NOW(),INTERVAL 14 DAY)`
+            : filter === 'month'
+              ? `${activityExpr}>=DATE_FORMAT(CURRENT_DATE(),'%Y-%m-01')`
+              : filter === 'today'
+                ? 'DATE(t.due_at)=CURDATE()'
+                : filter === 'week'
+                  ? 't.due_at>=DATE_SUB(CURDATE(),INTERVAL WEEKDAY(CURDATE()) DAY) AND t.due_at<DATE_ADD(DATE_SUB(CURDATE(),INTERVAL WEEKDAY(CURDATE()) DAY),INTERVAL 7 DAY)'
+                  : filter === 'overdue'
+                    ? "t.due_at<NOW() AND t.status<>'completed'"
+                    : filter === 'upcoming'
+                      ? 't.due_at>=DATE_ADD(CURDATE(),INTERVAL 1 DAY)'
+                      : '1=1';
 
     const orderBy = filter === 'completed'
       ? 'COALESCE(t.completed_at,w.acknowledged_at,t.updated_at,t.created_at) DESC'
@@ -600,7 +622,7 @@ router.get('/api/uat/tasks', requireAuth, async (req, res, next) => {
       COALESCE(af.attachment_count,0) attachment_count,
       ${unreadExpr} unread_count,${actionExpr} action_count,
       ${notificationExpr} notification_at,
-      GREATEST(COALESCE(lc.latest_comment_at,t.created_at),COALESCE(w.updated_at,t.created_at),COALESCE(t.updated_at,t.created_at)) last_activity_at,
+      ${activityExpr} last_activity_at,
       CASE WHEN t.due_at IS NOT NULL AND t.due_at<NOW() AND t.status<>'completed' THEN 1 ELSE 0 END is_overdue,
       CASE WHEN t.due_at IS NOT NULL AND DATE(t.due_at)=CURDATE() AND t.status<>'completed' THEN 1 ELSE 0 END due_today,
       CASE WHEN ${attentionExpr} THEN 1 ELSE 0 END needs_attention
@@ -672,6 +694,10 @@ router.get('/api/uat/tasks/:id', requireAuth, async (req, res, next) => {
       WHERE a.task_id=:taskId ORDER BY a.created_at ASC,a.id ASC`, { taskId });
     const waitingApproval = task.status === 'completed' && task.workflow_state === 'awaiting_sender_ack';
     const archived = task.status === 'cancelled' || (task.status === 'completed' && task.workflow_state === 'accepted');
+    await trackEvent({
+      staffId:userId,eventType:'work_task_opened',screenKey:'work',routePath:`/api/uat/tasks/${taskId}`,
+      moduleName:'work',entityType:'staff_tasks',entityId:taskId,httpMethod:'GET',httpStatus:200
+    });
     res.json({
       ok: true,
       task,
@@ -748,6 +774,11 @@ router.post('/api/uat/tasks', requireAuth, taskUploadMiddleware, async (req, res
       actorId: Number(req.session.user.id),
       eventType: 'assigned',
       message: `${req.session.user.full_name} assigned “${title}” to you.`
+    });
+    await trackEvent({
+      staffId:req.session.user.id,eventType:'work_task_created',screenKey:'work',
+      routePath:'/api/uat/tasks',moduleName:'work',entityType:'staff_tasks',entityId:result.insertId,
+      httpMethod:'POST',httpStatus:200,metadata:{assignedTo,priority,hasDueDate:Boolean(dueAt),attachmentCount:Array.isArray(req.files)?req.files.length:0}
     });
     res.json({ ok: true, id: result.insertId });
   } catch (error) { if (!taskFilesPersisted) cleanupTaskFiles(req.files); next(error); }
@@ -872,6 +903,10 @@ router.post('/api/uat/tasks/:id/reschedule', requireAuth, async (req, res, next)
       actorId: userId,
       eventType: 'rescheduled',
       message: `${req.session.user.full_name} moved “${task.title}” to ${savedDueLabel || labels?.new_due || dueAt}: ${reason}`
+    });
+    await trackEvent({
+      staffId:userId,eventType:'work_task_rescheduled',screenKey:'work',routePath:`/api/uat/tasks/${taskId}/reschedule`,
+      moduleName:'work',entityType:'staff_tasks',entityId:taskId,httpMethod:'POST',httpStatus:200
     });
     return res.json({ ok: true, dueAt: savedDueAt, dueLabel: savedDueLabel, verified: true });
   } catch (error) { next(error); }

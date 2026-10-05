@@ -2,6 +2,7 @@ const express = require('express');
 const db = require('../config/db');
 const { requireAuth } = require('../middleware/auth');
 const attendance = require('../services/attendance');
+const { trackEvent } = require('../services/usage-telemetry');
 
 const router = express.Router();
 
@@ -54,6 +55,18 @@ router.post('/logout', async (req, res) => {
           id: req.session.loginSessionId, staffId: req.session.user.id
         });
       }
+      await trackEvent({
+        staffId:req.session.user.id,
+        eventType:'logout',
+        screenKey:'logout',
+        routePath:'/logout',
+        moduleName:'attendance',
+        entityType:'staff_login_sessions',
+        entityId:req.session.loginSessionId || null,
+        httpMethod:'POST',
+        httpStatus:302,
+        metadata:{reason:'manual',attendanceClockOut:true}
+      });
     }
   } catch (error) {
     console.error('Could not record attendance logout', error);

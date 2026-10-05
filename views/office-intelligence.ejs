@@ -27,6 +27,7 @@
       <a href="<%= basePath %>/office-intelligence?range=today">Today</a>
       <a href="<%= basePath %>/office-intelligence?range=this_week">This week</a>
       <a href="<%= basePath %>/office-intelligence?range=last_7_days">Last 7 days</a>
+      <a href="<%= basePath %>/office-intelligence?range=last_14_days">Last 14 days</a>
       <a href="<%= basePath %>/office-intelligence?range=month_to_date">Month to date</a>
     </div>
   </form>
@@ -62,13 +63,33 @@
 
   <section class="oi-section">
     <h2>CRM screen usage</h2>
-    <p>This starts becoming accurate once the new usage telemetry is enabled.</p>
+    <p>Real staff screen opens recorded by the Talk2Me telemetry layer.</p>
     <% if(report.screenUsage.length){ %>
       <div class="oi-table-wrap"><table class="oi-table"><thead><tr><th>Screen</th><th>Uses</th><th>Staff</th><th>Last used</th></tr></thead><tbody>
       <% report.screenUsage.forEach(function(row){ %><tr><td><strong><%= row.screen_key %></strong></td><td><%= row.uses %></td><td><%= row.staff_count %></td><td><%= row.last_used_at || '—' %></td></tr><% }) %>
       </tbody></table></div>
-    <% } else { %><div class="oi-empty">No screen telemetry has been collected yet. This is expected before the telemetry layer is activated.</div><% } %>
-    <div class="oi-note">Generated <%= report.generatedAt %>. This page is read/report focused and does not expose destructive database actions.</div>
+    <% } else { %><div class="oi-empty">No screen telemetry has been collected in this selected period yet.</div><% } %>
+  </section>
+
+  <section class="oi-section">
+    <h2>Feature and action usage</h2>
+    <p>Application opens and important CRM actions, without storing customer/form content in telemetry.</p>
+    <% if(report.featureUsage && report.featureUsage.length){ %>
+      <div class="oi-table-wrap"><table class="oi-table"><thead><tr><th>Event</th><th>Module</th><th>Uses</th><th>Staff</th><th>Last used</th></tr></thead><tbody>
+      <% report.featureUsage.forEach(function(row){ %><tr><td><strong><%= row.event_type %></strong></td><td><%= row.module_name || '—' %></td><td><%= row.uses %></td><td><%= row.staff_count %></td><td><%= row.last_used_at || '—' %></td></tr><% }) %>
+      </tbody></table></div>
+    <% } else { %><div class="oi-empty">No feature telemetry has been collected in this selected period yet.</div><% } %>
+  </section>
+
+  <section class="oi-section">
+    <h2>Login / logout compliance</h2>
+    <p>Manual logout is preferred. Automatic or daily re-auth logout shows where staff left a session open.</p>
+    <% if(report.logoutCompliance && report.logoutCompliance.length){ %>
+      <div class="oi-table-wrap"><table class="oi-table"><thead><tr><th>Logout reason</th><th>Sessions</th><th>Staff</th><th>Last event</th></tr></thead><tbody>
+      <% report.logoutCompliance.forEach(function(row){ %><tr><td><strong><%= row.logout_reason %></strong></td><td><%= row.sessions %></td><td><%= row.staff_count %></td><td><%= row.last_event_at || '—' %></td></tr><% }) %>
+      </tbody></table></div>
+    <% } else { %><div class="oi-empty">No login sessions were found for the selected period.</div><% } %>
+    <div class="oi-note">Generated <%= report.generatedAt %>. Usage telemetry stores feature names and timestamps, not message/customer content.</div>
   </section>
 </section>
 

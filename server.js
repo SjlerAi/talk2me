@@ -8,7 +8,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const db = require('./src/config/db');
 const packageInfo = require('./package.json');
-const { startNightlyLogoutWorker } = require('./src/services/nightly-logout');
+const { startNightlyLogoutWorker, ensureNightlyLogoutSchema } = require('./src/services/nightly-logout');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -119,6 +119,34 @@ if (UAT_MODE) {
       res.status(503).json({ status: 'error', environment: 'uat', database: 'unavailable', chat: false, tasks: false, taskAttachments: false, voiceDirectory: false });
     }
   });
+  const { ensureUsageSchema } = require('./src/services/usage-telemetry');
+  registerPublicGet('/api/uat/telemetry/health', async (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    try {
+      await Promise.all([ensureUsageSchema(), ensureNightlyLogoutSchema()]);
+      const [[usage]] = await db.execute(`SELECT COUNT(*) total,MAX(occurred_at) last_event_at FROM crm_usage_events`);
+      const [[logout]] = await db.execute(`SELECT enabled,TIME_FORMAT(logout_time,'%H:%i:%s') logout_time,timezone
+        FROM nightly_logout_settings WHERE id=1 LIMIT 1`);
+      const healthy = Boolean(logout) && Number(logout.enabled) === 1 && String(logout.logout_time) === '18:00:00';
+      res.status(healthy ? 200 : 503).json({
+        status: healthy ? 'ok' : 'error',
+        environment: 'uat',
+        telemetry: true,
+        totalEvents: Number(usage?.total || 0),
+        lastEventAt: usage?.last_event_at || null,
+        dailyLogin: true,
+        automaticLogout: logout ? {
+          enabled: Boolean(logout.enabled),
+          time: logout.logout_time,
+          timezone: logout.timezone
+        } : null
+      });
+    } catch (error) {
+      console.error('Public UAT telemetry health check failed:', error.message);
+      res.status(503).json({ status:'error',environment:'uat',telemetry:false,dailyLogin:true,automaticLogout:null });
+    }
+  });
+
 }
 
 app.use(session({
@@ -143,6 +171,12 @@ app.use((req, res, next) => {
   res.locals.isUat = UAT_MODE;
   next();
 });
+
+const { dailySessionMiddleware } = require('./src/middleware/auth');
+const { usageMiddleware } = require('./src/services/usage-telemetry');
+app.use(dailySessionMiddleware());
+app.use(usageMiddleware());
+
 
 function registerPwaRoute(route, handler) {
   app.get(route, handler);
@@ -221,6 +255,10 @@ self.addEventListener('fetch', event => {
 
 app.use('/public', express.static(path.join(__dirname, 'public')));
 if (BASE_PATH) app.use(`${BASE_PATH}/public`, express.static(path.join(__dirname, 'public')));
+
+const usageTelemetry = require('./src/routes/usage-telemetry');
+app.use('/', usageTelemetry);
+if (BASE_PATH) app.use(BASE_PATH, usageTelemetry);
 
 const nightlyLogoutSettings = require('./src/routes/nightly-logout-settings');
 app.use('/', nightlyLogoutSettings);

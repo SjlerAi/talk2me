@@ -54,7 +54,7 @@ const storage = {
 };
 const sidebar = new SidebarState({ storage, preferenceKey: 'geometry-test' });
 sidebar.updateWindowCounts({ internal: 1 });
-assert.strictEqual(sidebar.snapshot().collapsed, true, 'opening Messages must retain issue #95 auto-collapse');
+assert.strictEqual(sidebar.snapshot().collapsed, true, 'opening Work must retain issue #95 auto-collapse');
 sidebar.updateWindowCounts({ internal: 0 });
 assert.strictEqual(sidebar.snapshot().collapsed, false, 'closing all windows must restore the dashboard preference');
 
@@ -92,9 +92,11 @@ const layerIndex = shell.indexOf('id="os-window-layer"');
 const taskbarIndex = shell.indexOf('id="os-taskbar"');
 assert(mainClose >= 0 && layerIndex > mainClose && layerIndex < taskbarIndex, 'authoritative window layer must be shell-level, outside the workspace main');
 assert(shell.includes('aria-label="Open windows"') && shell.includes('id="os-taskbar-items"'), 'Open Windows taskbar must remain present');
-['messages', 'tasks', 'reports'].forEach(app => assert(shell.includes(`data-os-app="${app}"`), `${app} launcher must remain unchanged`));
+['work', 'reports'].forEach(app => assert(shell.includes(`data-os-app="${app}"`), `${app} launcher must remain available`));
+assert(!shell.includes('data-os-app="messages" aria-label="Messages"'), 'Messages must not remain as a separate launcher after Work consolidation');
+assert(!shell.includes('data-os-app="tasks" aria-label="Tasks"'), 'Tasks must not remain as a separate launcher after Work consolidation');
 ['/approvals', '/clients/assignment-centre?view=unassigned', '/backoffice'].forEach(route => assert(shell.includes(route), `${route} must remain unchanged`));
-assert(shell.includes('data-badge="messages"') && shell.includes('data-approval-count'), 'notification counters must remain unchanged');
+assert(shell.includes('data-badge="work"') && shell.includes('data-approval-count'), 'Work and approval notification counters must remain present');
 assert(legacyClaims.includes('legacy_client_claim_approved') && legacyClaims.includes('legacy_client_claim_satisfied'), 'legacy claim decision actions must remain intact');
 
 const templates = [];

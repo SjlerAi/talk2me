@@ -5,7 +5,7 @@
   const config = configNode ? JSON.parse(configNode.textContent || '{}') : {};
   const basePath = String(config.basePath || '');
   const appVersion = String(config.appVersion || '');
-  const uatAssetVersion = `${appVersion}-widgets-3`;
+  const uatAssetVersion = `${appVersion}-widgets-4`;
   let redirecting = false;
 
   function addStylesheet(marker, href) {
@@ -95,5 +95,51 @@
     } catch (_) {
       // Cross-origin supplier systems cannot be inspected and are left untouched.
     }
+  }, true);
+})();
+
+
+/* Lightweight UAT usage telemetry: records feature opens, never form/customer content. */
+(() => {
+  if (window.__talk2meUsageClientLoaded) return;
+  window.__talk2meUsageClientLoaded = true;
+
+  const configNode = document.getElementById('talk2me-os-config');
+  if (!configNode) return;
+  let config = {};
+  try { config = JSON.parse(configNode.textContent || '{}'); } catch (_) {}
+  const basePath = String(config.basePath || '');
+
+  function track({event_type='ui_action',screen_key='',module_name='',route_path='',entity_type='',entity_id=null,action=''}) {
+    const payload = {event_type,screen_key,module_name,route_path,entity_type,entity_id,action};
+    fetch(`${basePath}/api/usage/events`, {
+      method:'POST',
+      credentials:'same-origin',
+      cache:'no-store',
+      keepalive:true,
+      headers:{'Content-Type':'application/json','Accept':'application/json'},
+      body:JSON.stringify(payload)
+    }).catch(()=>{});
+  }
+
+  window.Talk2MeUsage = { track };
+
+  document.addEventListener('click', event => {
+    const target = event.target.closest?.('[data-os-app],[data-os-route],[data-os-launch],[data-os-managed-launcher],[data-widget-add],[data-home-add-task],[data-home-add-reminder]');
+    if (!target) return;
+
+    const app = target.dataset.osApp || '';
+    const route = target.dataset.osRoute || '';
+    const launcher = target.dataset.osLaunch || target.dataset.osManagedLauncher || '';
+    const addAction = target.dataset.widgetAdd || (target.hasAttribute('data-home-add-task') ? 'task' : target.hasAttribute('data-home-add-reminder') ? 'reminder' : '');
+    const key = app || launcher || addAction || (route ? 'route' : 'unknown');
+
+    track({
+      event_type:'feature_open',
+      screen_key:key,
+      module_name:app === 'work' || app === 'tasks' || app === 'messages' ? 'work' : (app || launcher || addAction || 'navigation'),
+      route_path:route || location.pathname,
+      action:key
+    });
   }, true);
 })();
