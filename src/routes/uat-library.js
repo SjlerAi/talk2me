@@ -110,14 +110,23 @@ function verifyNativeToken(token) {
   }
 }
 
+function nativeFileName(row) {
+  const original = path.basename(String(row.original_name || '')).replace(/[\\/:*?"<>|\r\n]/g, '_').trim();
+  const extension = String(row.extension || '').toLowerCase();
+  if (original && (!extension || original.toLowerCase().endsWith(extension))) return original;
+  const fallback = clean(row.title || 'document', 120).replace(/[\\/:*?"<>|\r\n]/g, '_').trim() || 'document';
+  return `${fallback}${extension}`;
+}
+
 function nativeLaunchFor(req, basePath, row) {
   const kind = previewKind(row.extension, row.mime_type);
   const protocol = OFFICE_PROTOCOLS[kind];
   const versionId = idOf(row.version_id || row.current_version_id || row.id);
   if (!protocol || !versionId) return null;
   const token = makeNativeToken(versionId);
-  const root = `${req.protocol}://${req.get('host')}`;
-  const fileUrl = `${root}${basePath || ''}/api/uat/library/native/${encodeURIComponent(token)}`;
+  const root = `https://${req.get('host')}`;
+  const filename = encodeURIComponent(nativeFileName(row));
+  const fileUrl = `${root}${basePath || ''}/api/uat/library/native/${encodeURIComponent(token)}/${filename}`;
   return `${protocol}:ofv|u|${fileUrl}`;
 }
 
@@ -662,7 +671,7 @@ router.post('/api/uat/library/documents/:id/favourite',requireAuth,async(req,res
   }catch(error){next(error);}
 });
 
-router.get('/api/uat/library/native/:token',async(req,res,next)=>{
+router.get('/api/uat/library/native/:token/:filename',async(req,res,next)=>{
   try{
     await ensureSchema();
     const versionId=verifyNativeToken(req.params.token);
@@ -673,6 +682,8 @@ router.get('/api/uat/library/native/:token',async(req,res,next)=>{
     if(!row||row.status!=='active')return res.sendStatus(404);
     const kind=previewKind(row.extension,row.mime_type);
     if(!OFFICE_PROTOCOLS[kind])return res.status(400).type('text/plain').send('This file type does not use a desktop Office application.');
+    const expectedName=nativeFileName(row);
+    if(String(req.params.filename||'')!==expectedName)return res.sendStatus(404);
     const target=filePathFor(row);
     if(!target||!fs.existsSync(target))return res.sendStatus(404);
     const display=path.basename(String(row.original_name||'document')).replace(/["\r\n]/g,'_');
