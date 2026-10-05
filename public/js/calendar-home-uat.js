@@ -187,7 +187,7 @@
       workLauncher.dataset.osApp = 'work';
       workLauncher.setAttribute('aria-label', 'Work');
       workLauncher.title = 'Work';
-      workLauncher.innerHTML = '<span class="t2m-brand-mark customer">W</span><strong>Work</strong>';
+      workLauncher.innerHTML = '<span class="t2m-brand-mark customer">W</span><strong>Work</strong><b data-badge="work" hidden></b>';
       const customerLauncher = launcherScroll.querySelector('[data-os-launch="customers"]');
       if (customerLauncher) launcherScroll.insertBefore(workLauncher, customerLauncher);
       else launcherScroll.prepend(workLauncher);
