@@ -5,7 +5,7 @@
   const config = configNode ? JSON.parse(configNode.textContent || '{}') : {};
   const basePath = String(config.basePath || '');
   const appVersion = String(config.appVersion || '');
-  const uatAssetVersion = `${appVersion}-widgets-2`;
+  const uatAssetVersion = `${appVersion}-widgets-3`;
   let redirecting = false;
 
   function addStylesheet(marker, href) {
