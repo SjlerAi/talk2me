@@ -3,14 +3,14 @@
   "schema": 1,
   "repository": "SjlerAi/talk2me",
   "environment": "ui-uat",
-  "action": "hold",
-  "status": "HOLD",
-  "requestId": "hold-after-messages-tasks-windows-20261001-1612z",
-  "sourceBranch": "release/talk2me-ui-uat-2026-10-01-messages-tasks-windows",
-  "sourceSha": "5053fca1942b8ec767cb80dd32e03197e0bc8fa1",
+  "action": "deploy",
+  "status": "DEPLOY",
+  "requestId": "task-window-attachments-20261005-1018z",
+  "sourceBranch": "release/talk2me-ui-uat-2026-10-05-task-window-attachments",
+  "sourceSha": "60849ba6bfef5a8e7e16274f7ad4cef5100af963",
   "commit": null,
   "workflowRunId": null,
   "artifact": null,
   "sha256": null,
-  "requestedAt": null
+  "requestedAt": "2026-10-05T10:18:00Z"
 }
