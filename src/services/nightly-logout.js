@@ -63,11 +63,11 @@ async function ensureNightlyLogoutSchema() {
     });
 
     if (IS_UAT) {
-      // UAT office policy: any forgotten session is closed at 18:00.
+      // UAT office policy: any forgotten session is closed at 18:00 South Africa time.
       // Manual logout remains preferred and is recorded separately.
       await db.execute(`UPDATE nightly_logout_settings
-        SET logout_time=:logoutTime
-        WHERE id=1 AND logout_time='22:00:00'`, { logoutTime: DEFAULT_LOGOUT_TIME });
+        SET enabled=1,logout_time=:logoutTime,timezone=:timezone
+        WHERE id=1`, { logoutTime: DEFAULT_LOGOUT_TIME, timezone: DEFAULT_TIMEZONE });
     }
 
     schemaReady = true;
