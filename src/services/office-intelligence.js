@@ -78,6 +78,9 @@ function rangeSql(rangeKey = 'today') {
     case 'last7':
     case 'last_7_days':
       return { key: 'last_7_days', label: 'Last 7 days', fromExpr: 'DATE_SUB(NOW(), INTERVAL 7 DAY)', toExpr: 'NOW()' };
+    case 'last14':
+    case 'last_14_days':
+      return { key: 'last_14_days', label: 'Last 14 days', fromExpr: 'DATE_SUB(NOW(), INTERVAL 14 DAY)', toExpr: 'NOW()' };
     case 'month':
     case 'month_to_date':
       return { key: 'month_to_date', label: 'Month to date', fromExpr: "DATE_FORMAT(CURRENT_DATE(), '%Y-%m-01')", toExpr: 'NOW()' };
@@ -259,6 +262,25 @@ async function buildOfficeReport({ rangeKey = 'today', requestedBy = null, reque
     LIMIT 20
   `);
 
+  const featureUsage = await rows(`
+    SELECT event_type,COALESCE(module_name,'unknown') AS module_name,COUNT(*) AS uses,
+           COUNT(DISTINCT staff_id) AS staff_count,MAX(occurred_at) AS last_used_at
+    FROM crm_usage_events
+    WHERE occurred_at ${between}
+    GROUP BY event_type,module_name
+    ORDER BY uses DESC,event_type,module_name
+    LIMIT 50
+  `);
+
+  const logoutCompliance = await rows(`
+    SELECT COALESCE(logout_reason,'still_active') AS logout_reason,COUNT(*) AS sessions,
+           COUNT(DISTINCT staff_id) AS staff_count,MAX(COALESCE(logout_at,last_activity_at,login_at)) AS last_event_at
+    FROM staff_login_sessions
+    WHERE login_at ${between}
+    GROUP BY logout_reason
+    ORDER BY sessions DESC,logout_reason
+  `);
+
   const [staffSummaries, metricDetail, staffDetail] = await Promise.all([
     buildStaffSummaries(range),
     buildMetricDetail(metricKey, range),
@@ -285,7 +307,15 @@ async function buildOfficeReport({ rangeKey = 'today', requestedBy = null, reque
     metricDetail,
     recentAudit: recentAudit.rows,
     screenUsage: screenUsage.rows,
-    availability: { staffActivity: staffActivity.available, recentAudit: recentAudit.available, screenUsage: screenUsage.available }
+    featureUsage: featureUsage.rows,
+    logoutCompliance: logoutCompliance.rows,
+    availability: {
+      staffActivity: staffActivity.available,
+      recentAudit: recentAudit.available,
+      screenUsage: screenUsage.available,
+      featureUsage: featureUsage.available,
+      logoutCompliance: logoutCompliance.available
+    }
   };
 
   try {
@@ -310,6 +340,7 @@ function parseCommand(commandText = '') {
   const text = String(commandText || '').trim().toLowerCase();
   if (!text || text === 'check for me' || text === 'check') return { rangeKey: 'today' };
   if (text.includes('last 7') || text.includes('seven day')) return { rangeKey: 'last_7_days' };
+  if (text.includes('last 14') || text.includes('fourteen day')) return { rangeKey: 'last_14_days' };
   if (text.includes('week')) return { rangeKey: 'this_week' };
   if (text.includes('month')) return { rangeKey: 'month_to_date' };
   return { rangeKey: 'today' };
