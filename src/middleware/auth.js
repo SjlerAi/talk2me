@@ -50,4 +50,17 @@ function requireOwner(req, res, next) {
   next();
 }
 
-module.exports = { requireAuth, requireOwner, businessDate };
+
+function dailySessionMiddleware() {
+  return (req, res, next) => {
+    if (!req.session?.user) return next();
+
+    const path = String(req.path || req.url || '').split('?')[0];
+    if (path === '/login' || path === '/logout') return next();
+
+    if (req.session.loginDate && req.session.loginDate === businessDate()) return next();
+    return expireDailySession(req, res);
+  };
+}
+
+module.exports = { requireAuth, requireOwner, businessDate, dailySessionMiddleware };
