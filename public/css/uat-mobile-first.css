@@ -1,0 +1,301 @@
+/* UAT mobile-first final layer.
+   Loaded last so phone/tablet geometry cannot be undone by older desktop polish. */
+
+html,body{max-width:100%}
+
+@media (min-width:761px) and (max-width:920px){
+  .t2m-home-calendar-layout{
+    grid-template-columns:1fr!important;
+    min-width:0!important;
+  }
+  .t2m-home-agenda{
+    min-height:220px!important;
+  }
+  .t2m-home-calendar{
+    overflow:auto!important;
+  }
+}
+
+@media (max-width:760px){
+  html,body{width:100%;max-width:100%;overflow-x:hidden}
+
+  /* Shell: search first, compact actions second, launcher third. */
+  .t2m-calendar-home-shell{
+    grid-template-columns:1fr!important;
+    grid-template-rows:108px 58px minmax(0,1fr) 46px!important;
+    width:100%!important;
+    max-width:100%!important;
+    overflow:hidden!important;
+  }
+  .t2m-os-topbar{
+    grid-column:1!important;
+    grid-row:1!important;
+    min-width:0!important;
+    width:100%!important;
+    height:auto!important;
+    min-height:108px!important;
+    display:grid!important;
+    grid-template-columns:minmax(0,1fr) auto!important;
+    grid-template-rows:48px 48px!important;
+    align-items:center!important;
+    gap:4px 6px!important;
+    padding:4px 8px!important;
+    overflow:hidden!important;
+  }
+  .t2m-os-brand{display:none!important}
+  .t2m-os-search{
+    grid-column:1/-1!important;
+    grid-row:1!important;
+    min-width:0!important;
+    width:100%!important;
+    max-width:none!important;
+  }
+  .t2m-os-search input{
+    height:42px!important;
+    min-height:42px!important;
+    font-size:16px!important;
+  }
+  .t2m-os-search>span{
+    top:6px!important;
+  }
+  .t2m-os-top-actions{
+    grid-column:1/-1!important;
+    grid-row:2!important;
+    min-width:0!important;
+    width:100%!important;
+    max-width:100%!important;
+    margin-left:0!important;
+    display:flex!important;
+    justify-content:flex-end!important;
+    gap:5px!important;
+    overflow-x:auto!important;
+    overflow-y:hidden!important;
+    scrollbar-width:none;
+  }
+  .t2m-os-top-actions::-webkit-scrollbar{display:none}
+  .t2m-compact-session{
+    flex:0 0 auto!important;
+    min-height:40px!important;
+    height:40px!important;
+    gap:5px!important;
+    padding:4px 8px!important;
+  }
+  .t2m-compact-user{display:none!important}
+  .t2m-compact-clockout{
+    padding-left:0!important;
+    border-left:0!important;
+    font-size:10px!important;
+  }
+  .t2m-os-icon-button,
+  .t2m-top-sticky-button{
+    flex:0 0 40px!important;
+    width:40px!important;
+    min-width:40px!important;
+    height:40px!important;
+  }
+
+  /* Launcher: must stay in the single mobile column. */
+  .t2m-calendar-home-shell .t2m-os-launcher{
+    grid-column:1!important;
+    grid-row:2!important;
+    min-width:0!important;
+    width:100%!important;
+    max-width:100%!important;
+    height:58px!important;
+    min-height:58px!important;
+    padding:4px 5px!important;
+    overflow:hidden!important;
+  }
+  .t2m-calendar-home-shell .t2m-os-launcher-scroll{
+    min-width:0!important;
+    max-width:100%!important;
+    overflow-x:auto!important;
+    overflow-y:hidden!important;
+    overscroll-behavior-inline:contain;
+    -webkit-overflow-scrolling:touch;
+  }
+  .t2m-calendar-home-shell .t2m-os-launcher-scroll>button{
+    min-width:78px!important;
+    height:46px!important;
+    padding-inline:7px!important;
+  }
+  .t2m-calendar-home-shell .t2m-os-launcher-arrow{
+    flex-basis:30px!important;
+    width:30px!important;
+    min-width:30px!important;
+    height:42px!important;
+  }
+
+  .t2m-calendar-home-shell .t2m-os-workspace{
+    grid-column:1!important;
+    grid-row:3!important;
+    min-width:0!important;
+    max-width:100%!important;
+    width:100%!important;
+    overflow:hidden!important;
+  }
+  .t2m-calendar-home-shell .t2m-os-taskbar{
+    grid-column:1!important;
+    grid-row:4!important;
+    min-width:0!important;
+    max-width:100%!important;
+  }
+  .t2m-os-taskbar-label{display:none!important}
+
+  /* Calendar: no desktop minimum widths on phone/tablet portrait. */
+  .t2m-home-calendar{
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+    padding:8px!important;
+    overflow:auto!important;
+  }
+  .t2m-home-calendar-head{
+    align-items:flex-start!important;
+    flex-direction:column!important;
+    gap:8px!important;
+  }
+  .t2m-home-calendar-head h1{font-size:22px!important}
+  .t2m-home-actions{
+    width:100%!important;
+    display:grid!important;
+    grid-template-columns:1fr 1fr!important;
+  }
+  .t2m-home-calendar-controls{
+    grid-template-columns:34px 60px minmax(0,1fr) 34px!important;
+    gap:5px!important;
+  }
+  .t2m-home-calendar-controls>strong{
+    min-width:0!important;
+    font-size:15px!important;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+  }
+  .t2m-home-scope{grid-column:1/-1!important}
+  .t2m-home-calendar-layout{
+    grid-template-columns:1fr!important;
+    min-width:0!important;
+    width:100%!important;
+    max-width:100%!important;
+    gap:8px!important;
+  }
+  .t2m-home-month,
+  .t2m-home-agenda{
+    min-width:0!important;
+    width:100%!important;
+    max-width:100%!important;
+  }
+  .t2m-home-day{
+    min-width:0!important;
+    min-height:52px!important;
+    padding:4px!important;
+  }
+  .t2m-home-weekdays span{font-size:8px!important}
+
+  /* Route windows become true mobile workspaces inside the shell overlay. */
+  .t2m-os-window{
+    left:0!important;
+    top:0!important;
+    width:100%!important;
+    height:100%!important;
+    max-width:100%!important;
+    max-height:100%!important;
+    min-width:0!important;
+    min-height:0!important;
+    border-radius:0!important;
+  }
+  .t2m-os-window-resize{display:none!important}
+
+  /* Tasks and Messages are primary mobile tools: full-screen, no drag/resize dependency. */
+  #t2m-task-widget:not(.is-collapsed),
+  #t2m-messenger-widget:not(.is-collapsed){
+    inset:0!important;
+    left:0!important;
+    right:0!important;
+    top:0!important;
+    bottom:0!important;
+    width:100%!important;
+    height:100vh!important;
+    height:100dvh!important;
+    max-width:none!important;
+    max-height:none!important;
+    min-width:0!important;
+    min-height:0!important;
+    border-radius:0!important;
+  }
+  #t2m-task-widget .t2m-widget-resize-grip,
+  #t2m-messenger-widget .t2m-widget-resize-grip{display:none!important}
+  #t2m-task-widget .t2m-float-widget-head,
+  #t2m-messenger-widget .t2m-float-widget-head{
+    min-height:54px!important;
+    padding-top:env(safe-area-inset-top)!important;
+  }
+  #t2m-task-widget input,
+  #t2m-task-widget select,
+  #t2m-task-widget textarea,
+  #t2m-messenger-widget input,
+  #t2m-messenger-widget select,
+  #t2m-messenger-widget textarea{
+    font-size:16px!important;
+  }
+  #t2m-task-widget .t2m-task-inbox-head{padding:7px!important;gap:6px!important}
+  #t2m-task-widget .t2m-task-inbox-primary{
+    grid-template-columns:repeat(3,minmax(0,1fr))!important;
+    gap:5px!important;
+  }
+  #t2m-task-widget .t2m-task-inbox-primary button{
+    min-height:40px!important;
+    padding:6px!important;
+    gap:4px!important;
+    font-size:9px!important;
+  }
+  #t2m-task-widget .t2m-task-inbox-primary b{
+    min-width:20px!important;
+    height:20px!important;
+    padding-inline:4px!important;
+    font-size:9px!important;
+  }
+  #t2m-task-widget .t2m-task-inbox-filters{
+    overflow-x:auto!important;
+    -webkit-overflow-scrolling:touch;
+  }
+  #t2m-task-widget .t2m-task-form-scroll{
+    padding:10px 10px 16px!important;
+  }
+  #t2m-task-widget .t2m-task-thread-compose-row{
+    grid-template-columns:38px minmax(0,1fr) 54px!important;
+    gap:5px!important;
+  }
+  #t2m-messenger-widget .t2m-chat-tabs{
+    grid-template-columns:minmax(110px,1fr) 64px 64px!important;
+    gap:4px!important;
+  }
+
+  /* UAT route pages inside panels: avoid horizontal clipping and iOS input zoom. */
+  .page,.panel-page,.command-page{
+    min-width:0!important;
+    max-width:100%!important;
+    overflow-x:hidden!important;
+  }
+  .panel,.table-card,.wide-panel,.form-panel{
+    max-width:100%!important;
+    min-width:0!important;
+  }
+  .assignment-form{
+    min-width:0!important;
+    flex-direction:column!important;
+    align-items:stretch!important;
+  }
+  .assignment-form select,
+  .assignment-form button{
+    width:100%!important;
+    min-width:0!important;
+  }
+  .detail-list{grid-template-columns:1fr!important}
+  .page input,.page select,.page textarea,
+  .panel-page input,.panel-page select,.panel-page textarea,
+  .command-page input,.command-page select,.command-page textarea{
+    font-size:16px!important;
+  }
+}
