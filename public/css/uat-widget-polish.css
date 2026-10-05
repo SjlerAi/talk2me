@@ -73,7 +73,8 @@
 #t2m-task-widget .t2m-task-card-meta{font-size:10px}
 #t2m-task-widget .t2m-task-card-actions button{font-size:11px}
 
-#t2m-task-widget .t2m-task-form{gap:10px;padding:14px;min-height:max-content}
+#t2m-task-widget .t2m-task-form{height:100%;min-height:0;overflow:hidden;padding:0;gap:0}
+#t2m-task-widget .t2m-task-form-scroll{min-height:0;overflow-y:auto!important;overflow-x:hidden;display:grid;gap:10px;align-content:start;padding:14px 16px 20px;overscroll-behavior:contain;scrollbar-gutter:stable}
 #t2m-task-widget .t2m-task-form h3{font-size:18px}
 #t2m-task-widget .t2m-task-form label{gap:5px;font-size:11px}
 #t2m-task-widget .t2m-task-form input,
@@ -86,9 +87,10 @@
 }
 #t2m-task-widget .t2m-task-form textarea{min-height:95px}
 #t2m-task-widget .t2m-task-form-grid{grid-template-columns:1fr 1fr;gap:10px}
+#t2m-task-widget .t2m-task-form-actions{padding:10px 14px;border-top:1px solid #dce4ea;background:#fff;box-shadow:0 -8px 18px rgba(32,40,50,.06)}
 #t2m-task-widget .t2m-task-form-actions button{min-height:40px;height:auto;font-size:11px;padding:8px 13px}
 
-#t2m-task-widget .t2m-task-detail{height:auto!important;min-height:100%;overflow:visible!important;padding:14px 16px 24px!important}
+#t2m-task-widget .t2m-task-detail{height:100%!important;min-height:0!important;overflow:hidden!important;padding:0!important}
 #t2m-task-widget .t2m-task-detail-card{padding:15px!important}
 #t2m-task-widget .t2m-task-detail-card h3{font-size:18px!important}
 #t2m-task-widget .t2m-task-detail-card .lead{font-size:12px!important;line-height:1.5!important}

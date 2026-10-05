@@ -294,9 +294,21 @@
   function renderTaskNew(prefill={}){
     fitWidgetMode(taskWidget,taskWidgetKey,{width:760,height:545,minWidth:520,minHeight:360});
     const defaultDue=prefill.date?`${prefill.date}T09:00`:'';
-    taskBody.innerHTML=`<form class="t2m-task-form" data-task-form enctype="multipart/form-data"><h3>New task</h3><label>Assign to<select name="assigned_to" required><option value="">Choose person</option>${(taskState.staff||[]).map(s=>`<option value="${s.id}">${esc(s.full_name)}</option>`).join('')}</select></label><label>Title<input name="title" maxlength="180" required placeholder="What needs doing?"></label><label>Task<textarea name="message" required placeholder="Short clear instruction"></textarea></label><div class="t2m-task-form-grid"><label>Due<input type="datetime-local" name="due_at" value="${esc(defaultDue)}"></label><label>Priority<select name="priority"><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></select></label></div><div class="t2m-task-file-picker"><div class="t2m-task-file-picker-row"><button type="button" data-task-files-choose>📎 Attach files</button><small>PDF, Word, Excel, PowerPoint, images and common office files · max 5 files, 15 MB each</small></div><input type="file" name="attachments" multiple accept="${taskFileAccept}" data-task-files hidden><div class="t2m-task-file-selection" data-task-files-list hidden></div></div><div class="t2m-task-form-actions"><button type="button" data-task-cancel>Cancel</button><button type="submit" class="primary">Create task</button></div></form>`;
+    taskBody.innerHTML=`<form class="t2m-task-form t2m-task-form-new" data-task-form enctype="multipart/form-data"><div class="t2m-task-form-scroll" data-task-form-scroll><h3>New task</h3><label>Assign to<select name="assigned_to" required><option value="">Choose person</option>${(taskState.staff||[]).map(s=>`<option value="${s.id}">${esc(s.full_name)}</option>`).join('')}</select></label><label>Title<input name="title" maxlength="180" required placeholder="What needs doing?"></label><label>Task<textarea name="message" required placeholder="Short clear instruction"></textarea></label><div class="t2m-task-form-grid"><label>Due<input type="datetime-local" name="due_at" value="${esc(defaultDue)}"></label><label>Priority<select name="priority"><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></select></label></div><div class="t2m-task-file-picker"><div class="t2m-task-file-picker-row"><button type="button" data-task-files-choose>📎 Attach files</button><small>PDF, Word, Excel, PowerPoint, images and common office files · max 5 files, 15 MB each</small></div><input type="file" name="attachments" multiple accept="${taskFileAccept}" data-task-files hidden><div class="t2m-task-file-selection" data-task-files-list hidden></div></div></div><div class="t2m-task-form-actions" data-task-form-actions><button type="button" data-task-cancel>Cancel</button><button type="submit" class="primary">Create task</button></div></form>`;
     const form=taskBody.querySelector('[data-task-form]');
+    const formScroll=form.querySelector('[data-task-form-scroll]');
     bindTaskFilePicker(form);
+    form.addEventListener('focusin',event=>{
+      if(!formScroll||event.target.closest('[data-task-form-actions]'))return;
+      window.requestAnimationFrame(()=>{
+        const target=event.target;
+        if(!target?.getBoundingClientRect)return;
+        const targetRect=target.getBoundingClientRect();
+        const scrollRect=formScroll.getBoundingClientRect();
+        if(targetRect.bottom>scrollRect.bottom-12)formScroll.scrollTop+=targetRect.bottom-scrollRect.bottom+20;
+        else if(targetRect.top<scrollRect.top+12)formScroll.scrollTop-=scrollRect.top-targetRect.top+20;
+      });
+    });
     form.onsubmit=async event=>{
       event.preventDefault();
       const submit=form.querySelector('button[type="submit"]');
