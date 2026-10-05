@@ -8,7 +8,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const db = require('./src/config/db');
 const packageInfo = require('./package.json');
-const { startNightlyLogoutWorker } = require('./src/services/nightly-logout');
+const { startNightlyLogoutWorker, ensureNightlyLogoutSchema } = require('./src/services/nightly-logout');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -123,7 +123,7 @@ if (UAT_MODE) {
   registerPublicGet('/api/uat/telemetry/health', async (req, res) => {
     res.set('Cache-Control', 'no-store');
     try {
-      await ensureUsageSchema();
+      await Promise.all([ensureUsageSchema(), ensureNightlyLogoutSchema()]);
       const [[usage]] = await db.execute(`SELECT COUNT(*) total,MAX(occurred_at) last_event_at FROM crm_usage_events`);
       const [[logout]] = await db.execute(`SELECT enabled,TIME_FORMAT(logout_time,'%H:%i:%s') logout_time,timezone
         FROM nightly_logout_settings WHERE id=1 LIMIT 1`);
