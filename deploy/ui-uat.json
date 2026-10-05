@@ -5,12 +5,12 @@
   "environment": "ui-uat",
   "action": "deploy",
   "status": "DEPLOY",
-  "requestId": "task-window-attachments-20261005-1018z",
-  "sourceBranch": "release/talk2me-ui-uat-2026-10-05-task-window-attachments",
-  "sourceSha": "60849ba6bfef5a8e7e16274f7ad4cef5100af963",
+  "requestId": "task-window-attachments-v2-20261005-1028z",
+  "sourceBranch": "release/talk2me-ui-uat-2026-10-05-task-window-attachments-v2",
+  "sourceSha": "d802c3c23c6c73d847109ef73f25da82ca4ebe76",
   "commit": null,
   "workflowRunId": null,
   "artifact": null,
   "sha256": null,
-  "requestedAt": "2026-10-05T10:18:00Z"
+  "requestedAt": "2026-10-05T10:28:00Z"
 }
