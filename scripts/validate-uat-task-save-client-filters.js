@@ -19,13 +19,13 @@ const indexRoute = read('src/routes/index.js');
 
 need(taskRoute, "DATE_FORMAT(due_at,'%Y-%m-%d %H:%i:%s') persisted_due", 'task database save verification');
 need(taskRoute, "verified: true", 'verified reschedule response');
-need(taskRoute, "requested === 'all' && !isManager", 'staff All task scope');
-need(taskRoute, "(t.assigned_to=:userId OR t.assigned_to IS NULL)", 'staff All task restriction');
+need(taskRoute, "requestedScope === 'all' && !isManager", 'staff All task scope');
+need(taskRoute, "(t.assigned_to=:userId OR t.created_by=:userId OR t.assigned_to IS NULL)", 'staff All task restriction');
 
 need(taskUi, 'data-task-reschedule-notice', 'visible task save confirmation');
 need(taskUi, '✓ Saved — follow-up is now', 'task saved message');
-need(taskUi, 'data-task-scope="all">All</button>', 'staff All task filter');
-need(taskUi, 'data-task-scope="mine">My Own</button>', 'staff My Own task filter');
+need(taskUi, 'data-task-context="all">All</button>', 'staff All task context');
+need(taskUi, 'data-task-context="mine">Mine</button>', 'staff Mine task context');
 
 need(clientRoute, "scope === 'staff'", 'management staff selection scope');
 need(clientRoute, "if (management && scope === 'all') return '1=1'", 'management full shop visibility');
