@@ -10,11 +10,11 @@ assert(ui.includes('let floatingWidgetZ = 30000'), 'floating widgets must own a 
 assert(ui.includes('t2m-task-widget-v3-'), 'task geometry storage must be versioned');
 assert(ui.includes('name="attachments"'), 'task UI must support file attachments');
 assert(ui.includes('new FormData(form)'), 'new task must submit multipart form data');
-assert(ui.includes('t2m-task-thread-composer'), 'task detail needs a permanent communication composer');
+assert(ui.includes('t2m-task-thread-composer'), 'task detail needs a permanent communication composer');\nassert(ui.includes('data-task-form-scroll'), 'new task needs a dedicated scrollable field area');\nassert(ui.includes('data-task-form-actions'), 'new task needs a permanent action footer');
 assert(css.includes('z-index:30000'), 'floating windows must sit above the OS taskbar');
-assert(css.includes('grid-template-rows:auto minmax(0,1fr) auto'), 'task detail needs header/scroll body/composer rows');
+assert(css.includes('grid-template-rows:auto minmax(0,1fr) auto'), 'task detail needs header/scroll body/composer rows');\nassert(css.includes('grid-template-rows:minmax(0,1fr) auto'), 'new task form must use scroll body plus fixed actions');\nassert(css.includes('.t2m-task-form-scroll{min-height:0;overflow-y:auto'), 'new task field area must scroll');
 assert(css.includes('min-height:360px'), 'tasks must resize below the old 640px minimum');
-assert(!polish.includes('ensureUsableSize(widget, 580, 640)'), 'later polish must not restore the old task minimum');
+assert(!polish.includes('ensureUsableSize(widget, 580, 640)'), 'later polish must not restore the old task minimum');\nassert(!fs.readFileSync('public/css/uat-widget-polish.css','utf8').includes('min-height:max-content'), 'later polish must not restore max-content task form height');\nassert(!fs.readFileSync('public/css/uat-widget-polish.css','utf8').includes('.t2m-task-detail{height:auto!important'), 'later polish must not undo task detail scroll architecture');
 assert(route.includes('staff_task_attachments'), 'task attachment metadata table must exist');
 assert(route.includes("array('attachments', 5)"), 'task uploads must cap attachment count');
 assert(route.includes('15 * 1024 * 1024'), 'task uploads must cap per-file size');
