@@ -144,7 +144,9 @@ app.use((req, res, next) => {
   next();
 });
 
+const { dailySessionMiddleware } = require('./src/middleware/auth');
 const { usageMiddleware } = require('./src/services/usage-telemetry');
+app.use(dailySessionMiddleware());
 app.use(usageMiddleware());
 
 
