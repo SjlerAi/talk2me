@@ -1,8 +1,8 @@
 /* UAT Messages & Tasks usability layer.
    Keep the staff selector convenience, but never shrink or hide core workflow functions. */
 
-#t2m-messenger-widget{min-width:500px;min-height:560px}
-#t2m-task-widget{min-width:580px;min-height:640px}
+#t2m-messenger-widget{min-width:480px;min-height:420px}
+#t2m-task-widget{min-width:520px;min-height:360px}
 
 #t2m-messenger-widget .t2m-float-widget-head-copy small,
 #t2m-task-widget .t2m-float-widget-head-copy small{display:block;font-size:9px;color:#c5d0da}
@@ -105,3 +105,7 @@
   #t2m-messenger-widget .t2m-chat-tabs [data-chat-tab="system"]{font-size:9px}
   #t2m-task-widget .t2m-task-form-grid{grid-template-columns:1fr}
 }
+
+#t2m-task-widget:not(.is-collapsed):not(.is-maximized){min-width:520px;min-height:360px}
+#t2m-messenger-widget:not(.is-collapsed):not(.is-maximized){min-width:480px;min-height:420px}
+#t2m-task-widget .t2m-float-widget-body{overflow:hidden!important}
