@@ -43,7 +43,6 @@
           <span class="attendance-user-copy"><strong><%= firstName %></strong><small><i aria-hidden="true"></i><%= attendance?'Clocked in · '+new Date(attendance.clock_in_at).toLocaleTimeString('en-ZA',{hour:'2-digit',minute:'2-digit'}):'Not clocked in' %></small></span>
         </button>
         <% if(isManagement){ %><button class="t2m-os-icon-button" type="button" data-os-route="<%= basePath %>/approvals" data-route-title="Approval Centre" data-route-icon="◆" aria-label="Open approval centre"><span aria-hidden="true">◆</span><b class="t2m-os-badge" data-approval-count <%= approvalCount ? '' : 'hidden' %>><%= approvalCount %></b></button><% } %>
-        <button class="t2m-os-icon-button" type="button" data-os-app="notifications" aria-label="Work needing attention" title="Work needing attention"><span aria-hidden="true">🔔</span><b class="t2m-os-badge" data-badge="notifications" <%= status.taskCount ? '' : 'hidden' %>><%= status.taskCount %></b></button>
         <form method="post" action="<%= basePath %>/logout"><button class="t2m-os-logout attendance-session-action" type="submit"><%= attendance?'Clock Out & Logout':'Logout' %></button></form>
       </div>
     </header>
