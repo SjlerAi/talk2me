@@ -287,6 +287,10 @@ if (UAT_MODE) {
   app.use('/', uatWorkWidgets);
   if (BASE_PATH) app.use(BASE_PATH, uatWorkWidgets);
 
+  const uatLibrary = require('./src/routes/uat-library');
+  app.use('/', uatLibrary);
+  if (BASE_PATH) app.use(BASE_PATH, uatLibrary);
+
   const uatCommandCentre = require('./src/routes/uat-command-centre');
   app.use('/', uatCommandCentre);
   if (BASE_PATH) app.use(BASE_PATH, uatCommandCentre);
