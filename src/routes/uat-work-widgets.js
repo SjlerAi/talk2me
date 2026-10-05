@@ -487,46 +487,159 @@ router.get('/api/uat/tasks', requireAuth, async (req, res, next) => {
     await ensureSchema();
     const userId = Number(req.session.user.id);
     const isManager = management(req.session.user);
-    const requested = String(req.query.scope || 'mine');
-    const scope = requested === 'sent'
+    const requestedScope = String(req.query.scope || 'mine').toLowerCase();
+    const requestedView = String(req.query.view || 'latest').toLowerCase();
+    const requestedFilter = String(req.query.filter || 'all').toLowerCase();
+    const legacyCompleted = requestedScope === 'completed';
+    const scope = requestedScope === 'sent'
       ? 'sent'
-      : requested === 'completed'
-        ? 'completed'
-        : requested === 'team' && isManager
-          ? 'team'
-          : requested === 'all' && !isManager
-            ? 'all'
-            : 'mine';
+      : requestedScope === 'team' && isManager
+        ? 'team'
+        : 'mine';
+    const view = ['latest','urgent','attention'].includes(requestedView) ? requestedView : 'latest';
+    const filter = legacyCompleted
+      ? 'completed'
+      : ['all','today','week','overdue','upcoming','completed'].includes(requestedFilter)
+        ? requestedFilter
+        : 'all';
+
     const where = scope === 'sent'
       ? 't.created_by=:userId'
       : scope === 'team'
         ? '1=1'
-        : scope === 'completed'
-          ? (isManager ? '1=1' : '(t.assigned_to=:userId OR t.created_by=:userId)')
-          : scope === 'all'
-            ? '(t.assigned_to=:userId OR t.assigned_to IS NULL)'
-            : 't.assigned_to=:userId';
-    const statusWhere = scope === 'completed'
-      ? "t.status='completed'"
-      : `(t.status IN ${ACTIVE_TASKS} OR (t.status='completed' AND w.workflow_state='awaiting_sender_ack'))`;
-    const [tasks] = await db.execute(`SELECT t.id,t.title,t.message,t.priority,t.status,t.due_at,t.created_at,t.completed_at,t.completion_note,t.assigned_to,t.created_by,
-      ass.full_name assigned_name,creator.full_name created_by_name,cl.client_name related_client_name,t.related_client_id,
-      COALESCE(w.workflow_state,CASE WHEN t.status='completed' THEN 'accepted' ELSE 'active' END) workflow_state,
-      w.completed_at workflow_completed_at,w.acknowledged_at
-      FROM staff_tasks t
+        : '(t.assigned_to=:userId OR t.created_by=:userId)';
+
+    const activeStatusWhere = `(t.status IN ${ACTIVE_TASKS} OR (t.status='completed' AND w.workflow_state='awaiting_sender_ack'))`;
+    const statusWhere = filter === 'completed' ? "t.status='completed'" : activeStatusWhere;
+    const unreadExpr = scope === 'team' ? 'COALESCE(an.unread_count,0)' : 'COALESCE(mn.unread_count,0)';
+    const actionExpr = scope === 'team' ? 'COALESCE(an.action_count,0)' : 'COALESCE(mn.action_count,0)';
+    const notificationExpr = scope === 'team' ? 'an.notification_at' : 'mn.notification_at';
+    const unreadStatusExpr = scope === 'team'
+      ? "t.status='unread'"
+      : "(t.status='unread' AND t.assigned_to=:userId)";
+    const returnedExpr = scope === 'team'
+      ? "w.workflow_state='returned'"
+      : "(w.workflow_state='returned' AND t.assigned_to=:userId)";
+    const approvalExpr = scope === 'team'
+      ? "w.workflow_state='awaiting_sender_ack'"
+      : "(w.workflow_state='awaiting_sender_ack' AND t.created_by=:userId)";
+    const attentionExpr = `(${unreadExpr}>0 OR ${actionExpr}>0 OR ${unreadStatusExpr} OR ${returnedExpr} OR ${approvalExpr})`;
+    const urgentExpr = `(t.due_at<NOW() OR DATE(t.due_at)=CURDATE() OR t.priority='urgent' OR w.workflow_state IN ('returned','awaiting_sender_ack') OR ${actionExpr}>0)`;
+
+    const viewWhere = filter === 'completed'
+      ? '1=1'
+      : view === 'urgent'
+        ? urgentExpr
+        : view === 'attention'
+          ? attentionExpr
+          : '1=1';
+
+    const filterWhere = filter === 'today'
+      ? 'DATE(t.due_at)=CURDATE()'
+      : filter === 'week'
+        ? 't.due_at>=DATE_SUB(CURDATE(),INTERVAL WEEKDAY(CURDATE()) DAY) AND t.due_at<DATE_ADD(DATE_SUB(CURDATE(),INTERVAL WEEKDAY(CURDATE()) DAY),INTERVAL 7 DAY)'
+        : filter === 'overdue'
+          ? "t.due_at<NOW() AND t.status<>'completed'"
+          : filter === 'upcoming'
+            ? 't.due_at>=DATE_ADD(CURDATE(),INTERVAL 1 DAY)'
+            : '1=1';
+
+    const orderBy = filter === 'completed'
+      ? 'COALESCE(t.completed_at,w.acknowledged_at,t.updated_at,t.created_at) DESC'
+      : view === 'urgent'
+        ? `CASE WHEN t.due_at<NOW() THEN 0 WHEN DATE(t.due_at)=CURDATE() THEN 1 WHEN t.priority='urgent' THEN 2 WHEN ${actionExpr}>0 THEN 3 ELSE 4 END,
+           t.due_at IS NULL,t.due_at,
+           last_activity_at DESC`
+        : view === 'attention'
+          ? `${actionExpr} DESC,${unreadExpr} DESC,COALESCE(${notificationExpr},last_activity_at) DESC,last_activity_at DESC`
+          : 'last_activity_at DESC,t.created_at DESC';
+
+    const joins = `
       LEFT JOIN staff_users ass ON ass.id=t.assigned_to
       JOIN staff_users creator ON creator.id=t.created_by
       LEFT JOIN clients cl ON cl.id=t.related_client_id
       LEFT JOIN staff_task_workflow w ON w.task_id=t.id
-      WHERE ${where} AND ${statusWhere}
-      ORDER BY CASE WHEN :completedScope=1 THEN 0 WHEN t.due_at IS NOT NULL AND t.due_at<NOW() THEN 0 WHEN t.priority='urgent' THEN 1 WHEN t.priority='high' THEN 2 ELSE 3 END,
-        CASE WHEN :completedScope=1 THEN COALESCE(t.completed_at,t.updated_at,t.created_at) END DESC,
-        t.due_at IS NULL,t.due_at,t.created_at DESC LIMIT 120`, { userId, completedScope: scope === 'completed' ? 1 : 0 });
+      LEFT JOIN (
+        SELECT task_id,MAX(id) latest_comment_id,MAX(created_at) latest_comment_at
+        FROM staff_task_comments GROUP BY task_id
+      ) lc ON lc.task_id=t.id
+      LEFT JOIN staff_task_comments latest_comment ON latest_comment.id=lc.latest_comment_id
+      LEFT JOIN staff_users latest_staff ON latest_staff.id=latest_comment.staff_id
+      LEFT JOIN (
+        SELECT task_id,COUNT(*) attachment_count
+        FROM staff_task_attachments GROUP BY task_id
+      ) af ON af.task_id=t.id
+      LEFT JOIN (
+        SELECT task_id,
+          SUM(CASE WHEN resolved_at IS NULL AND is_read=0 THEN 1 ELSE 0 END) unread_count,
+          SUM(CASE WHEN resolved_at IS NULL AND action_required=1 THEN 1 ELSE 0 END) action_count,
+          MAX(CASE WHEN resolved_at IS NULL THEN created_at END) notification_at
+        FROM staff_task_notifications
+        WHERE recipient_staff_id=:userId
+        GROUP BY task_id
+      ) mn ON mn.task_id=t.id
+      LEFT JOIN (
+        SELECT task_id,
+          SUM(CASE WHEN resolved_at IS NULL AND is_read=0 THEN 1 ELSE 0 END) unread_count,
+          SUM(CASE WHEN resolved_at IS NULL AND action_required=1 THEN 1 ELSE 0 END) action_count,
+          MAX(CASE WHEN resolved_at IS NULL THEN created_at END) notification_at
+        FROM staff_task_notifications
+        GROUP BY task_id
+      ) an ON an.task_id=t.id`;
+
+    const [tasks] = await db.execute(`SELECT
+      t.id,t.title,t.message,t.priority,t.status,t.due_at,t.created_at,t.completed_at,t.completion_note,t.assigned_to,t.created_by,
+      ass.full_name assigned_name,creator.full_name created_by_name,cl.client_name related_client_name,t.related_client_id,
+      COALESCE(w.workflow_state,CASE WHEN t.status='completed' THEN 'accepted' ELSE 'active' END) workflow_state,
+      w.completed_at workflow_completed_at,w.acknowledged_at,w.returned_at,w.return_reason,
+      latest_comment.comment latest_update,latest_comment.created_at latest_update_at,latest_staff.full_name latest_update_by,
+      COALESCE(af.attachment_count,0) attachment_count,
+      ${unreadExpr} unread_count,${actionExpr} action_count,
+      ${notificationExpr} notification_at,
+      GREATEST(COALESCE(lc.latest_comment_at,t.created_at),COALESCE(w.updated_at,t.created_at),COALESCE(t.updated_at,t.created_at)) last_activity_at,
+      CASE WHEN t.due_at IS NOT NULL AND t.due_at<NOW() AND t.status<>'completed' THEN 1 ELSE 0 END is_overdue,
+      CASE WHEN t.due_at IS NOT NULL AND DATE(t.due_at)=CURDATE() AND t.status<>'completed' THEN 1 ELSE 0 END due_today,
+      CASE WHEN ${attentionExpr} THEN 1 ELSE 0 END needs_attention
+      FROM staff_tasks t
+      ${joins}
+      WHERE ${where} AND ${statusWhere} AND (${viewWhere}) AND (${filterWhere})
+      ORDER BY ${orderBy}
+      LIMIT 160`, { userId });
+
+    const [countRows] = await db.execute(`SELECT
+      COUNT(*) latest,
+      COALESCE(SUM(CASE WHEN ${urgentExpr} THEN 1 ELSE 0 END),0) urgent,
+      COALESCE(SUM(CASE WHEN ${attentionExpr} THEN 1 ELSE 0 END),0) attention
+      FROM staff_tasks t
+      LEFT JOIN staff_task_workflow w ON w.task_id=t.id
+      LEFT JOIN (
+        SELECT task_id,
+          SUM(CASE WHEN resolved_at IS NULL AND is_read=0 THEN 1 ELSE 0 END) unread_count,
+          SUM(CASE WHEN resolved_at IS NULL AND action_required=1 THEN 1 ELSE 0 END) action_count,
+          MAX(CASE WHEN resolved_at IS NULL THEN created_at END) notification_at
+        FROM staff_task_notifications
+        WHERE recipient_staff_id=:userId
+        GROUP BY task_id
+      ) mn ON mn.task_id=t.id
+      LEFT JOIN (
+        SELECT task_id,
+          SUM(CASE WHEN resolved_at IS NULL AND is_read=0 THEN 1 ELSE 0 END) unread_count,
+          SUM(CASE WHEN resolved_at IS NULL AND action_required=1 THEN 1 ELSE 0 END) action_count,
+          MAX(CASE WHEN resolved_at IS NULL THEN created_at END) notification_at
+        FROM staff_task_notifications
+        GROUP BY task_id
+      ) an ON an.task_id=t.id
+      WHERE ${where} AND ${activeStatusWhere}`, { userId });
+
+    const counts = {
+      latest: Number(countRows?.[0]?.latest || 0),
+      urgent: Number(countRows?.[0]?.urgent || 0),
+      attention: Number(countRows?.[0]?.attention || 0)
+    };
     const [staff] = await db.execute('SELECT id,full_name,role FROM staff_users WHERE is_active=1 ORDER BY full_name');
-    res.json({ ok: true, scope, management: isManager, staff, tasks });
+    res.json({ ok: true, scope, view, filter, counts, management: isManager, staff, tasks });
   } catch (error) { next(error); }
 });
-
 router.get('/api/uat/tasks/:id', requireAuth, async (req, res, next) => {
   try {
     await ensureSchema();
