@@ -29,8 +29,11 @@ assert(route.includes('/api/uat/library/documents/:id/preview'), 'Spreadsheet pr
 assert(route.includes("document: 'ms-word'"), 'Word documents must have a native Office protocol');
 assert(route.includes("spreadsheet: 'ms-excel'"), 'Excel documents must have a native Office protocol');
 assert(route.includes("presentation: 'ms-powerpoint'"), 'PowerPoint documents must have a native Office protocol');
-assert(route.includes('/api/uat/library/native/:token'), 'Native Office delivery endpoint must exist');
+assert(route.includes('/api/uat/library/native/:token/:filename'), 'Native Office delivery endpoint must expose a real filename and extension');
 assert(route.includes("createHmac('sha256'"), 'Native Office links must be signed');
+assert(route.includes('const filename = encodeURIComponent(nativeFileName(row))'), 'Office native URL must end in the actual filename');
+assert(route.includes('https://${req.get(\'host\')}'), 'Office native URL must use HTTPS');
+assert(route.includes("String(req.params.filename||'')!==expectedName"), 'Native Office delivery must verify the filename in the direct URL');
 assert(route.includes('15 * 60 * 1000'), 'Native Office links must be short lived');
 assert(route.includes('/api/uat/library/export/current'), 'Full current Library export must exist');
 assert(route.includes('/api/uat/library/snapshots'), 'Month-end snapshots must exist');
