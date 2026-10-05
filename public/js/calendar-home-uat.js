@@ -78,6 +78,92 @@
     return payload;
   }
 
+  function mountMobileMenu() {
+    if (!topActions || topActions.querySelector('[data-mobile-menu-toggle]')) return;
+
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 't2m-os-icon-button t2m-mobile-menu-toggle';
+    toggle.dataset.mobileMenuToggle = '1';
+    toggle.setAttribute('aria-label', 'Open Talk2Me menu');
+    toggle.setAttribute('aria-expanded', 'false');
+    toggle.innerHTML = '<span aria-hidden="true">☰</span>';
+    topActions.insertBefore(toggle, topActions.firstChild);
+
+    const backdrop = document.createElement('button');
+    backdrop.type = 'button';
+    backdrop.className = 't2m-mobile-menu-backdrop';
+    backdrop.dataset.mobileMenuBackdrop = '1';
+    backdrop.setAttribute('aria-label', 'Close Talk2Me menu');
+    backdrop.hidden = true;
+
+    const menu = document.createElement('nav');
+    menu.className = 't2m-mobile-menu';
+    menu.dataset.mobileMenu = '1';
+    menu.setAttribute('aria-label', 'Talk2Me mobile navigation');
+    menu.hidden = true;
+
+    shell.appendChild(backdrop);
+    shell.appendChild(menu);
+
+    const renderMenu = () => {
+      const source = sidebar.querySelector('.t2m-simple-nav');
+      const status = config.status || {};
+      const quick = [
+        { app: 'tasks', icon: '✓', label: 'Tasks', badge: Number(status.taskCount || 0) },
+        { app: 'messages', icon: '●', label: 'Messages', badge: Number(status.unreadMessageCount || 0) }
+      ];
+
+      menu.innerHTML = '<header><div><span>Talk2Me</span><strong>Menu</strong></div><button type="button" data-mobile-menu-close aria-label="Close menu">×</button></header><div class="t2m-mobile-menu-grid" data-mobile-menu-grid></div>';
+      const grid = menu.querySelector('[data-mobile-menu-grid]');
+
+      quick.forEach(item => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.dataset.osApp = item.app;
+        button.innerHTML = `<span>${item.icon}</span><strong>${item.label}</strong>${item.badge ? `<b>${item.badge}</b>` : ''}`;
+        grid.appendChild(button);
+      });
+
+      source?.querySelectorAll('button').forEach(sourceButton => {
+        const button = sourceButton.cloneNode(true);
+        button.removeAttribute('id');
+        button.classList.remove('is-open');
+        grid.appendChild(button);
+      });
+    };
+
+    const setOpen = open => {
+      if (open) renderMenu();
+      menu.hidden = !open;
+      backdrop.hidden = !open;
+      toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      shell.classList.toggle('is-mobile-menu-open', open);
+      if (open) menu.querySelector('button:not([data-mobile-menu-close])')?.focus();
+    };
+
+    toggle.addEventListener('click', event => {
+      event.preventDefault();
+      event.stopPropagation();
+      setOpen(menu.hidden);
+    });
+    backdrop.addEventListener('click', () => setOpen(false));
+    menu.addEventListener('click', event => {
+      if (event.target.closest('[data-mobile-menu-close]')) {
+        setOpen(false);
+        return;
+      }
+      if (event.target.closest('button')) setTimeout(() => setOpen(false), 0);
+    });
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && !menu.hidden) setOpen(false);
+    });
+    const phone = window.matchMedia('(max-width:760px)');
+    const closeOnDesktop = event => { if (!event.matches) setOpen(false); };
+    if (typeof phone.addEventListener === 'function') phone.addEventListener('change', closeOnDesktop);
+    else if (typeof phone.addListener === 'function') phone.addListener(closeOnDesktop);
+  }
+
   function simplifyShell() {
     shell.classList.add('t2m-calendar-home-shell');
     launcher?.setAttribute('hidden', '');
@@ -93,6 +179,7 @@
       <button type="button" data-os-route="${basePath}/backoffice" data-route-title="Administration" data-route-icon="⚙" aria-label="Administration" title="Administration"><span>⚙</span><strong>Administration</strong></button>` : ''}
       <button type="button" data-os-app="help" aria-label="Help" title="Help"><span>?</span><strong>Help</strong></button>`;
     sidebar.appendChild(section);
+    mountMobileMenu();
 
     if (topActions && !topActions.querySelector('[data-os-app="notes"]')) {
       const notes = document.createElement('button');
