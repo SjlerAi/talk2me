@@ -410,14 +410,6 @@ async function queryAttendanceManagement(message) {
     GROUP BY su.id,staff_name,su.email,su.role
     ORDER BY staff_name`);
 
-  let team = rows.map(row => ({
-    ...row,
-    session_count:Number(row.session_count || 0),
-    working_now:Boolean(Number(row.working_now || 0)),
-    worked_minutes:Number(row.worked_minutes || 0)
-  }));
-  if (staff) team = team.filter(row => Number(row.id)===Number(staff.id));
-
   const configuredSchedule = Boolean(
     schedule
     && Number(schedule.is_workday)
@@ -428,30 +420,29 @@ async function queryAttendanceManagement(message) {
   const expectedStart = configuredSchedule ? timeToMinutes(schedule.start_time) : null;
   const expectedEnd = configuredSchedule ? timeToMinutes(schedule.end_time) : null;
 
-  for (const row of team) {
-    row.present = row.session_count > 0;
-    row.on_leave = Boolean(row.leave_type);
-    const firstMinutes = timeToMinutes(row.first_in);
-    const lastMinutes = timeToMinutes(row.last_out);
-    row.late = Boolean(configuredSchedule && row.present && firstMinutes != null && firstMinutes > expectedStart + graceMinutes);
-    row.left_early = Boolean(configuredSchedule && row.present && !row.working_now && lastMinutes != null && lastMinutes < expectedEnd);
-  }
+  const allStaff = rows.map(row => {
+    const item = {
+      ...row,
+      session_count:Number(row.session_count || 0),
+      working_now:Boolean(Number(row.working_now || 0)),
+      worked_minutes:Number(row.worked_minutes || 0),
+      on_leave:Boolean(row.leave_type)
+    };
+    item.present = item.session_count > 0;
+    const firstMinutes = timeToMinutes(item.first_in);
+    const lastMinutes = timeToMinutes(item.last_out);
+    item.late = Boolean(configuredSchedule && item.present && firstMinutes != null && firstMinutes > expectedStart + graceMinutes);
+    item.left_early = Boolean(configuredSchedule && item.present && !item.working_now && lastMinutes != null && lastMinutes < expectedEnd);
+    return item;
+  });
+  const team = staff ? allStaff.filter(row => Number(row.id)===Number(staff.id)) : allStaff;
 
-  const allStaff = rows;
-  const present = allStaff.filter(row => Number(row.session_count || 0)>0);
-  const workingNow = allStaff.filter(row => Number(row.working_now || 0)>0);
-  const onLeave = allStaff.filter(row => row.leave_type);
-  const noClockIn = allStaff.filter(row => Number(row.session_count || 0)===0 && !row.leave_type);
-  const late = allStaff.filter(row => {
-    if (!configuredSchedule || Number(row.session_count || 0)===0) return false;
-    const firstMinutes=timeToMinutes(row.first_in);
-    return firstMinutes!=null && firstMinutes>expectedStart+graceMinutes;
-  });
-  const early = allStaff.filter(row => {
-    if (!configuredSchedule || Number(row.session_count || 0)===0 || Number(row.working_now || 0)>0 || !row.last_out) return false;
-    const lastMinutes=timeToMinutes(row.last_out);
-    return lastMinutes!=null && lastMinutes<expectedEnd;
-  });
+  const present = allStaff.filter(row => row.present);
+  const workingNow = allStaff.filter(row => row.working_now);
+  const onLeave = allStaff.filter(row => row.on_leave);
+  const noClockIn = allStaff.filter(row => !row.present && !row.on_leave);
+  const late = allStaff.filter(row => row.late);
+  const early = allStaff.filter(row => row.left_early);
 
   const allQuestion = /\ball\s+(?:the\s+)?staff\b|\ball\s+staff\s+members\b|\beveryone\b|\beverybody\b|\bwhole\s+team\b/.test(q);
   const absentQuestion = /\babsent\b|\bnot\s+at\s+work\b|\bdid\s+not\s+come\b|\bdidn'?t\s+come\b|\bnot\s+clocked\s+in\b|\bhasn'?t\s+clocked\s+in\b/.test(q);
