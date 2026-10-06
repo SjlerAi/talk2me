@@ -21,10 +21,12 @@
   <link rel="stylesheet" href="<%= basePath %>/public/css/approval-centre.css?v=<%= encodeURIComponent(appVersion) %>">
   <link rel="stylesheet" href="<%= basePath %>/public/css/legacy-client-claim-reconciliation.css?v=<%= encodeURIComponent(appVersion) %>">
   <% if(isUat){ %><link rel="stylesheet" href="<%= basePath %>/public/uat-safety.css?v=<%= encodeURIComponent(appVersion) %>"><link rel="stylesheet" href="<%= basePath %>/public/css/uat-mobile-first.css?v=<%= encodeURIComponent(appVersion) %>"><% } %>
+  <% if(isUat && currentUser && ['owner','admin','manager'].includes(currentUser.role) && !panelMode){ %><link rel="stylesheet" href="<%= basePath %>/public/css/cudo-widget.css?v=<%= encodeURIComponent(appVersion) %>"><% } %>
   <script defer src="<%= basePath %>/public/js/customer-actions.js?v=<%= encodeURIComponent(appVersion) %>"></script>
   <script defer src="<%= basePath %>/public/js/attendance-nightly-settings.js?v=<%= encodeURIComponent(appVersion) %>"></script>
   <% if(currentUser){ %><script defer src="<%= basePath %>/public/js/session-status-monitor.js?v=<%= encodeURIComponent(appVersion) %>" data-base-path="<%= basePath %>"></script><% } %>
   <% if(currentUser && ['owner','admin','manager'].includes(currentUser.role)){ %><script defer src="<%= basePath %>/public/js/approval-badges.js?v=<%= encodeURIComponent(appVersion) %>" data-base-path="<%= basePath %>"></script><% } %>
+  <% if(isUat && currentUser && ['owner','admin','manager'].includes(currentUser.role) && !panelMode){ %><script defer src="<%= basePath %>/public/js/cudo-widget.js?v=<%= encodeURIComponent(appVersion) %>" data-base-path="<%= basePath %>"></script><% } %>
 </head>
 <body class="command-body <%= panelMode?'panel-mode':'' %>">
 <% if(currentUser && !panelMode){ const management=['owner','admin','manager'].includes(currentUser.role); const safeUnreadTaskCount=typeof unreadTaskCount==='undefined'?0:Number(unreadTaskCount||0); const safeApprovalCentreCount=typeof approvalCentreCount==='undefined'?0:Number(approvalCentreCount||0); %>
