@@ -226,7 +226,7 @@
       deals.type = 'button';
       deals.className = 't2m-os-icon-button t2m-top-deals-button';
       deals.setAttribute('data-uat-deals-launcher', '1');
-      deals.dataset.osRoute = `${basePath}/uat/library?category=Deals`;
+      deals.dataset.osRoute = `${basePath}/uat/deals`;
       deals.dataset.routeTitle = 'Deals';
       deals.dataset.routeIcon = '🤝';
       deals.title = 'Deals';

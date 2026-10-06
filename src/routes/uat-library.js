@@ -417,6 +417,35 @@ router.get('/uat/library',requireAuth,async(req,res,next)=>{
   }catch(error){next(error);}
 });
 
+router.get('/uat/deals',requireAuth,async(req,res,next)=>{
+  try{
+    await ensureSchema();
+    res.render('uat-deals',{
+      layout:false,
+      title:'Deals',
+      basePath:res.locals.basePath||'',
+      appVersion:res.locals.appVersion||'',
+      currentUser:req.session.user
+    });
+  }catch(error){next(error);}
+});
+
+router.get('/api/uat/deals/health',async(req,res)=>{
+  if(!IS_UAT) return res.sendStatus(404);
+  try{
+    await ensureSchema();
+    const [[row]]=await db.execute("SELECT COUNT(*) total FROM library_documents WHERE status='active' AND category='Deals'");
+    res.json({
+      status:'ok',
+      environment:'uat',
+      deals:true,
+      activeDeals:Number(row?.total||0)
+    });
+  }catch(error){
+    res.status(503).json({status:'error',environment:'uat',deals:false,error:error.message});
+  }
+});
+
 router.get('/api/uat/library/health',async(req,res)=>{
   if(!IS_UAT) return res.sendStatus(404);
   try{
@@ -457,6 +486,49 @@ router.get('/api/uat/library/bootstrap',requireAuth,async(req,res,next)=>{
       user:{id:userId,name:req.session.user.full_name,role:req.session.user.role},
       categories,
       suggestedCategories:CATEGORIES,
+      documents
+    });
+  }catch(error){next(error);}
+});
+
+router.get('/api/uat/deals',requireAuth,async(req,res,next)=>{
+  try{
+    await ensureSchema();
+    const userId=Number(req.session.user.id);
+    const limit=Math.min(Math.max(Number.parseInt(req.query.limit,10)||100,1),200);
+    const offset=Math.max(Number.parseInt(req.query.offset,10)||0,0);
+    const query=clean(req.query.q,120);
+    const params={};
+    let searchSql='';
+    if(query){
+      params.search=`%${query}%`;
+      searchSql=' AND (d.title LIKE :search OR d.description LIKE :search OR v.original_name LIKE :search)';
+    }
+    const whereSql=`${documentAccessSql(req.session.user)} AND d.status='active' AND d.category='Deals'${searchSql}`;
+    const [[countRow]]=await db.execute(`SELECT COUNT(*) total
+      FROM library_documents d
+      LEFT JOIN library_versions v ON v.id=d.current_version_id
+      WHERE ${whereSql}`,params);
+    const [rows]=await db.execute(`SELECT d.id,d.title,d.description,d.category,d.access_level,d.company_favourite,d.status,d.updated_at,
+      v.id version_id,v.version_number,v.original_name,v.mime_type,v.extension,v.file_bytes,v.created_at version_created_at,
+      uploader.full_name uploaded_by_name
+      FROM library_documents d
+      LEFT JOIN library_versions v ON v.id=d.current_version_id
+      LEFT JOIN staff_users uploader ON uploader.id=v.uploaded_by
+      WHERE ${whereSql}
+      ORDER BY d.company_favourite DESC,d.updated_at DESC,d.id DESC
+      LIMIT ${limit} OFFSET ${offset}`,params);
+    const favourites=await favouriteSet(userId);
+    const documents=rows.map(row=>mapDocument(row,favourites,nativeLaunchFor(req,res.locals.basePath,row)));
+    const total=Number(countRow?.total||0);
+    const nextOffset=offset+documents.length;
+    res.json({
+      ok:true,
+      total,
+      offset,
+      limit,
+      nextOffset,
+      hasMore:nextOffset<total,
       documents
     });
   }catch(error){next(error);}
