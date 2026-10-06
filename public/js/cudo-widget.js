@@ -33,6 +33,7 @@
       <div class="cudo-suggestions"></div>
       <form class="cudo-compose">
         <textarea name="message" rows="1" placeholder="Ask Cudo anything about your CRM or office…" autocomplete="off"></textarea>
+        <button class="cudo-mic" type="button" aria-label="Speak to Cudo" title="Speak to Cudo">🎙</button>
         <button class="cudo-send" type="submit" aria-label="Send">➤</button>
       </form>
       <span class="cudo-resize-note"></span>
@@ -51,11 +52,17 @@
   const stream=root.querySelector('.cudo-stream');
   const suggestions=root.querySelector('.cudo-suggestions');
   const textarea=root.querySelector('textarea');
+  const mic=root.querySelector('.cudo-mic');
   const send=root.querySelector('.cudo-send');
   const badge=root.querySelector('.cudo-badge');
+  const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition||null;
   let bootstrap=null;
   let drag=null;
   let pending=false;
+  let recognition=null;
+  let listening=false;
+  let voiceBase='';
+  let voiceFinal='';
 
   const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
   const esc=value=>String(value==null?'':value).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
@@ -154,6 +161,64 @@
     if(data.suggestions?.length)setSuggestions(data.suggestions);
   }
 
+  function setListening(value){
+    listening=Boolean(value);
+    mic.classList.toggle('is-listening',listening);
+    mic.setAttribute('aria-pressed',listening?'true':'false');
+    mic.title=listening?'Stop listening':'Speak to Cudo';
+    mic.textContent=listening?'■':'🎙';
+    launcher.classList.toggle('is-thinking',listening||pending);
+  }
+
+  function initVoice(){
+    if(!SpeechRecognition){
+      mic.disabled=true;
+      mic.title='Voice input is not supported in this browser.';
+      return;
+    }
+    recognition=new SpeechRecognition();
+    recognition.lang=/^af\b/i.test(navigator.language||'')?'af-ZA':'en-ZA';
+    recognition.continuous=false;
+    recognition.interimResults=true;
+    recognition.maxAlternatives=1;
+
+    recognition.onstart=()=>setListening(true);
+    recognition.onresult=event=>{
+      let finalText='';
+      let interimText='';
+      for(let i=event.resultIndex;i<event.results.length;i++){
+        const transcript=String(event.results[i][0]?.transcript||'').trim();
+        if(!transcript)continue;
+        if(event.results[i].isFinal)finalText+=(finalText?' ':'')+transcript;
+        else interimText+=(interimText?' ':'')+transcript;
+      }
+      if(finalText)voiceFinal+=(voiceFinal?' ':'')+finalText;
+      const spoken=[voiceFinal,interimText].filter(Boolean).join(' ').trim();
+      textarea.value=[voiceBase,spoken].filter(Boolean).join(voiceBase&&spoken?' ':'').trim();
+    };
+    recognition.onerror=event=>{
+      const code=String(event.error||'');
+      if(code==='not-allowed'||code==='service-not-allowed'){
+        addAssistant({text:'Microphone access is blocked. Allow microphone permission for Talk2Me in your browser, then try again.',rows:[],actions:[]});
+      }else if(code!=='aborted'&&code!=='no-speech'){
+        addAssistant({text:'I could not hear that clearly. Please try the microphone again.',rows:[],actions:[]});
+      }
+    };
+    recognition.onend=()=>{
+      const spoken=voiceFinal.trim();
+      setListening(false);
+      voiceFinal='';
+      if(spoken&&!pending){
+        const full=[voiceBase,spoken].filter(Boolean).join(voiceBase&&spoken?' ':'').trim();
+        voiceBase='';
+        textarea.value=full;
+        sendMessage(full);
+      }else{
+        voiceBase='';
+      }
+    };
+  }
+
   async function sendMessage(text){
     text=String(text||textarea.value||'').trim();
     if(!text||pending)return;
@@ -167,7 +232,7 @@
       if(!response.ok)throw new Error(data.error||'Cudo could not complete that request.');
       addAssistant(data);
     }catch(error){addAssistant({text:error.message||'Cudo is temporarily unavailable.',rows:[],actions:[]});}
-    finally{pending=false;send.disabled=false;launcher.classList.remove('is-thinking');textarea.focus();}
+    finally{pending=false;send.disabled=false;launcher.classList.toggle('is-thinking',listening);textarea.focus();}
   }
 
   async function runAction(action,button){
@@ -230,6 +295,21 @@
   });
   root.querySelector('.cudo-compose').addEventListener('submit',e=>{e.preventDefault();sendMessage();});
   textarea.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage();}});
+  mic.addEventListener('click',()=>{
+    if(!recognition||pending)return;
+    if(panel.hidden)openPanel();
+    if(listening){
+      try{recognition.stop();}catch(_){}
+      return;
+    }
+    voiceBase=String(textarea.value||'').trim();
+    voiceFinal='';
+    try{recognition.start();}
+    catch(error){
+      setListening(false);
+      addAssistant({text:'The microphone is already busy. Wait a moment and try again.',rows:[],actions:[]});
+    }
+  });
   stream.addEventListener('click',e=>{const b=e.target.closest('[data-cudo-action]');if(b)runAction(b.dataset.cudoAction,b);});
 
   launcher.addEventListener('pointerdown',e=>{
@@ -261,6 +341,7 @@
 
   head.addEventListener('dblclick',()=>{panel.style.width='460px';panel.style.height='650px';});
   addEventListener('resize',()=>{if(innerWidth<720){root.style.left='';root.style.top='';root.style.right='12px';root.style.bottom='12px';}});
+  initVoice();
   loadBootstrap();
   setInterval(pollAlerts,60000);
 })();
