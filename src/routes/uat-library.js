@@ -653,6 +653,48 @@ router.post('/api/uat/library/documents/:id/archive',requireAuth,requireManager,
   }catch(error){next(error);}
 });
 
+router.delete('/api/uat/library/documents/:id',requireAuth,requireManager,async(req,res,next)=>{
+  const connection=await db.getConnection();
+  try{
+    await ensureSchema();
+    const id=idOf(req.params.id);
+    if(!id) return res.sendStatus(404);
+
+    await connection.beginTransaction();
+    const [[document]]=await connection.execute(
+      'SELECT id,title FROM library_documents WHERE id=:id LIMIT 1 FOR UPDATE',
+      {id}
+    );
+    if(!document){
+      await connection.rollback();
+      return res.sendStatus(404);
+    }
+
+    const [versions]=await connection.execute(
+      'SELECT stored_filename FROM library_versions WHERE document_id=:id',
+      {id}
+    );
+    await connection.execute('DELETE FROM library_favourites WHERE document_id=:id',{id});
+    await connection.execute('DELETE FROM library_versions WHERE document_id=:id',{id});
+    await connection.execute('DELETE FROM library_documents WHERE id=:id',{id});
+    await connection.commit();
+
+    for(const version of versions){
+      const filename=path.basename(String(version.stored_filename||''));
+      if(!filename)continue;
+      const target=path.join(libraryFileDir,filename);
+      fs.unlink(target,()=>{});
+    }
+
+    res.json({ok:true,id,title:document.title,deletedVersions:versions.length});
+  }catch(error){
+    try{await connection.rollback();}catch(_){}
+    next(error);
+  }finally{
+    try{connection.release();}catch(_){}
+  }
+});
+
 router.post('/api/uat/library/documents/:id/favourite',requireAuth,async(req,res,next)=>{
   try{
     await ensureSchema();

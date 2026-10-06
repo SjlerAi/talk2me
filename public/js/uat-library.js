@@ -69,6 +69,7 @@
       ? `<img src="${esc(fileUrl(doc.versionId))}" alt="">`
       : esc(iconFor(doc));
     return `<article class="library-card ${doc.companyFavourite?'is-featured':''}" data-library-open="${doc.id}">
+      ${state.canManage?`<button type="button" class="library-delete" data-library-delete="${doc.id}" aria-label="Delete ${esc(doc.title)}" title="Delete this file">Delete</button>`:''}
       <button type="button" class="library-star ${doc.favourite?'is-active':''}" data-library-star="${doc.id}" aria-label="${doc.favourite?'Remove favourite':'Add favourite'}">${doc.favourite?'★':'☆'}</button>
       <div class="library-card-preview">${image}</div>
       <div class="library-card-copy">
@@ -146,6 +147,20 @@
     }
   }
 
+  async function deleteDocument(id){
+    if(!state.canManage)return;
+    const doc=state.documents.find(item=>Number(item.id)===Number(id));
+    if(!doc)return;
+    const confirmed=window.confirm(`Delete "${doc.title}" permanently?\n\nThis removes the Library item and all of its uploaded versions/files. Existing month-end snapshot ZIPs are not changed.`);
+    if(!confirmed)return;
+    await request(`/api/uat/library/documents/${id}`,{method:'DELETE'});
+    if(state.selected&&Number(state.selected.id)===Number(id)){
+      state.selected=null;
+      if(viewer.open)viewer.close();
+    }
+    await load(state.status);
+  }
+
   async function spreadsheetPreview(doc,sheet=''){
     viewerBody.innerHTML='<div class="library-no-preview"><strong>Loading spreadsheet…</strong></div>';
     const data=await request(`/api/uat/library/documents/${doc.id}/preview${sheet?'?sheet='+encodeURIComponent(sheet):''}`);
@@ -185,6 +200,7 @@
         <button type="button" data-admin-replace="${doc.id}">New version</button>
         <button type="button" data-admin-edit="${doc.id}">Edit</button>
         <button type="button" data-admin-archive="${doc.id}" data-status="${doc.status==='active'?'archived':'active'}">${doc.status==='active'?'Archive':'Restore'}</button>
+        <button type="button" class="danger" data-library-delete="${doc.id}">Delete</button>
       </div>
     </article>`).join(''):'<div class="library-empty">No documents yet.</div>';
   }
@@ -196,6 +212,8 @@
   }
 
   app.addEventListener('click',event=>{
+    const remove=event.target.closest('[data-library-delete]');
+    if(remove){event.preventDefault();event.stopPropagation();deleteDocument(Number(remove.dataset.libraryDelete)).catch(error=>alert(error.message));return;}
     const star=event.target.closest('[data-library-star]');
     if(star){event.preventDefault();event.stopPropagation();toggleFavourite(Number(star.dataset.libraryStar)).catch(error=>alert(error.message));return;}
     const card=event.target.closest('[data-library-open]');
@@ -286,6 +304,8 @@
   };
 
   adminDocuments.addEventListener('click',async event=>{
+    const remove=event.target.closest('[data-library-delete]');
+    if(remove){await deleteDocument(Number(remove.dataset.libraryDelete)).catch(error=>alert(error.message));return;}
     const replace=event.target.closest('[data-admin-replace]');
     if(replace){
       const doc=state.documents.find(item=>Number(item.id)===Number(replace.dataset.adminReplace));

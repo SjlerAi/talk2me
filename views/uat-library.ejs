@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#202832">
   <title>Talk2Me Library</title>
-  <link rel="stylesheet" href="<%= basePath %>/public/css/uat-library.css?v=<%= encodeURIComponent(appVersion) %>">
+  <link rel="stylesheet" href="<%= basePath %>/public/css/uat-library.css?v=<%= encodeURIComponent(appVersion) %>-delete1">
 </head>
 <body>
   <main class="library-app" data-library-app>
@@ -132,6 +132,6 @@
 
   <datalist id="library-category-options"></datalist>
   <script id="library-config" type="application/json"><%- JSON.stringify({basePath,user:{id:currentUser.id,name:currentUser.full_name,role:currentUser.role}}).replace(/</g,'\u003c') %></script>
-  <script src="<%= basePath %>/public/js/uat-library.js?v=<%= encodeURIComponent(appVersion) %>"></script>
+  <script src="<%= basePath %>/public/js/uat-library.js?v=<%= encodeURIComponent(appVersion) %>-delete1"></script>
 </body>
 </html>
