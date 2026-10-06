@@ -1,7 +1,7 @@
 'use strict';
 
 const db = require('../config/db');
-const { sendAgentInstruction } = require('./office-intelligence-agent');
+const { sendAgentInstruction, buildDailyResponsibilities } = require('./office-intelligence-agent');
 
 const ACTIVE_TASK = "('unread','seen','in_progress')";
 const OPEN_INQUIRY = "('open','follow_up','waiting_customer','waiting_network','waiting_supplier')";
@@ -155,35 +155,120 @@ async function activeStaff() {
   return rows;
 }
 
+function normaliseName(value) {
+  return lower(value)
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function phoneticToken(value) {
+  return normaliseName(value)
+    .replace(/\s+/g, '')
+    .replace(/ph/g, 'f')
+    .replace(/ck/g, 'k')
+    .replace(/qu/g, 'k')
+    .replace(/y/g, 'i')
+    .replace(/(.)\1+/g, '$1');
+}
+
+function levenshtein(a, b) {
+  const left = String(a || '');
+  const right = String(b || '');
+  if (!left.length) return right.length;
+  if (!right.length) return left.length;
+  const prev = Array.from({ length:right.length + 1 }, (_,i) => i);
+  const curr = new Array(right.length + 1);
+  for (let i=1;i<=left.length;i+=1) {
+    curr[0]=i;
+    for (let j=1;j<=right.length;j+=1) {
+      const cost = left[i-1] === right[j-1] ? 0 : 1;
+      curr[j] = Math.min(curr[j-1]+1, prev[j]+1, prev[j-1]+cost);
+    }
+    for (let j=0;j<=right.length;j+=1) prev[j]=curr[j];
+  }
+  return prev[right.length];
+}
+
+function nameSimilarity(a, b) {
+  const left = phoneticToken(a);
+  const right = phoneticToken(b);
+  if (!left || !right) return 0;
+  if (left === right) return 1;
+  const max = Math.max(left.length,right.length);
+  return Math.max(0,1-(levenshtein(left,right)/max));
+}
+
 function scoreNameMatch(message, staff) {
-  const q = lower(message);
-  const values = [staff.full_name, staff.username, staff.email && String(staff.email).split('@')[0]]
-    .filter(Boolean).map(v => lower(v));
-  let score = 0;
-  for (const value of values) {
+  const q = normaliseName(message);
+  const words = q.split(/\s+/).filter(word => word.length >= 3);
+  const rawValues = [
+    staff.full_name,
+    staff.username,
+    staff.email && String(staff.email).split('@')[0]
+  ].filter(Boolean);
+
+  let best = { score:0, matchedText:null, matchedCandidate:null, exact:false };
+  for (const rawValue of rawValues) {
+    const value = normaliseName(rawValue);
     if (!value) continue;
-    if (q.includes(value)) score = Math.max(score, value.length + 20);
-    for (const token of value.split(/[^a-z0-9]+/).filter(t => t.length >= 3)) {
-      if (q.includes(token)) score = Math.max(score, token.length);
+    if (q === value || q.includes(` ${value} `) || q.startsWith(`${value} `) || q.endsWith(` ${value}`)) {
+      return { score:1, matchedText:value, matchedCandidate:rawValue, exact:true };
+    }
+    const candidateWords = value.split(/\s+/).filter(word => word.length >= 3);
+    for (const candidate of candidateWords) {
+      for (const word of words) {
+        if (word === candidate) {
+          const exact = { score:1, matchedText:word, matchedCandidate:candidate, exact:true };
+          if (exact.score > best.score) best = exact;
+          continue;
+        }
+        const score = nameSimilarity(word,candidate);
+        if (score > best.score) {
+          best = { score, matchedText:word, matchedCandidate:candidate, exact:false };
+        }
+      }
     }
   }
-  return score;
+  return best;
+}
+
+async function resolveStaffMatch(message, fallbackId = null) {
+  const staff = await activeStaff();
+  const ranked = staff
+    .map(row => ({ staff:row, ...scoreNameMatch(message,row) }))
+    .sort((a,b) => b.score-a.score);
+
+  const best = ranked[0] || null;
+  const second = ranked[1] || null;
+  const fallback = fallbackId ? staff.find(row => Number(row.id) === Number(fallbackId)) || null : null;
+
+  if (!best || best.score < 0.68) {
+    return fallback
+      ? { staff:fallback, confidence:1, exact:true, needsConfirmation:false, matchedText:null, candidates:[] }
+      : { staff:null, confidence:0, exact:false, needsConfirmation:false, matchedText:null, candidates:[] };
+  }
+
+  const margin = best.score - Number(second?.score || 0);
+  const confident = best.exact || best.score >= 0.95 || (best.score >= 0.79 && margin >= 0.08);
+  return {
+    staff:best.staff,
+    confidence:Number(best.score.toFixed(3)),
+    exact:Boolean(best.exact),
+    needsConfirmation:!confident,
+    matchedText:best.matchedText,
+    candidates:ranked.slice(0,3).filter(item => item.score >= 0.6).map(item => ({
+      id:Number(item.staff.id),
+      name:item.staff.full_name || item.staff.username || item.staff.email,
+      confidence:Number(item.score.toFixed(3))
+    }))
+  };
 }
 
 async function resolveStaff(message, fallbackId = null) {
-  const staff = await activeStaff();
-  let best = null;
-  let bestScore = 0;
-  for (const row of staff) {
-    const score = scoreNameMatch(message, row);
-    if (score > bestScore) {
-      best = row;
-      bestScore = score;
-    }
-  }
-  if (best) return best;
-  if (fallbackId) return staff.find(row => Number(row.id) === Number(fallbackId)) || null;
-  return null;
+  const match = await resolveStaffMatch(message,fallbackId);
+  return match.staff && !match.needsConfirmation ? match.staff : null;
 }
 
 function resultState(kind, rows, staff, extra = {}) {
@@ -217,7 +302,12 @@ function detectIntent(message) {
   if (/\bdeals?\b|\bprospects?\b|opportunit/.test(q)) return 'deals';
   if (clientWords.test(q) && followedWords.test(q)) return 'client_followup_activity';
   if (followedWords.test(q) || /\bcallbacks?\b|\bcall\s+back\b/.test(q)) return 'followups';
-  if (/\btasks?\b|unfinished|outstanding\s+work|overdue\s+work/.test(q)) return 'tasks';
+  if (
+    (/\b(?:work|jobs?|things?)\b/.test(q) && /\b(?:left|outstanding|open|still|today|to\s+do|todo)\b/.test(q))
+    || /what\s+(?:work|jobs?).*\btoday\b/.test(q)
+    || /what\s+(?:has|does).*(?:left|to\s+do).*\btoday\b/.test(q)
+  ) return 'office_work';
+  if (/\btasks?\b|unfinished|outstanding\s+tasks?|overdue\s+tasks?/.test(q)) return 'tasks';
   if (/\bstaff\b|\bactivity\b|what\s+did|who\s+has|who\s+is|performance/.test(q)) return 'staff';
   return null;
 }
@@ -293,11 +383,11 @@ async function queryBirthdays(message) {
                 BETWEEN ${occurrence} AND DATE_ADD(${occurrence},INTERVAL 7 DAY))
           OR EXISTS(SELECT 1 FROM customer_followups f
             WHERE f.client_id=c.id AND f.status='completed'
-              AND DATE(COALESCE(f.completed_at,f.updated_at,f.created_at))
+              AND DATE(COALESCE(f.completed_at,f.created_at))
                 BETWEEN ${occurrence} AND DATE_ADD(${occurrence},INTERVAL 7 DAY))
           OR EXISTS(SELECT 1 FROM agent_responsibility_checks r
             WHERE r.staff_id=ca.assigned_staff_id AND r.source_type='birthday'
-              AND r.source_key=CAST(c.id AS CHAR) AND r.status='completed'
+              AND r.source_key=CONCAT('client:',c.id) AND r.status='completed'
               AND r.work_date BETWEEN ${occurrence} AND DATE_ADD(${occurrence},INTERVAL 7 DAY))
           THEN 1 ELSE 0 END followed_up
       FROM clients c
@@ -403,10 +493,10 @@ async function queryClientFollowupActivity(message) {
   const evidence = `(
     EXISTS(SELECT 1 FROM customer_followups f
       WHERE f.client_id=c.id AND f.status='completed'
-        AND DATE(COALESCE(f.completed_at,f.updated_at,f.created_at)) BETWEEN :start AND :end)
+        AND DATE(COALESCE(f.completed_at,f.created_at)) BETWEEN :start AND :end)
     OR EXISTS(SELECT 1 FROM customer_callbacks cb
       WHERE cb.client_id=c.id AND cb.status='completed'
-        AND DATE(COALESCE(cb.completed_at,cb.updated_at,cb.created_at)) BETWEEN :start AND :end)
+        AND DATE(COALESCE(cb.completed_at,cb.created_at)) BETWEEN :start AND :end)
     OR EXISTS(SELECT 1 FROM inquiries i
       WHERE i.client_id=c.id AND i.status='completed'
         AND DATE(COALESCE(i.completed_at,i.updated_at,i.created_at)) BETWEEN :start AND :end)
@@ -572,6 +662,62 @@ async function queryDeals(message) {
     })),
     actions:rows.length ? ['show_all','create_tasks','open_agent'] : ['open_agent'],
     state:resultState('deal', rows.map(row=>({...row,title:row.client_name || 'Prospect',detail:[row.lead_status,row.lead_source].filter(Boolean).join(' · ')})), staff, { period })
+  };
+}
+
+async function queryOfficeWork(message) {
+  const staff = await resolveStaff(message);
+  if (!staff) {
+    return {
+      intent:'office_work',
+      text:'Tell me which staff member you mean. I will check their tasks, follow-ups, callbacks, inquiries, birthdays, upgrades and management instructions together.',
+      rows:[],
+      actions:[],
+      state:{selection:null}
+    };
+  }
+
+  const daily = await buildDailyResponsibilities(Number(staff.id));
+  const openItems = (daily.items || []).filter(item => !['completed','awaiting_approval'].includes(String(item.status || '')));
+  const typeCounts = {};
+  for (const item of openItems) {
+    const key = String(item.sourceType || 'work').replace(/_/g,' ');
+    typeCounts[key]=(typeCounts[key]||0)+1;
+  }
+  const breakdown = Object.entries(typeCounts)
+    .sort((a,b)=>b[1]-a[1])
+    .map(([key,count])=>`${count} ${key}`)
+    .join(', ');
+
+  const name = staff.full_name || staff.username || staff.email;
+  const overdue = openItems.filter(item => item.status === 'overdue').length;
+  const outstanding = openItems.filter(item => item.status === 'outstanding').length;
+  const text = openItems.length
+    ? `${name} has ${openItems.length} item${openItems.length===1?'':'s'} still open for today: ${overdue} overdue and ${outstanding} outstanding.${breakdown ? ` Breakdown: ${breakdown}.` : ''}`
+    : `${name} has no outstanding or overdue work showing for today across tasks, follow-ups, callbacks, inquiries, birthdays, upgrades and management instructions.`;
+
+  const rows = openItems.slice(0,MAX_RESULTS).map((item,index)=>({
+    id:index+1,
+    title:item.title || 'Work item',
+    detail:[String(item.sourceType || 'work').replace(/_/g,' '),item.status,item.detail].filter(Boolean).join(' · '),
+    due_at:item.dueAt || null,
+    assigned_staff_id:Number(staff.id),
+    staff_name:name,
+    source_type:item.sourceType || 'work'
+  }));
+
+  return {
+    intent:'office_work',
+    text,
+    rows:rows.slice(0,20).map(row=>({
+      id:row.id,
+      title:row.title,
+      detail:row.detail,
+      meta:row.due_at ? `Due ${sqlDateTime(row.due_at) || sqlDate(row.due_at) || ''}` : ''
+    })),
+    grouped:typeCounts,
+    actions:['open_agent'],
+    state:resultState('office_work',rows,staff,{dailySummary:daily.summary || null})
   };
 }
 
@@ -781,50 +927,94 @@ async function getAlerts() {
 }
 
 async function answerCudo({ message, state = null, context = null }) {
-  const q = lower(message);
-  if (!q) return {intent:'help',text:'Ask me about upgrades, birthdays, deals, tasks, follow-ups, staff activity or the customer currently open on screen.',rows:[],actions:['open_agent'],state:state || {selection:null}};
+  let workingMessage = clean(message,5000);
+  let workingState = state || {};
+  let q = lower(workingMessage);
+  if (!q) return {intent:'help',text:'Ask me about upgrades, birthdays, deals, tasks, follow-ups, staff activity or the customer currently open on screen.',rows:[],actions:['open_agent'],state:workingState || {selection:null}};
 
-  const selectionKind = state?.selection?.kind || null;
+  const pendingStaff = workingState?.pendingStaff || null;
+  if (pendingStaff) {
+    if (/^(yes|yes please|correct|right|that'?s right|use that|use them|ok|okay)\b/.test(q)) {
+      workingMessage = `${pendingStaff.originalMessage} ${pendingStaff.staffName}`;
+      workingState = {...workingState,pendingStaff:null};
+      q = lower(workingMessage);
+    } else if (!detectIntent(workingMessage) && workingMessage.split(/\s+/).length <= 5) {
+      workingMessage = `${pendingStaff.originalMessage} ${workingMessage}`;
+      workingState = {...workingState,pendingStaff:null};
+      q = lower(workingMessage);
+    }
+  }
+
+  const selectionKind = workingState?.selection?.kind || null;
   const looksLikeActionContinuation = Boolean(selectionKind) && (
-    actionIntent(message)
+    actionIntent(workingMessage)
     || /\b(deadline|due)\b/.test(q)
     || /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow)\b/.test(q)
     || /^make\b/.test(q)
   );
-  if (looksLikeActionContinuation) return prepareBatchAction(message,state);
+  if (looksLikeActionContinuation) return prepareBatchAction(workingMessage,workingState);
 
-  const directIntent = detectIntent(message);
+  const staffMatch = await resolveStaffMatch(workingMessage,workingState?.selection?.staffId || null);
+  if (staffMatch.staff && staffMatch.needsConfirmation) {
+    const staffName = staffMatch.staff.full_name || staffMatch.staff.username || staffMatch.staff.email;
+    return {
+      intent:'staff_confirmation',
+      text:`I found a near staff-name match. I think “${staffMatch.matchedText || 'that name'}” means ${staffName}. Type “yes” to use ${staffName}, or type the correct staff name before I search the CRM.`,
+      rows:[],
+      actions:[],
+      suggestions:[`Yes, use ${staffName}`],
+      state:{
+        ...workingState,
+        pendingStaff:{
+          staffId:Number(staffMatch.staff.id),
+          staffName,
+          originalMessage:workingMessage,
+          confidence:staffMatch.confidence
+        }
+      }
+    };
+  }
+
+  if (staffMatch.staff && !staffMatch.exact) {
+    const canonical = staffMatch.staff.full_name || staffMatch.staff.username || staffMatch.staff.email;
+    workingMessage = `${workingMessage} ${canonical}`;
+    q = lower(workingMessage);
+  }
+
+  const directIntent = detectIntent(workingMessage);
   if (directIntent === 'context') return queryCurrentCustomer(context || {});
-  if (directIntent === 'birthdays') return queryBirthdays(message);
-  if (directIntent === 'upgrades') return queryUpgrades(message);
-  if (directIntent === 'deals') return queryDeals(message);
-  if (directIntent === 'client_followup_activity') return queryClientFollowupActivity(message);
-  if (directIntent === 'followups') return queryFollowups(message);
-  if (directIntent === 'tasks') return queryTasks(message);
-  if (directIntent === 'staff') return queryStaffActivity(message);
+  if (directIntent === 'birthdays') return queryBirthdays(workingMessage);
+  if (directIntent === 'upgrades') return queryUpgrades(workingMessage);
+  if (directIntent === 'deals') return queryDeals(workingMessage);
+  if (directIntent === 'client_followup_activity') return queryClientFollowupActivity(workingMessage);
+  if (directIntent === 'followups') return queryFollowups(workingMessage);
+  if (directIntent === 'office_work') return queryOfficeWork(workingMessage);
+  if (directIntent === 'tasks') return queryTasks(workingMessage);
+  if (directIntent === 'staff') return queryStaffActivity(workingMessage);
 
   const periodRefinement = Boolean(selectionKind)
     && /(last|past|previous|today|yesterday|this\s+week|this\s+month|\d+\s+(?:days?|weeks?|months?))/.test(q);
   if (periodRefinement) {
-    const staffName = state?.selection?.staffName || '';
-    const synthetic = [selectionKind === 'followup' ? 'follow-up' : selectionKind, staffName, message].filter(Boolean).join(' ');
+    const staffName = workingState?.selection?.staffName || '';
+    const synthetic = [selectionKind === 'followup' ? 'follow-up' : selectionKind, staffName, workingMessage].filter(Boolean).join(' ');
     if (selectionKind === 'birthday') return queryBirthdays(synthetic);
     if (selectionKind === 'upgrade') return queryUpgrades(synthetic);
     if (selectionKind === 'deal') return queryDeals(synthetic);
     if (selectionKind === 'client_followup_activity') return queryClientFollowupActivity(synthetic);
     if (selectionKind === 'followup') return queryFollowups(synthetic);
+    if (selectionKind === 'office_work') return queryOfficeWork(synthetic);
     if (selectionKind === 'task') return queryTasks(synthetic);
   }
 
-  if (actionIntent(message)) return prepareBatchAction(message,state);
+  if (actionIntent(workingMessage)) return prepareBatchAction(workingMessage,workingState);
 
   return {
     intent:'help',
-    text:'I can investigate upgrades, birthdays, CRM deals/prospects, tasks, follow-ups/callbacks, staff activity, and the customer you currently have open. You can also ask how many clients were followed up in a period, and turn outstanding result sets into staff tasks with a deadline.',
+    text:'I can investigate upgrades, birthdays, CRM deals/prospects, tasks, follow-ups/callbacks, complete daily work across the CRM, staff activity, and the customer you currently have open. You can also turn outstanding result sets into staff tasks with a deadline.',
     rows:[],
     actions:['open_agent'],
-    state:state || {selection:null},
-    suggestions:['Birthdays not followed up this month','How many of Johnny\'s clients were followed up this month?','Who has overdue work today?']
+    state:workingState || {selection:null},
+    suggestions:['What work has Gerda got left for today?','How many of Johnny\'s clients were followed up this month?','Birthdays not followed up this month']
   };
 }
 
@@ -835,5 +1025,7 @@ module.exports = {
   parsePeriod,
   parseDueAt,
   resolveStaff,
+  resolveStaffMatch,
+  nameSimilarity,
   detectIntent
 };
