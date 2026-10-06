@@ -5,9 +5,12 @@ const assert=require('assert');
 const route=fs.readFileSync('src/routes/uat-library.js','utf8');
 const zip=fs.readFileSync('src/services/library-zip.js','utf8');
 const ui=fs.readFileSync('public/js/uat-library.js','utf8');
+const dealsUi=fs.readFileSync('public/js/uat-deals.js','utf8');
 const css=fs.readFileSync('public/css/uat-library.css','utf8');
+const dealsCss=fs.readFileSync('public/css/uat-deals.css','utf8');
 const homeCss=fs.readFileSync('public/css/calendar-home-uat.css','utf8');
 const view=fs.readFileSync('views/uat-library.ejs','utf8');
+const dealsView=fs.readFileSync('views/uat-deals.ejs','utf8');
 const calendar=fs.readFileSync('public/js/calendar-home-uat.js','utf8');
 const server=fs.readFileSync('server.js','utf8');
 
@@ -47,6 +50,11 @@ assert(route.includes('/api/uat/library/export/current'), 'Full current Library 
 assert(route.includes('/api/uat/library/snapshots'), 'Month-end snapshots must exist');
 assert(route.includes('Library-Index.xlsx'), 'Exports must include an Excel index');
 assert(route.includes('/api/uat/library/health'), 'Library health proof must exist');
+assert(route.includes("router.get('/uat/deals',requireAuth"), 'Deals must have its own authenticated page');
+assert(route.includes("router.get('/api/uat/deals',requireAuth"), 'Deals must have a dedicated data endpoint');
+assert(route.includes("d.category='Deals'"), 'Dedicated Deals data must be restricted to Deals only');
+assert(route.includes('LIMIT ${limit} OFFSET ${offset}'), 'Deals endpoint must page large collections instead of loading everything at once');
+assert(route.includes("router.get('/api/uat/deals/health'"), 'Deals must have a runtime health proof');
 
 assert(zip.includes('0x04034b50'), 'ZIP writer must emit local file headers');
 assert(zip.includes('0x02014b50'), 'ZIP writer must emit central directory headers');
@@ -78,10 +86,20 @@ assert(css.includes('.library-admin-row-actions .danger'), 'Admin-list Delete co
 assert(view.includes('-deals1'), 'Library assets must be cache-busted for the Deals release');
 assert(css.includes('@media(max-width:760px)'), 'Library must have phone layout rules');
 assert(css.includes('height:100dvh'), 'Library viewers must be mobile full-screen capable');
+assert(dealsView.includes('data-deals-grid'), 'Dedicated Deals window must expose its own deal grid');
+assert(dealsView.includes('Search deals'), 'Dedicated Deals window must be searchable');
+assert(!dealsView.includes('Library Management'), 'Dedicated Deals window must not expose Library management chrome');
+assert(dealsUi.includes('/api/uat/deals?'), 'Dedicated Deals client must use the Deals-only endpoint');
+assert(dealsUi.includes("doc.category!=='Deals'"), 'Deal viewer must refuse items moved out of Deals');
+assert(dealsUi.includes('IntersectionObserver'), 'Deals must progressively load large collections');
+assert(dealsUi.includes("doc?.nativeLaunch"), 'Office deals must still open in their native application');
+assert(dealsCss.includes('.deals-grid'), 'Dedicated Deals window must have its own card grid styling');
+assert(dealsCss.includes('@media(max-width:760px)'), 'Dedicated Deals window must remain mobile responsive');
 
 assert(calendar.includes('data-uat-library-launcher'), 'Library must be added to the top launcher');
 assert(calendar.includes('data-uat-deals-launcher'), 'Deals must have a dedicated top-bar launcher');
-assert(calendar.includes('/uat/library?category=Deals'), 'Deals launcher must deep-link into the Library Deals section');
+assert(calendar.includes('/uat/deals'), 'Deals launcher must open the dedicated Deals window');
+assert(!calendar.includes('/uat/library?category=Deals'), 'Deals launcher must never route staff back into the Library');
 assert(homeCss.includes('.t2m-top-deals-button'), 'Deals launcher must be visibly styled in green');
 assert(calendar.includes('/uat/library'), 'Library must be available in CRM navigation');
 
