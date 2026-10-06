@@ -208,13 +208,16 @@
       const spoken=voiceFinal.trim();
       setListening(false);
       voiceFinal='';
-      if(spoken&&!pending){
-        const full=[voiceBase,spoken].filter(Boolean).join(voiceBase&&spoken?' ':'').trim();
-        voiceBase='';
+      const full=[voiceBase,spoken].filter(Boolean).join(voiceBase&&spoken?' ':'').trim();
+      voiceBase='';
+      if(full){
         textarea.value=full;
-        sendMessage(full);
-      }else{
-        voiceBase='';
+        textarea.focus();
+        addAssistant({
+          text:'Voice transcript is ready in the box. Please check staff names and wording, correct anything that is wrong, then press Send.',
+          rows:[],
+          actions:[]
+        });
       }
     };
   }
