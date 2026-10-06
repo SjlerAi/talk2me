@@ -206,6 +206,22 @@ function resultState(kind, rows, staff, extra = {}) {
   };
 }
 
+function detectIntent(message) {
+  const q = lower(message);
+  const clientWords = /\b(?:client|clients|customer|customers)\b/;
+  const followedWords = /\bfollow(?:ed|ing)?[- ]?up\b|\bfollow[- ]?ups\b|\bcontact(?:ed|ing)?\b|\bphoned\b|\bcalled\b|\bspoke\s+to\b|\bspoken\s+to\b/;
+
+  if (/this\s+customer|current\s+customer|what('?s| is)\s+outstanding\s+(here|for\s+this)|who\s+last\s+spoke/.test(q)) return 'context';
+  if (/\bbirthdays?\b/.test(q)) return 'birthdays';
+  if (/\bupgrades?\b/.test(q)) return 'upgrades';
+  if (/\bdeals?\b|\bprospects?\b|opportunit/.test(q)) return 'deals';
+  if (clientWords.test(q) && followedWords.test(q)) return 'client_followup_activity';
+  if (followedWords.test(q) || /\bcallbacks?\b|\bcall\s+back\b/.test(q)) return 'followups';
+  if (/\btasks?\b|unfinished|outstanding\s+work|overdue\s+work/.test(q)) return 'tasks';
+  if (/\bstaff\b|\bactivity\b|what\s+did|who\s+has|who\s+is|performance/.test(q)) return 'staff';
+  return null;
+}
+
 async function queryUpgrades(message) {
   const period = parsePeriod(message);
   const staff = await resolveStaff(message);
@@ -370,6 +386,93 @@ async function queryTasks(message) {
     })),
     actions:['open_agent'],
     state:resultState('task', rows, staff, { period })
+  };
+}
+
+async function queryClientFollowupActivity(message) {
+  const period = parsePeriod(message);
+  const staff = await resolveStaff(message);
+  const q = lower(message);
+  const params = { start: period.startSql, end: period.endSql };
+  let staffSql = '';
+  if (staff) {
+    params.staffId = Number(staff.id);
+    staffSql = ' AND ca.assigned_staff_id=:staffId';
+  }
+
+  const evidence = `(
+    EXISTS(SELECT 1 FROM customer_followups f
+      WHERE f.client_id=c.id AND f.status='completed'
+        AND DATE(COALESCE(f.completed_at,f.updated_at,f.created_at)) BETWEEN :start AND :end)
+    OR EXISTS(SELECT 1 FROM customer_callbacks cb
+      WHERE cb.client_id=c.id AND cb.status='completed'
+        AND DATE(COALESCE(cb.completed_at,cb.updated_at,cb.created_at)) BETWEEN :start AND :end)
+    OR EXISTS(SELECT 1 FROM inquiries i
+      WHERE i.client_id=c.id AND i.status='completed'
+        AND DATE(COALESCE(i.completed_at,i.updated_at,i.created_at)) BETWEEN :start AND :end)
+  )`;
+
+  const baseFrom = `FROM clients c
+    JOIN client_assignments ca ON ca.is_active=1
+      AND (ca.client_id=c.id OR (COALESCE(ca.account_number,'')<>'' AND ca.account_number=c.account_number))
+    LEFT JOIN staff_users s ON s.id=ca.assigned_staff_id
+    WHERE c.is_active=1
+      AND COALESCE(c.line_status,'active')<>'cancelled'
+      ${staffSql}`;
+
+  const [[totalRow]] = await db.execute(`SELECT COUNT(DISTINCT c.id) total_clients ${baseFrom}`, params);
+  const [[followedRow]] = await db.execute(`SELECT COUNT(DISTINCT c.id) followed_clients ${baseFrom} AND ${evidence}`, params);
+
+  const totalClients = Number(totalRow?.total_clients || 0);
+  const followedClients = Number(followedRow?.followed_clients || 0);
+  const notFollowedClients = Math.max(0, totalClients - followedClients);
+  const wantsMissing = /not\s+(?:been\s+)?follow(?:ed)?[- ]?up|hasn'?t\s+(?:been\s+)?follow(?:ed)?[- ]?up|not\s+contact(?:ed)?|uncontacted|without\s+(?:a\s+)?follow[- ]?up/.test(q);
+  const condition = wantsMissing ? `NOT ${evidence}` : evidence;
+
+  const [rows] = await db.execute(`SELECT c.id,c.id client_id,c.client_name,c.cell_number,
+      MAX(ca.assigned_staff_id) assigned_staff_id,
+      MAX(COALESCE(NULLIF(s.full_name,''),s.email,'Unassigned')) staff_name
+    ${baseFrom}
+      AND ${condition}
+    GROUP BY c.id,c.client_name,c.cell_number
+    ORDER BY c.client_name
+    LIMIT ${MAX_RESULTS}`, params);
+
+  let grouped = null;
+  if (!staff) {
+    const [groupRows] = await db.execute(`SELECT COALESCE(NULLIF(s.full_name,''),s.email,'Unassigned') staff_name,
+        COUNT(DISTINCT c.id) item_count
+      ${baseFrom}
+        AND ${condition}
+      GROUP BY ca.assigned_staff_id,COALESCE(NULLIF(s.full_name,''),s.email,'Unassigned')
+      ORDER BY item_count DESC,staff_name`, params);
+    grouped = Object.fromEntries(groupRows.map(row => [row.staff_name, Number(row.item_count || 0)]));
+  }
+
+  const person = staff ? `${staff.full_name || staff.username}'s` : 'the office';
+  const selectedCount = wantsMissing ? notFollowedClients : followedClients;
+  const text = wantsMissing
+    ? `${selectedCount} of ${totalClients} active assigned client${totalClients===1?'':'s'} for ${person} have no completed follow-up evidence in ${period.label}. ${followedClients} do show completed follow-up evidence.`
+    : `${followedClients} of ${totalClients} active assigned client${totalClients===1?'':'s'} for ${person} show completed follow-up evidence in ${period.label}. ${notFollowedClients} do not.`;
+
+  return {
+    intent:'client_followup_activity',
+    text,
+    rows:rows.slice(0,20).map(row => ({
+      id:row.id,
+      title:row.client_name || 'Customer',
+      detail:[row.staff_name,row.cell_number,wantsMissing?'No completed follow-up':'Followed up'].filter(Boolean).join(' · '),
+      meta:period.label
+    })),
+    grouped,
+    actions:rows.length
+      ? (wantsMissing ? ['show_all','create_tasks','open_agent'] : ['show_all','open_agent'])
+      : ['open_agent'],
+    state:resultState('client_followup_activity', rows.map(row => ({
+      ...row,
+      title:row.client_name || 'Customer',
+      detail:wantsMissing ? 'No completed follow-up evidence' : 'Completed follow-up evidence'
+    })), staff, { period, wantsMissing, totalClients, followedClients, notFollowedClients })
   };
 }
 
@@ -690,8 +793,17 @@ async function answerCudo({ message, state = null, context = null }) {
   );
   if (looksLikeActionContinuation) return prepareBatchAction(message,state);
 
+  const directIntent = detectIntent(message);
+  if (directIntent === 'context') return queryCurrentCustomer(context || {});
+  if (directIntent === 'birthdays') return queryBirthdays(message);
+  if (directIntent === 'upgrades') return queryUpgrades(message);
+  if (directIntent === 'deals') return queryDeals(message);
+  if (directIntent === 'client_followup_activity') return queryClientFollowupActivity(message);
+  if (directIntent === 'followups') return queryFollowups(message);
+  if (directIntent === 'tasks') return queryTasks(message);
+  if (directIntent === 'staff') return queryStaffActivity(message);
+
   const periodRefinement = Boolean(selectionKind)
-    && !/(birthday|upgrade|deal|prospect|follow[- ]?up|callback|task|staff|activity)/.test(q)
     && /(last|past|previous|today|yesterday|this\s+week|this\s+month|\d+\s+(?:days?|weeks?|months?))/.test(q);
   if (periodRefinement) {
     const staffName = state?.selection?.staffName || '';
@@ -699,26 +811,20 @@ async function answerCudo({ message, state = null, context = null }) {
     if (selectionKind === 'birthday') return queryBirthdays(synthetic);
     if (selectionKind === 'upgrade') return queryUpgrades(synthetic);
     if (selectionKind === 'deal') return queryDeals(synthetic);
+    if (selectionKind === 'client_followup_activity') return queryClientFollowupActivity(synthetic);
     if (selectionKind === 'followup') return queryFollowups(synthetic);
     if (selectionKind === 'task') return queryTasks(synthetic);
   }
 
   if (actionIntent(message)) return prepareBatchAction(message,state);
-  if (/this\s+customer|current\s+customer|what('?s| is)\s+outstanding\s+(here|for\s+this)|who\s+last\s+spoke/.test(q)) return queryCurrentCustomer(context || {});
-  if (/birthday|birthdays/.test(q)) return queryBirthdays(message);
-  if (/upgrade|upgrades/.test(q)) return queryUpgrades(message);
-  if (/deal|deals|prospect|prospects|opportunit/.test(q)) return queryDeals(message);
-  if (/follow[- ]?up|callback|call back|callbacks/.test(q)) return queryFollowups(message);
-  if (/task|tasks|unfinished|outstanding work|overdue work/.test(q)) return queryTasks(message);
-  if (/staff|activity|what did|who has|who is|performance/.test(q)) return queryStaffActivity(message);
 
   return {
     intent:'help',
-    text:'I can investigate upgrades, birthdays, CRM deals/prospects, tasks, follow-ups/callbacks, staff activity, and the customer you currently have open. You can also ask me to turn a result set into staff tasks with a deadline.',
+    text:'I can investigate upgrades, birthdays, CRM deals/prospects, tasks, follow-ups/callbacks, staff activity, and the customer you currently have open. You can also ask how many clients were followed up in a period, and turn outstanding result sets into staff tasks with a deadline.',
     rows:[],
     actions:['open_agent'],
     state:state || {selection:null},
-    suggestions:['Birthdays not followed up this month','Johnny outstanding upgrades last 6 months','Who has overdue work today?']
+    suggestions:['Birthdays not followed up this month','How many of Johnny\'s clients were followed up this month?','Who has overdue work today?']
   };
 }
 
@@ -728,5 +834,6 @@ module.exports = {
   getAlerts,
   parsePeriod,
   parseDueAt,
-  resolveStaff
+  resolveStaff,
+  detectIntent
 };
