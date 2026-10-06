@@ -109,6 +109,7 @@ router.post('/api/cudo/chat', requireOwner, async (req, res, next) => {
       text:result.text,
       rows:Array.isArray(result.rows) ? result.rows : [],
       grouped:result.grouped || null,
+      evidence:result.evidence || null,
       actions:Array.isArray(result.actions) ? result.actions : [],
       suggestions:Array.isArray(result.suggestions) ? result.suggestions : []
     });
