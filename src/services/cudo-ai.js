@@ -2,6 +2,7 @@
 
 const db = require('../config/db');
 const { sendAgentInstruction, buildDailyResponsibilities } = require('./office-intelligence-agent');
+const { ensureAttendanceSchema } = require('./attendance');
 
 const ACTIVE_TASK = "('unread','seen','in_progress')";
 const OPEN_INQUIRY = "('open','follow_up','waiting_customer','waiting_network','waiting_supplier')";
@@ -34,6 +35,30 @@ function sqlDateTime(date) {
   const hh = String(d.getHours()).padStart(2, '0');
   const mm = String(d.getMinutes()).padStart(2, '0');
   return `${y}-${m}-${day} ${hh}:${mm}:00`;
+}
+
+function timeLabel(value) {
+  if (!value) return null;
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return `${String(value.getHours()).padStart(2,'0')}:${String(value.getMinutes()).padStart(2,'0')}`;
+  }
+  const raw = String(value);
+  const match = raw.match(/(?:T|\s)(\d{1,2}):(\d{2})/) || raw.match(/^(\d{1,2}):(\d{2})/);
+  return match ? `${String(match[1]).padStart(2,'0')}:${match[2]}` : null;
+}
+
+function timeToMinutes(value) {
+  const label = timeLabel(value);
+  if (!label) return null;
+  const [h,m] = label.split(':').map(Number);
+  return Number.isFinite(h) && Number.isFinite(m) ? h*60+m : null;
+}
+
+function minutesLabel(value) {
+  const total = Math.max(0,Number(value || 0));
+  const hours = Math.floor(total/60);
+  const minutes = Math.round(total%60);
+  return `${hours}h ${String(minutes).padStart(2,'0')}m`;
 }
 
 function addDays(date, amount) {
@@ -298,6 +323,25 @@ function detectIntent(message) {
 
   if (/this\s+customer|current\s+customer|what('?s| is)\s+outstanding\s+(here|for\s+this)|who\s+last\s+spoke/.test(q)) return 'context';
   if (/\bbirthdays?\b/.test(q)) return 'birthdays';
+  if (
+    /\battendance\b/.test(q)
+    || /\bat\s+work\b/.test(q)
+    || /\bworking\s+(?:now|today)\b/.test(q)
+    || /\bclock(?:ed|ing)?\s*(?:in|out)\b/.test(q)
+    || /\bnot\s+clocked\s+in\b/.test(q)
+    || /\bhasn'?t\s+clocked\s+in\b/.test(q)
+    || /\babsent\b/.test(q)
+    || /\bdid\s+not\s+come\s+(?:in|to\s+work)\b/.test(q)
+    || /\bdidn'?t\s+come\s+(?:in|to\s+work)\b/.test(q)
+    || /\b(?:came|come|arriv(?:e|ed))\s+in?\s*late\b/.test(q)
+    || /\b(?:late|left\s+early|leave\s+early|leaving\s+early)\b/.test(q)
+    || /\bwhat\s+time.*\b(?:arrive|arrived|came\s+in|come\s+in|leave|left)\b/.test(q)
+    || /\bwhen.*\b(?:arrive|arrived|clock\s*in|leave|left|clock\s*out)\b/.test(q)
+    || /\b(?:longest|shortest)\s+(?:day|shift)\b/.test(q)
+    || /\bworked\s+(?:the\s+)?(?:longest|shortest|most|least)\b/.test(q)
+    || /\bwho.*\b(?:at|in)\s+(?:the\s+)?shop\b/.test(q)
+    || /\bwho\s+is\s+(?:in|working)\s+today\b/.test(q)
+  ) return 'attendance';
   if (/\bupgrades?\b/.test(q)) return 'upgrades';
   if (/\bdeals?\b|\bprospects?\b|opportunit/.test(q)) return 'deals';
   if (
@@ -322,6 +366,233 @@ function detectIntent(message) {
   if (/\btasks?\b|unfinished|outstanding\s+tasks?|overdue\s+tasks?/.test(q)) return 'tasks';
   if (/\bstaff\s+activity\b|\bactivity\b|what\s+did|\bperformance\b|\bproductivity\b/.test(q)) return 'staff';
   return null;
+}
+
+async function queryAttendanceManagement(message) {
+  await ensureAttendanceSchema();
+  const q = lower(message);
+  const workingNowQuestion = /\b(?:at\s+work\s+now|working\s+now|currently\s+(?:at\s+work|working)|who\s+is\s+in\s+now)\b/.test(q);
+  const targetYesterday = !workingNowQuestion && /\byesterday\b/.test(q);
+  const targetExpr = targetYesterday ? 'DATE_SUB(CURRENT_DATE(),INTERVAL 1 DAY)' : 'CURRENT_DATE()';
+  const targetLabel = targetYesterday ? 'yesterday' : 'today';
+  const staff = await resolveStaff(message);
+
+  const [[settings]] = await db.execute(`SELECT timezone,late_grace_minutes
+    FROM attendance_settings WHERE id=1 LIMIT 1`);
+  const [[schedule]] = await db.execute(`SELECT iso_day,day_name,is_workday,start_time,end_time,break_minutes
+    FROM attendance_schedule_days
+    WHERE iso_day=WEEKDAY(${targetExpr})+1 LIMIT 1`);
+
+  const [rows] = await db.execute(`SELECT
+      su.id,
+      COALESCE(NULLIF(su.full_name,''),NULLIF(CONCAT_WS(' ',su.first_name,su.surname),''),su.email) staff_name,
+      su.email,su.role,
+      COUNT(a.id) session_count,
+      MIN(a.clock_in_at) first_in,
+      MAX(a.clock_out_at) last_out,
+      MAX(CASE WHEN a.status='active' AND a.work_date=CURRENT_DATE() THEN 1 ELSE 0 END) working_now,
+      COALESCE(SUM(
+        CASE WHEN a.id IS NULL THEN 0
+          WHEN a.clock_out_at IS NOT NULL THEN GREATEST(0,TIMESTAMPDIFF(MINUTE,a.clock_in_at,a.clock_out_at))
+          WHEN a.work_date=CURRENT_DATE() THEN GREATEST(0,TIMESTAMPDIFF(MINUTE,a.clock_in_at,NOW()))
+          ELSE 0 END
+      ),0) worked_minutes,
+      (SELECT GROUP_CONCAT(DISTINCT lt.name ORDER BY lt.name SEPARATOR ', ')
+        FROM staff_leave_records l
+        JOIN leave_types lt ON lt.id=l.leave_type_id
+        WHERE l.staff_id=su.id
+          AND l.status='approved'
+          AND ${targetExpr} BETWEEN l.start_date AND l.end_date) leave_type
+    FROM staff_users su
+    LEFT JOIN attendance_sessions a
+      ON a.staff_id=su.id AND a.work_date=${targetExpr}
+    WHERE su.is_active=1
+    GROUP BY su.id,staff_name,su.email,su.role
+    ORDER BY staff_name`);
+
+  const configuredSchedule = Boolean(
+    schedule
+    && Number(schedule.is_workday)
+    && schedule.start_time
+    && schedule.end_time
+  );
+  const graceMinutes = Number(settings?.late_grace_minutes || 0);
+  const expectedStart = configuredSchedule ? timeToMinutes(schedule.start_time) : null;
+  const expectedEnd = configuredSchedule ? timeToMinutes(schedule.end_time) : null;
+
+  const allStaff = rows.map(row => {
+    const item = {
+      ...row,
+      session_count:Number(row.session_count || 0),
+      working_now:Boolean(Number(row.working_now || 0)),
+      worked_minutes:Number(row.worked_minutes || 0),
+      on_leave:Boolean(row.leave_type)
+    };
+    item.present = item.session_count > 0;
+    const firstMinutes = timeToMinutes(item.first_in);
+    const lastMinutes = timeToMinutes(item.last_out);
+    item.late = Boolean(configuredSchedule && item.present && firstMinutes != null && firstMinutes > expectedStart + graceMinutes);
+    item.left_early = Boolean(configuredSchedule && item.present && !item.working_now && lastMinutes != null && lastMinutes < expectedEnd);
+    return item;
+  });
+  const team = staff ? allStaff.filter(row => Number(row.id)===Number(staff.id)) : allStaff;
+
+  const present = allStaff.filter(row => row.present);
+  const workingNow = allStaff.filter(row => row.working_now);
+  const onLeave = allStaff.filter(row => row.on_leave);
+  const noClockIn = allStaff.filter(row => !row.present && !row.on_leave);
+  const late = allStaff.filter(row => row.late);
+  const early = allStaff.filter(row => row.left_early);
+
+  const allQuestion = /\ball\s+(?:the\s+)?staff\b|\ball\s+staff\s+members\b|\beveryone\b|\beverybody\b|\bwhole\s+team\b/.test(q);
+  const absentQuestion = /\babsent\b|\bnot\s+at\s+work\b|\bdid\s+not\s+come\b|\bdidn'?t\s+come\b|\bnot\s+clocked\s+in\b|\bhasn'?t\s+clocked\s+in\b/.test(q);
+  const lateQuestion = /\blate\b/.test(q) && !/\btoo\s+late\b/.test(q);
+  const earlyQuestion = /\bleft\s+early\b|\bleave\s+early\b|\bleaving\s+early\b|\bclocked\s+out\s+early\b/.test(q);
+  const arrivalQuestion = /\bwhat\s+time.*\b(?:arrive|arrived|came\s+in|come\s+in|clock(?:ed)?\s*in)\b/.test(q)
+    || /\bwhen.*\b(?:arrive|arrived|clock\s*in)\b/.test(q);
+  const departureQuestion = /\bwhat\s+time.*\b(?:leave|left|clock(?:ed)?\s*out)\b/.test(q)
+    || /\bwhen.*\b(?:leave|left|clock\s*out)\b/.test(q);
+  const longestQuestion = /\blongest\b|\bworked\s+(?:the\s+)?most\b/.test(q);
+  const shortestQuestion = /\bshortest\b|\bworked\s+(?:the\s+)?least\b/.test(q);
+
+  function rowForUi(row) {
+    const status = row.on_leave
+      ? `On leave: ${row.leave_type}`
+      : row.working_now
+        ? 'Working now'
+        : row.present
+          ? 'Clocked out'
+          : 'No clock-in';
+    const detail = [
+      status,
+      row.first_in ? `In ${timeLabel(row.first_in)}` : null,
+      row.last_out ? `Out ${timeLabel(row.last_out)}` : null,
+      row.present ? `Worked ${minutesLabel(row.worked_minutes)}` : null
+    ].filter(Boolean).join(' · ');
+    return {
+      id:row.id,
+      title:row.staff_name || row.email || `Staff #${row.id}`,
+      detail,
+      meta:row.late ? 'Late' : row.left_early ? 'Left early' : targetLabel
+    };
+  }
+
+  const scheduleText = configuredSchedule
+    ? `${schedule.day_name}: ${timeLabel(schedule.start_time)}–${timeLabel(schedule.end_time)}, ${graceMinutes} min late grace`
+    : `${schedule?.day_name || targetLabel}: no working-hours schedule configured`;
+  const evidence = {
+    summary:`Checked ${allStaff.length} active staff in staff_users against attendance_sessions for ${targetLabel}; approved leave was checked in staff_leave_records. Schedule: ${scheduleText}.`,
+    sources:['staff_users','attendance_sessions','attendance_settings','attendance_schedule_days','staff_leave_records']
+  };
+
+  if (staff && team.length===0) {
+    return {
+      intent:'attendance',
+      text:`I found ${staff.full_name || staff.username || staff.email}, but there is no active staff record to compare against attendance.`,
+      rows:[],actions:['open_agent'],evidence,state:{selection:null}
+    };
+  }
+
+  if (staff) {
+    const row = team[0];
+    const name = row.staff_name || staff.full_name || staff.username || staff.email;
+    if (arrivalQuestion) {
+      const text = row.first_in
+        ? `${name} first clocked in at ${timeLabel(row.first_in)} ${targetLabel}.${row.late ? ' That is after the configured late threshold.' : ''}`
+        : row.on_leave
+          ? `${name} has no clock-in ${targetLabel} and is recorded as on approved ${row.leave_type}.`
+          : `${name} has no clock-in record ${targetLabel}.`;
+      return {intent:'attendance',text,rows:[rowForUi(row)],actions:['open_agent'],evidence,state:{selection:{kind:'attendance',staffId:Number(row.id),staffName:name,items:[]}}};
+    }
+    if (departureQuestion) {
+      const text = row.working_now
+        ? `${name} is still clocked in now, so there is no final clock-out time yet.`
+        : row.last_out
+          ? `${name} last clocked out at ${timeLabel(row.last_out)} ${targetLabel}.${row.left_early ? ' That is before the configured finish time.' : ''}`
+          : row.on_leave
+            ? `${name} has no clock-out ${targetLabel} and is recorded as on approved ${row.leave_type}.`
+            : `${name} has no clock-out record ${targetLabel}.`;
+      return {intent:'attendance',text,rows:[rowForUi(row)],actions:['open_agent'],evidence,state:{selection:{kind:'attendance',staffId:Number(row.id),staffName:name,items:[]}}};
+    }
+
+    const text = row.working_now
+      ? `${name} is currently at work. First clock-in ${targetLabel} was ${timeLabel(row.first_in)}.`
+      : row.present
+        ? `${name} was at work ${targetLabel}; first clock-in was ${timeLabel(row.first_in)}${row.last_out ? ` and last clock-out was ${timeLabel(row.last_out)}` : ''}.`
+        : row.on_leave
+          ? `${name} has no attendance session ${targetLabel} and is recorded as on approved ${row.leave_type}.`
+          : `${name} has no clock-in record ${targetLabel}.`;
+    return {intent:'attendance',text,rows:[rowForUi(row)],actions:['open_agent'],evidence,state:{selection:{kind:'attendance',staffId:Number(row.id),staffName:name,items:[]}}};
+  }
+
+  let selected = allStaff;
+  let text;
+
+  if (workingNowQuestion) {
+    selected = workingNow;
+    text = workingNow.length
+      ? `${workingNow.length} of ${allStaff.length} active staff are clocked in and working now.`
+      : `No active staff are currently clocked in.`;
+  } else if (absentQuestion) {
+    selected = noClockIn;
+    text = noClockIn.length
+      ? `${noClockIn.length} active staff member${noClockIn.length===1?' has':'s have'} no clock-in ${targetLabel} and ${onLeave.length} ${onLeave.length===1?'is':'are'} on approved leave.`
+      : `Every active staff member is accounted for ${targetLabel}: ${present.length} clocked in and ${onLeave.length} on approved leave.`;
+  } else if (lateQuestion) {
+    if (!configuredSchedule) {
+      selected = present;
+      text = `I can show the actual clock-in times for ${targetLabel}, but I cannot determine who was late because expected start/end times are not configured for this day.`;
+    } else {
+      selected = late;
+      text = late.length
+        ? `${late.length} staff member${late.length===1?'':'s'} clocked in after ${timeLabel(schedule.start_time)} plus the ${graceMinutes}-minute grace period ${targetLabel}.`
+        : `No staff clocked in after the configured late threshold ${targetLabel}.`;
+    }
+  } else if (earlyQuestion) {
+    if (!configuredSchedule) {
+      selected = present;
+      text = `I can show the actual clock-out times for ${targetLabel}, but I cannot determine who left early because expected start/end times are not configured for this day.`;
+    } else {
+      selected = early;
+      text = early.length
+        ? `${early.length} staff member${early.length===1?'':'s'} last clocked out before the configured ${timeLabel(schedule.end_time)} finish time ${targetLabel}.`
+        : `No completed attendance record shows a staff member leaving before the configured finish time ${targetLabel}.`;
+    }
+  } else if (longestQuestion || shortestQuestion) {
+    const worked = present.filter(row => Number(row.worked_minutes)>0).sort((a,b)=>Number(b.worked_minutes)-Number(a.worked_minutes));
+    if (shortestQuestion) worked.reverse();
+    selected = worked;
+    const first = worked[0];
+    text = first
+      ? `${first.staff_name} has the ${longestQuestion?'longest':'shortest'} recorded working time ${targetLabel} at ${minutesLabel(first.worked_minutes)}.`
+      : `There are no completed or active attendance sessions to compare for ${targetLabel}.`;
+  } else if (allQuestion) {
+    const allPresent = allStaff.length>0 && present.length===allStaff.length;
+    selected = allStaff.filter(row => Number(row.session_count || 0)===0);
+    text = allPresent
+      ? `Yes. All ${allStaff.length} active staff members have a clock-in record ${targetLabel}.`
+      : `No. ${present.length} of ${allStaff.length} active staff members have a clock-in record ${targetLabel}. ${onLeave.length} ${onLeave.length===1?'is':'are'} on approved leave and ${noClockIn.length} ${noClockIn.length===1?'has':'have'} no clock-in and no approved leave record.`;
+  } else {
+    text = `${present.length} of ${allStaff.length} active staff clocked in ${targetLabel}; ${workingNow.length} are working now, ${onLeave.length} are on approved leave, and ${noClockIn.length} have no clock-in or leave record.`;
+    selected = allStaff;
+  }
+
+  return {
+    intent:'attendance',
+    text,
+    rows:selected.slice(0,20).map(rowForUi),
+    actions:selected.length>20?['show_all','open_agent']:['open_agent'],
+    evidence,
+    grouped:{
+      'Clocked in':present.length,
+      'Working now':workingNow.length,
+      'Approved leave':onLeave.length,
+      'No clock-in':noClockIn.length,
+      'Late':configuredSchedule?late.length:0,
+      'Left early':configuredSchedule?early.length:0
+    },
+    state:{selection:{kind:'attendance',staffId:null,staffName:null,items:[]}}
+  };
 }
 
 async function queryUnallocatedClients() {
@@ -1137,6 +1408,7 @@ async function answerCudo({ message, state = null, context = null }) {
   if (directIntent === 'birthdays') return queryBirthdays(workingMessage);
   if (directIntent === 'upgrades') return queryUpgrades(workingMessage);
   if (directIntent === 'deals') return queryDeals(workingMessage);
+  if (directIntent === 'attendance') return queryAttendanceManagement(workingMessage);
   if (directIntent === 'unallocated_clients') return queryUnallocatedClients();
   if (directIntent === 'client_followup_activity') return queryClientFollowupActivity(workingMessage);
   if (directIntent === 'followups') return queryFollowups(workingMessage);
@@ -1155,6 +1427,7 @@ async function answerCudo({ message, state = null, context = null }) {
     if (selectionKind === 'client_followup_activity') return queryClientFollowupActivity(synthetic);
     if (selectionKind === 'followup') return queryFollowups(synthetic);
     if (selectionKind === 'office_work') return queryOfficeWork(synthetic);
+    if (selectionKind === 'attendance') return queryAttendanceManagement(synthetic);
     if (selectionKind === 'task') return queryTasks(synthetic);
   }
 
@@ -1163,11 +1436,11 @@ async function answerCudo({ message, state = null, context = null }) {
   if (/^(hi|hello|hey|help|what can you do)[.!? ]*$/.test(q)) {
     return {
       intent:'help',
-      text:'I use the Talk2Me CRM as my source of truth. Ask me about clients, allocations, staff work, follow-ups, birthdays, upgrades, deals, tasks or inquiries.',
+      text:'I use the Talk2Me CRM as my source of truth. Ask me about clients, allocations, staff attendance, who is at work, staff work, follow-ups, birthdays, upgrades, deals, tasks or inquiries.',
       rows:[],
       actions:['open_agent'],
       state:workingState || {selection:null},
-      suggestions:['Show me unallocated clients','What work has Gerda got left for today?','Birthdays not followed up this month']
+      suggestions:['Was all staff at work today?','Show me unallocated clients','What work has Gerda got left for today?']
     };
   }
 
@@ -1184,6 +1457,7 @@ module.exports = {
   resolveStaffMatch,
   nameSimilarity,
   detectIntent,
+  queryAttendanceManagement,
   queryUnallocatedClients,
   queryDatabaseFirstFallback
 };
