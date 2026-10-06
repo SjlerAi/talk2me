@@ -39,6 +39,11 @@ assert(widgets.includes("data-work-mode=\"new\""), 'Work window must contain New
 assert(widgets.includes("workModeNav('new')"), 'New task form must keep the Work navigation visible');
 assert(widgets.includes("else if(next==='new')openTaskWidget({new:true})"), 'New task tab must open inside the shared Work window');
 assert(widgetCss.includes('.t2m-work-mode-nav + .t2m-task-form'), 'New task form must fit below the shared Work tabs');
+assert(widgetCss.includes('grid-template-columns:repeat(3,minmax(0,1fr));'), 'Work navigation must keep Inbox, Messages and New task on one row');
+assert(widgetCss.includes('.t2m-task-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}'), 'Due and Priority must remain a two-column form grid');
+assert(widgetCss.includes('display:flex;flex-direction:column'), 'Work widget body must allocate height with flex instead of a hard-coded tab offset');
+assert(!widgetCss.includes('height:calc(100% - 53px)!important'), 'Work content must not use the brittle 53px tab-height calculation');
+assert(widgetCss.includes('position:sticky;bottom:0'), 'New task action bar must stay visible at the bottom');
 assert(widgets.includes("${workModeNav('inbox')}<div class=\"t2m-task-detail\""), 'task detail must keep Work navigation visible');
 assert(widgetCss.includes('.t2m-work-mode-nav + .t2m-task-detail'), 'task detail must fit below the shared Work tabs');
 assert(widgets.includes("workMode!=='messages'"), 'chat poller must not repaint Work inbox mode');
@@ -84,6 +89,6 @@ assert(officeView.includes('Last 14 days'), 'management UI must expose last 14 d
 assert(officeView.includes('Feature and action usage'), 'management UI must show feature usage');
 assert(officeView.includes('Login / logout compliance'), 'management UI must show logout compliance');
 
-assert(loader.includes('widgets-5'), 'UAT asset version must be bumped for final unified Work controls');
+assert(loader.includes('widgets-6'), 'UAT asset version must be bumped for Work footer layout fix');
 
 console.log('UAT unified Work, telemetry and daily-login validation passed.');
