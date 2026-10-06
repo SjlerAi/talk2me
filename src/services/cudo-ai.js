@@ -556,20 +556,22 @@ async function prepareBatchAction(message, state) {
     };
   }
 
-  const distribute = /responsible|each\s+(?:person|staff)|everyone|everybody|their\s+(?:own|responsible)|assigned\s+staff/.test(lower(message));
-  const staff = distribute ? null : await resolveStaff(message, selection.staffId);
+  const explicitDistribute = /responsible|each\s+(?:person|staff)|everyone|everybody|their\s+(?:own|responsible)|assigned\s+staff/.test(lower(message));
+  const distribute = explicitDistribute || Boolean(state?.actionDraft?.distribute);
+  const fallbackStaffId = Number(state?.actionDraft?.staffId || selection.staffId || 0) || null;
+  const staff = distribute ? null : await resolveStaff(message, fallbackStaffId);
   if (!distribute && !staff) {
     return {
       intent:'action',
       text:'Tell me which staff member should receive these tasks, or say “assign each to the responsible person”.',
-      rows:[],actions:[],state
+      rows:[],actions:[],state:{...state,actionDraft:{distribute:false,staffId:null}}
     };
   }
   if (distribute && !selection.items.some(item => Number(item.assignedTo || 0))) {
     return {
       intent:'action',
       text:'These results do not contain responsible staff assignments yet. Tell me which staff member should receive them.',
-      rows:[],actions:[],state
+      rows:[],actions:[],state:{...state,actionDraft:{distribute:true,staffId:null}}
     };
   }
   const dueAt = parseDueAt(message);
@@ -579,7 +581,7 @@ async function prepareBatchAction(message, state) {
       text:distribute
         ? `I have the ${selection.items.length} item${selection.items.length===1?'':'s'} and their responsible staff. Tell me the deadline, for example “Friday 15:00”.`
         : `I have the ${selection.items.length} item${selection.items.length===1?'':'s'} and ${staff.full_name || staff.username}. Tell me the deadline, for example “Friday 15:00”.`,
-      rows:[],actions:[],state
+      rows:[],actions:[],state:{...state,actionDraft:{distribute,staffId:staff ? Number(staff.id) : null}}
     };
   }
 
@@ -601,7 +603,7 @@ async function prepareBatchAction(message, state) {
       sourceKind:selection.kind,
       items
     },
-    state
+    state:{...state,actionDraft:{distribute,staffId:staff ? Number(staff.id) : null}}
   };
 }
 
@@ -678,6 +680,28 @@ async function getAlerts() {
 async function answerCudo({ message, state = null, context = null }) {
   const q = lower(message);
   if (!q) return {intent:'help',text:'Ask me about upgrades, birthdays, deals, tasks, follow-ups, staff activity or the customer currently open on screen.',rows:[],actions:['open_agent'],state:state || {selection:null}};
+
+  const selectionKind = state?.selection?.kind || null;
+  const looksLikeActionContinuation = Boolean(selectionKind) && (
+    actionIntent(message)
+    || /\b(deadline|due)\b/.test(q)
+    || /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow)\b/.test(q)
+    || /^make\b/.test(q)
+  );
+  if (looksLikeActionContinuation) return prepareBatchAction(message,state);
+
+  const periodRefinement = Boolean(selectionKind)
+    && !/(birthday|upgrade|deal|prospect|follow[- ]?up|callback|task|staff|activity)/.test(q)
+    && /(last|past|previous|today|yesterday|this\s+week|this\s+month|\d+\s+(?:days?|weeks?|months?))/.test(q);
+  if (periodRefinement) {
+    const staffName = state?.selection?.staffName || '';
+    const synthetic = [selectionKind === 'followup' ? 'follow-up' : selectionKind, staffName, message].filter(Boolean).join(' ');
+    if (selectionKind === 'birthday') return queryBirthdays(synthetic);
+    if (selectionKind === 'upgrade') return queryUpgrades(synthetic);
+    if (selectionKind === 'deal') return queryDeals(synthetic);
+    if (selectionKind === 'followup') return queryFollowups(synthetic);
+    if (selectionKind === 'task') return queryTasks(synthetic);
+  }
 
   if (actionIntent(message)) return prepareBatchAction(message,state);
   if (/this\s+customer|current\s+customer|what('?s| is)\s+outstanding\s+(here|for\s+this)|who\s+last\s+spoke/.test(q)) return queryCurrentCustomer(context || {});
