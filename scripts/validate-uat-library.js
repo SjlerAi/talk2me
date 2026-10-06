@@ -24,6 +24,11 @@ assert(route.includes(".array('files',10)"), 'Library batch upload must support 
 assert(route.includes('/api/uat/library/documents/batch'), 'Library batch upload endpoint must exist');
 assert(route.includes("access_level='all'"), 'Staff document access must be permission filtered');
 assert(route.includes('/api/uat/library/documents/:id/version'), 'Managers must be able to publish a new version');
+assert(route.includes("router.delete('/api/uat/library/documents/:id',requireAuth,requireManager"), 'Only management may permanently delete Library documents');
+assert(route.includes("DELETE FROM library_favourites WHERE document_id=:id"), 'Delete must remove personal favourite references');
+assert(route.includes("DELETE FROM library_versions WHERE document_id=:id"), 'Delete must remove version records');
+assert(route.includes("DELETE FROM library_documents WHERE id=:id"), 'Delete must remove the catalogue record');
+assert(route.includes("fs.unlink(target,()=>{})"), 'Delete must remove stored version files after the database commit');
 assert(route.includes('/api/uat/library/documents/:id/favourite'), 'Staff favourites must be supported');
 assert(route.includes('/api/uat/library/documents/:id/preview'), 'Spreadsheet preview endpoint must exist');
 assert(route.includes("document: 'ms-word'"), 'Word documents must have a native Office protocol');
@@ -57,6 +62,13 @@ assert(ui.includes("previewKind==='spreadsheet'"), 'Spreadsheet preview must exi
 assert(ui.includes('doc?.nativeLaunch'), 'Office documents must launch their installed desktop app from the Library');
 assert(ui.includes('/api/uat/library/documents/batch'), 'Library UI must use the batch upload endpoint');
 assert(ui.includes('New version'), 'Admin version workflow must exist');
+assert(ui.includes('data-library-delete'), 'Management must have a Delete button on Library cards');
+assert(ui.includes('state.canManage?'), 'Delete buttons must only render for management');
+assert(ui.includes("method:'DELETE'"), 'Library Delete control must call the permanent delete endpoint');
+assert(ui.includes('Delete "${doc.title}" permanently?'), 'Permanent deletion must require confirmation');
+assert(css.includes('.library-delete{'), 'Library card Delete control must be visibly styled');
+assert(css.includes('.library-admin-row-actions .danger'), 'Admin-list Delete control must use danger styling');
+assert(view.includes('-delete1'), 'Library asset cache must be busted for Delete controls');
 assert(css.includes('@media(max-width:760px)'), 'Library must have phone layout rules');
 assert(css.includes('height:100dvh'), 'Library viewers must be mobile full-screen capable');
 
