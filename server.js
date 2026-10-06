@@ -336,6 +336,10 @@ if (UAT_MODE) {
   const uatClientVisibility = require('./src/routes/uat-client-visibility');
   app.use('/', uatClientVisibility);
   if (BASE_PATH) app.use(BASE_PATH, uatClientVisibility);
+
+  const cudoAi = require('./src/routes/cudo-ai');
+  app.use('/', cudoAi);
+  if (BASE_PATH) app.use(BASE_PATH, cudoAi);
 }
 
 const osProductivity = require('./src/routes/os-productivity');
