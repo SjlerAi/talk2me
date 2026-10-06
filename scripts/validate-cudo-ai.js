@@ -3,7 +3,7 @@
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
-const { parsePeriod, parseDueAt } = require('../src/services/cudo-ai');
+const { parsePeriod, parseDueAt, detectIntent } = require('../src/services/cudo-ai');
 
 const root = path.resolve(__dirname, '..');
 const read = file => fs.readFileSync(path.join(root,file),'utf8');
@@ -46,5 +46,9 @@ assert(p.startSql && p.endSql);
 
 const friday = parseDueAt('due Friday 15:00');
 assert(friday && / 15:00:00$/.test(friday), 'Friday 15:00 deadline parsing failed');
+
+assert.equal(detectIntent('How many of Johnny clients were followed up this month'), 'client_followup_activity');
+assert.equal(detectIntent('Johnny outstanding upgrades this month'), 'upgrades');
+assert(service.includes('queryClientFollowupActivity'), 'Client follow-up activity query missing');
 
 console.log('CUDO_AI_VALIDATION=PASS');
