@@ -197,7 +197,9 @@ function resultState(kind, rows, staff, extra = {}) {
         clientId: Number(row.client_id || row.id || 0) || null,
         title: clean(row.title || row.client_name || row.customer_name || row.primary_text || 'Item', 180),
         detail: clean(row.detail || row.package_name || row.reason || row.query_text || row.status || '', 600),
-        dueAt: row.due_at || row.next_upgrade_date || row.follow_up_at || row.scheduled_at || null
+        dueAt: row.due_at || row.next_upgrade_date || row.follow_up_at || row.scheduled_at || null,
+        assignedTo: Number(row.assigned_staff_id || row.assigned_to || 0) || null,
+        assignedName: clean(row.staff_name || '', 180) || null
       })),
       ...extra
     }
@@ -554,11 +556,19 @@ async function prepareBatchAction(message, state) {
     };
   }
 
-  const staff = await resolveStaff(message, selection.staffId);
-  if (!staff) {
+  const distribute = /responsible|each\s+(?:person|staff)|everyone|everybody|their\s+(?:own|responsible)|assigned\s+staff/.test(lower(message));
+  const staff = distribute ? null : await resolveStaff(message, selection.staffId);
+  if (!distribute && !staff) {
     return {
       intent:'action',
-      text:'Tell me which staff member should receive these tasks.',
+      text:'Tell me which staff member should receive these tasks, or say “assign each to the responsible person”.',
+      rows:[],actions:[],state
+    };
+  }
+  if (distribute && !selection.items.some(item => Number(item.assignedTo || 0))) {
+    return {
+      intent:'action',
+      text:'These results do not contain responsible staff assignments yet. Tell me which staff member should receive them.',
       rows:[],actions:[],state
     };
   }
@@ -566,7 +576,9 @@ async function prepareBatchAction(message, state) {
   if (!dueAt) {
     return {
       intent:'action',
-      text:`I have the ${selection.items.length} item${selection.items.length===1?'':'s'} and ${staff.full_name || staff.username}. Tell me the deadline, for example “Friday 15:00”.`,
+      text:distribute
+        ? `I have the ${selection.items.length} item${selection.items.length===1?'':'s'} and their responsible staff. Tell me the deadline, for example “Friday 15:00”.`
+        : `I have the ${selection.items.length} item${selection.items.length===1?'':'s'} and ${staff.full_name || staff.username}. Tell me the deadline, for example “Friday 15:00”.`,
       rows:[],actions:[],state
     };
   }
@@ -574,13 +586,16 @@ async function prepareBatchAction(message, state) {
   const items = selection.items.slice(0,MAX_BATCH_TASKS);
   return {
     intent:'action',
-    text:`Ready to create ${items.length} task${items.length===1?'':'s'} for ${staff.full_name || staff.username}, due ${dueAt.slice(0,16).replace(' ',' at ')}. I will put each one under Cudo deadline monitoring.`,
+    text:distribute
+      ? `Ready to create up to ${items.length} task${items.length===1?'':'s'} for the responsible staff, due ${dueAt.slice(0,16).replace(' ',' at ')}. I will put each one under Cudo deadline monitoring.`
+      : `Ready to create ${items.length} task${items.length===1?'':'s'} for ${staff.full_name || staff.username}, due ${dueAt.slice(0,16).replace(' ',' at ')}. I will put each one under Cudo deadline monitoring.`,
     rows:items.slice(0,10).map((item,index)=>({id:index+1,title:item.title,detail:item.detail || '',meta:item.dueAt ? `Source due ${String(item.dueAt).slice(0,10)}` : ''})),
     actions:['confirm_tasks','cancel_action'],
     pendingAction:{
       type:'create_tasks',
-      assignedTo:Number(staff.id),
-      assignedName:staff.full_name || staff.username || staff.email,
+      assignedTo:staff ? Number(staff.id) : null,
+      assignedName:staff ? (staff.full_name || staff.username || staff.email) : null,
+      distribute,
       dueAt,
       priority:/urgent/.test(lower(message))?'urgent':/high/.test(lower(message))?'high':'normal',
       sourceKind:selection.kind,
@@ -593,17 +608,26 @@ async function prepareBatchAction(message, state) {
 async function createTasks({ userId, action }) {
   if (!action || action.type !== 'create_tasks') throw new Error('Invalid Cudo action.');
   const assignedTo = Number(action.assignedTo || 0);
+  const distribute = Boolean(action.distribute);
   const dueAt = clean(action.dueAt, 30);
   const priority = ['normal','high','urgent'].includes(action.priority) ? action.priority : 'normal';
   const items = Array.isArray(action.items) ? action.items.slice(0,MAX_BATCH_TASKS) : [];
-  if (!userId || !assignedTo || !dueAt || !items.length) throw new Error('Staff member, items and deadline are required.');
+  if (!userId || (!assignedTo && !distribute) || !dueAt || !items.length) throw new Error('Staff member, items and deadline are required.');
 
-  const [[staff]] = await db.execute(`SELECT id,full_name,email,is_active FROM staff_users WHERE id=:id LIMIT 1`,{id:assignedTo});
-  if (!staff || !Number(staff.is_active)) throw new Error('The selected staff member is not active.');
+  let staff = null;
+  if (!distribute) {
+    [[staff]] = await db.execute(`SELECT id,full_name,email,is_active FROM staff_users WHERE id=:id LIMIT 1`,{id:assignedTo});
+    if (!staff || !Number(staff.is_active)) throw new Error('The selected staff member is not active.');
+  }
 
   const created = [];
   const skipped = [];
   for (const item of items) {
+    const targetStaffId = distribute ? Number(item.assignedTo || 0) : assignedTo;
+    if (!targetStaffId) {
+      skipped.push({title:clean(item.title || 'CRM item',180),reason:'No responsible staff assigned'});
+      continue;
+    }
     const sourceTitle = clean(item.title || 'CRM item', 120);
     const kind = clean(action.sourceKind || 'item', 40);
     const prefix = kind === 'upgrade' ? 'Upgrade follow-up' : kind === 'birthday' ? 'Birthday follow-up' : kind === 'deal' ? 'Deal follow-up' : kind === 'followup' ? 'Follow-up' : 'Cudo task';
@@ -616,16 +640,16 @@ async function createTasks({ userId, action }) {
     ].filter(Boolean).join('\n');
 
     const [[duplicate]] = await db.execute(`SELECT id FROM staff_tasks
-      WHERE assigned_to=:assignedTo AND title=:title
+      WHERE assigned_to=:targetStaffId AND title=:title
         AND status IN ${ACTIVE_TASK}
-        AND due_at=:dueAt LIMIT 1`,{assignedTo,title,dueAt});
+        AND due_at=:dueAt LIMIT 1`,{targetStaffId,title,dueAt});
     if (duplicate) {
       skipped.push({title,taskId:duplicate.id});
       continue;
     }
 
     const result = await sendAgentInstruction({
-      issuedBy:userId,assignedTo,title,message,dueAt,priority
+      issuedBy:userId,assignedTo:targetStaffId,title,message,dueAt,priority
     });
     created.push({title,taskId:result.taskId});
   }
@@ -633,7 +657,7 @@ async function createTasks({ userId, action }) {
   return {
     created,
     skipped,
-    staffName:staff.full_name || staff.email,
+    staffName:distribute ? 'responsible staff' : (staff.full_name || staff.email),
     dueAt
   };
 }
