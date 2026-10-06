@@ -26,6 +26,16 @@ function safeContext(value) {
   };
 }
 
+function logCudoError(scope, error, req) {
+  const ref = `CUDO-${Date.now().toString(36).toUpperCase()}`;
+  console.error(`[${ref}] ${scope}`, {
+    userId:Number(req?.session?.user?.id || 0) || null,
+    message:String(error?.message || error || 'Unknown error'),
+    stack:error?.stack || null
+  });
+  return ref;
+}
+
 router.get('/api/cudo/health', requireOwner, async (req, res) => {
   if (!IS_UAT) return res.sendStatus(404);
   try {
@@ -102,7 +112,14 @@ router.post('/api/cudo/chat', requireOwner, async (req, res, next) => {
       actions:Array.isArray(result.actions) ? result.actions : [],
       suggestions:Array.isArray(result.suggestions) ? result.suggestions : []
     });
-  } catch (error) { next(error); }
+  } catch (error) {
+    const ref = logCudoError('chat_failed',error,req);
+    res.status(500).json({
+      ok:false,
+      error:`I reached the CRM, but one of the data checks failed. Nothing was changed. The technical error was logged as ${ref}.`,
+      errorRef:ref
+    });
+  }
 });
 
 router.post('/api/cudo/action', requireOwner, async (req, res, next) => {
@@ -148,7 +165,14 @@ router.post('/api/cudo/action', requireOwner, async (req, res, next) => {
       created:result.created,
       skipped:result.skipped
     });
-  } catch (error) { next(error); }
+  } catch (error) {
+    const ref = logCudoError('action_failed',error,req);
+    res.status(500).json({
+      ok:false,
+      error:`I could not complete that CRM action. Nothing further was changed. The technical error was logged as ${ref}.`,
+      errorRef:ref
+    });
+  }
 });
 
 router.post('/api/cudo/reset', requireOwner, (req, res) => {
