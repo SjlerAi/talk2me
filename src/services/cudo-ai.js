@@ -300,6 +300,18 @@ function detectIntent(message) {
   if (/\bbirthdays?\b/.test(q)) return 'birthdays';
   if (/\bupgrades?\b/.test(q)) return 'upgrades';
   if (/\bdeals?\b|\bprospects?\b|opportunit/.test(q)) return 'deals';
+  if (
+    clientWords.test(q)
+    && (
+      /\bunallocat(?:ed|ion)\b/.test(q)
+      || /\bunassign(?:ed|ed)?\b/.test(q)
+      || /\bnot\s+(?:been\s+)?allocat(?:ed|ed)\b/.test(q)
+      || /\bnot\s+assign(?:ed|ed)\b/.test(q)
+      || /\bwithout\s+(?:a\s+)?staff\b/.test(q)
+      || /\bno\s+(?:staff|owner|assignee)\b/.test(q)
+      || /\bneed(?:s|ing)?\s+(?:to\s+be\s+)?allocat(?:ed|ion)\b/.test(q)
+    )
+  ) return 'unallocated_clients';
   if (clientWords.test(q) && followedWords.test(q)) return 'client_followup_activity';
   if (followedWords.test(q) || /\bcallbacks?\b|\bcall\s+back\b/.test(q)) return 'followups';
   if (
@@ -308,8 +320,147 @@ function detectIntent(message) {
     || /what\s+(?:has|does).*(?:left|to\s+do).*\btoday\b/.test(q)
   ) return 'office_work';
   if (/\btasks?\b|unfinished|outstanding\s+tasks?|overdue\s+tasks?/.test(q)) return 'tasks';
-  if (/\bstaff\b|\bactivity\b|what\s+did|who\s+has|who\s+is|performance/.test(q)) return 'staff';
+  if (/\bstaff\s+activity\b|\bactivity\b|what\s+did|\bperformance\b|\bproductivity\b/.test(q)) return 'staff';
   return null;
+}
+
+async function queryUnallocatedClients() {
+  const activeClientFilter = `c.is_active=1 AND COALESCE(c.line_status,'active')<>'cancelled'`;
+  const assignmentMatch = `(
+    ca.client_id=c.id
+    OR (
+      COALESCE(ca.account_number,'')<>''
+      AND COALESCE(c.account_number,'')<>''
+      AND ca.account_number=c.account_number
+    )
+  )`;
+
+  const [[summary]] = await db.execute(`SELECT
+      COUNT(DISTINCT c.id) total_active,
+      COUNT(DISTINCT CASE WHEN EXISTS(
+        SELECT 1 FROM client_assignments ca
+        WHERE ca.is_active=1 AND ${assignmentMatch}
+      ) THEN c.id END) allocated,
+      COUNT(DISTINCT CASE WHEN NOT EXISTS(
+        SELECT 1 FROM client_assignments ca
+        WHERE ca.is_active=1 AND ${assignmentMatch}
+      ) THEN c.id END) unallocated
+    FROM clients c
+    WHERE ${activeClientFilter}`);
+
+  const [rows] = await db.execute(`SELECT
+      c.id,c.id client_id,c.client_name,c.cell_number,c.account_number,c.package_name,c.created_at,c.lifecycle_status
+    FROM clients c
+    WHERE ${activeClientFilter}
+      AND NOT EXISTS(
+        SELECT 1 FROM client_assignments ca
+        WHERE ca.is_active=1 AND ${assignmentMatch}
+      )
+    ORDER BY c.created_at ASC,c.client_name ASC
+    LIMIT ${MAX_RESULTS}`);
+
+  const total = Number(summary?.total_active || 0);
+  const allocated = Number(summary?.allocated || 0);
+  const unallocated = Number(summary?.unallocated || 0);
+  const text = unallocated
+    ? `There are ${unallocated} active client${unallocated===1?'':'s'} in the CRM with no active staff allocation. ${allocated} of ${total} active clients are allocated.`
+    : `I checked ${total} active clients in the CRM and found 0 without an active staff allocation.`;
+
+  return {
+    intent:'unallocated_clients',
+    text,
+    rows:rows.slice(0,20).map(row=>({
+      id:row.id,
+      title:row.client_name || `Client #${row.id}`,
+      detail:[row.account_number,row.cell_number,row.package_name,row.lifecycle_status].filter(Boolean).join(' · '),
+      meta:row.created_at ? `In CRM since ${sqlDate(row.created_at)}` : ''
+    })),
+    actions:rows.length ? ['show_all','open_agent'] : ['open_agent'],
+    evidence:{
+      summary:`Checked ${total} active CRM clients against active client assignments: ${allocated} allocated, ${unallocated} unallocated.`,
+      sources:['clients','client_assignments']
+    },
+    state:resultState('unallocated_clients',rows,null,{total,allocated,unallocated})
+  };
+}
+
+async function queryClientDatabaseOverview() {
+  const [[row]] = await db.execute(`SELECT
+      COUNT(DISTINCT CASE WHEN c.is_active=1 AND COALESCE(c.line_status,'active')<>'cancelled' THEN c.id END) active_clients,
+      COUNT(DISTINCT CASE WHEN c.is_active=1 AND COALESCE(c.line_status,'active')<>'cancelled'
+        AND NOT EXISTS(
+          SELECT 1 FROM client_assignments ca
+          WHERE ca.is_active=1 AND (
+            ca.client_id=c.id OR (
+              COALESCE(ca.account_number,'')<>''
+              AND COALESCE(c.account_number,'')<>''
+              AND ca.account_number=c.account_number
+            )
+          )
+        ) THEN c.id END) unallocated_clients,
+      COUNT(DISTINCT CASE WHEN c.is_active=1 AND c.next_upgrade_date IS NOT NULL
+        AND DATE(c.next_upgrade_date)<CURRENT_DATE() THEN c.id END) overdue_upgrades
+    FROM clients c`);
+
+  const active = Number(row?.active_clients || 0);
+  const unallocated = Number(row?.unallocated_clients || 0);
+  const upgrades = Number(row?.overdue_upgrades || 0);
+  return {
+    intent:'client_database_overview',
+    text:`I checked the CRM client records before answering. I found ${active} active clients, ${unallocated} without an active staff allocation, and ${upgrades} with an overdue upgrade date. I still need a little more detail about which client question you want me to answer.`,
+    rows:[
+      {id:'active',title:'Active clients',detail:String(active),meta:'clients'},
+      {id:'unallocated',title:'Unallocated clients',detail:String(unallocated),meta:'clients + client_assignments'},
+      {id:'upgrades',title:'Overdue upgrades',detail:String(upgrades),meta:'clients'}
+    ],
+    actions:['open_agent'],
+    suggestions:['Show me the unallocated clients','Which clients have overdue upgrades?','How many clients were followed up this month?'],
+    evidence:{
+      summary:'Checked CRM client and assignment records before asking for clarification.',
+      sources:['clients','client_assignments']
+    },
+    state:{selection:null}
+  };
+}
+
+async function queryDatabaseFirstFallback(message) {
+  const q = lower(message);
+  const staffMatch = await resolveStaffMatch(message,null);
+  if (staffMatch.staff && !staffMatch.needsConfirmation) {
+    return queryOfficeWork(`${message} ${staffMatch.staff.full_name || staffMatch.staff.username || staffMatch.staff.email}`);
+  }
+
+  if (/\b(?:client|clients|customer|customers|account|accounts)\b/.test(q)) {
+    return queryClientDatabaseOverview();
+  }
+
+  const [[snapshot]] = await db.execute(`SELECT
+      (SELECT COUNT(*) FROM staff_tasks WHERE status IN ${ACTIVE_TASK}) open_tasks,
+      (SELECT COUNT(*) FROM inquiries WHERE status IN ${OPEN_INQUIRY}) open_inquiries,
+      (SELECT COUNT(*) FROM customer_followups WHERE status='open') open_followups,
+      (SELECT COUNT(*) FROM customer_callbacks WHERE status='scheduled') scheduled_callbacks,
+      (SELECT COUNT(*) FROM clients WHERE is_active=1 AND COALESCE(line_status,'active')<>'cancelled') active_clients`);
+
+  const facts = {
+    openTasks:Number(snapshot?.open_tasks || 0),
+    openInquiries:Number(snapshot?.open_inquiries || 0),
+    openFollowups:Number(snapshot?.open_followups || 0),
+    scheduledCallbacks:Number(snapshot?.scheduled_callbacks || 0),
+    activeClients:Number(snapshot?.active_clients || 0)
+  };
+
+  return {
+    intent:'database_clarification',
+    text:`I checked the CRM before answering, but I cannot safely map that wording to one specific business question yet. The CRM currently shows ${facts.openTasks} open tasks, ${facts.openInquiries} open inquiries, ${facts.openFollowups} open follow-ups and ${facts.scheduledCallbacks} scheduled callbacks. Please tell me which records or person you want me to investigate.`,
+    rows:[],
+    actions:['open_agent'],
+    suggestions:['What work has Gerda got left for today?','Show me unallocated clients','Which follow-ups are overdue?'],
+    evidence:{
+      summary:`Checked staff_tasks, inquiries, customer_followups, customer_callbacks and clients before asking for clarification.`,
+      sources:['staff_tasks','inquiries','customer_followups','customer_callbacks','clients']
+    },
+    state:{selection:null}
+  };
 }
 
 async function queryUpgrades(message) {
@@ -986,6 +1137,7 @@ async function answerCudo({ message, state = null, context = null }) {
   if (directIntent === 'birthdays') return queryBirthdays(workingMessage);
   if (directIntent === 'upgrades') return queryUpgrades(workingMessage);
   if (directIntent === 'deals') return queryDeals(workingMessage);
+  if (directIntent === 'unallocated_clients') return queryUnallocatedClients();
   if (directIntent === 'client_followup_activity') return queryClientFollowupActivity(workingMessage);
   if (directIntent === 'followups') return queryFollowups(workingMessage);
   if (directIntent === 'office_work') return queryOfficeWork(workingMessage);
@@ -1008,14 +1160,18 @@ async function answerCudo({ message, state = null, context = null }) {
 
   if (actionIntent(workingMessage)) return prepareBatchAction(workingMessage,workingState);
 
-  return {
-    intent:'help',
-    text:'I can investigate upgrades, birthdays, CRM deals/prospects, tasks, follow-ups/callbacks, complete daily work across the CRM, staff activity, and the customer you currently have open. You can also turn outstanding result sets into staff tasks with a deadline.',
-    rows:[],
-    actions:['open_agent'],
-    state:workingState || {selection:null},
-    suggestions:['What work has Gerda got left for today?','How many of Johnny\'s clients were followed up this month?','Birthdays not followed up this month']
-  };
+  if (/^(hi|hello|hey|help|what can you do)[.!? ]*$/.test(q)) {
+    return {
+      intent:'help',
+      text:'I use the Talk2Me CRM as my source of truth. Ask me about clients, allocations, staff work, follow-ups, birthdays, upgrades, deals, tasks or inquiries.',
+      rows:[],
+      actions:['open_agent'],
+      state:workingState || {selection:null},
+      suggestions:['Show me unallocated clients','What work has Gerda got left for today?','Birthdays not followed up this month']
+    };
+  }
+
+  return queryDatabaseFirstFallback(workingMessage);
 }
 
 module.exports = {
@@ -1027,5 +1183,7 @@ module.exports = {
   resolveStaff,
   resolveStaffMatch,
   nameSimilarity,
-  detectIntent
+  detectIntent,
+  queryUnallocatedClients,
+  queryDatabaseFirstFallback
 };

@@ -155,7 +155,10 @@
       const cls=action==='confirm_tasks'?' primary':action==='cancel_action'?' danger':'';
       return `<button type="button" class="cudo-action${cls}" data-cudo-action="${esc(action)}">${esc(labels[action]||action)}</button>`;
     }).join('');
-    el.innerHTML=`<img class="cudo-msg-avatar" alt="Cudo"><div class="cudo-bubble"><div>${esc(data.text||'')}</div>${grouped||list?`<div class="cudo-result-list">${grouped}${list}</div>`:''}${actions?`<div class="cudo-actions">${actions}</div>`:''}</div>`;
+    const evidence=data.evidence&&data.evidence.summary
+      ? `<div class="cudo-evidence"><strong>Checked:</strong> ${esc(data.evidence.summary)}</div>`
+      : '';
+    el.innerHTML=`<img class="cudo-msg-avatar" alt="Cudo"><div class="cudo-bubble"><div>${esc(data.text||'')}</div>${evidence}${grouped||list?`<div class="cudo-result-list">${grouped}${list}</div>`:''}${actions?`<div class="cudo-actions">${actions}</div>`:''}</div>`;
     mascot(el.querySelector('img'));
     stream.appendChild(el);scrollEnd();
     if(data.suggestions?.length)setSuggestions(data.suggestions);
