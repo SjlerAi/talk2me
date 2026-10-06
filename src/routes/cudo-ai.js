@@ -5,16 +5,15 @@ const { audit } = require('../services/audit');
 const { answerCudo, createTasks, getAlerts } = require('../services/cudo-ai');
 
 const router = express.Router();
-const MANAGEMENT_ROLES = new Set(['owner','admin','manager']);
 const IS_UAT = String(process.env.UAT_MODE || '').trim().toLowerCase() === 'true';
 
-function management(user) {
-  return Boolean(user && MANAGEMENT_ROLES.has(String(user.role || '').toLowerCase()));
+function isOwner(user) {
+  return Boolean(user && String(user.role || '').toLowerCase() === 'owner');
 }
 
-function requireManagement(req, res, next) {
+function requireOwner(req, res, next) {
   if (!req.session?.user) return res.status(401).json({ ok:false, error:'Sign in required.' });
-  if (!management(req.session.user)) return res.status(403).json({ ok:false, error:'Cudo is available to authorised management users.' });
+  if (!isOwner(req.session.user)) return res.status(403).json({ ok:false, error:'Cudo is private to the Talk2Me owner.' });
   next();
 }
 
@@ -27,7 +26,7 @@ function safeContext(value) {
   };
 }
 
-router.get('/api/cudo/health', async (req, res) => {
+router.get('/api/cudo/health', requireOwner, async (req, res) => {
   if (!IS_UAT) return res.sendStatus(404);
   try {
     const alerts = await getAlerts();
@@ -38,7 +37,7 @@ router.get('/api/cudo/health', async (req, res) => {
   }
 });
 
-router.get('/api/cudo/bootstrap', requireManagement, async (req, res, next) => {
+router.get('/api/cudo/bootstrap', requireOwner, async (req, res, next) => {
   try {
     const alerts = await getAlerts();
     res.set('Cache-Control','no-store');
@@ -58,7 +57,7 @@ router.get('/api/cudo/bootstrap', requireManagement, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-router.get('/api/cudo/alerts', requireManagement, async (req, res, next) => {
+router.get('/api/cudo/alerts', requireOwner, async (req, res, next) => {
   try {
     const alerts = await getAlerts();
     res.set('Cache-Control','no-store');
@@ -66,7 +65,7 @@ router.get('/api/cudo/alerts', requireManagement, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-router.post('/api/cudo/chat', requireManagement, async (req, res, next) => {
+router.post('/api/cudo/chat', requireOwner, async (req, res, next) => {
   try {
     const message = String(req.body?.message || '').trim().slice(0,5000);
     if (!message) return res.status(400).json({ ok:false, error:'Ask Cudo a question.' });
@@ -106,7 +105,7 @@ router.post('/api/cudo/chat', requireManagement, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-router.post('/api/cudo/action', requireManagement, async (req, res, next) => {
+router.post('/api/cudo/action', requireOwner, async (req, res, next) => {
   try {
     const actionName = String(req.body?.action || '').trim();
 
@@ -152,7 +151,7 @@ router.post('/api/cudo/action', requireManagement, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-router.post('/api/cudo/reset', requireManagement, (req, res) => {
+router.post('/api/cudo/reset', requireOwner, (req, res) => {
   req.session.cudoState = null;
   req.session.cudoPendingAction = null;
   res.json({ ok:true });
