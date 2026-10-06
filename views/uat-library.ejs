@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#202832">
   <title>Talk2Me Library</title>
-  <link rel="stylesheet" href="<%= basePath %>/public/css/uat-library.css?v=<%= encodeURIComponent(appVersion) %>-delete1">
+  <link rel="stylesheet" href="<%= basePath %>/public/css/uat-library.css?v=<%= encodeURIComponent(appVersion) %>-deals1">
 </head>
 <body>
   <main class="library-app" data-library-app>
@@ -38,6 +38,7 @@
       <aside class="library-categories">
         <button type="button" class="is-active" data-library-category="all"><span>▦</span><strong>All files</strong></button>
         <button type="button" data-library-category="favourites"><span>★</span><strong>My favourites</strong></button>
+        <button type="button" class="library-category-deals" data-library-category="Deals"><span>🤝</span><strong>Deals</strong></button>
         <div data-library-category-list></div>
       </aside>
       <section class="library-results">
@@ -81,6 +82,9 @@
         <form class="library-admin-form" data-library-upload-form enctype="multipart/form-data">
           <h2>Add documents</h2>
           <p class="library-form-help">Select up to 10 files from the same folder. Talk2Me creates one Library item per file and uses each filename as its starting title.</p>
+          <div class="library-upload-shortcuts">
+            <button type="button" class="library-upload-deals" data-upload-deals><span>🤝</span><strong>Deals</strong><small>Put these files in the Deals section</small></button>
+          </div>
           <div class="library-form-grid">
             <label>Category<input name="category" list="library-category-options" maxlength="80" required placeholder="Pricing"></label>
             <label>Who can see it<select name="access_level"><option value="all">All staff</option><option value="management">Managers / admins only</option></select></label>
@@ -132,6 +136,6 @@
 
   <datalist id="library-category-options"></datalist>
   <script id="library-config" type="application/json"><%- JSON.stringify({basePath,user:{id:currentUser.id,name:currentUser.full_name,role:currentUser.role}}).replace(/</g,'\u003c') %></script>
-  <script src="<%= basePath %>/public/js/uat-library.js?v=<%= encodeURIComponent(appVersion) %>-delete1"></script>
+  <script src="<%= basePath %>/public/js/uat-library.js?v=<%= encodeURIComponent(appVersion) %>-deals1"></script>
 </body>
 </html>

@@ -6,6 +6,7 @@ const route=fs.readFileSync('src/routes/uat-library.js','utf8');
 const zip=fs.readFileSync('src/services/library-zip.js','utf8');
 const ui=fs.readFileSync('public/js/uat-library.js','utf8');
 const css=fs.readFileSync('public/css/uat-library.css','utf8');
+const homeCss=fs.readFileSync('public/css/calendar-home-uat.css','utf8');
 const view=fs.readFileSync('views/uat-library.ejs','utf8');
 const calendar=fs.readFileSync('public/js/calendar-home-uat.js','utf8');
 const server=fs.readFileSync('server.js','utf8');
@@ -14,6 +15,8 @@ assert(server.includes("require('./src/routes/uat-library')"), 'UAT Library rout
 assert(route.includes("path.join(privateRoot, 'library')"), 'Library files must live under private storage');
 assert(route.includes("privateRoot === '/home/uent/talk2me_private_uploads'"), 'UAT Library must reject production private storage');
 assert(!route.includes('LONGBLOB'), 'Library must not store file bodies in MySQL');
+assert(route.includes("const CATEGORIES = ['Deals'"), 'Deals must be a first-class suggested Library category');
+assert(route.includes("const categories=['Deals',"), 'Deals must remain visible even before the first Deals file is uploaded');
 assert(route.includes('CREATE TABLE IF NOT EXISTS library_documents'), 'Library catalogue table must exist');
 assert(route.includes('CREATE TABLE IF NOT EXISTS library_versions'), 'Library version history table must exist');
 assert(route.includes('CREATE TABLE IF NOT EXISTS library_favourites'), 'Library favourites table must exist');
@@ -51,6 +54,8 @@ assert(zip.includes('0x06054b50'), 'ZIP writer must emit a ZIP end record');
 
 assert(view.includes('Company favourites'), 'Library must expose company favourites');
 assert(view.includes('My favourites'), 'Library must expose personal favourites');
+assert(view.includes('data-library-category="Deals"'), 'Library must expose a permanent Deals heading');
+assert(view.includes('data-upload-deals'), 'Library upload must provide a one-click Deals category choice');
 assert(view.includes('Library Management'), 'Management UI must exist');
 assert(view.includes('Create month-end snapshot'), 'Month-end snapshot control must exist');
 assert(view.includes('Download original'), 'Original files must remain downloadable');
@@ -61,6 +66,8 @@ assert(ui.includes("previewKind==='pdf'"), 'PDF preview must exist');
 assert(ui.includes("previewKind==='spreadsheet'"), 'Spreadsheet preview must exist');
 assert(ui.includes('doc?.nativeLaunch'), 'Office documents must launch their installed desktop app from the Library');
 assert(ui.includes('/api/uat/library/documents/batch'), 'Library UI must use the batch upload endpoint');
+assert(ui.includes("new URLSearchParams(window.location.search).get('category')"), 'Library must support category deep links');
+assert(ui.includes("uploadCategory.value='Deals'"), 'Deals upload shortcut must assign the Deals category');
 assert(ui.includes('New version'), 'Admin version workflow must exist');
 assert(ui.includes('data-library-delete'), 'Management must have a Delete button on Library cards');
 assert(ui.includes('state.canManage?'), 'Delete buttons must only render for management');
@@ -68,11 +75,14 @@ assert(ui.includes("method:'DELETE'"), 'Library Delete control must call the per
 assert(ui.includes('Delete "${doc.title}" permanently?'), 'Permanent deletion must require confirmation');
 assert(css.includes('.library-delete{'), 'Library card Delete control must be visibly styled');
 assert(css.includes('.library-admin-row-actions .danger'), 'Admin-list Delete control must use danger styling');
-assert(view.includes('-delete1'), 'Library asset cache must be busted for Delete controls');
+assert(view.includes('-deals1'), 'Library assets must be cache-busted for the Deals release');
 assert(css.includes('@media(max-width:760px)'), 'Library must have phone layout rules');
 assert(css.includes('height:100dvh'), 'Library viewers must be mobile full-screen capable');
 
 assert(calendar.includes('data-uat-library-launcher'), 'Library must be added to the top launcher');
+assert(calendar.includes('data-uat-deals-launcher'), 'Deals must have a dedicated top-bar launcher');
+assert(calendar.includes('/uat/library?category=Deals'), 'Deals launcher must deep-link into the Library Deals section');
+assert(homeCss.includes('.t2m-top-deals-button'), 'Deals launcher must be visibly styled in green');
 assert(calendar.includes('/uat/library'), 'Library must be available in CRM navigation');
 
 console.log('UAT Talk2Me Library V1 validation passed.');

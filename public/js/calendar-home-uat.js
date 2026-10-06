@@ -220,6 +220,32 @@
       notes.innerHTML = '<span aria-hidden="true">✎</span>';
       topActions.insertBefore(notes, topActions.firstChild);
     }
+
+    if (topActions && !topActions.querySelector('[data-uat-deals-launcher]')) {
+      const deals = document.createElement('button');
+      deals.type = 'button';
+      deals.className = 't2m-os-icon-button t2m-top-deals-button';
+      deals.setAttribute('data-uat-deals-launcher', '1');
+      deals.dataset.osRoute = `${basePath}/uat/library?category=Deals`;
+      deals.dataset.routeTitle = 'Deals';
+      deals.dataset.routeIcon = '🤝';
+      deals.title = 'Deals';
+      deals.setAttribute('aria-label', 'Open Deals');
+      deals.setAttribute('aria-pressed', 'false');
+      deals.innerHTML = '<span aria-hidden="true">🤝</span>';
+
+      const notesButton = topActions.querySelector('[data-os-app="notes"]');
+      if (notesButton?.nextSibling) topActions.insertBefore(deals, notesButton.nextSibling);
+      else topActions.appendChild(deals);
+
+      document.addEventListener('click', event => {
+        const routeButton = event.target.closest('[data-os-route]');
+        if (!routeButton) return;
+        const active = routeButton === deals;
+        deals.classList.toggle('is-active', active);
+        deals.setAttribute('aria-pressed', active ? 'true' : 'false');
+      });
+    }
   }
 
   function mountCalendar() {

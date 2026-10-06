@@ -7,7 +7,9 @@
   const app=document.querySelector('[data-library-app]');
   if(!app)return;
 
-  const state={documents:[],categories:[],suggestedCategories:[],canManage:false,category:'all',search:'',status:'active',selected:null};
+  const requestedCategory=new URLSearchParams(window.location.search).get('category');
+  const initialCategory=String(requestedCategory||'').trim().slice(0,80)||'all';
+  const state={documents:[],categories:[],suggestedCategories:[],canManage:false,category:initialCategory,search:'',status:'active',selected:null};
   const grid=app.querySelector('[data-library-grid]');
   const count=app.querySelector('[data-library-count]');
   const resultTitle=app.querySelector('[data-library-result-title]');
@@ -35,6 +37,8 @@
   const categoryOptions=document.getElementById('library-category-options');
   const uploadFiles=uploadForm.querySelector('[name="files"]');
   const uploadFilesList=uploadForm.querySelector('[data-upload-files]');
+  const uploadCategory=uploadForm.querySelector('[name="category"]');
+  const uploadDeals=document.querySelector('[data-upload-deals]');
 
   const esc=value=>String(value==null?'':value).replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
   const formatBytes=value=>{
@@ -95,7 +99,8 @@
   }
 
   function renderCategories(){
-    categoryList.innerHTML=state.categories.map(category=>`<button type="button" class="${state.category===category?'is-active':''}" data-library-category="${esc(category)}"><span>▣</span><strong>${esc(category)}</strong></button>`).join('');
+    const dynamicCategories=state.categories.filter(category=>category!=='Deals');
+    categoryList.innerHTML=dynamicCategories.map(category=>`<button type="button" class="${state.category===category?'is-active':''}" data-library-category="${esc(category)}"><span>▣</span><strong>${esc(category)}</strong></button>`).join('');
     app.querySelectorAll('[data-library-category]').forEach(button=>button.classList.toggle('is-active',button.dataset.libraryCategory===state.category));
     categoryOptions.innerHTML=state.suggestedCategories.map(category=>`<option value="${esc(category)}"></option>`).join('');
   }
@@ -211,6 +216,29 @@
     snapshotsList.innerHTML=(data.snapshots||[]).length?data.snapshots.map(item=>`<article class="library-admin-row"><div><strong>${esc(item.month)} snapshot</strong><small>${item.documentCount} documents · ${formatBytes(item.bytes)} · ${esc(item.createdByName)} · ${formatDate(item.createdAt)}</small></div><div class="library-admin-row-actions"><a href="${basePath}/api/uat/library/snapshots/${item.id}">Download ZIP</a></div></article>`).join(''):'<div class="library-empty">No month-end snapshots yet.</div>';
   }
 
+  function setCategory(category){
+    state.category=String(category||'all');
+    const url=new URL(window.location.href);
+    if(state.category==='all')url.searchParams.delete('category');
+    else url.searchParams.set('category',state.category);
+    window.history.replaceState({},'',url);
+    render();
+  }
+
+  function syncUploadDeals(){
+    if(!uploadDeals||!uploadCategory)return;
+    uploadDeals.classList.toggle('is-active',uploadCategory.value.trim().toLowerCase()==='deals');
+  }
+
+  uploadDeals?.addEventListener('click',()=>{
+    if(!uploadCategory)return;
+    uploadCategory.value='Deals';
+    syncUploadDeals();
+    uploadCategory.focus();
+  });
+  uploadCategory?.addEventListener('input',syncUploadDeals);
+  uploadCategory?.addEventListener('change',syncUploadDeals);
+
   app.addEventListener('click',event=>{
     const remove=event.target.closest('[data-library-delete]');
     if(remove){event.preventDefault();event.stopPropagation();deleteDocument(Number(remove.dataset.libraryDelete)).catch(error=>alert(error.message));return;}
@@ -228,7 +256,7 @@
       return;
     }
     const category=event.target.closest('[data-library-category]');
-    if(category){state.category=category.dataset.libraryCategory;render();return;}
+    if(category){setCategory(category.dataset.libraryCategory);return;}
   });
 
   filters.addEventListener('click',event=>{
@@ -238,7 +266,7 @@
     const type=button.dataset.libraryType;
     state.search='';
     searchInput.value='';
-    if(type==='all'){state.category='all';render();return;}
+    if(type==='all'){setCategory('all');return;}
     const docs=state.documents.filter(doc=>doc.previewKind===type);
     const original=state.documents;
     state.documents=docs;state.category='all';render();state.documents=original;
@@ -251,7 +279,7 @@
   });
 
   refreshButton.onclick=()=>load().catch(error=>alert(error.message));
-  adminButton.onclick=()=>{adminDialog.showModal();renderAdminDocuments();loadSnapshots().catch(()=>{});};
+  adminButton.onclick=()=>{if(state.category==='Deals'&&uploadCategory){uploadCategory.value='Deals';syncUploadDeals();}adminDialog.showModal();renderAdminDocuments();loadSnapshots().catch(()=>{});};
   viewer.querySelector('[data-viewer-close]').onclick=()=>viewer.close();
   viewerFavourite.onclick=()=>state.selected&&toggleFavourite(state.selected.id).catch(error=>alert(error.message));
   viewer.querySelector('[data-viewer-fullscreen]').onclick=()=>{
@@ -295,6 +323,7 @@
       form.set('company_favourite',uploadForm.querySelector('[name="company_favourite"]').checked?'1':'0');
       const result=await request('/api/uat/library/documents/batch',{method:'POST',body:form});
       uploadForm.reset();
+      syncUploadDeals();
       renderSelectedFiles();
       status.textContent=`✓ Published ${result.count} file${result.count===1?'':'s'}`;
       await load();

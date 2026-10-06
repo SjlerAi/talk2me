@@ -20,7 +20,7 @@ const librarySnapshotDir = path.join(libraryRoot, 'snapshots');
 const libraryTempDir = path.join(libraryRoot, 'tmp');
 let schemaPromise;
 
-const CATEGORIES = ['Favourites','Images','Pricing','PDFs','Forms','Promotions','Training','Documents','Presentations','Other'];
+const CATEGORIES = ['Deals','Favourites','Images','Pricing','PDFs','Forms','Promotions','Training','Documents','Presentations','Other'];
 
 function management(user) {
   return Boolean(user && MANAGEMENT_ROLES.has(String(user.role || '').toLowerCase()));
@@ -449,7 +449,8 @@ router.get('/api/uat/library/bootstrap',requireAuth,async(req,res,next)=>{
     const rows=await visibleDocuments(req.session.user,{status:requestedStatus==='all'&&canManage?'all':'active'});
     const favourites=await favouriteSet(userId);
     const documents=rows.map(row=>mapDocument(row,favourites,nativeLaunchFor(req,res.locals.basePath,row)));
-    const categories=[...new Set(documents.map(item=>item.category).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+    const documentCategories=[...new Set(documents.map(item=>item.category).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+    const categories=['Deals',...documentCategories.filter(category=>category!=='Deals')];
     res.json({
       ok:true,
       canManage,
