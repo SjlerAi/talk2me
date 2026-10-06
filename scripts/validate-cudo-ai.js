@@ -23,12 +23,20 @@ assert(layout.includes('/public/css/cudo-widget.css'), 'Cudo layout CSS missing'
 assert(shell.includes('/public/css/cudo-widget.css'), 'Cudo OS CSS missing');
 assert(route.includes("router.post('/api/cudo/chat'"), 'Cudo chat API missing');
 assert(route.includes("router.post('/api/cudo/action'"), 'Cudo action API missing');
-assert(route.includes("router.get('/api/cudo/health'"), 'Cudo health API missing');
+assert(route.includes("router.get('/api/cudo/health', requireOwner"), 'Cudo health API must be owner-protected');
+assert(route.includes("String(user.role || '').toLowerCase() === 'owner'"), 'Cudo API must be restricted to owner role');
+assert(!route.includes('MANAGEMENT_ROLES'), 'Cudo must not allow manager/admin role shortcuts');
 assert(service.includes('sendAgentInstruction'), 'Cudo must use existing monitored task path');
 assert(service.includes('agent'), 'Cudo service should remain connected to Gerda task foundation');
 assert(widget.includes('t2m-cudo-position'), 'Cudo draggable position persistence missing');
 assert(widget.includes('t2m-cudo-size'), 'Cudo resizable avatar persistence missing');
 assert(widget.includes('activeContext'), 'Cudo current-screen context missing');
+assert(widget.includes('SpeechRecognition'), 'Cudo browser speech recognition missing');
+assert(widget.includes("root.querySelector('.cudo-mic')"), 'Cudo microphone control missing');
+assert(widget.includes('recognition.start()'), 'Cudo microphone start behavior missing');
+assert(widget.includes('recognition.onresult'), 'Cudo speech transcript handling missing');
+assert(layout.includes("toLowerCase()==='owner'"), 'Cudo layout must be owner-only');
+assert(shell.includes("toLowerCase()==='owner'"), 'Cudo OS shell must be owner-only');
 assert(css.includes('resize:both'), 'Cudo panel resize affordance missing');
 assert(fs.existsSync(path.join(root,'public/images/cudo-mascot.webp')), 'Cudo mascot asset missing');
 
