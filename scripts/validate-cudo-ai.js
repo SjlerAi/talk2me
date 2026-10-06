@@ -51,6 +51,10 @@ assert.equal(detectIntent('How many of Johnny clients were followed up this mont
 assert.equal(detectIntent('Johnny outstanding upgrades this month'), 'upgrades');
 assert.equal(detectIntent('What work has Gerda got left for today?'), 'office_work');
 assert.equal(detectIntent('Show me the outstanding work for Stephan today'), 'office_work');
+assert.equal(detectIntent('How many clients do we have in our database that have not been allocated to a staff member?'), 'unallocated_clients');
+assert.equal(detectIntent('Show me customers without a staff allocation'), 'unallocated_clients');
+assert.equal(detectIntent('How many clients are unassigned?'), 'unallocated_clients');
+assert.notEqual(detectIntent('How many clients are not allocated to staff?'), 'staff', 'Specific client allocation intent must beat generic staff wording');
 assert(nameSimilarity('Stefan','Stephan') >= 0.95, 'Stefan should fuzzy-match Stephan');
 assert(nameSimilarity('Gerta','Gerda') >= 0.79, 'Gerta should fuzzy-match Gerda');
 assert(nameSimilarity('Jonny','Johnny') >= 0.79, 'Jonny should fuzzy-match Johnny');
@@ -59,6 +63,12 @@ assert(service.includes('buildDailyResponsibilities'), 'Cudo broad work must use
 assert(!service.includes('f.updated_at'), 'Birthday/follow-up evidence must not reference missing follow-up updated_at');
 assert(!service.includes('cb.updated_at'), 'Callback evidence must not reference missing callback updated_at');
 assert(route.includes('logCudoError'), 'Cudo must log backend query failures with a reference');
+assert(service.includes('queryUnallocatedClients'), 'Cudo must have a direct unallocated-client database tool');
+assert(service.includes('queryDatabaseFirstFallback'), 'Cudo must have a database-first fallback before clarification');
+assert(service.includes('client_assignments'), 'Cudo allocation answers must query client_assignments');
+assert(route.includes('evidence:result.evidence || null'), 'Cudo API must return database evidence');
+assert(widget.includes('cudo-evidence'), 'Cudo UI must show what CRM data was checked');
+assert(css.includes('.cudo-evidence'), 'Cudo evidence styling missing');
 assert(widget.includes('Voice transcript is ready in the box'), 'Voice must require transcript review before sending');
 const voiceEnd = widget.slice(widget.indexOf('recognition.onend'), widget.indexOf('async function sendMessage'));
 assert(!voiceEnd.includes('sendMessage(full)'), 'Voice recognition must not auto-submit');
