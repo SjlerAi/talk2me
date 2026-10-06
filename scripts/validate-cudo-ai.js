@@ -3,7 +3,7 @@
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
-const { parsePeriod, parseDueAt, detectIntent } = require('../src/services/cudo-ai');
+const { parsePeriod, parseDueAt, detectIntent, nameSimilarity } = require('../src/services/cudo-ai');
 
 const root = path.resolve(__dirname, '..');
 const read = file => fs.readFileSync(path.join(root,file),'utf8');
@@ -49,6 +49,18 @@ assert(friday && / 15:00:00$/.test(friday), 'Friday 15:00 deadline parsing faile
 
 assert.equal(detectIntent('How many of Johnny clients were followed up this month'), 'client_followup_activity');
 assert.equal(detectIntent('Johnny outstanding upgrades this month'), 'upgrades');
+assert.equal(detectIntent('What work has Gerda got left for today?'), 'office_work');
+assert.equal(detectIntent('Show me the outstanding work for Stephan today'), 'office_work');
+assert(nameSimilarity('Stefan','Stephan') >= 0.95, 'Stefan should fuzzy-match Stephan');
+assert(nameSimilarity('Gerta','Gerda') >= 0.79, 'Gerta should fuzzy-match Gerda');
+assert(nameSimilarity('Jonny','Johnny') >= 0.79, 'Jonny should fuzzy-match Johnny');
 assert(service.includes('queryClientFollowupActivity'), 'Client follow-up activity query missing');
+assert(service.includes('buildDailyResponsibilities'), 'Cudo broad work must use the complete Gerda daily responsibility engine');
+assert(!service.includes('f.updated_at'), 'Birthday/follow-up evidence must not reference missing follow-up updated_at');
+assert(!service.includes('cb.updated_at'), 'Callback evidence must not reference missing callback updated_at');
+assert(route.includes('logCudoError'), 'Cudo must log backend query failures with a reference');
+assert(widget.includes('Voice transcript is ready in the box'), 'Voice must require transcript review before sending');
+const voiceEnd = widget.slice(widget.indexOf('recognition.onend'), widget.indexOf('async function sendMessage'));
+assert(!voiceEnd.includes('sendMessage(full)'), 'Voice recognition must not auto-submit');
 
 console.log('CUDO_AI_VALIDATION=PASS');
