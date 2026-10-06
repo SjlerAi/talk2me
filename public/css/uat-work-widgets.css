@@ -151,99 +151,142 @@
 }
 
 
-/* Unified Work: Tasks + Messages share one floating workspace. */
-.t2m-work-mode-nav{
-  flex:0 0 auto;
+/* Unified Work: navigation lives in the dark window header. */
+#t2m-task-widget .t2m-float-widget-head{gap:7px}
+#t2m-task-widget .t2m-float-widget-head-copy{flex:0 1 150px}
+#t2m-task-widget .t2m-work-head-nav{
+  min-width:0;
+  flex:1 1 auto;
   display:grid;
-  grid-template-columns:repeat(3,minmax(0,1fr));
-  gap:6px;
-  padding:7px 8px;
-  border-bottom:1px solid #dfe5ea;
-  background:#f6f8fa;
+  grid-template-columns:repeat(3,minmax(72px,1fr));
+  gap:4px;
 }
-.t2m-work-mode-nav>button{
-  min-height:38px;
+#t2m-task-widget .t2m-work-head-nav>button{
+  position:relative;
+  min-width:0;
+  height:31px;
   display:flex;
   align-items:center;
   justify-content:center;
-  gap:7px;
-  border:1px solid #d6dee5;
-  border-radius:9px;
-  background:#fff;
-  color:#4b5865;
-  font-size:11px;
-  font-weight:850;
+  gap:5px;
+  padding:0 8px;
+  border:1px solid rgba(255,255,255,.16);
+  border-radius:8px;
+  background:rgba(255,255,255,.07);
+  color:#dbe4eb;
+  font-size:9px;
+  font-weight:900;
+  cursor:pointer;
 }
-.t2m-work-mode-nav>button.is-active{
-  border-color:#202832;
-  background:#202832;
+#t2m-task-widget .t2m-work-head-nav>button:hover{background:rgba(255,255,255,.14)}
+#t2m-task-widget .t2m-work-head-nav>button.is-active{background:#fff;color:#202832;border-color:#fff}
+#t2m-task-widget .t2m-work-head-nav>button.new-task{background:#ed1c24;border-color:#ed1c24;color:#fff}
+#t2m-task-widget .t2m-work-head-nav>button.new-task.is-active{background:#fff;color:#b3151b;border-color:#fff}
+#t2m-task-widget .t2m-work-head-nav>button strong{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#t2m-task-widget .t2m-work-head-nav>button b{
+  display:grid;
+  place-items:center;
+  min-width:17px;
+  height:17px;
+  padding:0 4px;
+  border-radius:999px;
+  background:#ed1c24;
   color:#fff;
+  font-size:7px;
 }
-#t2m-task-widget .t2m-work-mode-nav + .t2m-task-shell,
-#t2m-task-widget .t2m-work-mode-nav + .t2m-chat-shell,
-#t2m-task-widget .t2m-work-mode-nav + .t2m-task-form,
-#t2m-task-widget .t2m-work-mode-nav + .t2m-task-detail{
-  flex:1 1 auto;
-  height:auto!important;
-  min-height:0!important;
+#t2m-task-widget .t2m-work-head-nav>button.is-active b{background:#202832;color:#fff}
+
+#t2m-task-widget .t2m-task-inbox-shell{height:100%;display:grid;grid-template-rows:auto minmax(0,1fr)}
+#t2m-task-widget .t2m-task-inbox-head{padding:0;background:#fff;border-bottom:1px solid #e1e7ec}
+#t2m-task-widget .t2m-work-filterbar{
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:6px;
+  padding:7px 8px;
 }
-.t2m-work-mode-nav>button>b{
+#t2m-task-widget .t2m-task-context-switch{display:flex;gap:3px;flex:0 0 auto}
+#t2m-task-widget .t2m-task-context-switch button{
+  min-height:31px;
+  padding:0 10px;
+  border:1px solid #d6dee5;
+  border-radius:8px;
+  background:#f4f6f8;
+  color:#5a6673;
+  font-size:9px;
+  font-weight:900;
+}
+#t2m-task-widget .t2m-task-context-switch button.is-active{background:#202832;border-color:#202832;color:#fff}
+#t2m-task-widget .t2m-work-view-switch{
+  flex:1 1 300px;
+  min-width:260px;
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:4px;
+}
+#t2m-task-widget .t2m-work-view-switch button{
+  min-width:0;
+  min-height:31px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:5px;
+  padding:0 7px;
+  border:1px solid #d8e0e6;
+  border-radius:8px;
+  background:#f6f8fa;
+  color:#566371;
+  font-size:9px;
+  font-weight:900;
+}
+#t2m-task-widget .t2m-work-view-switch button.is-active{background:#202832;border-color:#202832;color:#fff}
+#t2m-task-widget .t2m-work-view-switch button b{
   display:grid;
   place-items:center;
   min-width:20px;
   height:20px;
   padding:0 5px;
   border-radius:999px;
-  background:#ed1c24;
-  color:#fff;
-  font-size:9px;
+  background:#e7edf2;
+  color:#586572;
+  font-size:8px;
 }
-.t2m-work-history-filters{
-  display:flex;
-  align-items:center;
-  gap:5px;
-  overflow-x:auto;
-  padding:6px 8px 2px;
-  scrollbar-width:thin;
-}
-.t2m-work-history-filters>span{
+#t2m-task-widget .t2m-work-view-switch button.is-active b{background:rgba(255,255,255,.18);color:#fff}
+#t2m-task-widget .t2m-work-filterbar select{
   flex:0 0 auto;
-  color:#7b8793;
-  font-size:9px;
-  font-weight:900;
-  letter-spacing:.08em;
-  text-transform:uppercase;
-  margin-right:2px;
-}
-.t2m-work-history-filters>button{
-  flex:0 0 auto;
-  min-height:30px;
-  padding:5px 9px;
-  border:1px solid #d8e0e6;
-  border-radius:999px;
+  min-height:31px;
+  max-width:125px;
+  border:1px solid #d6dee5;
+  border-radius:8px;
   background:#fff;
-  color:#4f5c69;
+  color:#45525f;
+  padding:0 24px 0 8px;
   font-size:9px;
   font-weight:850;
-  white-space:nowrap;
 }
-.t2m-work-history-filters>button.is-active{
-  border-color:#202832;
-  background:#202832;
-  color:#fff;
-}
-@media(max-width:620px){
-  .t2m-work-mode-nav{padding:6px}
-  .t2m-work-mode-nav>button{min-height:40px;font-size:12px}
-  .t2m-work-history-filters{padding:6px 6px 3px}
-  .t2m-work-history-filters>button{min-height:34px;font-size:10px}
-}
+#t2m-task-widget .t2m-task-content{padding:7px 8px 10px}
+#t2m-task-widget .t2m-task-inbox-card{margin-bottom:6px}
+#t2m-task-widget .t2m-task-inbox-card .t2m-task-card-body{padding:7px 9px}
 
-.t2m-work-mode-nav>button strong{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-@media(max-width:620px){
-  .t2m-work-mode-nav{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:4px!important}
-  .t2m-work-mode-nav>button{padding:5px!important;font-size:10px!important}
-  .t2m-work-mode-nav>button>span{display:none}
+@media(max-width:700px){
+  #t2m-task-widget .t2m-float-widget-head-copy{flex:0 1 105px}
+  #t2m-task-widget .t2m-float-widget-head-copy small{display:none}
+  #t2m-task-widget .t2m-work-head-nav{grid-template-columns:repeat(3,minmax(58px,1fr))}
+  #t2m-task-widget .t2m-work-head-nav>button{padding:0 5px;font-size:8px}
+  #t2m-task-widget .t2m-work-filterbar{align-items:stretch}
+  #t2m-task-widget .t2m-work-view-switch{order:3;flex-basis:100%;min-width:0}
+  #t2m-task-widget .t2m-work-filterbar select{flex:1 1 100px;max-width:none}
+}
+@media(max-width:430px){
+  #t2m-task-widget .t2m-float-widget-head{gap:4px;padding-left:7px}
+  #t2m-task-widget .t2m-float-widget-head .avatar{width:27px;height:27px}
+  #t2m-task-widget .t2m-float-widget-head-copy{display:none}
+  #t2m-task-widget .t2m-work-head-nav{grid-template-columns:repeat(3,minmax(52px,1fr));gap:3px}
+  #t2m-task-widget .t2m-work-head-nav>button{height:29px;padding:0 4px;font-size:8px}
+  #t2m-task-widget .t2m-work-head-nav>button span{display:none}
+  #t2m-task-widget .t2m-float-widget-head-actions button{width:27px;height:27px}
+  #t2m-task-widget .t2m-work-filterbar{gap:4px;padding:6px}
+  #t2m-task-widget .t2m-task-context-switch button{padding:0 8px}
 }
 
 .t2m-os-launcher [data-badge="work"]{

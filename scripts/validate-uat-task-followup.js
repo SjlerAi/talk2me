@@ -21,7 +21,7 @@ need(route, "canReschedule", 'reschedule permission');
 need(route, "INSERT INTO agent_task_watches", 'task deadline watch creation');
 need(route, "Task completed —", 'completion history entry');
 
-need(widget, 'data-task-filter="completed"', 'Completed task filter');
+need(widget, 'value="completed"', 'Completed task filter');
 need(widget, 'data-task-reschedule', 'task reschedule control');
 need(widget, 'Update follow-up date', 'reschedule action label');
 need(widget, 'Current follow-up', 'prominent current follow-up summary');

@@ -7,7 +7,7 @@ const css=fs.readFileSync('public/css/uat-work-widgets.css','utf8');
 const route=fs.readFileSync('src/routes/uat-work-widgets.js','utf8');
 const server=fs.readFileSync('server.js','utf8');
 assert(ui.includes('let floatingWidgetZ = 30000'), 'floating widgets must own a top-layer z-index manager');
-assert(ui.includes('t2m-work-widget-v1-'), 'unified Work geometry storage must be versioned');
+assert(ui.includes('t2m-work-widget-v2-'), 'compact Work geometry storage must be versioned');
 assert(ui.includes('name="attachments"'), 'task UI must support file attachments');
 assert(ui.includes('new FormData(form)'), 'new task must submit multipart form data');
 assert(ui.includes('t2m-task-thread-composer'), 'task detail needs a permanent communication composer');

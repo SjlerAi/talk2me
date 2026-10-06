@@ -23,7 +23,7 @@ need(js, 'data-widget-max', 'widget maximise button');
 need(js, 'toggleMaximize(widget,key)', 'widget maximise/restore logic');
 need(js, 'data-widget-resize', 'visible resize handle');
 need(js, 'enableResize(widget,grip,key,size={})', 'pointer resize logic');
-need(js, "size:{width:780,height:680,minWidth:520,minHeight:360}", 'shared Work default size');
+need(js, "size:{width:840,height:700,minWidth:560,minHeight:420}", 'compact Work default size');
 need(js, 'const chatWidget=workWidget', 'Messages must use shared Work window');
 need(js, 'const taskWidget=workWidget', 'Tasks must use shared Work window');
 need(js, 'Math.max(minWidth,wantedWidth)', 'old saved width clamp');

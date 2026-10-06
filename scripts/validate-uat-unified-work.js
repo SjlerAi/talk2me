@@ -33,31 +33,32 @@ assert(calendar.includes('data-os-app="work"'), 'mobile/simple navigation must e
 assert(widgets.includes("title:'Work'"), 'shared floating widget must be titled Work');
 assert(widgets.includes('const chatWidget=workWidget'), 'Messages must use the shared Work window');
 assert(widgets.includes('const taskWidget=workWidget'), 'Tasks must use the shared Work window');
-assert(widgets.includes("data-work-mode=\"inbox\""), 'Work window must contain inbox mode');
-assert(widgets.includes("data-work-mode=\"messages\""), 'Work window must contain messages mode');
-assert(widgets.includes("data-work-mode=\"new\""), 'Work window must contain New task mode');
-assert(widgets.includes("workModeNav('new')"), 'New task form must keep the Work navigation visible');
-assert(widgets.includes("else if(next==='new')openTaskWidget({new:true})"), 'New task tab must open inside the shared Work window');
-assert(widgetCss.includes('.t2m-work-mode-nav + .t2m-task-form'), 'New task form must fit below the shared Work tabs');
-assert(widgetCss.includes('grid-template-columns:repeat(3,minmax(0,1fr));'), 'Work navigation must keep Inbox, Messages and New task on one row');
+assert(widgets.includes("data-work-head=\"inbox\""), 'Work header must expose Inbox');
+assert(widgets.includes("data-work-head=\"messages\""), 'Work header must expose Messages');
+assert(widgets.includes("data-work-head=\"new\""), 'Work header must expose the single +Task action');
+assert(widgets.includes("workHead.insertBefore(workHeadNav,workHeadActions)"), 'Work navigation must live in the dark window header');
+assert(!widgets.includes('data-task-new'), 'Inbox must not contain a duplicate +Task button');
+assert(!widgets.includes('workModeNav('), 'body-level Work navigation must be removed');
+assert(widgetCss.includes('.t2m-work-head-nav'), 'dark-header Work navigation must be styled');
+assert(widgetCss.includes('.t2m-work-filterbar'), 'Inbox must use one compact filter bar');
+assert(widgets.includes('data-task-history'), 'History must be collapsed into one dropdown');
+assert(widgets.includes('data-task-status-filter'), 'Status/date filters must be collapsed into one dropdown');
+assert(widgets.includes('data-task-context="mine"'), 'Mine filter must remain available');
+assert(widgets.includes('data-task-context="team"'), 'Team filter must remain available for management');
 assert(widgetCss.includes('.t2m-task-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}'), 'Due and Priority must remain a two-column form grid');
-assert(widgetCss.includes('display:flex;flex-direction:column'), 'Work widget body must allocate height with flex instead of a hard-coded tab offset');
-assert(!widgetCss.includes('height:calc(100% - 53px)!important'), 'Work content must not use the brittle 53px tab-height calculation');
+assert(widgetCss.includes('display:flex;flex-direction:column'), 'Work widget body must allocate height with flex');
 assert(widgetCss.includes('position:sticky;bottom:0'), 'New task action bar must stay visible at the bottom');
-assert(widgets.includes("${workModeNav('inbox')}<div class=\"t2m-task-detail\""), 'task detail must keep Work navigation visible');
-assert(widgetCss.includes('.t2m-work-mode-nav + .t2m-task-detail'), 'task detail must fit below the shared Work tabs');
 assert(widgets.includes("workMode!=='messages'"), 'chat poller must not repaint Work inbox mode');
-assert(widgets.includes("clearInterval(chatPoll);showWidget(workWidget)"), 'switching to Work inbox must stop the message poller');
-assert(widgetCss.includes('.t2m-work-mode-nav'), 'unified Work mode switch must be styled');
+assert(widgets.includes("t2m-work-widget-v2-"), 'Work geometry must reset for the compact header redesign');
 
 for (const filter of ['new','old','7days','14days','month','history_all']) {
-  assert(widgets.includes(`data-task-filter="${filter}"`), `Work UI must include ${filter} history filter`);
+  assert(widgets.includes(`value="${filter}"`), `Work History dropdown must include ${filter}`);
   assert(widgetRoutes.includes(`'${filter}'`), `Work API must support ${filter} history filter`);
 }
-assert(widgets.includes('>7 days<'), 'Work history must visibly expose 7 days');
-assert(widgets.includes('>14 days<'), 'Work history must visibly expose 14 days');
-assert(widgets.includes('>Month<'), 'Work history must visibly expose Month');
-assert(widgets.includes('data-task-filter="history_all">All'), 'Work history must visibly expose All');
+assert(widgets.includes('>7 days</option>'), 'Work History dropdown must expose 7 days');
+assert(widgets.includes('>14 days</option>'), 'Work History dropdown must expose 14 days');
+assert(widgets.includes('>Month</option>'), 'Work History dropdown must expose Month');
+assert(widgets.includes('>All history</option>'), 'Work History dropdown must expose All history');
 assert(widgetRoutes.includes("const historyFilter = ['new','old','7days','14days','month','history_all']"), 'history filters must include completed work instead of only active tasks');
 
 assert(telemetry.includes('CREATE TABLE IF NOT EXISTS crm_usage_events'), 'usage telemetry schema must exist');
@@ -89,6 +90,6 @@ assert(officeView.includes('Last 14 days'), 'management UI must expose last 14 d
 assert(officeView.includes('Feature and action usage'), 'management UI must show feature usage');
 assert(officeView.includes('Login / logout compliance'), 'management UI must show logout compliance');
 
-assert(loader.includes('widgets-6'), 'UAT asset version must be bumped for Work footer layout fix');
+assert(loader.includes('widgets-7'), 'UAT asset version must be bumped for compact Work redesign');
 
 console.log('UAT unified Work, telemetry and daily-login validation passed.');
