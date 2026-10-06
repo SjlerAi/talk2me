@@ -93,13 +93,23 @@
       root.style.right='auto';root.style.bottom='auto';
       root.style.left=clamp(Number(p.x)||0,4,Math.max(4,innerWidth-launcher.offsetWidth-4))+'px';
       root.style.top=clamp(Number(p.y)||0,4,Math.max(4,innerHeight-launcher.offsetHeight-4))+'px';
-      panel.style.right='auto';panel.style.bottom=(launcher.offsetHeight+16)+'px';panel.style.left='0';
+      positionPanel();
     }catch(_){}
   }
   setTimeout(restorePosition,0);
 
+  function positionPanel(){
+    if(innerWidth<720)return;
+    const r=root.getBoundingClientRect();
+    panel.style.left='auto';panel.style.right='auto';panel.style.top='auto';panel.style.bottom='auto';
+    if(r.left+r.width/2>innerWidth/2)panel.style.right='0';
+    else panel.style.left='0';
+    if(r.top+r.height/2>innerHeight/2)panel.style.bottom=(launcher.offsetHeight+16)+'px';
+    else panel.style.top=(launcher.offsetHeight+16)+'px';
+  }
   function openPanel(){
     panel.hidden=false;
+    positionPanel();
     launcher.setAttribute('aria-expanded','true');
     textarea.focus();
     scrollEnd();
@@ -236,7 +246,7 @@
     root.style.right='auto';root.style.bottom='auto';
     root.style.left=clamp(drag.x+dx,4,Math.max(4,innerWidth-launcher.offsetWidth-4))+'px';
     root.style.top=clamp(drag.y+dy,4,Math.max(4,innerHeight-launcher.offsetHeight-4))+'px';
-    panel.style.right='auto';panel.style.left='0';panel.style.bottom=(launcher.offsetHeight+16)+'px';
+    positionPanel();
   });
   launcher.addEventListener('pointerup',e=>{
     if(!drag)return;
@@ -244,6 +254,7 @@
       launcher.dataset.dragged='1';
       const r=root.getBoundingClientRect();
       localStorage.setItem('t2m-cudo-position',JSON.stringify({x:r.left,y:r.top}));
+      positionPanel();
     }
     drag=null;
   });
