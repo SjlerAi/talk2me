@@ -32,7 +32,7 @@ need(js, "handle.addEventListener('dblclick'", 'double-click header maximise');
 need(css, '.t2m-float-widget.is-maximized', 'maximised widget geometry');
 need(css, '.t2m-widget-resize-grip', 'visible resize grip');
 need(css, '#t2m-task-widget:not(.is-collapsed):not(.is-maximized){min-width:520px;min-height:360px}', 'task minimum flexible size');
-need(css, '#t2m-task-widget .t2m-float-widget-body{min-height:0;overflow:hidden!important}', 'task shell controlled scrolling');
+need(css, '#t2m-task-widget .t2m-float-widget-body{min-height:0;overflow:hidden!important;display:flex;flex-direction:column}', 'task shell controlled scrolling with flexible Work layout');
 need(css, 'grid-template-columns:minmax(0,1fr)!important', 'single-column reschedule layout');
 need(css, 'min-height:76px!important', 'readable follow-up reason field');
 

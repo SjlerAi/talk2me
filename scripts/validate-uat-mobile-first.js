@@ -37,6 +37,6 @@ assert(mobile.includes('width:min(330px,calc(100vw - 16px))!important'), 'mobile
 assert(mobile.includes('grid-template-columns:1fr!important'), 'mobile menu choices must use a clean one-column list');
 assert(mobile.includes('.t2m-os-top-actions .t2m-os-icon-button>.t2m-os-badge'), 'top mobile badges must have an explicit inset rule');
 assert(mobile.includes('top:2px!important'), 'top mobile badges must sit inside their buttons');
-assert(loader.includes('widgets-5'), 'UAT asset version must change so phones receive the final unified Work/mobile controls');
+assert(loader.includes('widgets-6'), 'UAT asset version must change so phones receive the final unified Work/mobile controls');
 
 console.log('UAT mobile-first responsive validation passed at phone/tablet breakpoints.');
