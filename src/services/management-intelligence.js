@@ -134,7 +134,7 @@ async function staffPerformance(rangeKey='this_week') {
   await ensureManagementSchema();
   const {range,sql}=between(rangeKey);
   const [rows]=await db.execute(`SELECT
-    su.id,COALESCE(NULLIF(su.full_name,''),NULLIF(CONCAT_WS(' ',su.first_name,su.surname),''),su.email) staff_name,su.email,su.role,
+    su.id,COALESCE(NULLIF(su.full_name,''),NULLIF(CONCAT_WS(' ',su.first_name,su.surname),''),su.email) staff_name,su.email,su.contact_number,su.role,
     COUNT(DISTINCT CASE WHEN ca.is_active=1 THEN c.id END) clients_total,
     COUNT(DISTINCT CASE WHEN ca.is_active=1 AND COALESCE(c.email,'')<>'' AND COALESCE(c.id_number,'')<>'' THEN c.id END) clients_complete,
     COUNT(DISTINCT CASE WHEN ca.is_active=1 AND COALESCE(c.email,'')='' THEN c.id END) clients_missing_email,
