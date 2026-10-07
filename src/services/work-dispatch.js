@@ -340,11 +340,16 @@ function channelAvailability(channel,{senderKey='primary'}={}) {
     channel:wanted,
     available,
     configured,
+    senderNumber:status.whatsapp.intendedSenderNumber || null,
+    configuredSenderNumber:status.whatsapp.configuredSenderNumber || null,
+    senderIdentityMatches:Boolean(status.whatsapp.senderIdentityMatches),
     reason:available
       ? null
       : configured
-        ? 'WhatsApp is configured but external sending is not enabled for Cudo/Gerda.'
-        : 'Meta WhatsApp Cloud API is not configured.'
+        ? 'Gerda WhatsApp is configured but external sending is not enabled for Cudo/Gerda.'
+        : status.whatsapp.senderIdentityMatches
+          ? 'Meta WhatsApp Cloud API is not configured.'
+          : 'Gerda WhatsApp sender identity is not configured/matched to +27829222877.'
   };
 }
 
@@ -553,7 +558,11 @@ async function createWorkDispatch({createdBy,action}) {
       recipientEmail,
       recipientMobile,
       senderKey:channel.channel==='email'?senderKey:null,
-      senderAddress:channel.channel==='email'?(channel.senderAddress||null):null,
+      senderAddress:channel.channel==='email'
+        ? (channel.senderAddress||null)
+        : channel.channel==='whatsapp'
+          ? (channel.senderNumber||null)
+          : null,
       dueAt,
       channel:channel.channel,
       requireReply,requireCompletion,
