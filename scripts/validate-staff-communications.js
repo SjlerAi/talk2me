@@ -63,6 +63,9 @@ assert(mailer.includes("fallback = selected === 'primary'"),'Legacy SMTP fallbac
 assert(comms.includes('WHATSAPP_PHONE_NUMBER_ID'),'WhatsApp phone number id support missing');
 assert(comms.includes('WHATSAPP_SENDER_NUMBER'),'WhatsApp sender-number verification missing');
 assert(comms.includes('senderIdentityMatches'),'WhatsApp sender identity match guardrail missing');
+assert(comms.includes('verifyGerdaWhatsAppSender'),'Meta sender verification function missing');
+assert(comms.includes('display_phone_number'),'Meta sender verification must inspect the registered display phone number');
+assert(comms.includes("status:'sender_mismatch'"),'WhatsApp must fail closed if Meta is not registered to Gerda');
 assert(comms.includes('WHATSAPP_GRAPH_VERSION'),'WhatsApp Graph version must be explicitly configured');
 assert(comms.includes("type:'text'"),'WhatsApp text sending missing');
 assert(comms.includes("type=isImage?'image':'document'"),'WhatsApp attachment sending missing');
