@@ -3,6 +3,7 @@
 const express = require('express');
 const multer = require('multer');
 const { audit } = require('../services/audit');
+const { requireAuth } = require('../middleware/auth');
 const {
   ensureManagementSchema,
   buildManagementOverview,
@@ -10,6 +11,9 @@ const {
   importMailboxFile,
   saveMailboxAttachmentsToDeals,
   notifyDealsheetAvailable,
+  shareMailboxItemWithStaff,
+  staffPerformance,
+  weeklyStatsStatus,
   submitWeeklyStats
 } = require('../services/management-intelligence');
 
@@ -114,6 +118,22 @@ router.post('/management/mailbox/:id/save-deals',requireManagement,async(req,res
   } catch(error){next(error);}
 });
 
+router.post('/management/mailbox/:id/share',requireManagement,async(req,res,next)=>{
+  try {
+    const staffId=Number(req.body.staff_id||0);
+    if(!staffId) throw new Error('Select a staff member.');
+    const result=await shareMailboxItemWithStaff({itemId:Number(req.params.id),staffId});
+    await audit(req,{
+      actionType:'management_mailbox_shared',
+      entityType:'management_mailbox_items',
+      entityId:Number(req.params.id),
+      description:`Gerda shared mailbox item with ${result.staffName}.`,
+      after:result
+    });
+    res.redirect(`${res.locals.basePath}/management#mailbox`);
+  } catch(error){next(error);}
+});
+
 router.post('/management/mailbox/:id/notify-staff',requireManagement,async(req,res,next)=>{
   try {
     const result=await notifyDealsheetAvailable({itemId:Number(req.params.id)});
@@ -125,6 +145,39 @@ router.post('/management/mailbox/:id/notify-staff',requireManagement,async(req,r
       after:result
     });
     res.redirect(`${res.locals.basePath}/management#mailbox`);
+  } catch(error){next(error);}
+});
+
+router.get('/weekly-stats',requireAuth,async(req,res,next)=>{
+  try {
+    const [performance,status]=await Promise.all([staffPerformance('this_week'),weeklyStatsStatus()]);
+    const stats=performance.rows.find(row=>Number(row.id)===Number(req.session.user.id))||null;
+    const submitted=status.find(row=>Number(row.id)===Number(req.session.user.id))||null;
+    res.render('weekly-stats',{
+      title:'My Weekly Stats',
+      stats,
+      submitted,
+      range:performance.range,
+      currentUser:req.session.user
+    });
+  } catch(error){next(error);}
+});
+
+router.post('/weekly-stats/submit',requireAuth,async(req,res,next)=>{
+  try {
+    const result=await submitWeeklyStats({
+      staffId:req.session.user.id,
+      submittedBy:req.session.user.id,
+      note:req.body.note
+    });
+    await audit(req,{
+      actionType:'weekly_stats_self_submitted',
+      entityType:'staff_users',
+      entityId:req.session.user.id,
+      description:`${result.staff_name} submitted weekly Talk2Me statistics.`,
+      after:result
+    });
+    res.redirect(`${res.locals.basePath}/weekly-stats?submitted=1`);
   } catch(error){next(error);}
 });
 
