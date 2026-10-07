@@ -3,6 +3,7 @@
 const db = require('../config/db');
 const { sendAgentInstruction, buildDailyResponsibilities } = require('./office-intelligence-agent');
 const { ensureAttendanceSchema } = require('./attendance');
+const { answerManagementQuestion } = require('./management-intelligence');
 
 const ACTIVE_TASK = "('unread','seen','in_progress')";
 const OPEN_INQUIRY = "('open','follow_up','waiting_customer','waiting_network','waiting_supplier')";
@@ -356,6 +357,19 @@ function detectIntent(message) {
       || /\bneed(?:s|ing)?\s+(?:to\s+be\s+)?allocat(?:ed|ion)\b/.test(q)
     )
   ) return 'unallocated_clients';
+  if (
+    /\b(?:complete|incomplete)\s+clients?\b/.test(q)
+    || /\bclients?\b.*\b(?:missing\s+(?:email|e-mail|id|identity)|updated|added|new)\b/.test(q)
+    || /\bhow\s+many\s+clients?\b.*\b(?:has|have|does)\b/.test(q)
+    || /\btasks?\b.*\b(?:given|received|completed|done)\b/.test(q)
+    || /\bqueries?\b.*\b(?:time|longest|most|stuck|stalled|progress)\b/.test(q)
+    || /\bpackage\b.*\b(?:most|top|written|sold|popular)\b/.test(q)
+    || /\b(?:town|towns|area|areas)\b.*\bclients?\b/.test(q)
+    || /\bwhere\s+are\s+our\s+clients?\b/.test(q)
+    || /\bwhere\s+should\s+we\s+focus\b/.test(q)
+    || /\b(?:mailbox|email summary|emails? yesterday|dealsheet|deal sheet)\b/.test(q)
+    || /\bweekly\s+stats?\b/.test(q)
+  ) return 'management_intelligence';
   if (clientWords.test(q) && followedWords.test(q)) return 'client_followup_activity';
   if (followedWords.test(q) || /\bcallbacks?\b|\bcall\s+back\b/.test(q)) return 'followups';
   if (
@@ -1410,6 +1424,15 @@ async function answerCudo({ message, state = null, context = null }) {
   if (directIntent === 'deals') return queryDeals(workingMessage);
   if (directIntent === 'attendance') return queryAttendanceManagement(workingMessage);
   if (directIntent === 'unallocated_clients') return queryUnallocatedClients();
+  if (directIntent === 'management_intelligence') {
+    const resolvedStaffId = staffMatch.staff ? Number(staffMatch.staff.id) : null;
+    const result = await answerManagementQuestion(workingMessage,{staffId:resolvedStaffId});
+    return {
+      ...result,
+      actions:Array.isArray(result.actions)?result.actions:['open_agent'],
+      state:{selection:null}
+    };
+  }
   if (directIntent === 'client_followup_activity') return queryClientFollowupActivity(workingMessage);
   if (directIntent === 'followups') return queryFollowups(workingMessage);
   if (directIntent === 'office_work') return queryOfficeWork(workingMessage);
@@ -1436,7 +1459,7 @@ async function answerCudo({ message, state = null, context = null }) {
   if (/^(hi|hello|hey|help|what can you do)[.!? ]*$/.test(q)) {
     return {
       intent:'help',
-      text:'I use the Talk2Me CRM as my source of truth. Ask me about clients, allocations, staff attendance, who is at work, staff work, follow-ups, birthdays, upgrades, deals, tasks or inquiries.',
+      text:'I use the Talk2Me CRM as my source of truth. Ask me about clients, allocations, staff attendance, staff performance, client completeness, tasks, query bottlenecks, packages, towns, focus areas, mailbox/dealsheets, follow-ups, birthdays, upgrades or deals.',
       rows:[],
       actions:['open_agent'],
       state:workingState || {selection:null},
