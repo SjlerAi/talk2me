@@ -494,8 +494,16 @@ async function answerManagementQuestion(message,{staffId=null}={}) {
     return {intent:'management_packages',text:top?`The most common active package in the CRM is “${top.package_name}” with ${top.client_lines} active client lines.`:'No package data is available.',rows:overview.commercial.packages.map((x,i)=>({id:i+1,title:x.package_name,detail:`${x.client_lines} active client lines`,meta:''})),evidence:{summary:'Counted active clients by package_name.',sources:['clients']}};
   }
   if(/\b(?:town|towns|area|areas|where).*\bclients?\b|\bwhere\s+are\s+our\s+clients?\b/.test(q)) {
-    const top=overview.commercial.towns[0];
-    return {intent:'management_towns',text:top?`${top.city_town} has the largest active client concentration with ${top.clients} clients.`:'No town/area data is available.',rows:overview.commercial.towns.map((x,i)=>({id:i+1,title:x.city_town,detail:`${x.clients} clients`,meta:`${x.due_upgrades} due upgrades · ${x.incomplete_records} incomplete`})),evidence:{summary:'Grouped active clients by city_town.',sources:['clients']}};
+    const unknown=overview.commercial.towns.find(x=>String(x.city_town||'').toLowerCase()==='unknown');
+    const recorded=overview.commercial.towns.filter(x=>String(x.city_town||'').toLowerCase()!=='unknown');
+    const top=recorded[0];
+    const missing=Number(unknown?.clients||0);
+    const text=top
+      ? `${missing ? `${missing} active clients do not have a usable town recorded. ` : ''}Among clients with a recorded town, ${top.city_town} has the largest concentration with ${top.clients} clients.`
+      : missing
+        ? `${missing} active clients do not have a usable town recorded, so I cannot rank actual towns yet.`
+        : 'No town/area data is available.';
+    return {intent:'management_towns',text,rows:overview.commercial.towns.map((x,i)=>({id:i+1,title:x.city_town,detail:`${x.clients} clients`,meta:`${x.due_upgrades} due upgrades · ${x.incomplete_records} incomplete`})),evidence:{summary:'Grouped active clients by city_town and separated missing/unknown town data from actual towns.',sources:['clients']}};
   }
   if(/\b(?:focus|opportunity|opportunities|where should we focus)\b/.test(q)) {
     const rows=overview.commercial.focus;
