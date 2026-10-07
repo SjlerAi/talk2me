@@ -8,6 +8,7 @@ const { rangeSql } = require('./office-intelligence');
 const { ensureAttendanceSchema } = require('./attendance');
 const { parseImportedMessage } = require('./imported-email');
 const { createTransporter, smtpConfigured, outboundEmailEnabled, talk2meSender, escapeHtml } = require('./mailer');
+const { communicationStatus } = require('./staff-communications');
 
 const ACTIVE_TASK = "('unread','seen','in_progress')";
 const OPEN_INQUIRY = "('open','follow_up','waiting_customer','waiting_network','waiting_supplier')";
@@ -218,10 +219,13 @@ function mailboxProviderStatus() {
 }
 
 function notificationProviderStatus() {
+  const status=communicationStatus();
   return {
-    email:Boolean(outboundEmailEnabled()&&smtpConfigured()),
-    whatsapp:Boolean(String(process.env.MANAGEMENT_WHATSAPP_ENABLED||'').toLowerCase()==='true'&&process.env.WHATSAPP_API_URL&&process.env.WHATSAPP_API_TOKEN),
-    externalAllowed:String(process.env.ALLOW_MANAGEMENT_EXTERNAL_NOTIFICATIONS||'').toLowerCase()==='true'
+    email:Boolean(status.email.readyProfiles.length),
+    emailProfiles:status.email.profiles,
+    whatsapp:Boolean(status.whatsapp.ready),
+    whatsappProvider:status.whatsapp.provider,
+    externalAllowed:Boolean(status.externalEnabled)
   };
 }
 
