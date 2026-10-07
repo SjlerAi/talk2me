@@ -347,8 +347,8 @@ function detectIntent(message) {
   if (/\bupgrades?\b/.test(q)) return 'upgrades';
   if (/\bdeals?\b|\bprospects?\b|opportunit/.test(q)) return 'deals';
   if (
-    /\b(?:files?|documents?|dispatch(?:es)?)\b.*\b(?:reply|replied|respond|opened|seen|complete|completed|overdue|status)\b/.test(q)
-    || /\bwho\b.*\b(?:hasn'?t|has not|not)\b.*\b(?:reply|respond)\b/.test(q)
+    /\b(?:files?|documents?|dispatch(?:es)?)\b.*\b(?:reply|replied|respond|responded|opened|seen|complete|completed|overdue|status)\b/.test(q)
+    || /\bwho\b.*\b(?:hasn'?t|has not|not)\b.*\b(?:reply|replied|respond|responded)\b/.test(q)
     || /\bwhat\b.*\b(?:sent|dispatch)\b.*\b(?:yesterday|today|week)\b/.test(q)
   ) return 'dispatch_status';
   if (
