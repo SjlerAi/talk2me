@@ -18,6 +18,7 @@ const commandCentre=read('views/command-centre.ejs');
 const runner=read('scripts/run-management-automation.js');
 const uatRunner=read('scripts/run-management-automation-uat.py');
 const server=read('server.js');
+const communications=read('src/services/staff-communications.js');
 
 assert(server.includes("require('./src/routes/management-intelligence')"),'Management route must be mounted');
 assert(route.includes("router.get('/management'"),'CRM management page missing');
@@ -50,7 +51,8 @@ assert(service.includes('weekly-report-1700'),'Wednesday management report missi
 assert(service.includes('morning-mailbox'),'Morning mailbox summary missing');
 assert(service.includes('shareMailboxItemWithStaff'),'Mailbox-to-selected-staff service missing');
 assert(service.includes('/weekly-stats'),'Weekly reminder must point staff to the weekly stats page');
-assert(service.includes('ALLOW_MANAGEMENT_EXTERNAL_NOTIFICATIONS'),'External notification guardrail missing');
+assert(communications.includes('ALLOW_MANAGEMENT_EXTERNAL_NOTIFICATIONS'),'External notification guardrail missing');
+assert(service.includes('communicationStatus()'),'Management provider status must use the shared communication service');
 
 assert(agentRoute.includes('buildManagementOverview'),'Gerda Agent must use shared management layer');
 assert(agentView.includes('Gerda management wishlist'),'Gerda Agent management UI missing');
