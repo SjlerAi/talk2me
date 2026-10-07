@@ -1397,8 +1397,10 @@ async function prepareDispatchAction(message, state, {userId,attachmentIds=[]}={
       ? (staff.contact_number || 'no mobile number')
       : 'Talk2Me inbox';
   const senderText=channel==='email'
-    ? ` from ${availability.senderAddress || (senderKey==='secondary'?'the secondary Talk2Me mailbox':'the primary Talk2Me mailbox')}`
-    : '';
+    ? ` from ${availability.senderAddress || (senderKey==='secondary'?'the secondary Talk2Me mailbox':'gerda@talk-online.co.za')}`
+    : channel==='whatsapp'
+      ? ` from Gerda (${availability.senderNumber || '+27829222877'})`
+      : '';
   const channelText=channel==='internal'?'Talk2Me':channel==='whatsapp'?'WhatsApp':'email';
   const deadlineText=dueAt?` due ${String(dueAt).slice(0,16).replace(' ',' at ')}`:'';
   const payloadLabel=items.length
