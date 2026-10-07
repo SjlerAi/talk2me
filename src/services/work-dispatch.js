@@ -35,6 +35,13 @@ let schemaPromise = null;
 const clean = (value,max=5000) => String(value == null ? '' : value).trim().slice(0,max);
 const idOf = value => Number.isInteger(Number(value)) && Number(value) > 0 ? Number(value) : null;
 
+function mysqlDateTime(value) {
+  if (!value) return null;
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
 function extensionOfName(name) {
   return path.extname(String(name || '')).toLowerCase();
 }
@@ -272,10 +279,19 @@ async function discardDraftFiles(userId) {
 
 function channelAvailability(channel) {
   const wanted = ['internal','email','whatsapp'].includes(String(channel)) ? String(channel) : 'internal';
-  if (wanted==='internal') return {channel:wanted,available:true,reason:null};
+  if (wanted==='internal') return {channel:wanted,available:true,configured:true,reason:null};
   const providers=notificationProviderStatus();
-  if (wanted==='email') return {channel:wanted,available:Boolean(providers.externalAllowed&&providers.email),reason:'Email delivery is not enabled/configured for Cudo work dispatch in this environment.'};
-  return {channel:wanted,available:Boolean(providers.externalAllowed&&providers.whatsapp),reason:'WhatsApp delivery is not enabled/configured for Cudo work dispatch in this environment.'};
+  const configured = wanted==='email'
+    ? Boolean(providers.externalAllowed&&providers.email)
+    : Boolean(providers.externalAllowed&&providers.whatsapp);
+  return {
+    channel:wanted,
+    available:false,
+    configured,
+    reason:configured
+      ? `${wanted==='email'?'Email':'WhatsApp'} is configured, but external Cudo dispatch is not enabled in this UAT build. Use internal Talk2Me delivery.`
+      : `${wanted==='email'?'Email':'WhatsApp'} delivery is not configured for Cudo work dispatch. Use internal Talk2Me delivery.`
+  };
 }
 
 function buildDispatchBody({instruction,items,requireReply,requireCompletion,attachments}) {
@@ -399,7 +415,7 @@ async function createWorkDispatch({createdBy,action}) {
         clientId:idOf(item.clientId),
         title:clean(item.title||'Work item',180),
         detail:clean(item.detail,1000)||null,
-        sourceDueAt:item.dueAt||null
+        sourceDueAt:mysqlDateTime(item.dueAt)
       });
     }
 
