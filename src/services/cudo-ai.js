@@ -149,7 +149,8 @@ function parseDueAt(message) {
   const now = new Date();
   let due = null;
 
-  if (/tomorrow/.test(q)) due = addDays(now, 1);
+  if (/\btoday\b/.test(q)) due = new Date(now);
+  if (/\btomorrow\b/.test(q)) due = addDays(now, 1);
   const weekdayMap = { sunday:0, monday:1, tuesday:2, wednesday:3, thursday:4, friday:5, saturday:6 };
   for (const [name, day] of Object.entries(weekdayMap)) {
     if (q.includes(name)) {
@@ -163,7 +164,10 @@ function parseDueAt(message) {
 
   if (!due) return null;
 
-  const timeMatch = q.match(/\b([01]?\d|2[0-3])(?::|h)([0-5]\d)\b/) || q.match(/\b([01]?\d|2[0-3])\s*(?:am|pm)\b/);
+  const timeMatch =
+    q.match(/\b([01]?\d|2[0-3])(?::|h)([0-5]\d)\b/)
+    || q.match(/\b([01]?\d|2[0-3])\s*(?:am|pm)\b/)
+    || q.match(/\bat\s+([01]?\d|2[0-3])\b/);
   let hour = 16;
   let minute = 0;
   if (timeMatch) {
@@ -174,6 +178,18 @@ function parseDueAt(message) {
   }
   due.setHours(hour, minute, 0, 0);
   return sqlDateTime(due);
+}
+
+function looksLikeDispatchDeadlineContinuation(message) {
+  const q = lower(message);
+  if (!q) return false;
+  if (parseDueAt(message)) return true;
+  return (
+    /\b(?:deadline|due)\b/.test(q)
+    || /\b(?:today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/.test(q)
+    || /\b(?:[01]?\d|2[0-3])(?::[0-5]\d|h[0-5]\d)\b/.test(q)
+    || /\b(?:[01]?\d|2[0-3])\s*(?:am|pm)\b/.test(q)
+  );
 }
 
 async function activeStaff() {
@@ -1553,8 +1569,7 @@ async function answerCudo({ message, state = null, context = null, userId = null
   const currentAttachmentIds = Array.isArray(attachmentIds) ? attachmentIds : [];
   const isDispatch = dispatchIntent(workingMessage,currentAttachmentIds)
     || (Boolean(workingState?.dispatchDraft) && (
-      /\b(deadline|due)\b/.test(q)
-      || /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow)\b/.test(q)
+      looksLikeDispatchDeadlineContinuation(workingMessage)
       || /^yes\b/.test(q)
     ));
   if (isDispatch) return prepareDispatchAction(workingMessage,workingState,{userId,attachmentIds:currentAttachmentIds.length?currentAttachmentIds:workingState?.dispatchDraft?.attachmentIds||[]});
@@ -1655,6 +1670,7 @@ module.exports = {
   getAlerts,
   parsePeriod,
   parseDueAt,
+  looksLikeDispatchDeadlineContinuation,
   resolveStaff,
   resolveStaffMatch,
   nameSimilarity,
