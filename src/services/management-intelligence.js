@@ -183,14 +183,25 @@ async function commercialIntelligence() {
   const [packages]=await db.query(`SELECT COALESCE(NULLIF(TRIM(package_name),''),'Unknown') package_name,COUNT(*) client_lines
     FROM clients WHERE is_active=1 AND COALESCE(line_status,'active')<>'cancelled'
     GROUP BY COALESCE(NULLIF(TRIM(package_name),''),'Unknown') ORDER BY client_lines DESC LIMIT 15`);
-  const [towns]=await db.query(`SELECT COALESCE(NULLIF(TRIM(city_town),''),'Unknown') city_town,COUNT(*) clients,
+  const [towns]=await db.query(`SELECT
+    COALESCE(NULLIF(NULLIF(LOWER(TRIM(city_town)),'null'),''),'Unknown') city_town_key,
+    CASE
+      WHEN NULLIF(NULLIF(LOWER(TRIM(city_town)),'null'),'') IS NULL THEN 'Unknown'
+      ELSE MAX(TRIM(city_town))
+    END city_town,
+    COUNT(*) clients,
     SUM(CASE WHEN next_upgrade_date IS NOT NULL AND DATE(next_upgrade_date)<=CURRENT_DATE() THEN 1 ELSE 0 END) due_upgrades,
     SUM(CASE WHEN COALESCE(email,'')='' OR COALESCE(id_number,'')='' THEN 1 ELSE 0 END) incomplete_records
     FROM clients WHERE is_active=1 AND COALESCE(line_status,'active')<>'cancelled'
-    GROUP BY COALESCE(NULLIF(TRIM(city_town),''),'Unknown') ORDER BY clients DESC LIMIT 20`);
+    GROUP BY COALESCE(NULLIF(NULLIF(LOWER(TRIM(city_town)),'null'),''),'Unknown')
+    ORDER BY clients DESC LIMIT 20`);
   const packageRows=packages.map(row=>({...row,client_lines:Number(row.client_lines||0)}));
   const townRows=towns.map(row=>({...row,clients:Number(row.clients||0),due_upgrades:Number(row.due_upgrades||0),incomplete_records:Number(row.incomplete_records||0)}));
-  const focus=townRows.map(row=>({...row,focus_score:row.due_upgrades*3+row.incomplete_records})).sort((a,b)=>b.focus_score-a.focus_score||b.clients-a.clients).slice(0,10);
+  const focus=townRows
+    .filter(row=>String(row.city_town||'').toLowerCase()!=='unknown')
+    .map(row=>({...row,focus_score:row.due_upgrades*3+row.incomplete_records}))
+    .sort((a,b)=>b.focus_score-a.focus_score||b.clients-a.clients)
+    .slice(0,10);
   return {packages:packageRows,towns:townRows,focus};
 }
 
