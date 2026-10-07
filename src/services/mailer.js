@@ -11,22 +11,57 @@ function outboundEmailEnabled() {
   return String(process.env.OUTBOUND_EMAIL_ENABLED || 'true').trim().toLowerCase() === 'true';
 }
 
-function smtpConfigured() {
-  return outboundEmailEnabled() && Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASSWORD);
+function emailProfileConfig(key='primary') {
+  const selected = key === 'secondary' ? 'secondary' : 'primary';
+  const prefix = selected === 'primary' ? 'TALK2ME_EMAIL_PRIMARY_' : 'TALK2ME_EMAIL_SECONDARY_';
+  const fallback = selected === 'primary';
+  const host = String(process.env[prefix+'HOST'] || (fallback ? process.env.SMTP_HOST : '') || '').trim();
+  const port = Number(process.env[prefix+'PORT'] || (fallback ? process.env.SMTP_PORT : '') || 465);
+  const secureRaw = String(process.env[prefix+'SECURE'] || (fallback ? process.env.SMTP_SECURE : '') || 'true').trim().toLowerCase();
+  const user = String(process.env[prefix+'USER'] || (fallback ? process.env.SMTP_USER : '') || '').trim();
+  const password = String(process.env[prefix+'PASSWORD'] || (fallback ? process.env.SMTP_PASSWORD : '') || '');
+  const address = String(process.env[prefix+'ADDRESS'] || user || '').trim();
+  const name = String(process.env[prefix+'FROM_NAME'] || 'Talk2Me CRM').trim();
+  return {
+    key:selected,
+    host,
+    port,
+    secure:secureRaw === 'true',
+    user,
+    password,
+    address,
+    name,
+    configured:Boolean(outboundEmailEnabled() && host && user && password && address && nodemailer)
+  };
 }
 
-function createTransporter() {
-  if (!outboundEmailEnabled() || !nodemailer) return null;
+function emailSenderProfiles() {
+  return [emailProfileConfig('primary'),emailProfileConfig('secondary')].map(profile=>({
+    key:profile.key,
+    address:profile.address,
+    name:profile.name,
+    configured:profile.configured
+  }));
+}
+
+function smtpConfigured(key='primary') {
+  return emailProfileConfig(key).configured;
+}
+
+function createTransporter(key='primary') {
+  const profile=emailProfileConfig(key);
+  if (!profile.configured || !nodemailer) return null;
   return nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: Number(process.env.SMTP_PORT || 465),
-    secure: String(process.env.SMTP_SECURE || 'true').toLowerCase() === 'true',
-    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD }
+    host:profile.host,
+    port:profile.port,
+    secure:profile.secure,
+    auth:{user:profile.user,pass:profile.password}
   });
 }
 
-function talk2meSender() {
-  return { name: 'Talk2Me CRM', address: String(process.env.SMTP_USER || '').trim() };
+function talk2meSender(key='primary') {
+  const profile=emailProfileConfig(key);
+  return { name:profile.name || 'Talk2Me CRM', address:profile.address || '' };
 }
 
 function escapeHtml(value) {
@@ -118,4 +153,4 @@ function formatDateOnly(value) {
   return new Intl.DateTimeFormat('en-ZA', { day:'2-digit', month:'long', year:'numeric', timeZone:process.env.TZ || 'Africa/Johannesburg' }).format(date);
 }
 
-module.exports = { sendTaskEmail, createTransporter, smtpConfigured, outboundEmailEnabled, talk2meSender, escapeHtml, firstName, formatDateTime, formatDateOnly };
+module.exports = { sendTaskEmail, createTransporter, smtpConfigured, outboundEmailEnabled, talk2meSender, emailProfileConfig, emailSenderProfiles, escapeHtml, firstName, formatDateTime, formatDateOnly };
