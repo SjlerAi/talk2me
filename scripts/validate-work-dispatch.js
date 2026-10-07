@@ -29,7 +29,8 @@ assert(dispatch.includes("storage_kind ENUM('uploaded','library')"),'Uploads and
 assert(dispatch.includes('sendAgentInstruction'),'Monitored dispatches must reuse Gerda task monitoring');
 assert(dispatch.includes('agent_task_watches') || dispatch.includes('sendAgentInstruction'),'Monitored dispatch path missing');
 assert(dispatch.includes("delivery_channel ENUM('internal','email','whatsapp')"),'Delivery-channel adapter field missing');
-assert(dispatch.includes('notificationProviderStatus'),'External delivery must respect configured providers');
+assert(dispatch.includes('communicationStatus'),'External delivery must respect the shared configured providers');
+assert(dispatch.includes('sendExternalCommunication'),'External delivery must use the shared communication sender');
 assert(dispatch.includes("PRIVATE_UPLOAD_DIR"),'Attachments must use private storage');
 assert(dispatch.includes('40 * 1024 * 1024'),'Attachment size guardrail missing');
 
