@@ -347,6 +347,11 @@ function detectIntent(message) {
   if (/\bupgrades?\b/.test(q)) return 'upgrades';
   if (/\bdeals?\b|\bprospects?\b|opportunit/.test(q)) return 'deals';
   if (
+    /\b(?:files?|documents?|dispatch(?:es)?)\b.*\b(?:reply|replied|respond|opened|seen|complete|completed|overdue|status)\b/.test(q)
+    || /\bwho\b.*\b(?:hasn'?t|has not|not)\b.*\b(?:reply|respond)\b/.test(q)
+    || /\bwhat\b.*\b(?:sent|dispatch)\b.*\b(?:yesterday|today|week)\b/.test(q)
+  ) return 'dispatch_status';
+  if (
     clientWords.test(q)
     && (
       /\bunallocat(?:ed|ion)\b/.test(q)
@@ -1102,6 +1107,49 @@ async function queryDeals(message) {
   };
 }
 
+async function queryDispatchStatus(message,userId) {
+  if (!userId) return {intent:'dispatch_status',text:'I need the signed-in owner context to check sent work.',rows:[],actions:[],state:{selection:null}};
+  const q=lower(message);
+  const days=/\byesterday\b/.test(q)?2:/\btoday\b/.test(q)?1:/\bmonth\b/.test(q)?30:7;
+  let rows=await recentDispatchStatus({createdBy:userId,days,limit:50});
+  let label=`the last ${days} day${days===1?'':'s'}`;
+  if(/\byesterday\b/.test(q)){
+    const yesterday=new Date();yesterday.setDate(yesterday.getDate()-1);
+    const y=sqlDate(yesterday);
+    rows=rows.filter(row=>sqlDate(row.createdAt)===y);
+    label='yesterday';
+  }
+  if(/\btoday\b/.test(q)){
+    const y=sqlDate(new Date());
+    rows=rows.filter(row=>sqlDate(row.createdAt)===y);
+    label='today';
+  }
+  if(/hasn'?t\s+(?:replied|responded)|has not\s+(?:replied|responded)|not\s+(?:replied|responded)/.test(q)){
+    rows=rows.filter(row=>row.requireReply&&!row.completedAt);
+  }else if(/\boverdue\b/.test(q)){
+    rows=rows.filter(row=>row.overdue);
+  }else if(/\b(?:opened|seen)\b/.test(q)){
+    rows=rows.filter(row=>row.seenAt);
+  }else if(/\b(?:complete|completed|replied|responded)\b/.test(q)){
+    rows=rows.filter(row=>row.completedAt);
+  }
+  return {
+    intent:'dispatch_status',
+    text:rows.length
+      ? `I found ${rows.length} matching Cudo work dispatch${rows.length===1?'':'es'} from ${label}.`
+      : `I found no matching Cudo work dispatches from ${label}.`,
+    rows:rows.slice(0,20).map(row=>({
+      id:row.id,
+      title:row.subject,
+      detail:[row.staffName,row.status,row.seenAt?'opened':'not opened',row.completedAt?'completed/replied':'awaiting completion/reply'].join(' · '),
+      meta:row.overdue?'Overdue':row.dueAt?`Due ${String(row.dueAt).slice(0,16).replace('T',' ')}`:`${row.attachmentCount} attachment${row.attachmentCount===1?'':'s'}`
+    })),
+    evidence:{summary:'Checked Cudo work_dispatches against the normal staff_tasks seen/completed workflow.',sources:['work_dispatches','staff_tasks','staff_task_attachments']},
+    actions:['open_agent'],
+    state:{selection:null}
+  };
+}
+
 async function queryOfficeWork(message) {
   const staff = await resolveStaff(message);
   if (!staff) {
@@ -1292,17 +1340,21 @@ async function prepareDispatchAction(message, state, {userId,attachmentIds=[]}={
       actions:[],
       state:{...(state||{}),dispatchDraft:{
         recipientId:Number(staff.id),recipientName:staff.full_name||staff.username||staff.email,
-        attachmentIds:files.map(file=>file.id),requireReply,requireCompletion,dueAt:null
+        attachmentIds:files.map(file=>file.id),requireReply,requireCompletion,dueAt:null,
+        channel:draft.channel || (/\bemail\b/.test(q)?'email':/\bwhats\s*app\b|\bwhatsapp\b/.test(q)?'whatsapp':'internal'),
+        priority:draft.priority || (/\burgent\b/.test(q)?'urgent':/\bhigh\s+priority\b|\bimportant\b/.test(q)?'high':'normal'),
+        instruction:draft.instruction || clean(message,2000)
       }}
     };
   }
 
-  let channel='internal';
+  let channel=draft.channel || 'internal';
   if (/\bemail\b/.test(q)) channel='email';
   else if (/\bwhats\s*app\b|\bwhatsapp\b/.test(q)) channel='whatsapp';
+  else if (/\binternal\b|\btalk2me\b/.test(q)) channel='internal';
   const availability=channelAvailability(channel);
-  const priority=/\burgent\b/.test(q)?'urgent':/\bhigh\s+priority\b|\bimportant\b/.test(q)?'high':'normal';
-  const instruction=clean(message,2000);
+  const priority=draft.priority || (/\burgent\b/.test(q)?'urgent':/\bhigh\s+priority\b|\bimportant\b/.test(q)?'high':'normal');
+  const instruction=draft.instruction || clean(message,2000);
   const subject=items.length
     ? `Cudo work dispatch · ${items.length} item${items.length===1?'':'s'}`
     : `Cudo file dispatch · ${files[0]?.name || 'message'}`;
@@ -1337,7 +1389,7 @@ async function prepareDispatchAction(message, state, {userId,attachmentIds=[]}={
     }:null,
     state:{...(state||{}),dispatchDraft:{
       recipientId:Number(staff.id),recipientName:name,attachmentIds:files.map(file=>file.id),
-      requireReply,requireCompletion,dueAt,channel
+      requireReply,requireCompletion,dueAt,channel,priority,instruction
     }}
   };
 }
@@ -1544,6 +1596,7 @@ async function answerCudo({ message, state = null, context = null, userId = null
   if (directIntent === 'deals') return queryDeals(workingMessage);
   if (directIntent === 'attendance') return queryAttendanceManagement(workingMessage);
   if (directIntent === 'unallocated_clients') return queryUnallocatedClients();
+  if (directIntent === 'dispatch_status') return queryDispatchStatus(workingMessage,userId);
   if (directIntent === 'management_intelligence') {
     const resolvedStaffId = staffMatch.staff ? Number(staffMatch.staff.id) : null;
     const result = await answerManagementQuestion(workingMessage,{staffId:resolvedStaffId});
@@ -1606,5 +1659,6 @@ module.exports = {
   queryDatabaseFirstFallback,
   dispatchIntent,
   prepareDispatchAction,
-  recentDispatchStatus
+  recentDispatchStatus,
+  queryDispatchStatus
 };
