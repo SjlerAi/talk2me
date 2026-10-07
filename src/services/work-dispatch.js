@@ -342,14 +342,14 @@ function channelAvailability(channel,{senderKey='primary'}={}) {
     configured,
     senderNumber:status.whatsapp.intendedSenderNumber || null,
     configuredSenderNumber:status.whatsapp.configuredSenderNumber || null,
-    senderIdentityMatches:Boolean(status.whatsapp.senderIdentityMatches),
+    senderIdentityMatches:status.whatsapp.senderIdentityMatches,
     reason:available
       ? null
       : configured
         ? 'Gerda WhatsApp is configured but external sending is not enabled for Cudo/Gerda.'
-        : status.whatsapp.senderIdentityMatches
-          ? 'Meta WhatsApp Cloud API is not configured.'
-          : 'Gerda WhatsApp sender identity is not configured/matched to +27829222877.'
+        : status.whatsapp.senderIdentityMatches === false
+          ? 'Configured WhatsApp sender number does not match Gerda +27829222877.'
+          : 'Meta WhatsApp Cloud API credentials/version are not configured.'
   };
 }
 
