@@ -3,7 +3,7 @@
 const assert=require('assert');
 const fs=require('fs');
 const path=require('path');
-const {dispatchIntent,parseDueAt,detectIntent}=require('../src/services/cudo-ai');
+const {dispatchIntent,parseDueAt,looksLikeDispatchDeadlineContinuation,detectIntent}=require('../src/services/cudo-ai');
 
 const root=path.resolve(__dirname,'..');
 const read=file=>fs.readFileSync(path.join(root,file),'utf8');
@@ -62,9 +62,15 @@ assert(dispatchIntent('send all outstanding work to Johnny for reply by Friday',
 assert(dispatchIntent('send this file to Johnny',[91]),'Attachment send command not recognised');
 assert(!dispatchIntent('show me Johnny outstanding work',[]),'Read-only work query must not be treated as send');
 assert(parseDueAt('send it by Friday 15:00'),'Dispatch deadline parsing missing');
+const today4pm=parseDueAt('4pm today');
+assert(today4pm && / 16:00:00$/.test(today4pm),'Standalone “4pm today” must parse as today 16:00');
+assert(looksLikeDispatchDeadlineContinuation('4pm today'),'Standalone “4pm today” must continue a pending dispatch');
+assert(looksLikeDispatchDeadlineContinuation('16:00 today'),'Standalone 24-hour deadline must continue a pending dispatch');
+assert(looksLikeDispatchDeadlineContinuation('Friday 15:00'),'Weekday deadline must continue a pending dispatch');
 assert.equal(detectIntent("Who hasn't replied to the files I sent yesterday?"),'dispatch_status');
 assert(cudoService.includes('prepareDispatchAction'),'Dispatch preview builder missing');
 assert(cudoService.includes('Nothing will be sent until you confirm'),'Explicit confirmation guardrail missing');
+assert(cudoService.includes('looksLikeDispatchDeadlineContinuation(workingMessage)'),'Pending dispatch must route standalone deadline replies back into dispatch preparation');
 assert(cudoService.includes('queryDispatchStatus'),'Dispatch monitoring query missing');
 
 const voiceEnd=widget.slice(widget.indexOf('recognition.onend'),widget.indexOf('async function sendMessage'));
