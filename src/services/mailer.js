@@ -7,6 +7,9 @@ try {
   nodemailer = null;
 }
 
+const GERDA_PRIMARY_EMAIL = 'gerda@talk-online.co.za';
+const GERDA_PRIMARY_NAME = 'Gerda';
+
 function outboundEmailEnabled() {
   return String(process.env.OUTBOUND_EMAIL_ENABLED || 'true').trim().toLowerCase() === 'true';
 }
@@ -20,8 +23,12 @@ function emailProfileConfig(key='primary') {
   const secureRaw = String(process.env[prefix+'SECURE'] || (fallback ? process.env.SMTP_SECURE : '') || 'true').trim().toLowerCase();
   const user = String(process.env[prefix+'USER'] || (fallback ? process.env.SMTP_USER : '') || '').trim();
   const password = String(process.env[prefix+'PASSWORD'] || (fallback ? process.env.SMTP_PASSWORD : '') || '');
-  const address = String(process.env[prefix+'ADDRESS'] || user || '').trim();
-  const name = String(process.env[prefix+'FROM_NAME'] || 'Talk2Me CRM').trim();
+  const address = selected === 'primary'
+    ? GERDA_PRIMARY_EMAIL
+    : String(process.env[prefix+'ADDRESS'] || user || '').trim();
+  const name = selected === 'primary'
+    ? GERDA_PRIMARY_NAME
+    : String(process.env[prefix+'FROM_NAME'] || 'Talk2Me CRM').trim();
   return {
     key:selected,
     host,
@@ -153,4 +160,4 @@ function formatDateOnly(value) {
   return new Intl.DateTimeFormat('en-ZA', { day:'2-digit', month:'long', year:'numeric', timeZone:process.env.TZ || 'Africa/Johannesburg' }).format(date);
 }
 
-module.exports = { sendTaskEmail, createTransporter, smtpConfigured, outboundEmailEnabled, talk2meSender, emailProfileConfig, emailSenderProfiles, escapeHtml, firstName, formatDateTime, formatDateOnly };
+module.exports = { sendTaskEmail, createTransporter, smtpConfigured, outboundEmailEnabled, talk2meSender, emailProfileConfig, emailSenderProfiles, GERDA_PRIMARY_EMAIL, GERDA_PRIMARY_NAME, escapeHtml, firstName, formatDateTime, formatDateOnly };
