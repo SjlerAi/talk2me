@@ -340,6 +340,10 @@ if (UAT_MODE) {
   const cudoAi = require('./src/routes/cudo-ai');
   app.use('/', cudoAi);
   if (BASE_PATH) app.use(BASE_PATH, cudoAi);
+
+  const managementIntelligence = require('./src/routes/management-intelligence');
+  app.use('/', managementIntelligence);
+  if (BASE_PATH) app.use(BASE_PATH, managementIntelligence);
 }
 
 const osProductivity = require('./src/routes/os-productivity');
