@@ -11,6 +11,8 @@
   const count=app.querySelector('[data-deals-count]');
   const searchInput=app.querySelector('[data-deals-search]');
   const refreshButton=app.querySelector('[data-deals-refresh]');
+  const typeButtons=[...app.querySelectorAll('[data-deals-type]')];
+  const countLabel=app.querySelector('[data-deals-count-label]');
   const loadMoreButton=app.querySelector('[data-deals-load-more]');
   const loadZone=app.querySelector('[data-deals-load-zone]');
   const status=app.querySelector('[data-deals-status]');
@@ -20,7 +22,9 @@
   const viewerMeta=viewer.querySelector('[data-deals-viewer-meta]');
   const viewerDownload=viewer.querySelector('[data-deals-download]');
 
-  const state={documents:[],offset:0,total:0,hasMore:false,loading:false,query:'',limit:100};
+  const initialType=String(new URLSearchParams(window.location.search).get('type')||'').toLowerCase();
+  const allowedTypes=new Set(['images','spreadsheets','pdfs']);
+  const state={documents:[],offset:0,total:0,hasMore:false,loading:false,query:'',type:allowedTypes.has(initialType)?initialType:'',limit:100};
 
   const esc=value=>String(value==null?'':value).replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
   const formatBytes=value=>{
@@ -65,13 +69,21 @@
 
   function render(){
     count.textContent=String(state.total);
+    countLabel.textContent=state.type==='images'?'images':state.type==='spreadsheets'?'spreadsheets':state.type==='pdfs'?'PDFs':'deals';
+    typeButtons.forEach(button=>{
+      const active=button.dataset.dealsType===state.type;
+      button.classList.toggle('is-active',active);
+      button.setAttribute('aria-pressed',active?'true':'false');
+    });
     if(!state.documents.length&&!state.loading){
-      grid.innerHTML=`<div class="deals-empty"><div><strong>${state.query?'No matching deals':'No deals uploaded yet'}</strong><span>${state.query?'Try a different search.':'Deals uploaded in Library Management will appear here automatically.'}</span></div></div>`;
+      const typeLabel=state.type==='images'?'images':state.type==='spreadsheets'?'spreadsheets':state.type==='pdfs'?'PDFs':'deals';
+      grid.innerHTML=`<div class="deals-empty"><div><strong>${state.query?`No matching ${typeLabel}`:`No ${typeLabel} available`}</strong><span>${state.query?'Try a different search.':state.type?'This Deals filter has no files yet.':'Deals uploaded in Library Management will appear here automatically.'}</span></div></div>`;
     }else{
       grid.innerHTML=state.documents.map(cardHtml).join('');
     }
     loadMoreButton.hidden=!state.hasMore||state.loading;
-    status.textContent=state.loading?'Loading deals…':state.hasMore?`Showing ${state.documents.length} of ${state.total}`:(state.total?`Showing all ${state.total} deals`:'');
+    const typeLabel=state.type==='images'?'images':state.type==='spreadsheets'?'spreadsheets':state.type==='pdfs'?'PDFs':'deals';
+    status.textContent=state.loading?`Loading ${typeLabel}…`:state.hasMore?`Showing ${state.documents.length} of ${state.total} ${typeLabel}`:(state.total?`Showing all ${state.total} ${typeLabel}`:'');
   }
 
   async function load({reset=false}={}){
@@ -89,6 +101,7 @@
         limit:String(state.limit)
       });
       if(state.query)params.set('q',state.query);
+      if(state.type)params.set('type',state.type);
       const data=await request(`/api/uat/deals?${params.toString()}`);
       const incoming=Array.isArray(data.documents)?data.documents:[];
       state.documents=reset?incoming:[...state.documents,...incoming];
@@ -145,6 +158,17 @@
       state.query=searchInput.value.trim();
       load({reset:true});
     },180);
+  });
+
+  typeButtons.forEach(button=>{
+    button.addEventListener('click',()=>{
+      const next=button.dataset.dealsType;
+      state.type=state.type===next?'':next;
+      const url=new URL(window.location.href);
+      if(state.type)url.searchParams.set('type',state.type);else url.searchParams.delete('type');
+      window.history.replaceState({},'',url);
+      load({reset:true});
+    });
   });
 
   refreshButton.onclick=()=>load({reset:true});

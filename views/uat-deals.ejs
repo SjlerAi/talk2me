@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#16a34a">
   <title>Talk2Me Deals</title>
-  <link rel="stylesheet" href="<%= basePath %>/public/css/uat-deals.css?v=<%= encodeURIComponent(appVersion) %>-deals-window1">
+  <link rel="stylesheet" href="<%= basePath %>/public/css/uat-deals.css?v=<%= encodeURIComponent(appVersion) %>-deals-window2">
 </head>
 <body>
   <main class="deals-app" data-deals-app>
@@ -15,7 +15,14 @@
         <h1>Deals</h1>
         <p>Open any deal instantly and show it to a client.</p>
       </div>
-      <div class="deals-count" aria-live="polite"><strong data-deals-count>0</strong><span>deals</span></div>
+      <div class="deals-head-actions">
+        <nav class="deals-type-tabs" aria-label="Deal file type">
+          <button type="button" data-deals-type="images">Images</button>
+          <button type="button" data-deals-type="spreadsheets">Spreadsheets</button>
+          <button type="button" data-deals-type="pdfs">PDFs</button>
+        </nav>
+        <div class="deals-count" aria-live="polite"><strong data-deals-count>0</strong><span data-deals-count-label>deals</span></div>
+      </div>
     </header>
 
     <section class="deals-toolbar">
@@ -54,6 +61,6 @@
   </dialog>
 
   <script id="deals-config" type="application/json"><%- JSON.stringify({basePath,user:{id:currentUser.id,name:currentUser.full_name,role:currentUser.role}}).replace(/</g,'\u003c') %></script>
-  <script src="<%= basePath %>/public/js/uat-deals.js?v=<%= encodeURIComponent(appVersion) %>-deals-window1"></script>
+  <script src="<%= basePath %>/public/js/uat-deals.js?v=<%= encodeURIComponent(appVersion) %>-deals-window2"></script>
 </body>
 </html>

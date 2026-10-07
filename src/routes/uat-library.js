@@ -55,6 +55,23 @@ function extensionOf(file) {
   return path.extname(String(file?.originalname || '')).toLowerCase();
 }
 
+function dealTypeFilterSql(value) {
+  const type=clean(value,30).toLowerCase();
+  if(type==='images') return {
+    type,
+    sql:" AND (LOWER(COALESCE(v.extension,'')) IN ('.jpg','.jpeg','.png','.webp','.gif') OR LOWER(COALESCE(v.mime_type,'')) LIKE 'image/%')"
+  };
+  if(type==='spreadsheets') return {
+    type,
+    sql:" AND LOWER(COALESCE(v.extension,'')) IN ('.xlsx','.xls','.csv')"
+  };
+  if(type==='pdfs') return {
+    type,
+    sql:" AND (LOWER(COALESCE(v.extension,''))='.pdf' OR LOWER(COALESCE(v.mime_type,''))='application/pdf')"
+  };
+  return {type:'',sql:''};
+}
+
 function previewKind(extension, mime) {
   const ext = String(extension || '').toLowerCase();
   const type = String(mime || '').toLowerCase();
@@ -434,12 +451,24 @@ router.get('/api/uat/deals/health',async(req,res)=>{
   if(!IS_UAT) return res.sendStatus(404);
   try{
     await ensureSchema();
-    const [[row]]=await db.execute("SELECT COUNT(*) total FROM library_documents WHERE status='active' AND category='Deals'");
+    const [[row]]=await db.execute(`SELECT
+      COUNT(*) total,
+      SUM(CASE WHEN LOWER(COALESCE(v.extension,'')) IN ('.jpg','.jpeg','.png','.webp','.gif') OR LOWER(COALESCE(v.mime_type,'')) LIKE 'image/%' THEN 1 ELSE 0 END) images,
+      SUM(CASE WHEN LOWER(COALESCE(v.extension,'')) IN ('.xlsx','.xls','.csv') THEN 1 ELSE 0 END) spreadsheets,
+      SUM(CASE WHEN LOWER(COALESCE(v.extension,''))='.pdf' OR LOWER(COALESCE(v.mime_type,''))='application/pdf' THEN 1 ELSE 0 END) pdfs
+      FROM library_documents d
+      LEFT JOIN library_versions v ON v.id=d.current_version_id
+      WHERE d.status='active' AND d.category='Deals'`);
     res.json({
       status:'ok',
       environment:'uat',
       deals:true,
-      activeDeals:Number(row?.total||0)
+      activeDeals:Number(row?.total||0),
+      fileTypes:{
+        images:Number(row?.images||0),
+        spreadsheets:Number(row?.spreadsheets||0),
+        pdfs:Number(row?.pdfs||0)
+      }
     });
   }catch(error){
     res.status(503).json({status:'error',environment:'uat',deals:false,error:error.message});
@@ -498,13 +527,14 @@ router.get('/api/uat/deals',requireAuth,async(req,res,next)=>{
     const limit=Math.min(Math.max(Number.parseInt(req.query.limit,10)||100,1),200);
     const offset=Math.max(Number.parseInt(req.query.offset,10)||0,0);
     const query=clean(req.query.q,120);
+    const typeFilter=dealTypeFilterSql(req.query.type);
     const params={};
     let searchSql='';
     if(query){
       params.search=`%${query}%`;
       searchSql=' AND (d.title LIKE :search OR d.description LIKE :search OR v.original_name LIKE :search)';
     }
-    const whereSql=`${documentAccessSql(req.session.user)} AND d.status='active' AND d.category='Deals'${searchSql}`;
+    const whereSql=`${documentAccessSql(req.session.user)} AND d.status='active' AND d.category='Deals'${typeFilter.sql}${searchSql}`;
     const [[countRow]]=await db.execute(`SELECT COUNT(*) total
       FROM library_documents d
       LEFT JOIN library_versions v ON v.id=d.current_version_id
@@ -529,6 +559,7 @@ router.get('/api/uat/deals',requireAuth,async(req,res,next)=>{
       limit,
       nextOffset,
       hasMore:nextOffset<total,
+      type:typeFilter.type,
       documents
     });
   }catch(error){next(error);}
