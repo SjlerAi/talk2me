@@ -4,6 +4,7 @@ const express = require('express');
 const { buildOfficeReport, parseCommand } = require('../services/office-intelligence');
 const { buildAgentOfficeReport, sendAgentInstruction, markResponsibilityComplete } = require('../services/office-intelligence-agent');
 const { audit } = require('../services/audit');
+const { buildManagementOverview, answerManagementQuestion } = require('../services/management-intelligence');
 
 const router = express.Router();
 
@@ -109,14 +110,17 @@ router.get('/agent', requireStandaloneAgentAccess, async (req, res, next) => {
     const rangeKey = String(req.query.range || 'today');
     const metricKey = String(req.query.metric || '').trim() || null;
     const staffId = Number(req.query.staff || 0) || null;
-    const report = await buildAgentOfficeReport({
-      rangeKey,
-      metricKey,
-      staffId,
-      requestedBy: req.session.user.id,
-      requestSource: sourceFromRequest(req)
-    });
-    res.render('agent', { layout: false, title: 'Gerda Agent', report, commandText: '' });
+    const [report,management] = await Promise.all([
+      buildAgentOfficeReport({
+        rangeKey,
+        metricKey,
+        staffId,
+        requestedBy: req.session.user.id,
+        requestSource: sourceFromRequest(req)
+      }),
+      buildManagementOverview(rangeKey === 'today' ? 'today' : rangeKey)
+    ]);
+    res.render('agent', { layout:false, title:'Gerda Agent', report, management, managementAnswer:null, commandText:'' });
   } catch (error) { next(error); }
 });
 
@@ -124,13 +128,17 @@ router.post('/agent/check', requireStandaloneAgentAccess, async (req, res, next)
   try {
     const commandText = String(req.body.command || 'check for me').trim();
     const parsed = parseCommand(commandText);
-    const report = await buildAgentOfficeReport({
-      rangeKey: parsed.rangeKey,
-      requestedBy: req.session.user.id,
-      requestSource: sourceFromRequest(req),
-      commandText
-    });
-    res.render('agent', { layout: false, title: 'Gerda Agent', report, commandText });
+    const [report,management,managementAnswer] = await Promise.all([
+      buildAgentOfficeReport({
+        rangeKey: parsed.rangeKey,
+        requestedBy: req.session.user.id,
+        requestSource: sourceFromRequest(req),
+        commandText
+      }),
+      buildManagementOverview(parsed.rangeKey),
+      answerManagementQuestion(commandText)
+    ]);
+    res.render('agent', { layout:false, title:'Gerda Agent', report, management, managementAnswer, commandText });
   } catch (error) { next(error); }
 });
 
@@ -161,7 +169,8 @@ router.post('/agent/instructions', requireStandaloneAgentAccess, async (req, res
         requestedBy: req.session.user.id,
         requestSource: sourceFromRequest(req)
       });
-      return res.render('agent', { layout:false, title:'Gerda Agent', report, commandText:'', agentError:error.message });
+      const management = await buildManagementOverview('today').catch(()=>null);
+      return res.render('agent', { layout:false, title:'Gerda Agent', report, management, managementAnswer:null, commandText:'', agentError:error.message });
     } catch (_) {
       next(error);
     }
@@ -199,8 +208,9 @@ router.get('/api/agent/check', requireStandaloneAgentAccess, async (req, res, ne
       requestSource: sourceFromRequest(req),
       commandText
     });
-    res.set('Cache-Control', 'no-store');
-    res.json(report);
+    const management = await buildManagementOverview(parsed.rangeKey);
+    res.set('Cache-Control','no-store');
+    res.json({ ...report, management });
   } catch (error) { next(error); }
 });
 
