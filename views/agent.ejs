@@ -42,6 +42,36 @@
       <div class="agent-alert"><strong><%= report.deadlineAlerts.length %> missed management deadline<%= report.deadlineAlerts.length===1?'':'s' %></strong><ul><% report.deadlineAlerts.slice(0,8).forEach(function(a){ %><li><%= a.assignee_name %> · <%= a.title %> · due <%= fmt(a.due_at) %></li><% }) %></ul></div>
     <% } %>
 
+    <% if(typeof managementAnswer!=='undefined' && managementAnswer){ %>
+      <section class="section" id="management-answer">
+        <div class="detail-head"><div><h2>Gerda management answer</h2><p><%= managementAnswer.text %></p></div><a class="close" href="<%= basePath %>/agent?range=<%= report.range.key %>">Clear</a></div>
+        <% if(managementAnswer.evidence && managementAnswer.evidence.summary){ %><div class="foot"><strong>Checked:</strong> <%= managementAnswer.evidence.summary %></div><% } %>
+        <% if(managementAnswer.rows && managementAnswer.rows.length){ %><div class="detail-list" style="margin-top:10px"><% managementAnswer.rows.slice(0,10).forEach(function(row){ %><div class="detail-row"><div><strong><%= row.title %></strong><small><%= row.detail || '' %></small></div><time><%= row.meta || '' %></time></div><% }) %></div><% } %>
+      </section>
+    <% } %>
+
+    <% if(typeof management!=='undefined' && management){ %>
+      <section class="section" id="wishlist-management">
+        <div class="detail-head"><div><h2>Gerda management wishlist</h2><p>Shared with the CRM Management Centre and floating Cudo.</p></div><a class="close" href="<%= basePath %>/management">Open full centre</a></div>
+        <div class="staff-overview">
+          <div class="mini"><span>Allocated clients</span><strong><%= management.totals.clients %></strong></div>
+          <div class="mini"><span>Complete email + ID</span><strong><%= management.totals.complete %></strong></div>
+          <div class="mini"><span>Missing email</span><strong><%= management.totals.missingEmail %></strong></div>
+          <div class="mini"><span>Stalled queries 24h+</span><strong><%= management.queries.stalled.length %></strong></div>
+        </div>
+        <div class="subgrid">
+          <div class="subpanel"><h3>Staff statistics · <%= management.range.label %></h3><div class="table-wrap"><table class="table"><thead><tr><th>Staff</th><th>Clients</th><th>Complete</th><th>Added</th><th>Updated</th><th>Tasks done</th></tr></thead><tbody><% management.staff.forEach(function(s){ %><tr><td><strong><%= s.staff_name %></strong></td><td><%= s.clients_total %></td><td><%= s.clients_complete %></td><td><%= s.clients_added %></td><td><%= s.clients_updated %></td><td><%= s.tasks_completed %>/<%= s.tasks_received %></td></tr><% }) %></tbody></table></div></div>
+          <div class="subpanel"><h3>Business intelligence</h3>
+            <% const topPackage=management.commercial.packages[0]; const topTown=management.commercial.towns[0]; %>
+            <div class="item"><strong>Top package</strong><small><%= topPackage ? topPackage.package_name+' · '+topPackage.client_lines+' active lines' : 'No package data' %></small></div>
+            <div class="item"><strong>Largest client town</strong><small><%= topTown ? topTown.city_town+' · '+topTown.clients+' clients' : 'No town data' %></small></div>
+            <div class="item"><strong>Mailbox / dealsheets</strong><small><%= management.mailbox.length %> recent items · <%= management.automations.mailbox.connected?'automatic mailbox connected':'manual UAT import mode' %></small></div>
+            <div class="item"><strong>Automation</strong><small>09:00 attendance · 16:00 unfinished tasks · Wed 15:30 stats · Wed 17:00 report</small></div>
+          </div>
+        </div>
+      </section>
+    <% } %>
+
     <section class="staff-strip">
       <div class="strip-head"><div><h2>Current staff</h2><span>Tap a person to see what they have been doing.</span></div></div>
       <div class="staff-chips">
