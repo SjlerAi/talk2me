@@ -53,6 +53,13 @@ assert(route.includes('/api/uat/library/health'), 'Library health proof must exi
 assert(route.includes("router.get('/uat/deals',requireAuth"), 'Deals must have its own authenticated page');
 assert(route.includes("router.get('/api/uat/deals',requireAuth"), 'Deals must have a dedicated data endpoint');
 assert(route.includes("d.category='Deals'"), 'Dedicated Deals data must be restricted to Deals only');
+assert(route.includes('function dealTypeFilterSql'), 'Deals must have a dedicated file-type filter');
+assert(route.includes("type==='images'"), 'Deals API must support Images-only filtering');
+assert(route.includes("type==='spreadsheets'"), 'Deals API must support Spreadsheets-only filtering');
+assert(route.includes("type==='pdfs'"), 'Deals API must support PDFs-only filtering');
+assert(route.includes("IN ('.xlsx','.xls','.csv')"), 'Spreadsheet filter must include Excel and CSV deal sheets');
+assert(route.includes("IN ('.jpg','.jpeg','.png','.webp','.gif')"), 'Image filter must include supported image formats');
+assert(route.includes("LOWER(COALESCE(v.extension,''))='.pdf'"), 'PDF filter must be restricted to PDFs');
 assert(route.includes('LIMIT ${limit} OFFSET ${offset}'), 'Deals endpoint must page large collections instead of loading everything at once');
 assert(route.includes("router.get('/api/uat/deals/health'"), 'Deals must have a runtime health proof');
 
@@ -88,12 +95,22 @@ assert(css.includes('@media(max-width:760px)'), 'Library must have phone layout 
 assert(css.includes('height:100dvh'), 'Library viewers must be mobile full-screen capable');
 assert(dealsView.includes('data-deals-grid'), 'Dedicated Deals window must expose its own deal grid');
 assert(dealsView.includes('Search deals'), 'Dedicated Deals window must be searchable');
+assert(dealsView.includes('data-deals-type="images"'), 'Deals window must expose an Images button');
+assert(dealsView.includes('data-deals-type="spreadsheets"'), 'Deals window must expose a Spreadsheets button');
+assert(dealsView.includes('data-deals-type="pdfs"'), 'Deals window must expose a PDFs button');
+assert(dealsView.includes('-deals-window2'), 'Deals filter assets must be cache-busted');
 assert(!dealsView.includes('Library Management'), 'Dedicated Deals window must not expose Library management chrome');
 assert(dealsUi.includes('/api/uat/deals?'), 'Dedicated Deals client must use the Deals-only endpoint');
+assert(dealsUi.includes("allowedTypes=new Set(['images','spreadsheets','pdfs'])"), 'Deals client must support exactly the requested type filters');
+assert(dealsUi.includes("params.set('type',state.type)"), 'Deals client must send the selected file type to the Deals-only API');
+assert(dealsUi.includes("button.dataset.dealsType===state.type"), 'Deals client must show the active type button');
+assert(dealsUi.includes("state.type=state.type===next?'':next"), 'Clicking the active type button must return to all Deals without leaving the Deals window');
 assert(dealsUi.includes("doc.category!=='Deals'"), 'Deal viewer must refuse items moved out of Deals');
 assert(dealsUi.includes('IntersectionObserver'), 'Deals must progressively load large collections');
 assert(dealsUi.includes("doc?.nativeLaunch"), 'Office deals must still open in their native application');
 assert(dealsCss.includes('.deals-grid'), 'Dedicated Deals window must have its own card grid styling');
+assert(dealsCss.includes('.deals-type-tabs'), 'Deals type buttons must be visibly styled');
+assert(dealsCss.includes('.deals-type-tabs button.is-active'), 'Active Deals type button must be visually distinct');
 assert(dealsCss.includes('@media(max-width:760px)'), 'Dedicated Deals window must remain mobile responsive');
 
 assert(calendar.includes('data-uat-library-launcher'), 'Library must be added to the top launcher');
