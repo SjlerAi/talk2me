@@ -306,7 +306,12 @@ function resultState(kind, rows, staff, extra = {}) {
       staffName: staff ? (staff.full_name || staff.username || staff.email) : null,
       items: rows.slice(0, MAX_BATCH_TASKS).map(row => ({
         id: Number(row.id || row.client_id || row.item_id || 0) || null,
-        clientId: Number(row.client_id || row.id || 0) || null,
+        clientId: Number(
+          row.client_id
+          || (['birthday','upgrade','client_followup_activity','unallocated_clients'].includes(kind) ? row.id : 0)
+          || 0
+        ) || null,
+        sourceKind:clean(row.source_type || kind,50) || kind,
         title: clean(row.title || row.client_name || row.customer_name || row.primary_text || 'Item', 180),
         detail: clean(row.detail || row.package_name || row.reason || row.query_text || row.status || '', 600),
         dueAt: row.due_at || row.next_upgrade_date || row.follow_up_at || row.scheduled_at || null,
