@@ -150,6 +150,11 @@ router.post('/api/cudo/action', requireOwner, async (req, res, next) => {
 
     if (actionName === 'cancel') {
       req.session.cudoPendingAction = null;
+      req.session.cudoState = {
+        ...(req.session.cudoState || {}),
+        actionDraft:null,
+        dispatchDraft:null
+      };
       return res.json({ ok:true, text:'Cancelled. I have not changed anything.' });
     }
 
