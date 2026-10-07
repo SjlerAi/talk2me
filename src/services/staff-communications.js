@@ -53,13 +53,13 @@ function whatsappProviderStatus(){
   const phoneNumberId=clean(process.env.WHATSAPP_PHONE_NUMBER_ID,120);
   const token=clean(process.env.WHATSAPP_API_TOKEN,500);
   const configuredSender=normalizeSouthAfricanMobile(process.env.WHATSAPP_SENDER_NUMBER || '');
-  const senderIdentityMatches=configuredSender === GERDA_WHATSAPP_E164;
+  const senderIdentityMatches=configuredSender ? configuredSender === GERDA_WHATSAPP_E164 : null;
   const configured=Boolean(
     provider === 'meta'
     && graphVersion
     && phoneNumberId
     && token
-    && senderIdentityMatches
+    && senderIdentityMatches !== false
   );
   return {
     provider,
@@ -130,13 +130,21 @@ async function sendEmail({senderKey='primary',to,subject,body,attachments=[]}){
   }
 }
 
-function whatsappEndpoint(resource){
+function whatsappGraphBase(){
+  return clean(process.env.WHATSAPP_GRAPH_BASE_URL || 'https://graph.facebook.com',300).replace(/\/$/,'');
+}
+
+function whatsappPhoneNumberUrl(){
   const status=whatsappProviderStatus();
   if(!status.configured) return null;
-  const base=clean(process.env.WHATSAPP_GRAPH_BASE_URL || 'https://graph.facebook.com',300).replace(/\/$/,'');
   const version=clean(process.env.WHATSAPP_GRAPH_VERSION,30).replace(/^\/+|\/+$/g,'');
   const phoneNumberId=clean(process.env.WHATSAPP_PHONE_NUMBER_ID,120);
-  return `${base}/${version}/${phoneNumberId}/${resource}`;
+  return `${whatsappGraphBase()}/${version}/${phoneNumberId}`;
+}
+
+function whatsappEndpoint(resource){
+  const base=whatsappPhoneNumberUrl();
+  return base ? `${base}/${resource}` : null;
 }
 
 async function metaRequest(url,{method='POST',body,headers={}}={}){
@@ -152,6 +160,30 @@ async function metaRequest(url,{method='POST',body,headers={}}={}){
     throw new Error(providerMessage);
   }
   return data;
+}
+
+async function verifyGerdaWhatsAppSender(){
+  const base=whatsappPhoneNumberUrl();
+  if(!base) return {ok:false,error:'Meta WhatsApp Cloud API credentials/version are not configured.'};
+  try{
+    const data=await metaRequest(`${base}?fields=display_phone_number,verified_name`,{method:'GET'});
+    const providerNumber=normalizeSouthAfricanMobile(data?.display_phone_number || '');
+    if(providerNumber !== GERDA_WHATSAPP_E164){
+      return {
+        ok:false,
+        error:`Configured Meta WhatsApp sender is ${providerNumber || 'unknown'}, not Gerda ${GERDA_WHATSAPP_E164}.`,
+        providerNumber,
+        verifiedName:clean(data?.verified_name,180)||null
+      };
+    }
+    return {
+      ok:true,
+      providerNumber,
+      verifiedName:clean(data?.verified_name,180)||null
+    };
+  }catch(error){
+    return {ok:false,error:clean(error.message,500)||'Could not verify the Meta WhatsApp sender.'};
+  }
 }
 
 async function uploadWhatsAppMedia(file){
@@ -181,7 +213,11 @@ async function sendWhatsApp({to,body,attachments=[]}){
     return {
       sent:false,
       status:status.configured?'disabled':'not_configured',
-      error:status.configured?'External sending is disabled.':status.senderIdentityMatches?'Meta WhatsApp Cloud API credentials/version are not configured.':'Gerda\'s WhatsApp sender number is not configured/matched to +27829222877.'
+      error:status.configured
+        ? 'External sending is disabled.'
+        : status.senderIdentityMatches === false
+          ? 'Configured WhatsApp sender number does not match Gerda +27829222877.'
+          : 'Meta WhatsApp Cloud API credentials/version are not configured.'
     };
   }
   const e164=normalizeSouthAfricanMobile(to);
@@ -189,6 +225,16 @@ async function sendWhatsApp({to,body,attachments=[]}){
   const recipient=e164.replace(/^\+/,'');
   const messageIds=[];
   try{
+    const senderVerification=await verifyGerdaWhatsAppSender();
+    if(!senderVerification.ok){
+      return {
+        sent:false,
+        status:'sender_mismatch',
+        error:senderVerification.error,
+        senderNumber:senderVerification.providerNumber || null,
+        recipient:e164
+      };
+    }
     const textData=await sendWhatsAppMessage({
       messaging_product:'whatsapp',
       recipient_type:'individual',
@@ -216,7 +262,7 @@ async function sendWhatsApp({to,body,attachments=[]}){
       if(data?.messages?.[0]?.id) messageIds.push(data.messages[0].id);
     }
 
-    return {sent:true,status:'sent',messageIds,recipient:e164};
+    return {sent:true,status:'sent',messageIds,recipient:e164,senderNumber:GERDA_WHATSAPP_E164};
   }catch(error){
     return {sent:false,status:'failed',error:clean(error.message,500),messageIds,recipient:e164};
   }
@@ -244,6 +290,7 @@ module.exports={
   normalizeSouthAfricanMobile,
   emailProviderStatus,
   whatsappProviderStatus,
+  verifyGerdaWhatsAppSender,
   communicationStatus,
   senderProfileStatus,
   sendEmail,
