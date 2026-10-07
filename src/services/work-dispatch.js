@@ -5,7 +5,7 @@ const path = require('path');
 const crypto = require('crypto');
 const db = require('../config/db');
 const { sendAgentInstruction } = require('./office-intelligence-agent');
-const { notificationProviderStatus } = require('./management-intelligence');
+const { communicationStatus, senderProfileStatus, normalizeSouthAfricanMobile, sendExternalCommunication } = require('./staff-communications');
 
 const IS_UAT = String(process.env.UAT_MODE || '').trim().toLowerCase() === 'true';
 const privateRoot = String(process.env.PRIVATE_UPLOAD_DIR || '').trim();
@@ -117,6 +117,18 @@ async function ensureWorkDispatchSchema() {
       KEY idx_work_dispatch_creator(created_by,created_at),
       KEY idx_work_dispatch_task(task_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+
+    const [dispatchColumns]=await db.execute(`SELECT COLUMN_NAME
+      FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='work_dispatches'`);
+    const dispatchColumnNames=new Set(dispatchColumns.map(row=>String(row.COLUMN_NAME)));
+    const dispatchAdds=[];
+    if(!dispatchColumnNames.has('sender_key')) dispatchAdds.push("ADD COLUMN sender_key VARCHAR(30) NULL AFTER delivery_channel");
+    if(!dispatchColumnNames.has('sender_address')) dispatchAdds.push("ADD COLUMN sender_address VARCHAR(255) NULL AFTER sender_key");
+    if(!dispatchColumnNames.has('recipient_email')) dispatchAdds.push("ADD COLUMN recipient_email VARCHAR(255) NULL AFTER sender_address");
+    if(!dispatchColumnNames.has('recipient_mobile')) dispatchAdds.push("ADD COLUMN recipient_mobile VARCHAR(40) NULL AFTER recipient_email");
+    if(!dispatchColumnNames.has('external_message_id')) dispatchAdds.push("ADD COLUMN external_message_id VARCHAR(500) NULL AFTER external_status");
+    if(dispatchAdds.length) await db.query(`ALTER TABLE work_dispatches ${dispatchAdds.join(', ')}`);
 
     await db.query(`CREATE TABLE IF NOT EXISTS work_dispatch_items (
       id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -301,20 +313,38 @@ async function discardDraftFiles(userId) {
   return rows.length;
 }
 
-function channelAvailability(channel) {
+function channelAvailability(channel,{senderKey='primary'}={}) {
   const wanted = ['internal','email','whatsapp'].includes(String(channel)) ? String(channel) : 'internal';
   if (wanted==='internal') return {channel:wanted,available:true,configured:true,reason:null};
-  const providers=notificationProviderStatus();
-  const configured = wanted==='email'
-    ? Boolean(providers.externalAllowed&&providers.email)
-    : Boolean(providers.externalAllowed&&providers.whatsapp);
+  const status=communicationStatus();
+  if(wanted==='email'){
+    const sender=senderProfileStatus(senderKey);
+    const configured=Boolean(sender.configured);
+    const available=Boolean(sender.ready);
+    return {
+      channel:wanted,
+      available,
+      configured,
+      senderKey:sender.key,
+      senderAddress:sender.address || null,
+      reason:available
+        ? null
+        : configured
+          ? 'External email sending is configured but not enabled for Cudo/Gerda.'
+          : `The ${sender.key} Talk2Me sender mailbox is not configured.`
+    };
+  }
+  const configured=Boolean(status.whatsapp.configured);
+  const available=Boolean(status.whatsapp.ready);
   return {
     channel:wanted,
-    available:false,
+    available,
     configured,
-    reason:configured
-      ? `${wanted==='email'?'Email':'WhatsApp'} is configured, but external Cudo dispatch is not enabled in this UAT build. Use internal Talk2Me delivery.`
-      : `${wanted==='email'?'Email':'WhatsApp'} delivery is not configured for Cudo work dispatch. Use internal Talk2Me delivery.`
+    reason:available
+      ? null
+      : configured
+        ? 'WhatsApp is configured but external sending is not enabled for Cudo/Gerda.'
+        : 'Meta WhatsApp Cloud API is not configured.'
   };
 }
 
@@ -362,17 +392,44 @@ async function createSimpleNotification({createdBy,recipientId,title,message,pri
   } finally { conn.release(); }
 }
 
+async function resolveWorkFilePayloads(ids,userId) {
+  await ensureWorkDispatchSchema();
+  const files=await listFilesForUser(ids,userId);
+  const payloads=[];
+  for(const file of files){
+    const [[row]]=await db.execute(`SELECT id,storage_kind,stored_filename,library_version_id
+      FROM work_files WHERE id=:id LIMIT 1`,{id:Number(file.id)});
+    if(!row) continue;
+    let filePath=null;
+    if(row.storage_kind==='uploaded' && row.stored_filename){
+      filePath=path.join(uploadDir,path.basename(String(row.stored_filename)));
+    }else if(row.storage_kind==='library' && row.library_version_id){
+      const [[version]]=await db.execute('SELECT stored_filename FROM library_versions WHERE id=:id LIMIT 1',{id:Number(row.library_version_id)});
+      if(version?.stored_filename) filePath=path.join(libraryFileDir,path.basename(String(version.stored_filename)));
+    }
+    if(filePath && fs.existsSync(filePath)){
+      payloads.push({...file,path:filePath});
+    }
+  }
+  return payloads;
+}
+
 async function createWorkDispatch({createdBy,action}) {
   await ensureWorkDispatchSchema();
   if(!action||action.type!=='work_dispatch') throw new Error('Invalid work dispatch action.');
   const recipientId=idOf(action.recipientId);
   if(!recipientId||!createdBy) throw new Error('A recipient is required.');
 
-  const [[staff]]=await db.execute(`SELECT id,full_name,email,is_active FROM staff_users WHERE id=:id LIMIT 1`,{id:recipientId});
+  const [[staff]]=await db.execute(`SELECT id,full_name,email,contact_number,is_active FROM staff_users WHERE id=:id LIMIT 1`,{id:recipientId});
   if(!staff||!Number(staff.is_active)) throw new Error('The selected staff member is not active.');
 
-  const channel=channelAvailability(action.channel);
+  const senderKey=action.senderKey === 'secondary' ? 'secondary' : 'primary';
+  const channel=channelAvailability(action.channel,{senderKey});
   if(!channel.available) throw new Error(channel.reason);
+  const recipientEmail=clean(staff.email,255)||null;
+  const recipientMobile=normalizeSouthAfricanMobile(staff.contact_number);
+  if(channel.channel==='email' && !recipientEmail) throw new Error('The selected staff member has no email address.');
+  if(channel.channel==='whatsapp' && !recipientMobile) throw new Error('The selected staff member has no valid mobile number.');
 
   const items=Array.isArray(action.items)?action.items.slice(0,50):[];
   const attachments=await listFilesForUser(action.attachmentIds,createdBy);
@@ -420,12 +477,17 @@ async function createWorkDispatch({createdBy,action}) {
   try{
     await conn.beginTransaction();
     const [dispatch]=await conn.execute(`INSERT INTO work_dispatches
-      (created_by,recipient_staff_id,task_id,delivery_channel,subject,instruction,priority,due_at,require_reply,require_completion,status,external_status)
-      VALUES (:createdBy,:recipient,:taskId,:channel,:subject,:instruction,:priority,:dueAt,:reply,:completion,'sent',:externalStatus)`,{
-      createdBy:Number(createdBy),recipient:recipientId,taskId,channel:channel.channel,subject,
+      (created_by,recipient_staff_id,task_id,delivery_channel,sender_key,sender_address,recipient_email,recipient_mobile,subject,instruction,priority,due_at,require_reply,require_completion,status,external_status)
+      VALUES (:createdBy,:recipient,:taskId,:channel,:senderKey,:senderAddress,:recipientEmail,:recipientMobile,:subject,:instruction,:priority,:dueAt,:reply,:completion,'sent',:externalStatus)`,{
+      createdBy:Number(createdBy),recipient:recipientId,taskId,channel:channel.channel,
+      senderKey:channel.channel==='email'?senderKey:null,
+      senderAddress:channel.channel==='email'?(channel.senderAddress||null):null,
+      recipientEmail,
+      recipientMobile,
+      subject,
       instruction:clean(action.instruction,5000)||null,priority,dueAt,
       reply:requireReply?1:0,completion:requireCompletion?1:0,
-      externalStatus:channel.channel==='internal'?'internal_delivered':null
+      externalStatus:channel.channel==='internal'?'internal_delivered':'pending'
     });
     const dispatchId=Number(dispatch.insertId);
 
@@ -459,16 +521,46 @@ async function createWorkDispatch({createdBy,action}) {
     }
 
     await conn.commit();
+
+    let externalResult=null;
+    if(channel.channel!=='internal'){
+      const attachmentPayloads=await resolveWorkFilePayloads(action.attachmentIds,createdBy);
+      externalResult=await sendExternalCommunication({
+        channel:channel.channel,
+        senderKey,
+        recipient:{email:recipientEmail,mobile:recipientMobile,name:staff.full_name||staff.email},
+        subject,
+        body:message,
+        attachments:attachmentPayloads
+      });
+      const messageId=externalResult?.messageId || (Array.isArray(externalResult?.messageIds)?externalResult.messageIds.join(','):null);
+      await db.execute(`UPDATE work_dispatches
+        SET external_status=:status,external_error=:error,external_message_id=:messageId,
+            status=CASE WHEN :sent=1 THEN 'sent' ELSE 'failed' END,updated_at=NOW()
+        WHERE id=:id`,{
+        status:clean(externalResult?.status,40)||'failed',
+        error:externalResult?.sent?null:clean(externalResult?.error,500)||'External delivery failed.',
+        messageId:clean(messageId,500)||null,
+        sent:externalResult?.sent?1:0,
+        id:dispatchId
+      });
+    }
+
     return {
       dispatchId,taskId,
       staffName:staff.full_name||staff.email,
       recipientId,
+      recipientEmail,
+      recipientMobile,
+      senderKey:channel.channel==='email'?senderKey:null,
+      senderAddress:channel.channel==='email'?(channel.senderAddress||null):null,
       dueAt,
       channel:channel.channel,
       requireReply,requireCompletion,
       itemCount:items.length,
       attachmentCount:attachments.length,
-      attachments
+      attachments,
+      externalResult
     };
   }catch(error){
     await conn.rollback();
@@ -571,6 +663,7 @@ module.exports={
   removeDraftFile,
   discardDraftFiles,
   channelAvailability,
+  resolveWorkFilePayloads,
   createWorkDispatch,
   taskAttachments,
   getTaskAttachmentDownload,
