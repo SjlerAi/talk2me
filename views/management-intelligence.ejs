@@ -1,0 +1,84 @@
+<style>
+.management-wrap{max-width:1500px;margin:0 auto;padding:20px}.management-hero{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;margin-bottom:18px}.management-hero h1{margin:0 0 6px}.management-hero p{margin:0;color:#667085}.management-actions{display:flex;gap:8px;flex-wrap:wrap}.management-card{background:#fff;border:1px solid #e4e7ec;border-radius:16px;padding:18px}.management-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:18px}.management-metric span{display:block;color:#667085;font-size:.78rem;font-weight:800;text-transform:uppercase}.management-metric strong{display:block;font-size:1.9rem;margin-top:5px}.management-command{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;margin-bottom:18px}.management-command input{padding:12px;border:1px solid #d0d5dd;border-radius:11px}.management-command button,.management-btn{border:0;border-radius:10px;padding:10px 14px;background:#202832;color:#fff;font-weight:800;cursor:pointer;text-decoration:none;display:inline-block}.management-answer{margin-bottom:18px;border-left:5px solid #f97316}.management-answer p{margin:0 0 10px}.management-section{margin:18px 0}.management-section h2{margin:0 0 4px}.management-section>p{margin:0 0 12px;color:#667085}.management-table-wrap{overflow:auto}.management-table{width:100%;border-collapse:collapse;min-width:1050px}.management-table th,.management-table td{padding:10px;border-bottom:1px solid #eaecf0;text-align:left;font-size:.86rem}.management-table th{color:#667085;font-size:.72rem;text-transform:uppercase}.management-two{display:grid;grid-template-columns:1fr 1fr;gap:14px}.management-list{display:grid;gap:8px}.management-row{padding:11px 12px;border:1px solid #eaecf0;border-radius:11px}.management-row strong{display:block}.management-row small{color:#667085}.management-provider{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.management-pill{padding:12px;border:1px solid #eaecf0;border-radius:12px}.management-pill b{display:block;margin-top:4px}.management-mail{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:start;padding:12px;border-bottom:1px solid #eaecf0}.management-mail-actions{display:flex;gap:6px;flex-wrap:wrap}.management-mail form{margin:0}.management-mail .management-btn{font-size:.75rem;padding:7px 9px}.management-file{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.management-file input{max-width:100%}.management-status-ok{color:#027a48}.management-status-off{color:#b54708}@media(max-width:900px){.management-grid{grid-template-columns:repeat(2,1fr)}.management-two{grid-template-columns:1fr}.management-provider{grid-template-columns:1fr}.management-hero{display:block}.management-actions{margin-top:12px}}@media(max-width:560px){.management-grid{grid-template-columns:1fr 1fr}.management-command{grid-template-columns:1fr}.management-wrap{padding:12px}}
+</style>
+<main class="management-wrap">
+  <section class="management-hero">
+    <div><div class="eyebrow">Gerda + CRM + Cudo</div><h1>Management Intelligence</h1><p>One shared source of truth for staff performance, client quality, queries, attendance, mailbox/dealsheets and business focus.</p></div>
+    <div class="management-actions"><a class="management-btn" href="<%= basePath %>/agent">Open Gerda Agent</a><a class="management-btn" href="<%= basePath %>/command-centre">Command Centre</a></div>
+  </section>
+
+  <form class="management-command" method="post" action="<%= basePath %>/management/check">
+    <input name="command" value="<%= commandText || '' %>" placeholder="Ask: Which queries are stuck? What package do we write most? How many clients does Gerda have?">
+    <button type="submit">Ask Gerda</button>
+  </form>
+
+  <% if(answer){ %>
+  <section class="management-card management-answer">
+    <h2>Gerda answer</h2><p><%= answer.text %></p>
+    <% if(answer.evidence && answer.evidence.summary){ %><small><strong>Checked:</strong> <%= answer.evidence.summary %></small><% } %>
+    <% if(answer.rows && answer.rows.length){ %><div class="management-list" style="margin-top:10px"><% answer.rows.slice(0,12).forEach(function(row){ %><div class="management-row"><strong><%= row.title %></strong><small><%= row.detail || '' %><% if(row.meta){ %> · <%= row.meta %><% } %></small></div><% }) %></div><% } %>
+  </section>
+  <% } %>
+
+  <section class="management-grid">
+    <div class="management-card management-metric"><span>Allocated clients</span><strong><%= overview.totals.clients %></strong></div>
+    <div class="management-card management-metric"><span>Complete email + ID</span><strong><%= overview.totals.complete %></strong></div>
+    <div class="management-card management-metric"><span>Missing email</span><strong><%= overview.totals.missingEmail %></strong></div>
+    <div class="management-card management-metric"><span>Missing ID</span><strong><%= overview.totals.missingId %></strong></div>
+    <div class="management-card management-metric"><span>Tasks received</span><strong><%= overview.totals.tasksReceived %></strong></div>
+    <div class="management-card management-metric"><span>Tasks completed</span><strong><%= overview.totals.tasksCompleted %></strong></div>
+    <div class="management-card management-metric"><span>Stalled queries 24h+</span><strong><%= overview.queries.stalled.length %></strong></div>
+    <div class="management-card management-metric"><span>Recent mailbox items</span><strong><%= overview.mailbox.length %></strong></div>
+  </section>
+
+  <section class="management-card management-section">
+    <h2>Staff performance · <%= overview.range.label %></h2><p>Client ownership/data quality, client changes and task movement from the CRM.</p>
+    <div class="management-table-wrap"><table class="management-table"><thead><tr><th>Staff</th><th>Clients</th><th>Complete</th><th>Missing email</th><th>Missing ID</th><th>Added</th><th>Updated</th><th>Tasks given</th><th>Received</th><th>Completed</th></tr></thead><tbody>
+    <% overview.staff.forEach(function(s){ %><tr><td><strong><%= s.staff_name %></strong></td><td><%= s.clients_total %></td><td><%= s.clients_complete %></td><td><%= s.clients_missing_email %></td><td><%= s.clients_missing_id %></td><td><%= s.clients_added %></td><td><%= s.clients_updated %></td><td><%= s.tasks_given %></td><td><%= s.tasks_received %></td><td><%= s.tasks_completed %></td></tr><% }) %>
+    </tbody></table></div>
+  </section>
+
+  <section class="management-two">
+    <div class="management-card management-section"><h2>Queries taking the most time</h2><p>Elapsed CRM time from creation to completion/update/current time.</p><div class="management-list">
+      <% if(!overview.queries.top.length){ %><div class="management-row">No query data for this period.</div><% } %>
+      <% overview.queries.top.slice(0,10).forEach(function(q){ %><div class="management-row"><strong><%= q.query_name %></strong><small><%= q.query_count %> records · <%= q.open_count %> open · ~<%= Math.round(q.total_minutes/60) %> total hours</small></div><% }) %>
+    </div></div>
+    <div class="management-card management-section"><h2>Queries with no progress</h2><p>Open inquiries with no recorded update for 24 hours or more.</p><div class="management-list">
+      <% if(!overview.queries.stalled.length){ %><div class="management-row">No stalled queries found.</div><% } %>
+      <% overview.queries.stalled.slice(0,10).forEach(function(q){ %><div class="management-row"><strong><%= q.client_name %></strong><small><%= q.staff_name %> · <%= q.hours_without_progress %>h · <%= q.query_text || q.status %></small></div><% }) %>
+    </div></div>
+  </section>
+
+  <section class="management-two">
+    <div class="management-card management-section"><h2>Top packages</h2><p>Active CRM lines by package.</p><div class="management-list"><% overview.commercial.packages.slice(0,10).forEach(function(x){ %><div class="management-row"><strong><%= x.package_name %></strong><small><%= x.client_lines %> active client lines</small></div><% }) %></div></div>
+    <div class="management-card management-section"><h2>Town / focus intelligence</h2><p>Operational focus signal from current clients, due upgrades and incomplete records.</p><div class="management-list"><% overview.commercial.focus.slice(0,10).forEach(function(x){ %><div class="management-row"><strong><%= x.city_town %></strong><small><%= x.clients %> clients · <%= x.due_upgrades %> due upgrades · <%= x.incomplete_records %> incomplete</small></div><% }) %></div></div>
+  </section>
+
+  <section class="management-card management-section" id="weekly-stats">
+    <h2>Wednesday weekly statistics</h2><p>Staff can be reminded at 15:30; Gerda prepares the 17:00 management status.</p>
+    <div class="management-table-wrap"><table class="management-table"><thead><tr><th>Staff</th><th>Status</th><th>Submitted</th><th>Action</th></tr></thead><tbody>
+    <% overview.weekly.forEach(function(w){ %><tr><td><%= w.staff_name %></td><td><%= w.submitted_at?'Submitted':'Outstanding' %></td><td><%= w.submitted_at ? new Date(w.submitted_at).toLocaleString('en-ZA') : '—' %></td><td><form method="post" action="<%= basePath %>/management/weekly-stats/submit"><input type="hidden" name="staff_id" value="<%= w.id %>"><button class="management-btn" type="submit">Mark current stats submitted</button></form></td></tr><% }) %>
+    </tbody></table></div>
+  </section>
+
+  <section class="management-card management-section">
+    <h2>Automation readiness</h2><p>External channels stay disabled unless explicitly configured; in-app event queues remain safe to test.</p>
+    <div class="management-provider">
+      <div class="management-pill"><span>Mailbox</span><b class="<%= overview.automations.mailbox.connected?'management-status-ok':'management-status-off' %>"><%= overview.automations.mailbox.connected?'Automatic connected':'Manual import mode' %></b><small><%= overview.automations.mailbox.note %></small></div>
+      <div class="management-pill"><span>Email provider</span><b class="<%= overview.automations.providers.email?'management-status-ok':'management-status-off' %>"><%= overview.automations.providers.email?'Configured':'Not configured in UAT' %></b><small>09:00 attendance, 16:00 tasks, weekly and mailbox summaries use this when enabled.</small></div>
+      <div class="management-pill"><span>WhatsApp provider</span><b class="<%= overview.automations.providers.whatsapp?'management-status-ok':'management-status-off' %>"><%= overview.automations.providers.whatsapp?'Configured':'Not configured' %></b><small>No credentials are invented; provider status is explicit.</small></div>
+    </div>
+  </section>
+
+  <section class="management-card management-section" id="mailbox">
+    <h2>Gerda mailbox & dealsheets</h2><p>Import an Outlook .eml for UAT. Chatz/Vodacom deal sheets are detected and can be saved directly into the Deals library.</p>
+    <form class="management-file" method="post" action="<%= basePath %>/management/mailbox/import" enctype="multipart/form-data"><input type="file" name="email_file" accept=".eml,.html,.htm" required><button class="management-btn" type="submit">Import email</button></form>
+    <div style="margin-top:12px">
+    <% if(!overview.mailbox.length){ %><div class="management-row">No recent mailbox items.</div><% } %>
+    <% overview.mailbox.forEach(function(m){ %><div class="management-mail"><div><strong><%= m.subject || '(no subject)' %></strong><small><%= m.original_from || 'Unknown sender' %> · <%= m.attachment_count %> attachment(s) · <%= Number(m.is_dealsheet)?'Dealsheet detected':m.status %></small></div><div class="management-mail-actions">
+      <% if(m.attachment_count && m.saved_attachment_count < m.attachment_count){ %><form method="post" action="<%= basePath %>/management/mailbox/<%= m.id %>/save-deals"><button class="management-btn" type="submit">Save to Deals</button></form><% } %>
+      <% if(Number(m.is_dealsheet)){ %><form method="post" action="<%= basePath %>/management/mailbox/<%= m.id %>/notify-staff"><button class="management-btn" type="submit">Notify staff</button></form><% } %>
+    </div></div><% }) %>
+    </div>
+  </section>
+</main>
