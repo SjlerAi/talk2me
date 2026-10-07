@@ -1,10 +1,25 @@
 'use strict';
 
 const express = require('express');
+const multer = require('multer');
 const { audit } = require('../services/audit');
 const { answerCudo, createTasks, getAlerts } = require('../services/cudo-ai');
+const {
+  storeUploadedFile,
+  searchLibraryDocuments,
+  attachLibraryDocument,
+  listFilesForUser,
+  removeDraftFile,
+  discardDraftFiles,
+  createWorkDispatch
+} = require('../services/work-dispatch');
 
 const router = express.Router();
+const upload = multer({
+  storage:multer.memoryStorage(),
+  limits:{fileSize:40*1024*1024,files:5}
+}).array('files',5);
+
 const IS_UAT = String(process.env.UAT_MODE || '').trim().toLowerCase() === 'true';
 
 function isOwner(user) {
@@ -80,10 +95,15 @@ router.post('/api/cudo/chat', requireOwner, async (req, res, next) => {
     const message = String(req.body?.message || '').trim().slice(0,5000);
     if (!message) return res.status(400).json({ ok:false, error:'Ask Cudo a question.' });
 
+    const attachmentIds = Array.isArray(req.body?.attachmentIds)
+      ? req.body.attachmentIds.map(Number).filter(Number.isFinite).slice(0,20)
+      : [];
     const result = await answerCudo({
       message,
       state:req.session.cudoState || null,
-      context:safeContext(req.body?.context)
+      context:safeContext(req.body?.context),
+      userId:Number(req.session.user.id),
+      attachmentIds
     });
 
     if (result.state !== undefined) req.session.cudoState = result.state;
@@ -110,6 +130,7 @@ router.post('/api/cudo/chat', requireOwner, async (req, res, next) => {
       rows:Array.isArray(result.rows) ? result.rows : [],
       grouped:result.grouped || null,
       evidence:result.evidence || null,
+      attachments:Array.isArray(result.attachments) ? result.attachments : [],
       actions:Array.isArray(result.actions) ? result.actions : [],
       suggestions:Array.isArray(result.suggestions) ? result.suggestions : []
     });
@@ -132,12 +153,50 @@ router.post('/api/cudo/action', requireOwner, async (req, res, next) => {
       return res.json({ ok:true, text:'Cancelled. I have not changed anything.' });
     }
 
+    const pending = req.session.cudoPendingAction;
+    if (!pending) return res.status(409).json({ ok:false, error:'There is no pending Cudo action to confirm.' });
+
+    if (actionName === 'confirm_dispatch') {
+      if (pending.type !== 'work_dispatch') return res.status(409).json({ok:false,error:'The pending action is not a work dispatch.'});
+      const result = await createWorkDispatch({
+        createdBy:Number(req.session.user.id),
+        action:pending
+      });
+      req.session.cudoPendingAction = null;
+      req.session.cudoState = {
+        ...(req.session.cudoState || {}),
+        dispatchDraft:null
+      };
+
+      await audit(req,{
+        actionType:'cudo_work_dispatch_sent',
+        entityType:'work_dispatches',
+        entityId:result.dispatchId,
+        description:`Cudo sent a work dispatch to ${result.staffName} with ${result.itemCount} work item(s) and ${result.attachmentCount} attachment(s).`,
+        after:{
+          dispatchId:result.dispatchId,
+          taskId:result.taskId,
+          recipientId:result.recipientId,
+          staffName:result.staffName,
+          dueAt:result.dueAt,
+          channel:result.channel,
+          requireReply:result.requireReply,
+          requireCompletion:result.requireCompletion,
+          itemCount:result.itemCount,
+          attachmentCount:result.attachmentCount
+        }
+      });
+
+      return res.json({
+        ok:true,
+        text:`Sent to ${result.staffName} in Talk2Me. ${result.itemCount ? `${result.itemCount} work item${result.itemCount===1?'':'s'} included. ` : ''}${result.attachmentCount ? `${result.attachmentCount} attachment${result.attachmentCount===1?'':'s'} linked. ` : ''}${result.dueAt ? `Deadline: ${String(result.dueAt).slice(0,16).replace(' ',' at ')}. ` : ''}${result.requireReply||result.requireCompletion ? 'Cudo/Gerda will monitor the task through the normal workflow.' : 'The recipient will see it as a normal Talk2Me message.'}`,
+        dispatch:result
+      });
+    }
+
     if (actionName !== 'confirm_tasks') {
       return res.status(400).json({ ok:false, error:'Unknown Cudo action.' });
     }
-
-    const pending = req.session.cudoPendingAction;
-    if (!pending) return res.status(409).json({ ok:false, error:'There is no pending Cudo task action to confirm.' });
 
     const result = await createTasks({
       userId:Number(req.session.user.id),
@@ -176,7 +235,56 @@ router.post('/api/cudo/action', requireOwner, async (req, res, next) => {
   }
 });
 
-router.post('/api/cudo/reset', requireOwner, (req, res) => {
+router.post('/api/cudo/attachments', requireOwner, (req,res,next)=>{
+  upload(req,res,async error=>{
+    if(error) return res.status(400).json({ok:false,error:error.message||'The attachment could not be uploaded.'});
+    try{
+      const files=[];
+      for(const file of req.files||[]){
+        files.push(await storeUploadedFile({
+          buffer:file.buffer,
+          originalName:file.originalname,
+          mimeType:file.mimetype,
+          userId:Number(req.session.user.id)
+        }));
+      }
+      res.json({ok:true,files});
+    }catch(err){next(err);}
+  });
+});
+
+router.delete('/api/cudo/attachments/:id', requireOwner, async(req,res,next)=>{
+  try{
+    const removed=await removeDraftFile({fileId:Number(req.params.id),userId:Number(req.session.user.id)});
+    res.json({ok:true,removed});
+  }catch(error){next(error);}
+});
+
+router.get('/api/cudo/files/library', requireOwner, async(req,res,next)=>{
+  try{
+    const documents=await searchLibraryDocuments(req.query.q||'',30);
+    res.set('Cache-Control','no-store');
+    res.json({ok:true,documents});
+  }catch(error){next(error);}
+});
+
+router.post('/api/cudo/files/library/:id/attach', requireOwner, async(req,res,next)=>{
+  try{
+    const file=await attachLibraryDocument({documentId:Number(req.params.id),userId:Number(req.session.user.id)});
+    res.json({ok:true,file});
+  }catch(error){next(error);}
+});
+
+router.post('/api/cudo/attachments/resolve', requireOwner, async(req,res,next)=>{
+  try{
+    const ids=Array.isArray(req.body?.ids)?req.body.ids:[];
+    const files=await listFilesForUser(ids,Number(req.session.user.id));
+    res.json({ok:true,files});
+  }catch(error){next(error);}
+});
+
+router.post('/api/cudo/reset', requireOwner, async (req, res) => {
+  await discardDraftFiles(Number(req.session.user.id)).catch(()=>{});
   req.session.cudoState = null;
   req.session.cudoPendingAction = null;
   res.json({ ok:true });

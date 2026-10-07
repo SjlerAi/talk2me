@@ -4,6 +4,7 @@ const db = require('../config/db');
 const { sendAgentInstruction, buildDailyResponsibilities } = require('./office-intelligence-agent');
 const { ensureAttendanceSchema } = require('./attendance');
 const { answerManagementQuestion } = require('./management-intelligence');
+const { listFilesForUser, channelAvailability, recentDispatchStatus } = require('./work-dispatch');
 
 const ACTIVE_TASK = "('unread','seen','in_progress')";
 const OPEN_INQUIRY = "('open','follow_up','waiting_customer','waiting_network','waiting_supplier')";
@@ -345,6 +346,11 @@ function detectIntent(message) {
   ) return 'attendance';
   if (/\bupgrades?\b/.test(q)) return 'upgrades';
   if (/\bdeals?\b|\bprospects?\b|opportunit/.test(q)) return 'deals';
+  if (
+    /\b(?:files?|documents?|dispatch(?:es)?)\b.*\b(?:reply|replied|respond|responded|opened|seen|complete|completed|overdue|status)\b/.test(q)
+    || /\bwho\b.*\b(?:hasn'?t|has not|not)\b.*\b(?:reply|replied|respond|responded)\b/.test(q)
+    || /\bwhat\b.*\b(?:sent|dispatch)\b.*\b(?:yesterday|today|week)\b/.test(q)
+  ) return 'dispatch_status';
   if (
     clientWords.test(q)
     && (
@@ -1101,6 +1107,49 @@ async function queryDeals(message) {
   };
 }
 
+async function queryDispatchStatus(message,userId) {
+  if (!userId) return {intent:'dispatch_status',text:'I need the signed-in owner context to check sent work.',rows:[],actions:[],state:{selection:null}};
+  const q=lower(message);
+  const days=/\byesterday\b/.test(q)?2:/\btoday\b/.test(q)?1:/\bmonth\b/.test(q)?30:7;
+  let rows=await recentDispatchStatus({createdBy:userId,days,limit:50});
+  let label=`the last ${days} day${days===1?'':'s'}`;
+  if(/\byesterday\b/.test(q)){
+    const yesterday=new Date();yesterday.setDate(yesterday.getDate()-1);
+    const y=sqlDate(yesterday);
+    rows=rows.filter(row=>sqlDate(row.createdAt)===y);
+    label='yesterday';
+  }
+  if(/\btoday\b/.test(q)){
+    const y=sqlDate(new Date());
+    rows=rows.filter(row=>sqlDate(row.createdAt)===y);
+    label='today';
+  }
+  if(/hasn'?t\s+(?:replied|responded)|has not\s+(?:replied|responded)|not\s+(?:replied|responded)/.test(q)){
+    rows=rows.filter(row=>row.requireReply&&!row.completedAt);
+  }else if(/\boverdue\b/.test(q)){
+    rows=rows.filter(row=>row.overdue);
+  }else if(/\b(?:opened|seen)\b/.test(q)){
+    rows=rows.filter(row=>row.seenAt);
+  }else if(/\b(?:complete|completed|replied|responded)\b/.test(q)){
+    rows=rows.filter(row=>row.completedAt);
+  }
+  return {
+    intent:'dispatch_status',
+    text:rows.length
+      ? `I found ${rows.length} matching Cudo work dispatch${rows.length===1?'':'es'} from ${label}.`
+      : `I found no matching Cudo work dispatches from ${label}.`,
+    rows:rows.slice(0,20).map(row=>({
+      id:row.id,
+      title:row.subject,
+      detail:[row.staffName,row.status,row.seenAt?'opened':'not opened',row.completedAt?'completed/replied':'awaiting completion/reply'].join(' · '),
+      meta:row.overdue?'Overdue':row.dueAt?`Due ${String(row.dueAt).slice(0,16).replace('T',' ')}`:`${row.attachmentCount} attachment${row.attachmentCount===1?'':'s'}`
+    })),
+    evidence:{summary:'Checked Cudo work_dispatches against the normal staff_tasks seen/completed workflow.',sources:['work_dispatches','staff_tasks','staff_task_attachments']},
+    actions:['open_agent'],
+    state:{selection:null}
+  };
+}
+
 async function queryOfficeWork(message) {
   const staff = await resolveStaff(message);
   if (!staff) {
@@ -1226,9 +1275,123 @@ async function queryCurrentCustomer(context) {
   return {intent:'context',text,rows,actions:['open_agent'],state:{selection:null}};
 }
 
+function dispatchIntent(message, attachmentIds = []) {
+  const q = lower(message);
+  const hasAttachments = Array.isArray(attachmentIds) && attachmentIds.length > 0;
+  const sendVerb = /\b(?:send|forward|share)\b/.test(q);
+  if (!sendVerb) return false;
+  if (hasAttachments) return true;
+  return /\b(?:all|these|those|them|work|items?|files?|documents?|outstanding|results?)\b/.test(q);
+}
+
 function actionIntent(message) {
   const q = lower(message);
-  return /(assign|give|send|create|make).{0,30}(task|tasks|these|those|them)|(?:task|tasks).{0,30}(assign|give|send|create)/.test(q);
+  return /(assign|give|create|make).{0,30}(task|tasks|these|those|them)|(?:task|tasks).{0,30}(assign|give|create|make)/.test(q);
+}
+
+async function prepareDispatchAction(message, state, {userId,attachmentIds=[]}={}) {
+  const selection = state && state.selection;
+  const items = selection && Array.isArray(selection.items) ? selection.items.slice(0,MAX_BATCH_TASKS) : [];
+  const files = await listFilesForUser(attachmentIds,userId);
+  if (!items.length && !files.length) {
+    return {
+      intent:'dispatch',
+      text:'I do not have work or an attachment to send yet. Find the work first, or attach a file with the paperclip, then tell me who should receive it.',
+      rows:[],actions:[],state:state || {selection:null}
+    };
+  }
+
+  const draft = state?.dispatchDraft || {};
+  const fallbackId = Number(draft.recipientId || selection?.staffId || 0) || null;
+  const match = await resolveStaffMatch(message,fallbackId);
+  if (!match.staff) {
+    return {
+      intent:'dispatch',
+      text:'Tell me which staff member should receive this.',
+      rows:[],actions:[],
+      state:{...(state||{}),dispatchDraft:{...draft,recipientId:null,attachmentIds:files.map(file=>file.id)}}
+    };
+  }
+  if (match.needsConfirmation) {
+    const name = match.staff.full_name || match.staff.username || match.staff.email;
+    return {
+      intent:'staff_confirmation',
+      text:`I think that recipient is ${name}. Type “yes, send to ${name}” or type the correct staff name before I prepare the dispatch.`,
+      rows:[],actions:[],
+      suggestions:[`Yes, send to ${name}`],
+      state:{...(state||{}),pendingStaff:{
+        staffId:Number(match.staff.id),staffName:name,originalMessage:message,confidence:match.confidence
+      },dispatchDraft:{...draft,recipientId:Number(match.staff.id),attachmentIds:files.map(file=>file.id)}}
+    };
+  }
+
+  const staff = match.staff;
+  const q = lower(message);
+  const requireReply = /\b(?:reply|respond|response|answer|feedback)\b/.test(q) || Boolean(draft.requireReply);
+  const requireCompletion = Boolean(items.length) || /\b(?:complete|finish|done|action|outstanding\s+work)\b/.test(q) || Boolean(draft.requireCompletion);
+  const dueAt = parseDueAt(message) || draft.dueAt || null;
+  if ((requireReply || requireCompletion) && !dueAt) {
+    const name = staff.full_name || staff.username || staff.email;
+    return {
+      intent:'dispatch',
+      text:`I have ${items.length ? `${items.length} work item${items.length===1?'':'s'}` : 'the file'} for ${name}${files.length ? ` with ${files.length} attachment${files.length===1?'':'s'}` : ''}. Because a reply/completion is required, tell me the deadline, for example “Friday 15:00”.`,
+      rows:items.slice(0,10).map((item,index)=>({id:index+1,title:item.title,detail:item.detail||'',meta:item.dueAt?`Source due ${String(item.dueAt).slice(0,10)}`:''})),
+      attachments:files,
+      actions:[],
+      state:{...(state||{}),dispatchDraft:{
+        recipientId:Number(staff.id),recipientName:staff.full_name||staff.username||staff.email,
+        attachmentIds:files.map(file=>file.id),requireReply,requireCompletion,dueAt:null,
+        channel:draft.channel || (/\bemail\b/.test(q)?'email':/\bwhats\s*app\b|\bwhatsapp\b/.test(q)?'whatsapp':'internal'),
+        priority:draft.priority || (/\burgent\b/.test(q)?'urgent':/\bhigh\s+priority\b|\bimportant\b/.test(q)?'high':'normal'),
+        instruction:draft.instruction || clean(message,2000)
+      }}
+    };
+  }
+
+  let channel=draft.channel || 'internal';
+  if (/\bemail\b/.test(q)) channel='email';
+  else if (/\bwhats\s*app\b|\bwhatsapp\b/.test(q)) channel='whatsapp';
+  else if (/\binternal\b|\btalk2me\b/.test(q)) channel='internal';
+  const availability=channelAvailability(channel);
+  const priority=draft.priority || (/\burgent\b/.test(q)?'urgent':/\bhigh\s+priority\b|\bimportant\b/.test(q)?'high':'normal');
+  const instruction=draft.instruction || clean(message,2000);
+  const subject=items.length
+    ? `Cudo work dispatch · ${items.length} item${items.length===1?'':'s'}`
+    : `Cudo file dispatch · ${files[0]?.name || 'message'}`;
+
+  const name=staff.full_name||staff.username||staff.email;
+  const channelText=channel==='internal'?'Talk2Me':channel;
+  const deadlineText=dueAt?` due ${String(dueAt).slice(0,16).replace(' ',' at ')}`:'';
+  const previewText = availability.available
+    ? `Ready to send ${items.length ? `${items.length} work item${items.length===1?'':'s'}` : 'this'} to ${name} through ${channelText}${files.length ? ` with ${files.length} attachment${files.length===1?'':'s'}` : ''}${deadlineText}. ${requireReply?'A reply is required. ':''}${requireCompletion?'Completion will be monitored. ':''}Nothing will be sent until you confirm.`
+    : `I prepared the dispatch to ${name}, but ${channelText} delivery is not available in this environment. Change it to internal Talk2Me delivery, or configure that provider first.`;
+
+  return {
+    intent:'dispatch',
+    text:previewText,
+    rows:items.slice(0,10).map((item,index)=>({id:index+1,title:item.title,detail:item.detail||'',meta:item.dueAt?`Source due ${String(item.dueAt).slice(0,10)}`:''})),
+    attachments:files,
+    actions:availability.available?['confirm_dispatch','cancel_action']:['cancel_action'],
+    pendingAction:availability.available?{
+      type:'work_dispatch',
+      recipientId:Number(staff.id),
+      recipientName:name,
+      channel,
+      dueAt,
+      priority,
+      requireReply,
+      requireCompletion,
+      subject,
+      instruction,
+      sourceKind:selection?.kind || 'file',
+      items,
+      attachmentIds:files.map(file=>file.id)
+    }:null,
+    state:{...(state||{}),dispatchDraft:{
+      recipientId:Number(staff.id),recipientName:name,attachmentIds:files.map(file=>file.id),
+      requireReply,requireCompletion,dueAt,channel,priority,instruction
+    }}
+  };
 }
 
 async function prepareBatchAction(message, state) {
@@ -1362,7 +1525,7 @@ async function getAlerts() {
   return { count:items.reduce((sum,item)=>sum+item.count,0), items };
 }
 
-async function answerCudo({ message, state = null, context = null }) {
+async function answerCudo({ message, state = null, context = null, userId = null, attachmentIds = [] }) {
   let workingMessage = clean(message,5000);
   let workingState = state || {};
   let q = lower(workingMessage);
@@ -1382,6 +1545,15 @@ async function answerCudo({ message, state = null, context = null }) {
   }
 
   const selectionKind = workingState?.selection?.kind || null;
+  const currentAttachmentIds = Array.isArray(attachmentIds) ? attachmentIds : [];
+  const isDispatch = dispatchIntent(workingMessage,currentAttachmentIds)
+    || (Boolean(workingState?.dispatchDraft) && (
+      /\b(deadline|due)\b/.test(q)
+      || /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow)\b/.test(q)
+      || /^yes\b/.test(q)
+    ));
+  if (isDispatch) return prepareDispatchAction(workingMessage,workingState,{userId,attachmentIds:currentAttachmentIds.length?currentAttachmentIds:workingState?.dispatchDraft?.attachmentIds||[]});
+
   const looksLikeActionContinuation = Boolean(selectionKind) && (
     actionIntent(workingMessage)
     || /\b(deadline|due)\b/.test(q)
@@ -1424,6 +1596,7 @@ async function answerCudo({ message, state = null, context = null }) {
   if (directIntent === 'deals') return queryDeals(workingMessage);
   if (directIntent === 'attendance') return queryAttendanceManagement(workingMessage);
   if (directIntent === 'unallocated_clients') return queryUnallocatedClients();
+  if (directIntent === 'dispatch_status') return queryDispatchStatus(workingMessage,userId);
   if (directIntent === 'management_intelligence') {
     const resolvedStaffId = staffMatch.staff ? Number(staffMatch.staff.id) : null;
     const result = await answerManagementQuestion(workingMessage,{staffId:resolvedStaffId});
@@ -1454,12 +1627,13 @@ async function answerCudo({ message, state = null, context = null }) {
     if (selectionKind === 'task') return queryTasks(synthetic);
   }
 
+  if (dispatchIntent(workingMessage,currentAttachmentIds)) return prepareDispatchAction(workingMessage,workingState,{userId,attachmentIds:currentAttachmentIds});
   if (actionIntent(workingMessage)) return prepareBatchAction(workingMessage,workingState);
 
   if (/^(hi|hello|hey|help|what can you do)[.!? ]*$/.test(q)) {
     return {
       intent:'help',
-      text:'I use the Talk2Me CRM as my source of truth. Ask me about clients, allocations, staff attendance, staff performance, client completeness, tasks, query bottlenecks, packages, towns, focus areas, mailbox/dealsheets, follow-ups, birthdays, upgrades or deals.',
+      text:'I use the Talk2Me CRM as my source of truth. Ask me about clients, staff work, attendance, tasks, query bottlenecks, packages, towns, files and deals. You can also attach a file and ask me to send work or documents to a staff member.',
       rows:[],
       actions:['open_agent'],
       state:workingState || {selection:null},
@@ -1482,5 +1656,9 @@ module.exports = {
   detectIntent,
   queryAttendanceManagement,
   queryUnallocatedClients,
-  queryDatabaseFirstFallback
+  queryDatabaseFirstFallback,
+  dispatchIntent,
+  prepareDispatchAction,
+  recentDispatchStatus,
+  queryDispatchStatus
 };

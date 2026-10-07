@@ -12,6 +12,20 @@
 <% if(task.workflow_state==='returned'&&task.return_reason){ %><div class="alert error"><strong>Returned for more work</strong> — <%= task.return_reason %></div><% } %>
 <section class="grid two task-work-detail-grid">
   <div class="panel"><h2><%= task.title %></h2><p class="task-message"><%= task.message %></p><dl class="detail-list"><dt>Type</dt><dd><%= task.type==='notification'?'Message':'Task' %></dd><dt>Due</dt><dd><%= task.due_at?new Date(task.due_at).toLocaleString('en-ZA'):'No fixed deadline' %></dd><dt>Created</dt><dd><%= new Date(task.created_at).toLocaleString('en-ZA') %></dd><dt>Seen</dt><dd><%= task.seen_at?new Date(task.seen_at).toLocaleString('en-ZA'):'Not yet opened' %></dd><dt>Started</dt><dd><%= task.started_at?new Date(task.started_at).toLocaleString('en-ZA'):'Not started' %></dd><% if(task.completion_note){ %><dt>Completion note</dt><dd><%= task.completion_note %></dd><% } %><% if(task.related_client_name){ %><dt>Customer</dt><dd><%= task.related_client_name %></dd><% } %></dl>
+    <% if(typeof attachments!=='undefined' && attachments && attachments.length){ %>
+      <div class="task-attachments">
+        <h3>Attachments</h3>
+        <div class="task-attachment-list">
+          <% attachments.forEach(function(file){ %>
+            <a class="task-attachment" href="<%= basePath %>/tasks/<%= task.id %>/attachments/<%= file.id %>/download">
+              <span class="task-attachment-icon">📎</span>
+              <span><strong><%= file.name %></strong><small><%= file.extension || file.mime %> · <%= Math.max(1,Math.round(Number(file.bytes||0)/1024)) %> KB<% if(file.source==='library'){ %> · Library/Deals<% } %></small></span>
+              <b>Download</b>
+            </a>
+          <% }) %>
+        </div>
+      </div>
+    <% } %>
     <% if(isAssignee&&!archived&&!waitingApproval){ %><form method="post" action="<%= basePath %>/tasks/<%= task.id %>/my-priority<%= panelMode?'?panel=1':'' %>" class="task-priority-toggle"><input type="hidden" name="return_view" value="active"><% if(panelMode){ %><input type="hidden" name="panel" value="1"><% } %><input type="hidden" name="enabled" value="<%= priorityToday?'0':'1' %>"><button class="btn <%= priorityToday?'':'primary' %>" type="submit"><%= priorityToday?'Remove from My Priority':'Make My Priority Today' %></button></form><% } %>
   </div>
   <div class="panel task-work-actions"><h2>Action</h2>

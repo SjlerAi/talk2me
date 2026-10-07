@@ -2,6 +2,7 @@ const express = require('express');
 const db = require('../config/db');
 const { requireAuth } = require('../middleware/auth');
 const { decorateLegacyClaimTasks } = require('../services/legacy-client-claim-decision');
+const { taskAttachments, getTaskAttachmentDownload } = require('../services/work-dispatch');
 
 const router = express.Router();
 const ACTIVE = "('unread','seen','in_progress')";
@@ -262,6 +263,18 @@ router.post('/tasks/:id/comments',requireAuth,async(req,res,next)=>{
     return redirectTask(req,res,taskId)}catch(error){next(error)}
 });
 
+router.get('/tasks/:id/attachments/:fileId/download',requireAuth,async(req,res,next)=>{
+  try{
+    const taskId=idOf(req.params.id),fileId=idOf(req.params.fileId);
+    if(!taskId||!fileId)return res.sendStatus(404);
+    const file=await getTaskAttachmentDownload({taskId,fileId,user:req.session.user});
+    if(!file)return res.sendStatus(404);
+    res.set('Cache-Control','private, no-store');
+    res.set('Content-Type',file.mime||'application/octet-stream');
+    res.download(file.path,file.name);
+  }catch(error){next(error)}
+});
+
 router.get('/tasks/:id',requireAuth,async(req,res,next)=>{
   const taskId=idOf(req.params.id);if(!taskId)return next();
   try{
@@ -275,7 +288,8 @@ router.get('/tasks/:id',requireAuth,async(req,res,next)=>{
     const canUpdate=(isManager||assignee)&&!waitingApproval&&!archived,canApprove=(isManager||creator)&&waitingApproval;
     const priorityToday=task.my_priority_date&&new Date(task.my_priority_date).toLocaleDateString('en-CA')===new Date().toLocaleDateString('en-CA');
     const [decoratedTask]=await decorateLegacyClaimTasks([{...task,workflow_label:stateLabel(task)}],req.session.user);
-    res.render('task-work-detail',{title:`${task.type==='notification'?'Message':'Task'} #${taskId}`,task:decoratedTask,comments,management:isManager,isAssignee:assignee,isCreator:creator,waitingApproval,archived,canUpdate,canApprove,priorityToday,legacyClaim:decoratedTask.legacyClaim});
+    const attachments=await taskAttachments(taskId);
+    res.render('task-work-detail',{title:`${task.type==='notification'?'Message':'Task'} #${taskId}`,task:decoratedTask,comments,attachments,management:isManager,isAssignee:assignee,isCreator:creator,waitingApproval,archived,canUpdate,canApprove,priorityToday,legacyClaim:decoratedTask.legacyClaim});
   }catch(error){next(error)}
 });
 

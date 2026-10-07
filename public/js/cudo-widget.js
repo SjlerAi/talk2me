@@ -31,7 +31,16 @@
         <div class="cudo-stream"></div>
       </div>
       <div class="cudo-suggestions"></div>
+      <div class="cudo-attachment-tray" hidden></div>
+      <div class="cudo-library-picker" hidden>
+        <div class="cudo-library-head"><strong>Attach from Library / Deals</strong><button type="button" data-cudo-library-close>×</button></div>
+        <div class="cudo-library-search"><input type="search" placeholder="Search Library or Deals…"><button type="button" data-cudo-library-search>Search</button></div>
+        <div class="cudo-library-results"></div>
+      </div>
       <form class="cudo-compose">
+        <input class="cudo-file-input" type="file" multiple hidden accept=".pdf,.xlsx,.xls,.csv,.doc,.docx,.ppt,.pptx,.txt,.rtf,.jpg,.jpeg,.png,.webp,.gif">
+        <button class="cudo-attach" type="button" aria-label="Attach file" title="Attach file">📎</button>
+        <button class="cudo-library" type="button" aria-label="Attach from Library or Deals" title="Attach from Library / Deals">▣</button>
         <textarea name="message" rows="1" placeholder="Ask Cudo anything about your CRM or office…" autocomplete="off"></textarea>
         <button class="cudo-mic" type="button" aria-label="Speak to Cudo" title="Speak to Cudo">🎙</button>
         <button class="cudo-send" type="submit" aria-label="Send">➤</button>
@@ -54,6 +63,13 @@
   const textarea=root.querySelector('textarea');
   const mic=root.querySelector('.cudo-mic');
   const send=root.querySelector('.cudo-send');
+  const attachButton=root.querySelector('.cudo-attach');
+  const libraryButton=root.querySelector('.cudo-library');
+  const fileInput=root.querySelector('.cudo-file-input');
+  const attachmentTray=root.querySelector('.cudo-attachment-tray');
+  const libraryPicker=root.querySelector('.cudo-library-picker');
+  const libraryResults=root.querySelector('.cudo-library-results');
+  const librarySearch=root.querySelector('.cudo-library-search input');
   const badge=root.querySelector('.cudo-badge');
   const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition||null;
   let bootstrap=null;
@@ -63,6 +79,7 @@
   let listening=false;
   let voiceBase='';
   let voiceFinal='';
+  let attachments=[];
 
   const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
   const esc=value=>String(value==null?'':value).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
@@ -136,6 +153,80 @@
     });
   }
 
+  function prettyBytes(bytes){
+    const n=Number(bytes||0);
+    if(n<1024)return n+' B';
+    if(n<1024*1024)return Math.max(1,Math.round(n/1024))+' KB';
+    return (n/(1024*1024)).toFixed(1)+' MB';
+  }
+
+  function renderAttachments(){
+    attachmentTray.innerHTML='';
+    attachmentTray.hidden=attachments.length===0;
+    attachments.forEach(file=>{
+      const chip=document.createElement('div');
+      chip.className='cudo-attachment-chip';
+      chip.innerHTML=`<span>📎</span><div><strong>${esc(file.name||'Attachment')}</strong><small>${esc(file.source==='library'?(file.category||'Library'):prettyBytes(file.bytes))}</small></div><button type="button" title="Remove attachment">×</button>`;
+      chip.querySelector('button').addEventListener('click',async()=>{
+        const id=Number(file.id);
+        attachments=attachments.filter(item=>Number(item.id)!==id);
+        renderAttachments();
+        await fetch(BASE+'/api/cudo/attachments/'+id,{method:'DELETE'}).catch(()=>{});
+      });
+      attachmentTray.appendChild(chip);
+    });
+  }
+
+  async function uploadAttachments(fileList){
+    const files=[...fileList].slice(0,5);
+    if(!files.length)return;
+    const form=new FormData();
+    files.forEach(file=>form.append('files',file));
+    attachButton.disabled=true;
+    try{
+      const response=await fetch(BASE+'/api/cudo/attachments',{method:'POST',body:form});
+      const data=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(data.error||'The attachment could not be uploaded.');
+      attachments=[...attachments,...(data.files||[])].slice(0,20);
+      renderAttachments();
+      addAssistant({text:`${data.files?.length||0} attachment${data.files?.length===1?'':'s'} ready. Tell me who to send ${data.files?.length===1?'it':'them'} to, or ask me to include ${data.files?.length===1?'it':'them'} with the current work.`,rows:[],actions:[]});
+    }catch(error){addAssistant({text:error.message||'The attachment upload failed.',rows:[],actions:[]});}
+    finally{attachButton.disabled=false;fileInput.value='';}
+  }
+
+  async function loadLibrary(query=''){
+    libraryResults.innerHTML='<div class="cudo-library-loading">Loading…</div>';
+    try{
+      const response=await fetch(BASE+'/api/cudo/files/library?q='+encodeURIComponent(query),{cache:'no-store'});
+      const data=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(data.error||'Library could not be loaded.');
+      libraryResults.innerHTML='';
+      const docs=Array.isArray(data.documents)?data.documents:[];
+      if(!docs.length){
+        libraryResults.innerHTML='<div class="cudo-library-empty">No matching Library/Deals documents.</div>';
+        return;
+      }
+      docs.forEach(doc=>{
+        const row=document.createElement('button');
+        row.type='button';row.className='cudo-library-row';
+        row.innerHTML=`<div><strong>${esc(doc.title||doc.originalName||'Document')}</strong><small>${esc(doc.category||'Library')} · ${esc(doc.originalName||'')}</small></div><span>Attach</span>`;
+        row.addEventListener('click',async()=>{
+          row.disabled=true;
+          try{
+            const response=await fetch(BASE+'/api/cudo/files/library/'+Number(doc.id)+'/attach',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+            const data=await response.json().catch(()=>({}));
+            if(!response.ok)throw new Error(data.error||'Document could not be attached.');
+            attachments=[...attachments,data.file].slice(0,20);
+            renderAttachments();
+            libraryPicker.hidden=true;
+          }catch(error){addAssistant({text:error.message||'Document could not be attached.',rows:[],actions:[]});}
+          finally{row.disabled=false;}
+        });
+        libraryResults.appendChild(row);
+      });
+    }catch(error){libraryResults.innerHTML=`<div class="cudo-library-empty">${esc(error.message||'Library could not be loaded.')}</div>`;}
+  }
+
   function addUser(text){
     const el=document.createElement('div');
     el.className='cudo-msg user';
@@ -151,8 +242,8 @@
       : '';
     const list=rows.slice(0,20).map(row=>`<div class="cudo-result"><strong>${esc(row.title||'Item')}</strong><span>${esc(row.detail||'')}</span><small>${esc(row.meta||'')}</small></div>`).join('');
     const actions=(data.actions||[]).map(action=>{
-      const labels={show_all:'Show all',create_tasks:'Create tasks',open_agent:'Open Gerda Agent',confirm_tasks:'Create monitored tasks',cancel_action:'Cancel'};
-      const cls=action==='confirm_tasks'?' primary':action==='cancel_action'?' danger':'';
+      const labels={show_all:'Show all',create_tasks:'Create tasks',open_agent:'Open Gerda Agent',confirm_tasks:'Create monitored tasks',confirm_dispatch:'Send now',cancel_action:'Cancel'};
+      const cls=(action==='confirm_tasks'||action==='confirm_dispatch')?' primary':action==='cancel_action'?' danger':'';
       return `<button type="button" class="cudo-action${cls}" data-cudo-action="${esc(action)}">${esc(labels[action]||action)}</button>`;
     }).join('');
     const evidence=data.evidence&&data.evidence.summary
@@ -232,7 +323,7 @@
     try{
       const response=await fetch(BASE+'/api/cudo/chat',{
         method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({message:text,context:activeContext()})
+        body:JSON.stringify({message:text,context:activeContext(),attachmentIds:attachments.map(file=>Number(file.id))})
       });
       const data=await response.json().catch(()=>({}));
       if(!response.ok)throw new Error(data.error||'Cudo could not complete that request.');
@@ -250,12 +341,17 @@
       addAssistant({text:'Tell me who should receive these items and the deadline, for example: “Assign these to Johnny, due Friday 15:00”.',rows:[],actions:[]});
       return;
     }
-    if(action==='cancel_action'||action==='confirm_tasks'){
+    if(action==='cancel_action'||action==='confirm_tasks'||action==='confirm_dispatch'){
       button.disabled=true;
       try{
-        const response=await fetch(BASE+'/api/cudo/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:action==='cancel_action'?'cancel':'confirm_tasks'})});
+        const apiAction=action==='cancel_action'?'cancel':action;
+        const response=await fetch(BASE+'/api/cudo/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:apiAction})});
         const data=await response.json().catch(()=>({}));
         if(!response.ok)throw new Error(data.error||'Cudo could not complete that action.');
+        if(action==='confirm_dispatch'){
+          attachments=[];
+          renderAttachments();
+        }
         addAssistant({text:data.text||'Done.',rows:[],actions:['open_agent']});
       }catch(error){addAssistant({text:error.message||'The action failed.',rows:[],actions:[]});}
       return;
@@ -297,8 +393,20 @@
   root.querySelector('[data-cudo-reset]').addEventListener('click',async()=>{
     await fetch(BASE+'/api/cudo/reset',{method:'POST'}).catch(()=>{});
     stream.querySelectorAll('.cudo-msg').forEach(x=>x.remove());
+    attachments=[];
+    renderAttachments();
+    libraryPicker.hidden=true;
     addAssistant({text:'Fresh conversation. What would you like me to check?',rows:[],actions:[]});
   });
+  attachButton.addEventListener('click',()=>fileInput.click());
+  fileInput.addEventListener('change',()=>uploadAttachments(fileInput.files));
+  libraryButton.addEventListener('click',()=>{
+    libraryPicker.hidden=!libraryPicker.hidden;
+    if(!libraryPicker.hidden){librarySearch.focus();loadLibrary(librarySearch.value);}
+  });
+  root.querySelector('[data-cudo-library-close]').addEventListener('click',()=>{libraryPicker.hidden=true;});
+  root.querySelector('[data-cudo-library-search]').addEventListener('click',()=>loadLibrary(librarySearch.value));
+  librarySearch.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();loadLibrary(librarySearch.value);}});
   root.querySelector('.cudo-compose').addEventListener('submit',e=>{e.preventDefault();sendMessage();});
   textarea.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage();}});
   mic.addEventListener('click',()=>{
