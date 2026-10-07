@@ -7,6 +7,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { ensureAgentResponsibilitySchema } = require('../services/office-intelligence-agent');
 const { trackEvent } = require('../services/usage-telemetry');
+const { getTaskAttachmentDownload } = require('../services/work-dispatch');
 
 const router = express.Router();
 const IS_UAT = String(process.env.UAT_MODE || '').trim().toLowerCase() === 'true';
@@ -965,17 +966,17 @@ router.get('/api/uat/tasks/:id/attachments/:attachmentId', requireAuth, async (r
     if (!taskId || !attachmentId) return res.sendStatus(404);
     const task = await getTask(taskId);
     if (!task || !taskAccessibleTo(task, req.session.user)) return res.sendStatus(404);
-    const [[attachment]] = await db.execute(`SELECT id,stored_filename,original_name,mime_type
-      FROM staff_task_attachments WHERE id=:attachmentId AND task_id=:taskId LIMIT 1`, { attachmentId, taskId });
+    const attachment = await getTaskAttachmentDownload({
+      taskId,
+      fileId:attachmentId,
+      user:req.session.user
+    });
     if (!attachment) return res.sendStatus(404);
-    const filename = path.basename(String(attachment.stored_filename || ''));
-    const filePath = path.join(taskAttachmentDir, filename);
-    if (!filename || !fs.existsSync(filePath)) return res.sendStatus(404);
-    const displayName = path.basename(String(attachment.original_name || 'attachment')).replace(/["\r\n]/g, '_');
+    const displayName = path.basename(String(attachment.name || 'attachment')).replace(/["\r\n]/g, '_');
     res.set('Cache-Control', 'private, no-store');
     res.set('Content-Disposition', `inline; filename="${displayName}"`);
-    res.type(attachment.mime_type || 'application/octet-stream');
-    return res.sendFile(filePath);
+    res.type(attachment.mime || 'application/octet-stream');
+    return res.sendFile(attachment.path);
   } catch (error) { next(error); }
 });
 
