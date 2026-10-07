@@ -23,8 +23,8 @@ ALLOWED_MODES = {
 }
 
 
-def read_proc_env(pid: str) -> dict[str, str]:
-    env: dict[str, str] = {}
+def read_proc_env(pid):
+    env = {}
     with open(f"/proc/{pid}/environ", "rb") as handle:
         for item in handle.read().split(b"\0"):
             if not item or b"=" not in item:
@@ -34,8 +34,8 @@ def read_proc_env(pid: str) -> dict[str, str]:
     return env
 
 
-def find_uat_process() -> tuple[str, dict[str, str]]:
-    candidates: list[tuple[int, str, dict[str, str]]] = []
+def find_uat_process():
+    candidates = []
     for cmd_path in glob.glob("/proc/[0-9]*/cmdline"):
         pid = cmd_path.split("/")[2]
         try:
@@ -59,7 +59,7 @@ def find_uat_process() -> tuple[str, dict[str, str]]:
     return candidates[0][1], candidates[0][2]
 
 
-def main() -> None:
+def main():
     if len(sys.argv) != 2 or sys.argv[1] not in ALLOWED_MODES:
         modes = "|".join(sorted(ALLOWED_MODES))
         raise SystemExit(f"Usage: {sys.argv[0]} <{modes}>")
