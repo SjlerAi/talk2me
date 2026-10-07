@@ -2,6 +2,8 @@
 
 const fs = require('fs');
 const path = require('path');
+
+const GERDA_WHATSAPP_E164 = '+27829222877';
 const {
   createTransporter,
   smtpConfigured,
@@ -50,17 +52,23 @@ function whatsappProviderStatus(){
   const graphVersion=clean(process.env.WHATSAPP_GRAPH_VERSION,30);
   const phoneNumberId=clean(process.env.WHATSAPP_PHONE_NUMBER_ID,120);
   const token=clean(process.env.WHATSAPP_API_TOKEN,500);
+  const configuredSender=normalizeSouthAfricanMobile(process.env.WHATSAPP_SENDER_NUMBER || '');
+  const senderIdentityMatches=configuredSender === GERDA_WHATSAPP_E164;
   const configured=Boolean(
     provider === 'meta'
     && graphVersion
     && phoneNumberId
     && token
+    && senderIdentityMatches
   );
   return {
     provider,
     enabled:externalSendingEnabled(),
     configured,
     ready:Boolean(configured && externalSendingEnabled()),
+    intendedSenderNumber:GERDA_WHATSAPP_E164,
+    configuredSenderNumber:configuredSender,
+    senderIdentityMatches,
     phoneNumberIdConfigured:Boolean(phoneNumberId),
     graphVersionConfigured:Boolean(graphVersion),
     tokenConfigured:Boolean(token)
@@ -173,7 +181,7 @@ async function sendWhatsApp({to,body,attachments=[]}){
     return {
       sent:false,
       status:status.configured?'disabled':'not_configured',
-      error:status.configured?'External sending is disabled.':'Meta WhatsApp Cloud API credentials/version are not configured.'
+      error:status.configured?'External sending is disabled.':status.senderIdentityMatches?'Meta WhatsApp Cloud API credentials/version are not configured.':'Gerda\'s WhatsApp sender number is not configured/matched to +27829222877.'
     };
   }
   const e164=normalizeSouthAfricanMobile(to);
@@ -231,6 +239,7 @@ async function sendExternalCommunication({channel,senderKey='primary',recipient,
 }
 
 module.exports={
+  GERDA_WHATSAPP_E164,
   externalSendingEnabled,
   normalizeSouthAfricanMobile,
   emailProviderStatus,
