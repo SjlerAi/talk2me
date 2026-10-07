@@ -11,6 +11,7 @@ const IS_UAT = String(process.env.UAT_MODE || '').trim().toLowerCase() === 'true
 const privateRoot = String(process.env.PRIVATE_UPLOAD_DIR || '').trim();
 const uploadDir = path.join(privateRoot || '/tmp', 'work-dispatch', 'files');
 const libraryFileDir = path.join(privateRoot || '/tmp', 'library', 'files');
+const taskAttachmentDir = path.join(privateRoot || '/tmp', 'tasks', 'attachments');
 
 const allowed = new Map([
   ['.pdf',new Set(['application/pdf','application/octet-stream'])],
@@ -133,13 +134,36 @@ async function ensureWorkDispatchSchema() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
 
     await db.query(`CREATE TABLE IF NOT EXISTS staff_task_attachments (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
       task_id BIGINT UNSIGNED NOT NULL,
-      work_file_id BIGINT UNSIGNED NOT NULL,
-      attached_by BIGINT UNSIGNED NOT NULL,
+      comment_id BIGINT UNSIGNED NULL,
+      uploaded_by BIGINT UNSIGNED NOT NULL,
+      original_name VARCHAR(255) NOT NULL,
+      stored_filename VARCHAR(255) NOT NULL,
+      mime_type VARCHAR(120) NOT NULL,
+      file_bytes BIGINT UNSIGNED NOT NULL,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      PRIMARY KEY(task_id,work_file_id),
-      KEY idx_task_attachment_file(work_file_id)
+      PRIMARY KEY (id),
+      KEY idx_task_attachments_task (task_id,created_at),
+      KEY idx_task_attachments_comment (comment_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+
+    const [attachmentColumns]=await db.execute(`SELECT COLUMN_NAME
+      FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='staff_task_attachments'`);
+    const attachmentColumnNames=new Set(attachmentColumns.map(row=>String(row.COLUMN_NAME)));
+    if(!attachmentColumnNames.has('work_file_id')){
+      await db.query(`ALTER TABLE staff_task_attachments
+        ADD COLUMN work_file_id BIGINT UNSIGNED NULL AFTER comment_id`);
+    }
+    const [attachmentIndexes]=await db.execute(`SELECT INDEX_NAME
+      FROM information_schema.STATISTICS
+      WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='staff_task_attachments'`);
+    const attachmentIndexNames=new Set(attachmentIndexes.map(row=>String(row.INDEX_NAME)));
+    if(!attachmentIndexNames.has('idx_task_attachments_work_file')){
+      await db.query(`ALTER TABLE staff_task_attachments
+        ADD KEY idx_task_attachments_work_file (work_file_id)`);
+    }
   })().catch(error=>{schemaPromise=null;throw error;});
   return schemaPromise;
 }
@@ -420,8 +444,17 @@ async function createWorkDispatch({createdBy,action}) {
     }
 
     for(const file of attachments){
-      await conn.execute(`INSERT IGNORE INTO staff_task_attachments (task_id,work_file_id,attached_by)
-        VALUES (:taskId,:fileId,:createdBy)`,{taskId,fileId:Number(file.id),createdBy:Number(createdBy)});
+      await conn.execute(`INSERT INTO staff_task_attachments
+        (task_id,comment_id,work_file_id,uploaded_by,original_name,stored_filename,mime_type,file_bytes)
+        VALUES (:taskId,NULL,:fileId,:createdBy,:originalName,:storedFilename,:mimeType,:fileBytes)`,{
+        taskId,
+        fileId:Number(file.id),
+        createdBy:Number(createdBy),
+        originalName:safeOriginalName(file.name),
+        storedFilename:`work-file-${Number(file.id)}`,
+        mimeType:clean(file.mime,120)||'application/octet-stream',
+        fileBytes:Number(file.bytes||0)
+      });
       await conn.execute("UPDATE work_files SET status='active',updated_at=NOW() WHERE id=:id",{id:Number(file.id)});
     }
 
@@ -445,46 +478,66 @@ async function createWorkDispatch({createdBy,action}) {
 
 async function taskAttachments(taskId) {
   await ensureWorkDispatchSchema();
-  const [rows]=await db.execute(`SELECT f.id,f.storage_kind,f.original_name,f.mime_type,f.extension,f.file_bytes,
-      f.library_document_id,f.library_version_id,a.created_at
+  const [rows]=await db.execute(`SELECT a.id attachment_id,a.work_file_id,a.original_name attachment_name,
+      a.stored_filename legacy_stored_filename,a.mime_type attachment_mime,a.file_bytes attachment_bytes,a.created_at,
+      f.storage_kind,f.original_name work_file_name,f.mime_type work_file_mime,f.extension,f.file_bytes work_file_bytes,
+      f.library_document_id,f.library_version_id,f.status work_file_status
     FROM staff_task_attachments a
-    JOIN work_files f ON f.id=a.work_file_id AND f.status='active'
+    LEFT JOIN work_files f ON f.id=a.work_file_id
     WHERE a.task_id=:taskId
-    ORDER BY a.created_at,f.id`,{taskId:Number(taskId)});
-  return rows.map(row=>({
-    id:Number(row.id),
-    source:row.storage_kind,
-    name:row.original_name,
-    mime:row.mime_type,
-    extension:row.extension,
-    bytes:Number(row.file_bytes||0),
-    documentId:row.library_document_id?Number(row.library_document_id):null,
-    versionId:row.library_version_id?Number(row.library_version_id):null,
-    createdAt:row.created_at
-  }));
+    ORDER BY a.created_at,a.id`,{taskId:Number(taskId)});
+  return rows
+    .filter(row=>!row.work_file_id || row.work_file_status==='active')
+    .map(row=>({
+      id:Number(row.attachment_id),
+      workFileId:row.work_file_id?Number(row.work_file_id):null,
+      source:row.work_file_id ? row.storage_kind : 'legacy',
+      name:row.work_file_name || row.attachment_name,
+      mime:row.work_file_mime || row.attachment_mime,
+      extension:row.extension || extensionOfName(row.attachment_name),
+      bytes:Number(row.work_file_bytes || row.attachment_bytes || 0),
+      documentId:row.library_document_id?Number(row.library_document_id):null,
+      versionId:row.library_version_id?Number(row.library_version_id):null,
+      createdAt:row.created_at
+    }));
 }
 
 async function getTaskAttachmentDownload({taskId,fileId,user}) {
   await ensureWorkDispatchSchema();
   const manager=Boolean(user&&['owner','admin','manager'].includes(String(user.role||'').toLowerCase()));
-  const [[row]]=await db.execute(`SELECT f.*,t.assigned_to,t.created_by
+  const [[row]]=await db.execute(`SELECT a.id attachment_id,a.work_file_id,a.original_name attachment_name,
+      a.stored_filename legacy_stored_filename,a.mime_type attachment_mime,
+      f.storage_kind,f.stored_filename work_stored_filename,f.original_name work_original_name,
+      f.mime_type work_mime,f.library_version_id,f.status work_file_status,
+      t.assigned_to,t.created_by
     FROM staff_task_attachments a
-    JOIN work_files f ON f.id=a.work_file_id AND f.status='active'
+    LEFT JOIN work_files f ON f.id=a.work_file_id
     JOIN staff_tasks t ON t.id=a.task_id
-    WHERE a.task_id=:taskId AND a.work_file_id=:fileId LIMIT 1`,{taskId:Number(taskId),fileId:Number(fileId)});
+    WHERE a.task_id=:taskId AND a.id=:fileId LIMIT 1`,{taskId:Number(taskId),fileId:Number(fileId)});
   if(!row) return null;
   const userId=Number(user?.id||0);
   if(!manager&&userId!==Number(row.assigned_to)&&userId!==Number(row.created_by)) return null;
 
   let filePath=null;
-  if(row.storage_kind==='uploaded'){
-    filePath=path.join(uploadDir,path.basename(String(row.stored_filename||'')));
-  }else if(row.storage_kind==='library'){
-    const [[version]]=await db.execute('SELECT stored_filename FROM library_versions WHERE id=:id LIMIT 1',{id:Number(row.library_version_id)});
-    if(version?.stored_filename) filePath=path.join(libraryFileDir,path.basename(version.stored_filename));
+  let displayName=row.attachment_name;
+  let mime=row.attachment_mime||'application/octet-stream';
+
+  if(row.work_file_id){
+    if(row.work_file_status!=='active') return null;
+    displayName=row.work_original_name||displayName;
+    mime=row.work_mime||mime;
+    if(row.storage_kind==='uploaded'){
+      filePath=path.join(uploadDir,path.basename(String(row.work_stored_filename||'')));
+    }else if(row.storage_kind==='library'){
+      const [[version]]=await db.execute('SELECT stored_filename FROM library_versions WHERE id=:id LIMIT 1',{id:Number(row.library_version_id)});
+      if(version?.stored_filename) filePath=path.join(libraryFileDir,path.basename(version.stored_filename));
+    }
+  }else{
+    filePath=path.join(taskAttachmentDir,path.basename(String(row.legacy_stored_filename||'')));
   }
+
   if(!filePath||!fs.existsSync(filePath)) return null;
-  return {path:filePath,name:safeOriginalName(row.original_name),mime:row.mime_type||'application/octet-stream'};
+  return {path:filePath,name:safeOriginalName(displayName),mime};
 }
 
 async function recentDispatchStatus({createdBy,days=7,limit=30}) {
