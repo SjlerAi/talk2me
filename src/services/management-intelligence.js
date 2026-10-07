@@ -227,7 +227,7 @@ function notificationProviderStatus() {
     whatsappProvider:status.whatsapp.provider,
     whatsappSenderNumber:status.whatsapp.intendedSenderNumber || '+27829222877',
     whatsappConfiguredSenderNumber:status.whatsapp.configuredSenderNumber || null,
-    whatsappSenderIdentityMatches:Boolean(status.whatsapp.senderIdentityMatches),
+    whatsappSenderIdentityMatches:status.whatsapp.senderIdentityMatches,
     externalAllowed:Boolean(status.externalEnabled)
   };
 }
