@@ -193,7 +193,7 @@ function looksLikeDispatchDeadlineContinuation(message) {
 }
 
 async function activeStaff() {
-  const [rows] = await db.execute(`SELECT id,full_name,email,username,role
+  const [rows] = await db.execute(`SELECT id,full_name,email,contact_number,username,role
     FROM staff_users WHERE is_active=1 ORDER BY full_name`);
   return rows;
 }
@@ -1299,9 +1299,10 @@ async function queryCurrentCustomer(context) {
 function dispatchIntent(message, attachmentIds = []) {
   const q = lower(message);
   const hasAttachments = Array.isArray(attachmentIds) && attachmentIds.length > 0;
-  const sendVerb = /\b(?:send|forward|share)\b/.test(q);
+  const sendVerb = /\b(?:send|forward|share|email|e-mail|mail|whats\s*app|whatsapp)\b/.test(q);
   if (!sendVerb) return false;
   if (hasAttachments) return true;
+  if (/\b(?:email|e-mail|mail|whats\s*app|whatsapp)\b/.test(q) && q.split(/\s+/).length >= 3) return true;
   return /\b(?:all|these|those|them|work|items?|files?|documents?|outstanding|results?)\b/.test(q);
 }
 
@@ -1314,10 +1315,14 @@ async function prepareDispatchAction(message, state, {userId,attachmentIds=[]}={
   const selection = state && state.selection;
   const items = selection && Array.isArray(selection.items) ? selection.items.slice(0,MAX_BATCH_TASKS) : [];
   const files = await listFilesForUser(attachmentIds,userId);
-  if (!items.length && !files.length) {
+  const q = lower(message);
+  const textOnlyDispatch = !items.length && !files.length
+    && /\b(?:send|forward|email|e-mail|mail|whats\s*app|whatsapp)\b/.test(q)
+    && q.split(/\s+/).filter(Boolean).length >= 4;
+  if (!items.length && !files.length && !textOnlyDispatch) {
     return {
       intent:'dispatch',
-      text:'I do not have work or an attachment to send yet. Find the work first, or attach a file with the paperclip, then tell me who should receive it.',
+      text:'I do not have work, a message or an attachment to send yet. Find the work first, attach a file, or tell me the message and staff member.',
       rows:[],actions:[],state:state || {selection:null}
     };
   }
@@ -1347,7 +1352,6 @@ async function prepareDispatchAction(message, state, {userId,attachmentIds=[]}={
   }
 
   const staff = match.staff;
-  const q = lower(message);
   const requireReply = /\b(?:reply|respond|response|answer|feedback)\b/.test(q) || Boolean(draft.requireReply);
   const requireCompletion = Boolean(items.length) || /\b(?:complete|finish|done|action|outstanding\s+work)\b/.test(q) || Boolean(draft.requireCompletion);
   const dueAt = parseDueAt(message) || draft.dueAt || null;
@@ -1362,7 +1366,8 @@ async function prepareDispatchAction(message, state, {userId,attachmentIds=[]}={
       state:{...(state||{}),dispatchDraft:{
         recipientId:Number(staff.id),recipientName:staff.full_name||staff.username||staff.email,
         attachmentIds:files.map(file=>file.id),requireReply,requireCompletion,dueAt:null,
-        channel:draft.channel || (/\bemail\b/.test(q)?'email':/\bwhats\s*app\b|\bwhatsapp\b/.test(q)?'whatsapp':'internal'),
+        channel:draft.channel || (/\b(?:email|e-mail|mail)\b/.test(q)?'email':/\bwhats\s*app\b|\bwhatsapp\b/.test(q)?'whatsapp':'internal'),
+        senderKey:draft.senderKey || (/\b(?:second|secondary)\s+mailbox\b|\bfrom\s+(?:the\s+)?(?:second|secondary)\b/.test(q)?'secondary':'primary'),
         priority:draft.priority || (/\burgent\b/.test(q)?'urgent':/\bhigh\s+priority\b|\bimportant\b/.test(q)?'high':'normal'),
         instruction:draft.instruction || clean(message,2000)
       }}
@@ -1370,22 +1375,40 @@ async function prepareDispatchAction(message, state, {userId,attachmentIds=[]}={
   }
 
   let channel=draft.channel || 'internal';
-  if (/\bemail\b/.test(q)) channel='email';
+  if (/\b(?:email|e-mail|mail)\b/.test(q)) channel='email';
   else if (/\bwhats\s*app\b|\bwhatsapp\b/.test(q)) channel='whatsapp';
   else if (/\binternal\b|\btalk2me\b/.test(q)) channel='internal';
-  const availability=channelAvailability(channel);
+  let senderKey=draft.senderKey || 'primary';
+  if (/\b(?:second|secondary)\s+mailbox\b|\bfrom\s+(?:the\s+)?(?:second|secondary)\b/.test(q)) senderKey='secondary';
+  if (/\bprimary\s+mailbox\b|\bfrom\s+(?:the\s+)?primary\b/.test(q)) senderKey='primary';
+  const availability=channelAvailability(channel,{senderKey});
   const priority=draft.priority || (/\burgent\b/.test(q)?'urgent':/\bhigh\s+priority\b|\bimportant\b/.test(q)?'high':'normal');
   const instruction=draft.instruction || clean(message,2000);
   const subject=items.length
     ? `Cudo work dispatch · ${items.length} item${items.length===1?'':'s'}`
-    : `Cudo file dispatch · ${files[0]?.name || 'message'}`;
+    : files.length
+      ? `Cudo file dispatch · ${files[0]?.name || 'message'}`
+      : 'Cudo staff message';
 
   const name=staff.full_name||staff.username||staff.email;
-  const channelText=channel==='internal'?'Talk2Me':channel;
+  const recipientContact=channel==='email'
+    ? (staff.email || 'no email')
+    : channel==='whatsapp'
+      ? (staff.contact_number || 'no mobile number')
+      : 'Talk2Me inbox';
+  const senderText=channel==='email'
+    ? ` from ${availability.senderAddress || (senderKey==='secondary'?'the secondary Talk2Me mailbox':'the primary Talk2Me mailbox')}`
+    : '';
+  const channelText=channel==='internal'?'Talk2Me':channel==='whatsapp'?'WhatsApp':'email';
   const deadlineText=dueAt?` due ${String(dueAt).slice(0,16).replace(' ',' at ')}`:'';
+  const payloadLabel=items.length
+    ? `${items.length} work item${items.length===1?'':'s'}`
+    : files.length
+      ? (files.length===1?'this file':`${files.length} files`)
+      : 'this message';
   const previewText = availability.available
-    ? `Ready to send ${items.length ? `${items.length} work item${items.length===1?'':'s'}` : 'this'} to ${name} through ${channelText}${files.length ? ` with ${files.length} attachment${files.length===1?'':'s'}` : ''}${deadlineText}. ${requireReply?'A reply is required. ':''}${requireCompletion?'Completion will be monitored. ':''}Nothing will be sent until you confirm.`
-    : `I prepared the dispatch to ${name}, but ${channelText} delivery is not available in this environment. Change it to internal Talk2Me delivery, or configure that provider first.`;
+    ? `Ready to send ${payloadLabel} to ${name} (${recipientContact}) through ${channelText}${senderText}${files.length ? ` with ${files.length} attachment${files.length===1?'':'s'}` : ''}${deadlineText}. ${requireReply?'A reply is required. ':''}${requireCompletion?'Completion will be monitored. ':''}Nothing will be sent until you confirm.`
+    : `I prepared ${payloadLabel} for ${name} (${recipientContact}) by ${channelText}${senderText}, but that external channel is not ready: ${availability.reason || 'provider unavailable'} Nothing has been sent.`;
 
   return {
     intent:'dispatch',
@@ -1397,7 +1420,10 @@ async function prepareDispatchAction(message, state, {userId,attachmentIds=[]}={
       type:'work_dispatch',
       recipientId:Number(staff.id),
       recipientName:name,
+      recipientEmail:staff.email || null,
+      recipientMobile:staff.contact_number || null,
       channel,
+      senderKey,
       dueAt,
       priority,
       requireReply,
@@ -1410,7 +1436,7 @@ async function prepareDispatchAction(message, state, {userId,attachmentIds=[]}={
     }:null,
     state:{...(state||{}),dispatchDraft:{
       recipientId:Number(staff.id),recipientName:name,attachmentIds:files.map(file=>file.id),
-      requireReply,requireCompletion,dueAt,channel,priority,instruction
+      requireReply,requireCompletion,dueAt,channel,senderKey,priority,instruction
     }}
   };
 }

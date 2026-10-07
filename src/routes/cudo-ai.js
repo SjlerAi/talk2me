@@ -183,8 +183,13 @@ router.post('/api/cudo/action', requireOwner, async (req, res, next) => {
           taskId:result.taskId,
           recipientId:result.recipientId,
           staffName:result.staffName,
+          recipientEmail:result.recipientEmail || null,
+          recipientMobile:result.recipientMobile || null,
+          senderKey:result.senderKey || null,
+          senderAddress:result.senderAddress || null,
           dueAt:result.dueAt,
           channel:result.channel,
+          externalStatus:result.externalResult?.status || (result.channel==='internal'?'internal_delivered':null),
           requireReply:result.requireReply,
           requireCompletion:result.requireCompletion,
           itemCount:result.itemCount,
@@ -192,9 +197,20 @@ router.post('/api/cudo/action', requireOwner, async (req, res, next) => {
         }
       });
 
+      const channelLabel=result.channel==='internal'
+        ? 'Talk2Me'
+        : result.channel==='email'
+          ? `email from ${result.senderAddress || result.senderKey || 'Talk2Me'}`
+          : 'WhatsApp';
+      const externalNote=result.channel==='internal'
+        ? 'The recipient will see it in Talk2Me.'
+        : result.externalResult?.sent
+          ? `External ${result.channel} delivery was accepted.`
+          : `The Talk2Me task was created, but external ${result.channel} delivery failed: ${result.externalResult?.error || 'unknown provider error'}`;
+
       return res.json({
         ok:true,
-        text:`Sent to ${result.staffName} in Talk2Me. ${result.itemCount ? `${result.itemCount} work item${result.itemCount===1?'':'s'} included. ` : ''}${result.attachmentCount ? `${result.attachmentCount} attachment${result.attachmentCount===1?'':'s'} linked. ` : ''}${result.dueAt ? `Deadline: ${String(result.dueAt).slice(0,16).replace(' ',' at ')}. ` : ''}${result.requireReply||result.requireCompletion ? 'Cudo/Gerda will monitor the task through the normal workflow.' : 'The recipient will see it as a normal Talk2Me message.'}`,
+        text:`Sent to ${result.staffName} via ${channelLabel}. ${result.itemCount ? `${result.itemCount} work item${result.itemCount===1?'':'s'} included. ` : ''}${result.attachmentCount ? `${result.attachmentCount} attachment${result.attachmentCount===1?'':'s'} linked. ` : ''}${result.dueAt ? `Deadline: ${String(result.dueAt).slice(0,16).replace(' ',' at ')}. ` : ''}${externalNote} ${result.requireReply||result.requireCompletion ? 'Cudo/Gerda will monitor the normal Talk2Me task until it is completed.' : ''}`.trim(),
         dispatch:result
       });
     }
