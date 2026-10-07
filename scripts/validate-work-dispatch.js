@@ -14,13 +14,17 @@ const cudoService=read('src/services/cudo-ai.js');
 const widget=read('public/js/cudo-widget.js');
 const css=read('public/css/cudo-widget.css');
 const taskRoute=read('src/routes/task-workflow.js');
+const uatWorkRoute=read('src/routes/uat-work-widgets.js');
 const taskView=read('views/task-work-detail.ejs');
 const taskCss=read('public/css/task-workflow.css');
 
 assert(dispatch.includes('CREATE TABLE IF NOT EXISTS work_files'),'Canonical work file table missing');
 assert(dispatch.includes('CREATE TABLE IF NOT EXISTS work_dispatches'),'Work dispatch table missing');
 assert(dispatch.includes('CREATE TABLE IF NOT EXISTS work_dispatch_items'),'Dispatch item table missing');
-assert(dispatch.includes('CREATE TABLE IF NOT EXISTS staff_task_attachments'),'Task attachment link table missing');
+assert(dispatch.includes('CREATE TABLE IF NOT EXISTS staff_task_attachments'),'Existing task attachment schema must remain supported');
+assert(dispatch.includes('ADD COLUMN work_file_id BIGINT UNSIGNED NULL'),'Dispatch must extend existing task attachments additively');
+assert(dispatch.includes('idx_task_attachments_work_file'),'Dispatch work-file index missing');
+assert(!dispatch.includes('attached_by BIGINT UNSIGNED'),'Dispatch must not replace the existing task attachment schema');
 assert(dispatch.includes("storage_kind ENUM('uploaded','library')"),'Uploads and Library/Deals links must share one attachment model');
 assert(dispatch.includes('sendAgentInstruction'),'Monitored dispatches must reuse Gerda task monitoring');
 assert(dispatch.includes('agent_task_watches') || dispatch.includes('sendAgentInstruction'),'Monitored dispatch path missing');
@@ -47,6 +51,8 @@ assert(css.includes('.cudo-attachment-tray'),'Attachment tray styling missing');
 assert(css.includes('.cudo-library-picker'),'Library picker styling missing');
 
 assert(taskRoute.includes('getTaskAttachmentDownload'),'Recipient download route must enforce task access');
+assert(uatWorkRoute.includes("require('../services/work-dispatch')"),'Unified UAT Work must use the shared attachment resolver');
+assert(uatWorkRoute.includes('getTaskAttachmentDownload({'),'Unified UAT task attachment download must resolve linked Library/upload files');
 assert(taskRoute.includes('/attachments/:fileId/download'),'Task attachment download endpoint missing');
 assert(taskView.includes('Attachments'),'Task/message attachment section missing');
 assert(taskView.includes('/attachments/<%= file.id %>/download'),'Attachment download link missing');
