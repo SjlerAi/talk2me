@@ -4,9 +4,15 @@ const assert=require('assert');
 const fs=require('fs');
 const path=require('path');
 const {
+  GERDA_WHATSAPP_E164,
   normalizeSouthAfricanMobile,
   communicationStatus
 }=require('../src/services/staff-communications');
+const {
+  emailProfileConfig,
+  GERDA_PRIMARY_EMAIL,
+  GERDA_PRIMARY_NAME
+}=require('../src/services/mailer');
 const {
   dispatchIntent
 }=require('../src/services/cudo-ai');
@@ -45,12 +51,18 @@ assert.equal(normalizeSouthAfricanMobile('0795489561'),'+27795489561');
 assert.equal(normalizeSouthAfricanMobile('27 76 481 0410'),'+27764810410');
 assert.equal(normalizeSouthAfricanMobile('+27 67 586 2527'),'+27675862527');
 assert.equal(normalizeSouthAfricanMobile('123'),null);
+assert.equal(GERDA_WHATSAPP_E164,'+27829222877','Gerda WhatsApp sender identity must be fixed');
+assert.equal(GERDA_PRIMARY_EMAIL,'gerda@talk-online.co.za','Gerda primary email sender must be fixed');
+assert.equal(GERDA_PRIMARY_NAME,'Gerda','Gerda primary sender display name must be fixed');
+assert.equal(emailProfileConfig('primary').address,'gerda@talk-online.co.za','Primary sender profile must always use Gerda email');
 
 assert(mailer.includes("emailProfileConfig(key='primary')"),'Primary sender profile missing');
 assert(mailer.includes("TALK2ME_EMAIL_SECONDARY_"),'Secondary sender profile missing');
 assert(mailer.includes("fallback = selected === 'primary'"),'Legacy SMTP fallback should only apply to primary');
 
 assert(comms.includes('WHATSAPP_PHONE_NUMBER_ID'),'WhatsApp phone number id support missing');
+assert(comms.includes('WHATSAPP_SENDER_NUMBER'),'WhatsApp sender-number verification missing');
+assert(comms.includes('senderIdentityMatches'),'WhatsApp sender identity match guardrail missing');
 assert(comms.includes('WHATSAPP_GRAPH_VERSION'),'WhatsApp Graph version must be explicitly configured');
 assert(comms.includes("type:'text'"),'WhatsApp text sending missing');
 assert(comms.includes("type=isImage?'image':'document'"),'WhatsApp attachment sending missing');
@@ -72,6 +84,8 @@ assert(!dispatchIntent('show me Johnny outstanding work',[]),'Read-only query mu
 assert(cudo.includes("senderKey=draft.senderKey || 'primary'"),'Cudo sender mailbox state missing');
 assert(cudo.includes("senderKey='secondary'"),'Cudo secondary mailbox selection missing');
 assert(cudo.includes('recipientContact'),'Cudo preview must show recipient contact');
+assert(cudo.includes("from Gerda (${availability.senderNumber || '+27829222877'})"),'Cudo WhatsApp preview must show Gerda sender number');
+assert(cudo.includes("gerda@talk-online.co.za"),'Cudo email preview must use Gerda as primary sender');
 assert(cudo.includes('Nothing will be sent until you confirm.'),'External dispatch must require confirmation');
 assert(cudoRoute.includes("actionName === 'confirm_dispatch'"),'Confirmed send action missing');
 assert(cudoRoute.includes('externalStatus'),'Audit must capture external delivery status');
@@ -79,11 +93,14 @@ assert(cudoRoute.includes('externalStatus'),'Audit must capture external deliver
 assert(management.includes('communicationStatus()'),'Gerda management must use shared communication provider status');
 assert(managementView.includes('Email senders'),'Management sender readiness panel missing');
 assert(managementView.includes('contact_number'),'Management staff telephone directory missing');
+assert(managementView.includes('Primary: Gerda'),'Management UI must identify Gerda primary email sender');
+assert(managementView.includes('whatsappSenderNumber'),'Management UI must identify Gerda WhatsApp sender');
 
 for(const key of [
   'TALK2ME_EMAIL_PRIMARY_',
   'TALK2ME_EMAIL_SECONDARY_',
   'WHATSAPP_PHONE_NUMBER_ID',
+  'WHATSAPP_SENDER_NUMBER',
   'WHATSAPP_GRAPH_VERSION',
   'WHATSAPP_API_TOKEN'
 ]){
@@ -92,5 +109,7 @@ for(const key of [
 
 const status=communicationStatus();
 assert(status.email && status.whatsapp,'Communication status must expose email and WhatsApp');
+assert.equal(status.email.profiles.find(p=>p.key==='primary').address,'gerda@talk-online.co.za');
+assert.equal(status.whatsapp.intendedSenderNumber,'+27829222877');
 
 console.log('STAFF_COMMUNICATIONS_VALIDATION=PASS');
