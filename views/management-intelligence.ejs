@@ -33,8 +33,8 @@
 
   <section class="management-card management-section">
     <h2>Staff performance · <%= overview.range.label %></h2><p>Client ownership/data quality, client changes and task movement from the CRM.</p>
-    <div class="management-table-wrap"><table class="management-table"><thead><tr><th>Staff</th><th>Clients</th><th>Complete</th><th>Missing email</th><th>Missing ID</th><th>Added</th><th>Updated</th><th>Tasks given</th><th>Received</th><th>Completed</th></tr></thead><tbody>
-    <% overview.staff.forEach(function(s){ %><tr><td><strong><%= s.staff_name %></strong></td><td><%= s.clients_total %></td><td><%= s.clients_complete %></td><td><%= s.clients_missing_email %></td><td><%= s.clients_missing_id %></td><td><%= s.clients_added %></td><td><%= s.clients_updated %></td><td><%= s.tasks_given %></td><td><%= s.tasks_received %></td><td><%= s.tasks_completed %></td></tr><% }) %>
+    <div class="management-table-wrap"><table class="management-table"><thead><tr><th>Staff</th><th>Email</th><th>Cell</th><th>Clients</th><th>Complete</th><th>Missing email</th><th>Missing ID</th><th>Added</th><th>Updated</th><th>Tasks given</th><th>Received</th><th>Completed</th></tr></thead><tbody>
+    <% overview.staff.forEach(function(s){ %><tr><td><strong><%= s.staff_name %></strong></td><td><%= s.email || '—' %></td><td><%= s.contact_number || '—' %></td><td><%= s.clients_total %></td><td><%= s.clients_complete %></td><td><%= s.clients_missing_email %></td><td><%= s.clients_missing_id %></td><td><%= s.clients_added %></td><td><%= s.clients_updated %></td><td><%= s.tasks_given %></td><td><%= s.tasks_received %></td><td><%= s.tasks_completed %></td></tr><% }) %>
     </tbody></table></div>
   </section>
 
@@ -65,8 +65,8 @@
     <h2>Automation readiness</h2><p>External channels stay disabled unless explicitly configured; in-app event queues remain safe to test.</p>
     <div class="management-provider">
       <div class="management-pill"><span>Mailbox</span><b class="<%= overview.automations.mailbox.connected?'management-status-ok':'management-status-off' %>"><%= overview.automations.mailbox.connected?'Automatic connected':'Manual import mode' %></b><small><%= overview.automations.mailbox.note %></small></div>
-      <div class="management-pill"><span>Email provider</span><b class="<%= overview.automations.providers.email?'management-status-ok':'management-status-off' %>"><%= overview.automations.providers.email?'Configured':'Not configured in UAT' %></b><small>09:00 attendance, 16:00 tasks, weekly and mailbox summaries use this when enabled.</small></div>
-      <div class="management-pill"><span>WhatsApp provider</span><b class="<%= overview.automations.providers.whatsapp?'management-status-ok':'management-status-off' %>"><%= overview.automations.providers.whatsapp?'Configured':'Not configured' %></b><small>No credentials are invented; provider status is explicit.</small></div>
+      <div class="management-pill"><span>Email senders</span><b class="<%= overview.automations.providers.email?'management-status-ok':'management-status-off' %>"><%= overview.automations.providers.email?'Ready':'Not ready' %></b><small><% (overview.automations.providers.emailProfiles||[]).forEach(function(p,index){ %><%= index?' · ':'' %><%= p.key %>: <%= p.address || 'not configured' %><% }) %></small></div>
+      <div class="management-pill"><span>WhatsApp provider</span><b class="<%= overview.automations.providers.whatsapp?'management-status-ok':'management-status-off' %>"><%= overview.automations.providers.whatsapp?'Ready':'Not ready' %></b><small><%= overview.automations.providers.whatsappProvider || 'meta' %> · no credentials are invented or shown.</small></div>
     </div>
   </section>
 
