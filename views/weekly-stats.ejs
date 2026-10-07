@@ -1,0 +1,41 @@
+<section class="panel" style="max-width:900px;margin:24px auto">
+  <div class="panel-heading-row">
+    <div>
+      <div class="eyebrow">Gerda weekly management stats</div>
+      <h1>My Weekly Stats</h1>
+      <p class="muted"><%= range.label %> · review the CRM-calculated figures, then submit them to Gerda.</p>
+    </div>
+    <a class="btn" href="<%= basePath %>/workspace">Back to workspace</a>
+  </div>
+
+  <% if(String(typeof submitted!=='undefined' && submitted && submitted.submitted_at ? '1':'0')==='1'){ %>
+    <div class="success-message" style="margin:12px 0;padding:12px;border-radius:10px;background:#ecfdf3;border:1px solid #abefc6">
+      Weekly statistics submitted to Gerda<% if(submitted && submitted.submitted_at){ %> at <%= new Date(submitted.submitted_at).toLocaleString('en-ZA') %><% } %>.
+    </div>
+  <% } %>
+
+  <% if(!stats){ %>
+    <div class="empty-state">No active staff statistics are available for your login.</div>
+  <% } else { %>
+    <div class="command-stats" style="margin:18px 0">
+      <div><span>Allocated clients</span><strong><%= stats.clients_total %></strong></div>
+      <div><span>Complete email + ID</span><strong><%= stats.clients_complete %></strong></div>
+      <div><span>Missing email</span><strong><%= stats.clients_missing_email %></strong></div>
+      <div><span>Missing ID</span><strong><%= stats.clients_missing_id %></strong></div>
+      <div><span>Clients added</span><strong><%= stats.clients_added %></strong></div>
+      <div><span>Clients updated</span><strong><%= stats.clients_updated %></strong></div>
+      <div><span>Tasks given</span><strong><%= stats.tasks_given %></strong></div>
+      <div><span>Tasks received</span><strong><%= stats.tasks_received %></strong></div>
+      <div><span>Tasks completed</span><strong><%= stats.tasks_completed %></strong></div>
+    </div>
+
+    <form method="post" action="<%= basePath %>/weekly-stats/submit" style="margin-top:20px">
+      <label style="display:block;font-weight:800;margin-bottom:6px">Note for Gerda / management <span class="muted">(optional)</span></label>
+      <textarea name="note" maxlength="1000" style="width:100%;min-height:90px;padding:10px;border:1px solid #d0d5dd;border-radius:10px" placeholder="Anything management should know about this week's figures"><%= submitted && submitted.note ? submitted.note : '' %></textarea>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap">
+        <button class="btn primary" type="submit">Submit weekly stats to Gerda</button>
+        <small class="muted">These figures come from the CRM; submitting records that you reviewed them.</small>
+      </div>
+    </form>
+  <% } %>
+</section>

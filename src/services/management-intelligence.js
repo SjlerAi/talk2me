@@ -387,6 +387,35 @@ async function notifyDealsheetAvailable({itemId}) {
   return {staffCount:staff.length,name};
 }
 
+async function shareMailboxItemWithStaff({itemId,staffId}) {
+  await ensureManagementSchema();
+  const [[item]]=await db.execute('SELECT * FROM management_mailbox_items WHERE id=:id LIMIT 1',{id:Number(itemId)});
+  if(!item) throw new Error('Mailbox item not found.');
+  const [[staff]]=await db.execute('SELECT id,full_name,email,role FROM staff_users WHERE id=:id AND is_active=1 LIMIT 1',{id:Number(staffId)});
+  if(!staff) throw new Error('Active staff member not found.');
+  const [[attachments]]=await db.execute(`SELECT
+      COUNT(*) total,
+      SUM(CASE WHEN saved_library_document_id IS NOT NULL THEN 1 ELSE 0 END) saved
+    FROM management_mailbox_attachments WHERE mailbox_item_id=:id`,{id:Number(itemId)});
+  const subject=`Gerda shared: ${item.subject||item.dealsheet_name||'Email item'}`;
+  const details=[
+    `From: ${item.original_from||'Unknown sender'}`,
+    item.is_dealsheet ? `Dealsheet: ${item.dealsheet_name||item.subject||'Yes'}` : null,
+    Number(attachments?.total||0) ? `Attachments: ${Number(attachments.total||0)}${Number(attachments.saved||0)?` (${Number(attachments.saved||0)} saved in CRM Deals)`:''}` : null,
+    '',
+    clean(item.body_text,3500)||'(No readable email body)'
+  ].filter(value=>value!==null).join('\n');
+  await notifyStaff({
+    eventKey:`mailbox-share:${Number(itemId)}:${Number(staffId)}`,
+    eventType:'mailbox_item_shared',
+    staff,
+    subject,
+    body:details
+  });
+  await db.execute("UPDATE management_mailbox_items SET status='forwarded',updated_at=NOW() WHERE id=:id",{id:Number(itemId)});
+  return {itemId:Number(itemId),staffId:Number(staffId),staffName:staff.full_name||staff.email,subject};
+}
+
 async function weeklyStatsStatus() {
   await ensureManagementSchema();
   const [rows]=await db.query(`SELECT su.id,COALESCE(NULLIF(su.full_name,''),su.email) staff_name,ws.submitted_at,ws.note
@@ -435,7 +464,7 @@ async function runAutomation(mode) {
     const status=await weeklyStatsStatus(); const missing=status.filter(x=>!x.submitted_at);
     for(const row of missing) { const person=staff.find(x=>Number(x.id)===Number(row.id)); if(person) await notifyStaff({
       eventKey:`weekly-stats:${today}`,eventType:'weekly_stats_reminder',staff:person,
-      subject:'Update your Talk2Me weekly stats',body:'Please review and submit your weekly statistics in Talk2Me before 17:00 today.'
+      subject:'Update your Talk2Me weekly stats',body:`Please review and submit your weekly statistics in Talk2Me before 17:00 today. Open: ${String(process.env.APP_URL||'').replace(/\/$/,'')}/weekly-stats`
     });}
     return {mode,count:missing.length};
   }
@@ -521,4 +550,4 @@ async function answerManagementQuestion(message,{staffId=null}={}) {
   ],evidence:{summary:'Checked the shared Gerda management intelligence layer.',sources:['staff_users','clients','client_assignments','staff_tasks','inquiries','audit_log','management_mailbox_items']}};
 }
 
-module.exports={ensureManagementSchema,staffPerformance,queryIntelligence,commercialIntelligence,automationStatus,recentMailbox,importMailboxFile,saveMailboxAttachmentsToDeals,notifyDealsheetAvailable,weeklyStatsStatus,submitWeeklyStats,runAutomation,buildManagementOverview,answerManagementQuestion,mailboxProviderStatus,notificationProviderStatus};
+module.exports={ensureManagementSchema,staffPerformance,queryIntelligence,commercialIntelligence,automationStatus,recentMailbox,importMailboxFile,saveMailboxAttachmentsToDeals,notifyDealsheetAvailable,shareMailboxItemWithStaff,weeklyStatsStatus,submitWeeklyStats,runAutomation,buildManagementOverview,answerManagementQuestion,mailboxProviderStatus,notificationProviderStatus};

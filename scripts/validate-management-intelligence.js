@@ -23,6 +23,9 @@ assert(route.includes("router.get('/management'"),'CRM management page missing')
 assert(route.includes("router.get('/api/management/overview'"),'Management overview API missing');
 assert(route.includes("router.post('/api/management/ask'"),'Management ask API missing');
 assert(route.includes("router.post('/management/mailbox/import'"),'Mailbox import missing');
+assert(route.includes("router.post('/management/mailbox/:id/share'"),'Selected mailbox-to-staff sharing missing');
+assert(route.includes("router.get('/weekly-stats'"),'Staff weekly-stats page route missing');
+assert(route.includes("router.post('/weekly-stats/submit'"),'Staff weekly-stats submission route missing');
 assert(route.includes("save-deals"),'Dealsheet save action missing');
 assert(route.includes("notify-staff"),'Dealsheet staff notify action missing');
 
@@ -44,6 +47,8 @@ assert(service.includes('tasks-1600'),'16:00 unfinished-task reminder missing');
 assert(service.includes('weekly-reminder-1530'),'Wednesday stats reminder missing');
 assert(service.includes('weekly-report-1700'),'Wednesday management report missing');
 assert(service.includes('morning-mailbox'),'Morning mailbox summary missing');
+assert(service.includes('shareMailboxItemWithStaff'),'Mailbox-to-selected-staff service missing');
+assert(service.includes('/weekly-stats'),'Weekly reminder must point staff to the weekly stats page');
 assert(service.includes('ALLOW_MANAGEMENT_EXTERNAL_NOTIFICATIONS'),'External notification guardrail missing');
 
 assert(agentRoute.includes('buildManagementOverview'),'Gerda Agent must use shared management layer');
@@ -51,6 +56,8 @@ assert(agentView.includes('Gerda management wishlist'),'Gerda Agent management U
 assert(managementView.includes('Staff performance'),'CRM management dashboard missing');
 assert(managementView.includes('Queries taking the most time'),'Query intelligence UI missing');
 assert(managementView.includes('Gerda mailbox & dealsheets'),'Mailbox/dealsheet UI missing');
+assert(managementView.includes('Send to staff'),'Mailbox selected-staff UI missing');
+assert(fs.existsSync(path.join(root,'views/weekly-stats.ejs')),'Weekly stats staff view missing');
 assert(commandCentre.includes('/management'),'Command Centre must link to management intelligence');
 
 assert(cudo.includes('answerManagementQuestion'),'Cudo must share Gerda management intelligence');

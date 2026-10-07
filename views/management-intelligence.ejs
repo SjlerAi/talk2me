@@ -76,8 +76,9 @@
     <div style="margin-top:12px">
     <% if(!overview.mailbox.length){ %><div class="management-row">No recent mailbox items.</div><% } %>
     <% overview.mailbox.forEach(function(m){ %><div class="management-mail"><div><strong><%= m.subject || '(no subject)' %></strong><small><%= m.original_from || 'Unknown sender' %> · <%= m.attachment_count %> attachment(s) · <%= Number(m.is_dealsheet)?'Dealsheet detected':m.status %></small></div><div class="management-mail-actions">
+      <form method="post" action="<%= basePath %>/management/mailbox/<%= m.id %>/share" style="display:flex;gap:5px;align-items:center"><select name="staff_id" required style="max-width:150px;padding:7px;border:1px solid #d0d5dd;border-radius:8px"><option value="">Send to staff…</option><% overview.staff.forEach(function(s){ %><option value="<%= s.id %>"><%= s.staff_name %></option><% }) %></select><button class="management-btn" type="submit">Send</button></form>
       <% if(m.attachment_count && m.saved_attachment_count < m.attachment_count){ %><form method="post" action="<%= basePath %>/management/mailbox/<%= m.id %>/save-deals"><button class="management-btn" type="submit">Save to Deals</button></form><% } %>
-      <% if(Number(m.is_dealsheet)){ %><form method="post" action="<%= basePath %>/management/mailbox/<%= m.id %>/notify-staff"><button class="management-btn" type="submit">Notify staff</button></form><% } %>
+      <% if(Number(m.is_dealsheet)){ %><form method="post" action="<%= basePath %>/management/mailbox/<%= m.id %>/notify-staff"><button class="management-btn" type="submit">Notify all staff</button></form><% } %>
     </div></div><% }) %>
     </div>
   </section>
