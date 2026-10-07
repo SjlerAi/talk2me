@@ -16,6 +16,7 @@ const agentView=read('views/agent.ejs');
 const managementView=read('views/management-intelligence.ejs');
 const commandCentre=read('views/command-centre.ejs');
 const runner=read('scripts/run-management-automation.js');
+const uatRunner=read('scripts/run-management-automation-uat.py');
 const server=read('server.js');
 
 assert(server.includes("require('./src/routes/management-intelligence')"),'Management route must be mounted');
@@ -65,6 +66,11 @@ assert.equal(detectIntent('How many clients are not allocated to staff?'),'unall
 
 for(const mode of ['attendance-0900','tasks-1600','weekly-reminder-1530','weekly-report-1700','morning-mailbox']){
   assert(runner.includes(mode),`Automation runner missing ${mode}`);
+  assert(uatRunner.includes(mode),`UAT automation wrapper missing ${mode}`);
 }
+assert(uatRunner.includes('uent_Crm-Uat'),'UAT automation wrapper must enforce the UAT DB user');
+assert(uatRunner.includes('uent_Crm'),'UAT automation wrapper must enforce the UAT DB name');
+assert(uatRunner.includes('talk2me_uat_private_uploads'),'UAT automation wrapper must enforce the isolated private upload directory');
+assert(uatRunner.includes('/proc/'),'UAT automation wrapper must inherit the live Passenger environment');
 
 console.log('MANAGEMENT_INTELLIGENCE_VALIDATION=PASS');
