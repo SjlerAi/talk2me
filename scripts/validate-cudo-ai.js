@@ -3,7 +3,7 @@
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
-const { parsePeriod, parseDueAt, detectIntent, nameSimilarity } = require('../src/services/cudo-ai');
+const { parsePeriod, parseDueAt, detectIntent, nameSimilarity, numberWordsToDigits, parseIndexSelector, clientAssignmentIntent } = require('../src/services/cudo-ai');
 
 const root = path.resolve(__dirname, '..');
 const read = file => fs.readFileSync(path.join(root,file),'utf8');
@@ -15,6 +15,8 @@ const route = read('src/routes/cudo-ai.js');
 const service = read('src/services/cudo-ai.js');
 const widget = read('public/js/cudo-widget.js');
 const css = read('public/css/cudo-widget.css');
+const assignmentService = read('src/services/cudo-client-assignment.js');
+const officeAgent = read('src/services/office-intelligence-agent.js');
 
 assert(server.includes("require('./src/routes/cudo-ai')"), 'Cudo route must be mounted');
 assert(layout.includes('/public/js/cudo-widget.js'), 'Cudo must load on management layout pages');
@@ -23,10 +25,19 @@ assert(layout.includes('/public/css/cudo-widget.css'), 'Cudo layout CSS missing'
 assert(shell.includes('/public/css/cudo-widget.css'), 'Cudo OS CSS missing');
 assert(route.includes("router.post('/api/cudo/chat'"), 'Cudo chat API missing');
 assert(route.includes("router.post('/api/cudo/action'"), 'Cudo action API missing');
+assert(route.includes("actionName === 'confirm_reassignment'"), 'Cudo must confirm customer reassignment through the protected action endpoint');
+assert(route.includes('reassignClientWork'), 'Cudo route must use the safe reassignment service');
 assert(route.includes("router.get('/api/cudo/health', requireOwner"), 'Cudo health API must be owner-protected');
 assert(route.includes("String(user.role || '').toLowerCase() === 'owner'"), 'Cudo API must be restricted to owner role');
 assert(!route.includes('MANAGEMENT_ROLES'), 'Cudo must not allow manager/admin role shortcuts');
 assert(service.includes('sendAgentInstruction'), 'Cudo must use existing monitored task path');
+assert(service.includes('prepareClientReassignment'), 'Cudo must prepare customer reassignment from the current numbered result set');
+assert(service.includes('assignmentDraft'), 'Cudo must keep a multi-turn assignment draft while waiting for a deadline');
+assert(assignmentService.includes('cudo_client_reassigned'), 'Cudo reassignment must create an audit trail');
+assert(assignmentService.includes('customer_accounts'), 'Cudo reassignment must preserve account-level ownership');
+assert(assignmentService.includes('fixed_accounts'), 'Cudo reassignment must keep fixed account ownership aligned');
+assert(assignmentService.includes('createAgentInstructionInTransaction'), 'Cudo reassignment must create monitored tasks atomically with assignment');
+assert(officeAgent.includes('related_client_id'), 'Monitored Cudo assignment tasks must link back to the customer record');
 assert(service.includes('agent'), 'Cudo service should remain connected to Gerda task foundation');
 assert(widget.includes('t2m-cudo-position'), 'Cudo draggable position persistence missing');
 assert(widget.includes('t2m-cudo-size'), 'Cudo resizable avatar persistence missing');
@@ -69,6 +80,13 @@ assert.notEqual(detectIntent('How many clients are not allocated to staff?'), 's
 assert(nameSimilarity('Stefan','Stephan') >= 0.95, 'Stefan should fuzzy-match Stephan');
 assert(nameSimilarity('Gerta','Gerda') >= 0.79, 'Gerta should fuzzy-match Gerda');
 assert(nameSimilarity('Jonny','Johnny') >= 0.79, 'Jonny should fuzzy-match Johnny');
+assert.equal(numberWordsToDigits('give five to Gerda'),'give 5 to Gerda');
+assert.deepEqual(parseIndexSelector('first five',[1,2,3,4,5,6,7],7),[1,2,3,4,5]);
+assert.deepEqual(parseIndexSelector('1 to 5',[1,2,3,4,5,6,7],7),[1,2,3,4,5]);
+assert.deepEqual(parseIndexSelector('items 1, 3 and 7',[1,2,3,4,5,6,7],7),[1,3,7]);
+assert.deepEqual(parseIndexSelector('the rest',[6,7],7),[6,7]);
+assert.equal(clientAssignmentIntent('give first five to Gerda',{selection:{kind:'upgrade',items:[{clientId:1}]}}),true);
+assert.equal(clientAssignmentIntent('assign these as tasks to Gerda',{selection:{kind:'upgrade',items:[{clientId:1}]}}),false);
 assert(service.includes('queryClientFollowupActivity'), 'Client follow-up activity query missing');
 assert(service.includes('buildDailyResponsibilities'), 'Cudo broad work must use the complete Gerda daily responsibility engine');
 assert(!service.includes('f.updated_at'), 'Birthday/follow-up evidence must not reference missing follow-up updated_at');
@@ -86,6 +104,12 @@ assert(service.includes('queryDatabaseFirstFallback'), 'Cudo must have a databas
 assert(service.includes('client_assignments'), 'Cudo allocation answers must query client_assignments');
 assert(route.includes('evidence:result.evidence || null'), 'Cudo API must return database evidence');
 assert(widget.includes('cudo-evidence'), 'Cudo UI must show what CRM data was checked');
+assert(widget.includes('data-cudo-result-index'), 'Cudo result rows must be numbered');
+assert(widget.includes('data-cudo-pick'), 'Cudo result rows must be individually selectable');
+assert(widget.includes("assign_work:'Assign / reassign'"), 'Cudo must expose the assignment action');
+assert(widget.includes('confirm_reassignment'), 'Cudo UI must support explicit assignment confirmation');
+assert(css.includes('.cudo-result-number'), 'Cudo numbered result styling missing');
+assert(css.includes('.cudo-pick'), 'Cudo result selection styling missing');
 assert(css.includes('.cudo-evidence'), 'Cudo evidence styling missing');
 assert(widget.includes('Voice transcript is ready in the box'), 'Voice must require transcript review before sending');
 const voiceEnd = widget.slice(widget.indexOf('recognition.onend'), widget.indexOf('async function sendMessage'));
