@@ -207,6 +207,19 @@ function normaliseName(value) {
     .trim();
 }
 
+function shortStaffName(value) {
+  const raw = clean(value,255);
+  if (!raw) return '';
+  if (/^(unassigned|unknown)$/i.test(raw)) return raw;
+  const source = raw.includes('@') ? raw.split('@')[0] : raw;
+  return source.split(/[\s._-]+/).filter(Boolean)[0] || raw;
+}
+
+function displayStaff(staff) {
+  if (!staff) return '';
+  return shortStaffName(staff.full_name || staff.username || staff.email);
+}
+
 function phoneticToken(value) {
   return normaliseName(value)
     .replace(/\s+/g, '')
@@ -454,11 +467,11 @@ async function prepareClientReassignment(message,state) {
   const q=lower(message);
   const priority=/\burgent\b/.test(q)?'urgent':/\bhigh\b/.test(q)?'high':((state && state.assignmentDraft && state.assignmentDraft.priority)||'normal');
   const selectedCount=groups.reduce((sum,group)=>sum+group.items.length,0);
-  const summary=groups.map(group=>group.items.length+' to '+group.staffName).join(' · ');
+  const summary=groups.map(group=>group.items.length+' to '+shortStaffName(group.staffName)).join(' · ');
   const previewRows=groups.flatMap(group=>group.items.map(item=>({
     id:item.resultNumber,
     title:'#'+item.resultNumber+' '+item.title,
-    detail:(group.staffName+' · '+(item.detail||'')).replace(/ · $/,''),
+    detail:(shortStaffName(group.staffName)+' · '+(item.detail||'')).replace(/ · $/,''),
     meta:item.dueAt?'Source due '+String(item.dueAt).slice(0,10):''
   })));
 
@@ -467,7 +480,7 @@ async function prepareClientReassignment(message,state) {
       intent:'assignment',
       text:'I have '+selectedCount+' customer item'+(selectedCount===1?'':'s')+' ready: '+summary+'. '+(unassignedIndexes.length?(unassignedIndexes.length+' result'+(unassignedIndexes.length===1?' is':'s are')+' still unassigned. '):'')+'Tell me the follow-up deadline, for example “Friday 15:00”. Nothing has changed yet.',
       rows:previewRows.slice(0,MAX_BATCH_TASKS),
-      grouped:Object.fromEntries(groups.map(group=>[group.staffName,group.items.length])),
+      grouped:Object.fromEntries(groups.map(group=>[shortStaffName(group.staffName),group.items.length])),
       actions:['cancel_action'],
       state:Object.assign({},state,{assignmentDraft:{groups,unassignedIndexes,priority,dueAt:null}})
     };
@@ -477,7 +490,7 @@ async function prepareClientReassignment(message,state) {
     intent:'assignment',
     text:'Ready to assign '+selectedCount+' customer item'+(selectedCount===1?'':'s')+': '+summary+'. Follow-up deadline: '+dueAt.slice(0,16).replace(' ',' at ')+'. '+(unassignedIndexes.length?(unassignedIndexes.length+' result'+(unassignedIndexes.length===1?' remains':'s remain')+' unchanged. '):'')+'I will update the CRM ownership, create monitored tasks and keep the normal deadline follow-up active. Nothing changes until you confirm.',
     rows:previewRows.slice(0,MAX_BATCH_TASKS),
-    grouped:Object.fromEntries(groups.map(group=>[group.staffName,group.items.length])),
+    grouped:Object.fromEntries(groups.map(group=>[shortStaffName(group.staffName),group.items.length])),
     actions:['confirm_reassignment','cancel_action'],
     pendingAction:{type:'reassign_client_work',sourceKind:selection.kind,groups,dueAt,priority},
     state:Object.assign({},state,{assignmentDraft:{groups,unassignedIndexes,priority,dueAt}})
@@ -682,7 +695,7 @@ async function queryAttendanceManagement(message) {
     ].filter(Boolean).join(' · ');
     return {
       id:row.id,
-      title:row.staff_name || row.email || `Staff #${row.id}`,
+      title:shortStaffName(row.staff_name || row.email) || `Staff #${row.id}`,
       detail,
       meta:row.late ? 'Late' : row.left_early ? 'Left early' : targetLabel
     };
@@ -699,14 +712,14 @@ async function queryAttendanceManagement(message) {
   if (staff && team.length===0) {
     return {
       intent:'attendance',
-      text:`I found ${staff.full_name || staff.username || staff.email}, but there is no active staff record to compare against attendance.`,
+      text:`I found ${displayStaff(staff)}, but there is no active staff record to compare against attendance.`,
       rows:[],actions:['open_agent'],evidence,state:{selection:null}
     };
   }
 
   if (staff) {
     const row = team[0];
-    const name = row.staff_name || staff.full_name || staff.username || staff.email;
+    const name = shortStaffName(row.staff_name || staff.full_name || staff.username || staff.email);
     if (arrivalQuestion) {
       const text = row.first_in
         ? `${name} first clocked in at ${timeLabel(row.first_in)} ${targetLabel}.${row.late ? ' That is after the configured late threshold.' : ''}`
@@ -972,7 +985,7 @@ async function queryUpgrades(message) {
     LIMIT ${MAX_RESULTS}`, params);
 
   const older90 = rows.filter(row => Number(row.days_overdue || 0) > 90).length;
-  const person = staff ? ` for ${staff.full_name || staff.username}` : '';
+  const person = staff ? ` for ${displayStaff(staff)}` : '';
   const text = rows.length
     ? `I found ${rows.length} outstanding upgrade${rows.length === 1 ? '' : 's'}${person} in ${period.label}. ${older90 ? `${older90} are more than 90 days overdue.` : 'None are more than 90 days overdue.'}`
     : `I could not find any outstanding upgrades${person} in ${period.label}.`;
@@ -983,7 +996,7 @@ async function queryUpgrades(message) {
     rows: rows.slice(0, MAX_BATCH_TASKS).map(row => ({
       id:row.id,
       title:row.client_name || 'Customer',
-      detail:[row.package_name,row.cell_number,row.staff_name].filter(Boolean).join(' · '),
+      detail:[row.package_name,row.cell_number,shortStaffName(row.staff_name)].filter(Boolean).join(' · '),
       meta:row.next_upgrade_date ? `Due ${sqlDate(row.next_upgrade_date)}` : ''
     })),
     actions: rows.length ? ['show_all','assign_work','create_tasks','open_agent'] : ['open_agent'],
@@ -1039,7 +1052,7 @@ async function queryBirthdays(message) {
   const unresolvedOnly = /not\s+(?:been\s+)?followed|not\s+followed|hasn'?t\s+been\s+followed|outstanding|missed/.test(q);
   const selected = unresolvedOnly ? all.filter(row => !Number(row.followed_up)) : all;
   const notDone = all.filter(row => !Number(row.followed_up));
-  const person = staff ? ` for ${staff.full_name || staff.username}` : '';
+  const person = staff ? ` for ${displayStaff(staff)}` : '';
 
   let text;
   if (unresolvedOnly) {
@@ -1051,11 +1064,11 @@ async function queryBirthdays(message) {
   }
 
   const grouped = {};
-  for (const row of notDone) grouped[row.staff_name || 'Unassigned'] = (grouped[row.staff_name || 'Unassigned'] || 0) + 1;
+  for (const row of notDone) { const name=shortStaffName(row.staff_name || 'Unassigned'); grouped[name]=(grouped[name]||0)+1; }
   const rowsForUi = selected.slice(0, 20).map(row => ({
     id:row.id,
     title:row.client_name || 'Customer',
-    detail:[row.staff_name,row.cell_number,Number(row.followed_up) ? 'Followed up' : 'Not followed up'].filter(Boolean).join(' · '),
+    detail:[shortStaffName(row.staff_name),row.cell_number,Number(row.followed_up) ? 'Followed up' : 'Not followed up'].filter(Boolean).join(' · '),
     meta:sqlDate(row.birthday_occurrence)
   }));
 
@@ -1065,7 +1078,7 @@ async function queryBirthdays(message) {
     rows:selected.slice(0,MAX_BATCH_TASKS).map(row => ({
       id:row.id,
       title:row.client_name || 'Customer',
-      detail:[row.staff_name,row.cell_number,Number(row.followed_up) ? 'Followed up' : 'Not followed up'].filter(Boolean).join(' · '),
+      detail:[shortStaffName(row.staff_name),row.cell_number,Number(row.followed_up) ? 'Followed up' : 'Not followed up'].filter(Boolean).join(' · '),
       meta:sqlDate(row.birthday_occurrence)
     })),
     grouped,
@@ -1100,7 +1113,7 @@ async function queryTasks(message) {
     ORDER BY t.due_at IS NULL,t.due_at,t.created_at DESC
     LIMIT ${MAX_RESULTS}`, params);
 
-  const person = staff ? ` for ${staff.full_name || staff.username}` : '';
+  const person = staff ? ` for ${displayStaff(staff)}` : '';
   const text = rows.length
     ? `I found ${rows.length} matching task${rows.length === 1 ? '' : 's'}${person} in ${period.label}.`
     : `I could not find matching tasks${person} in ${period.label}.`;
@@ -1109,7 +1122,7 @@ async function queryTasks(message) {
     intent:'tasks',
     text,
     rows:rows.slice(0,20).map(row => ({
-      id:row.id,title:row.title,detail:[row.staff_name,row.priority,row.status].filter(Boolean).join(' · '),
+      id:row.id,title:row.title,detail:[shortStaffName(row.staff_name),row.priority,row.status].filter(Boolean).join(' · '),
       meta:row.due_at ? `Due ${sqlDate(row.due_at)}` : ''
     })),
     actions:['open_agent'],
@@ -1174,10 +1187,10 @@ async function queryClientFollowupActivity(message) {
         AND ${condition}
       GROUP BY ca.assigned_staff_id,COALESCE(NULLIF(s.full_name,''),s.email,'Unassigned')
       ORDER BY item_count DESC,staff_name`, params);
-    grouped = Object.fromEntries(groupRows.map(row => [row.staff_name, Number(row.item_count || 0)]));
+    grouped = Object.fromEntries(groupRows.map(row => [shortStaffName(row.staff_name), Number(row.item_count || 0)]));
   }
 
-  const person = staff ? `${staff.full_name || staff.username}'s` : 'the office';
+  const person = staff ? `${displayStaff(staff)}'s` : 'the office';
   const selectedCount = wantsMissing ? notFollowedClients : followedClients;
   const text = wantsMissing
     ? `${selectedCount} of ${totalClients} active assigned client${totalClients===1?'':'s'} for ${person} have no completed follow-up evidence in ${period.label}. ${followedClients} do show completed follow-up evidence.`
@@ -1189,7 +1202,7 @@ async function queryClientFollowupActivity(message) {
     rows:rows.slice(0,20).map(row => ({
       id:row.id,
       title:row.client_name || 'Customer',
-      detail:[row.staff_name,row.cell_number,wantsMissing?'No completed follow-up':'Followed up'].filter(Boolean).join(' · '),
+      detail:[shortStaffName(row.staff_name),row.cell_number,wantsMissing?'No completed follow-up':'Followed up'].filter(Boolean).join(' · '),
       meta:period.label
     })),
     grouped,
@@ -1242,7 +1255,7 @@ async function queryFollowups(message) {
   const rows = [...followRows,...callbackRows,...inquiryRows]
     .sort((a,b) => new Date(a.scheduled_at || 0) - new Date(b.scheduled_at || 0))
     .slice(0,MAX_RESULTS);
-  const person = staff ? ` for ${staff.full_name || staff.username}` : '';
+  const person = staff ? ` for ${displayStaff(staff)}` : '';
   return {
     intent:'followups',
     text: rows.length
@@ -1250,7 +1263,7 @@ async function queryFollowups(message) {
       : `I could not find matching follow-ups or callbacks${person} in ${period.label}.`,
     rows:rows.slice(0,20).map(row=>({
       id:row.id,title:row.customer_name || 'Customer follow-up',
-      detail:[row.source_type.replace('_',' '),row.staff_name,row.reason].filter(Boolean).join(' · '),
+      detail:[row.source_type.replace('_',' '),shortStaffName(row.staff_name),row.reason].filter(Boolean).join(' · '),
       meta:row.scheduled_at ? sqlDateTime(row.scheduled_at) : ''
     })),
     actions:rows.length ? ['show_all','create_tasks','open_agent'] : ['open_agent'],
@@ -1287,7 +1300,7 @@ async function queryDeals(message) {
     ORDER BY c.updated_at DESC,c.created_at DESC
     LIMIT ${MAX_RESULTS}`, params);
 
-  const person = staff ? ` for ${staff.full_name || staff.username}` : '';
+  const person = staff ? ` for ${displayStaff(staff)}` : '';
   return {
     intent:'deals',
     text: rows.length
@@ -1295,7 +1308,7 @@ async function queryDeals(message) {
       : `I could not find matching CRM deals/prospects${person} in ${period.label}.`,
     rows:rows.slice(0,MAX_BATCH_TASKS).map(row=>({
       id:row.id,title:row.client_name || 'Prospect',
-      detail:[row.staff_name,row.lead_status,row.lead_source,row.cell_number].filter(Boolean).join(' · '),
+      detail:[shortStaffName(row.staff_name),row.lead_status,row.lead_source,row.cell_number].filter(Boolean).join(' · '),
       meta:sqlDate(row.created_at)
     })),
     actions:rows.length ? ['show_all','assign_work','create_tasks','open_agent'] : ['open_agent'],
@@ -1337,7 +1350,7 @@ async function queryDispatchStatus(message,userId) {
     rows:rows.slice(0,20).map(row=>({
       id:row.id,
       title:row.subject,
-      detail:[row.staffName,row.status,row.seenAt?'opened':'not opened',row.completedAt?'completed/replied':'awaiting completion/reply'].join(' · '),
+      detail:[shortStaffName(row.staffName),row.status,row.seenAt?'opened':'not opened',row.completedAt?'completed/replied':'awaiting completion/reply'].join(' · '),
       meta:row.overdue?'Overdue':row.dueAt?`Due ${String(row.dueAt).slice(0,16).replace('T',' ')}`:`${row.attachmentCount} attachment${row.attachmentCount===1?'':'s'}`
     })),
     evidence:{summary:'Checked Cudo work_dispatches against the normal staff_tasks seen/completed workflow.',sources:['work_dispatches','staff_tasks','staff_task_attachments']},
@@ -1370,7 +1383,7 @@ async function queryOfficeWork(message) {
     .map(([key,count])=>`${count} ${key}`)
     .join(', ');
 
-  const name = staff.full_name || staff.username || staff.email;
+  const name = displayStaff(staff);
   const overdue = openItems.filter(item => item.status === 'overdue').length;
   const outstanding = openItems.filter(item => item.status === 'outstanding').length;
   const text = openItems.length
@@ -1422,13 +1435,13 @@ async function queryStaffActivity(message) {
     ORDER BY su.full_name`, params);
 
   const text = staff
-    ? `Here is ${staff.full_name || staff.username}'s CRM activity for ${period.label}.`
+    ? `Here is ${displayStaff(staff)}'s CRM activity for ${period.label}.`
     : `Here is the staff activity summary for ${period.label}.`;
   return {
     intent:'staff',
     text,
     rows:rows.slice(0,20).map(row=>({
-      id:row.id,title:row.full_name || row.email,
+      id:row.id,title:shortStaffName(row.full_name || row.email),
       detail:`${Number(row.tasks_completed||0)} tasks completed · ${Number(row.overdue_tasks||0)} overdue · ${Number(row.inquiries||0)} inquiries`,
       meta:`${Number(row.audited_actions||0)} audited actions`
     })),
@@ -1652,7 +1665,7 @@ async function prepareBatchAction(message, state) {
       intent:'action',
       text:distribute
         ? `I have the ${selection.items.length} item${selection.items.length===1?'':'s'} and their responsible staff. Tell me the deadline, for example “Friday 15:00”.`
-        : `I have the ${selection.items.length} item${selection.items.length===1?'':'s'} and ${staff.full_name || staff.username}. Tell me the deadline, for example “Friday 15:00”.`,
+        : `I have the ${selection.items.length} item${selection.items.length===1?'':'s'} and ${displayStaff(staff)}. Tell me the deadline, for example “Friday 15:00”.`,
       rows:[],actions:[],state:{...state,actionDraft:{distribute,staffId:staff ? Number(staff.id) : null}}
     };
   }
@@ -1662,7 +1675,7 @@ async function prepareBatchAction(message, state) {
     intent:'action',
     text:distribute
       ? `Ready to create up to ${items.length} task${items.length===1?'':'s'} for the responsible staff, due ${dueAt.slice(0,16).replace(' ',' at ')}. I will put each one under Cudo deadline monitoring.`
-      : `Ready to create ${items.length} task${items.length===1?'':'s'} for ${staff.full_name || staff.username}, due ${dueAt.slice(0,16).replace(' ',' at ')}. I will put each one under Cudo deadline monitoring.`,
+      : `Ready to create ${items.length} task${items.length===1?'':'s'} for ${displayStaff(staff)}, due ${dueAt.slice(0,16).replace(' ',' at ')}. I will put each one under Cudo deadline monitoring.`,
     rows:items.slice(0,10).map((item,index)=>({id:index+1,title:item.title,detail:item.detail || '',meta:item.dueAt ? `Source due ${String(item.dueAt).slice(0,10)}` : ''})),
     actions:['confirm_tasks','cancel_action'],
     pendingAction:{
@@ -1731,7 +1744,7 @@ async function createTasks({ userId, action }) {
   return {
     created,
     skipped,
-    staffName:distribute ? 'responsible staff' : (staff.full_name || staff.email),
+    staffName:distribute ? 'responsible staff' : shortStaffName(staff.full_name || staff.email),
     dueAt
   };
 }
@@ -1884,6 +1897,7 @@ module.exports = {
   nameSimilarity,
   detectIntent,
   numberWordsToDigits,
+  shortStaffName,
   parseIndexSelector,
   clientAssignmentIntent,
   prepareClientReassignment,
