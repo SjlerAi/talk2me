@@ -466,49 +466,58 @@ async function buildTeamDailyOverview(staffSummaries) {
   return list.map((s,index) => ({ ...s, daily:daily[index].summary }));
 }
 
-async function sendAgentInstruction({ issuedBy, assignedTo, title, message, dueAt, priority='normal' } = {}) {
-  await ensureAgentResponsibilitySchema();
+async function createAgentInstructionInTransaction(conn, {
+  issuedBy, assignedTo, title, message, dueAt, priority='normal', relatedClientId=null
+} = {}) {
+  if (!conn) throw new Error('A database transaction is required.');
   const issuerId = Number(issuedBy || 0);
   const assigneeId = Number(assignedTo || 0);
+  const clientId = Number(relatedClientId || 0) || null;
   const cleanTitle = String(title || '').trim().slice(0,180);
   const cleanMessage = String(message || '').trim().slice(0,5000);
   const cleanDueAt = normaliseAgentDateTime(dueAt);
   const cleanPriority = ['normal','high','urgent'].includes(String(priority)) ? String(priority) : 'normal';
   if (!issuerId || !assigneeId || !cleanTitle || !cleanDueAt) throw new Error('Staff member, task title and completion date/time are required.');
 
+  const [[staff]] = await conn.execute('SELECT id,full_name,email,is_active FROM staff_users WHERE id=:id LIMIT 1 FOR UPDATE',{id:assigneeId});
+  if (!staff || !Number(staff.is_active)) throw new Error('The selected staff member is not active.');
+
+  const [created] = await conn.execute(`INSERT INTO staff_tasks
+    (type,title,message,priority,status,assigned_to,created_by,due_at,related_client_id,email_status)
+    VALUES ('task',:title,:message,:priority,'unread',:assignedTo,:createdBy,:dueAt,:relatedClientId,'not_configured')`, {
+    title:cleanTitle,message:cleanMessage || cleanTitle,priority:cleanPriority,
+    assignedTo:assigneeId,createdBy:issuerId,dueAt:cleanDueAt,relatedClientId:clientId
+  });
+  const taskId = created.insertId;
+
+  await conn.execute(`INSERT INTO staff_task_workflow (task_id,workflow_state)
+    VALUES (:taskId,'active') ON DUPLICATE KEY UPDATE task_id=VALUES(task_id)`, { taskId });
+
+  await conn.execute(`INSERT INTO staff_task_notifications
+    (task_id,recipient_staff_id,actor_staff_id,event_type,notification_text,action_required)
+    VALUES (:taskId,:recipientId,:actorId,'agent_instruction',:text,1)`, {
+    taskId,recipientId:assigneeId,actorId:issuerId,
+    text:`Management instruction: ${cleanTitle} · due ${cleanDueAt}`
+  });
+
+  await conn.execute(`INSERT INTO agent_task_watches
+    (task_id,issued_by,assigned_to,due_at,alert_enabled)
+    VALUES (:taskId,:issuedBy,:assignedTo,:dueAt,1)
+    ON DUPLICATE KEY UPDATE due_at=VALUES(due_at),alert_enabled=1,updated_at=NOW()`, {
+    taskId,issuedBy:issuerId,assignedTo:assigneeId,dueAt:cleanDueAt
+  });
+
+  return { taskId, staffName:staff.full_name || staff.email, dueAt:cleanDueAt, relatedClientId:clientId };
+}
+
+async function sendAgentInstruction(options = {}) {
+  await ensureAgentResponsibilitySchema();
   const conn = await db.getConnection();
   try {
     await conn.beginTransaction();
-    const [[staff]] = await conn.execute('SELECT id,full_name,email,is_active FROM staff_users WHERE id=:id LIMIT 1',{id:assigneeId});
-    if (!staff || !Number(staff.is_active)) throw new Error('The selected staff member is not active.');
-
-    const [created] = await conn.execute(`INSERT INTO staff_tasks
-      (type,title,message,priority,status,assigned_to,created_by,due_at,email_status)
-      VALUES ('task',:title,:message,:priority,'unread',:assignedTo,:createdBy,:dueAt,'not_configured')`, {
-      title:cleanTitle,message:cleanMessage || cleanTitle,priority:cleanPriority,
-      assignedTo:assigneeId,createdBy:issuerId,dueAt:cleanDueAt
-    });
-    const taskId = created.insertId;
-
-    await conn.execute(`INSERT INTO staff_task_workflow (task_id,workflow_state)
-      VALUES (:taskId,'active') ON DUPLICATE KEY UPDATE task_id=VALUES(task_id)`, { taskId });
-
-    await conn.execute(`INSERT INTO staff_task_notifications
-      (task_id,recipient_staff_id,actor_staff_id,event_type,notification_text,action_required)
-      VALUES (:taskId,:recipientId,:actorId,'agent_instruction',:text,1)`, {
-      taskId,recipientId:assigneeId,actorId:issuerId,
-      text:`Management instruction: ${cleanTitle} · due ${cleanDueAt}`
-    });
-
-    await conn.execute(`INSERT INTO agent_task_watches
-      (task_id,issued_by,assigned_to,due_at,alert_enabled)
-      VALUES (:taskId,:issuedBy,:assignedTo,:dueAt,1)
-      ON DUPLICATE KEY UPDATE due_at=VALUES(due_at),alert_enabled=1,updated_at=NOW()`, {
-      taskId,issuedBy:issuerId,assignedTo:assigneeId,dueAt:cleanDueAt
-    });
-
+    const result = await createAgentInstructionInTransaction(conn, options);
     await conn.commit();
-    return { taskId, staffName:staff.full_name || staff.email, dueAt:cleanDueAt };
+    return result;
   } catch (error) {
     await conn.rollback();
     throw error;
@@ -691,6 +700,7 @@ module.exports = {
   ensureAgentResponsibilitySchema,
   buildDailyResponsibilities,
   sendAgentInstruction,
+  createAgentInstructionInTransaction,
   markResponsibilityComplete,
   refreshOverdueWatches
 };
