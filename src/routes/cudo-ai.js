@@ -4,6 +4,7 @@ const express = require('express');
 const multer = require('multer');
 const { audit } = require('../services/audit');
 const { answerCudo, createTasks, getAlerts } = require('../services/cudo-ai');
+const { reassignClientWork } = require('../services/cudo-client-assignment');
 const {
   storeUploadedFile,
   searchLibraryDocuments,
@@ -153,6 +154,7 @@ router.post('/api/cudo/action', requireOwner, async (req, res, next) => {
       req.session.cudoState = {
         ...(req.session.cudoState || {}),
         actionDraft:null,
+        assignmentDraft:null,
         dispatchDraft:null
       };
       return res.json({ ok:true, text:'Cancelled. I have not changed anything.' });
@@ -160,6 +162,46 @@ router.post('/api/cudo/action', requireOwner, async (req, res, next) => {
 
     const pending = req.session.cudoPendingAction;
     if (!pending) return res.status(409).json({ ok:false, error:'There is no pending Cudo action to confirm.' });
+
+    if (actionName === 'confirm_reassignment') {
+      if (pending.type !== 'reassign_client_work') {
+        return res.status(409).json({ ok:false, error:'The pending action is not a customer assignment.' });
+      }
+      const result = await reassignClientWork({
+        actorId:Number(req.session.user.id),
+        dueAt:pending.dueAt,
+        priority:pending.priority,
+        groups:pending.groups,
+        ipAddress:req.ip,
+        userAgent:req.headers['user-agent']
+      });
+      req.session.cudoPendingAction = null;
+      req.session.cudoState = {
+        ...(req.session.cudoState || {}),
+        assignmentDraft:null
+      };
+
+      await audit(req, {
+        actionType:'cudo_client_assignment_confirmed',
+        entityType:'client_assignments',
+        entityId:null,
+        description:`Cudo assigned ${result.selectedItems} customer work item(s) across ${result.accountGroups} account group(s).`,
+        after:{
+          selectedItems:result.selectedItems,
+          accountGroups:result.accountGroups,
+          monitoredTasks:result.monitoredTasks,
+          linkedLines:result.linkedLines,
+          alreadyAssigned:result.alreadyAssigned,
+          dueAt:result.dueAt
+        }
+      });
+
+      return res.json({
+        ok:true,
+        text:`Done. I assigned ${result.selectedItems} customer item${result.selectedItems===1?'':'s'} across ${result.accountGroups} customer account${result.accountGroups===1?'':'s'} and created/confirmed ${result.monitoredTasks} monitored task${result.monitoredTasks===1?'':'s'}. The normal Cudo deadline follow-up is active for ${String(result.dueAt).slice(0,16).replace(' ',' at ')}.`,
+        assignment:result
+      });
+    }
 
     if (actionName === 'confirm_dispatch') {
       if (pending.type !== 'work_dispatch') return res.status(409).json({ok:false,error:'The pending action is not a work dispatch.'});
