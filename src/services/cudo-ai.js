@@ -436,7 +436,7 @@ async function allocationGroups(message,selection) {
     const indexes=parseIndexSelector(selector,available,items.length,unique.length===1).filter(n=>!used.has(n));
     if (!indexes.length) {
       const staffName=mention.staff.full_name||mention.staff.username||mention.staff.email;
-      return {error:'I found '+staffName+', but I could not tell which numbered results should go to them. Say “first 5”, “1 to 5”, “items 1, 3 and 7”, or “the rest”.'};
+      return {error:'I found '+shortStaffName(staffName)+', but I could not tell which numbered results should go to them. Say “first 5”, “1 to 5”, “items 1, 3 and 7”, or “the rest”.'};
     }
     indexes.forEach(n=>used.add(n));
     groups.push({
@@ -1528,11 +1528,12 @@ async function prepareDispatchAction(message, state, {userId,attachmentIds=[]}={
   }
   if (match.needsConfirmation) {
     const name = match.staff.full_name || match.staff.username || match.staff.email;
+    const displayName = shortStaffName(name);
     return {
       intent:'staff_confirmation',
-      text:`I think that recipient is ${name}. Type “yes, send to ${name}” or type the correct staff name before I prepare the dispatch.`,
+      text:`I think that recipient is ${displayName}. Type “yes, send to ${displayName}” or type the correct staff name before I prepare the dispatch.`,
       rows:[],actions:[],
-      suggestions:[`Yes, send to ${name}`],
+      suggestions:[`Yes, send to ${displayName}`],
       state:{...(state||{}),pendingStaff:{
         staffId:Number(match.staff.id),staffName:name,originalMessage:message,confidence:match.confidence
       },dispatchDraft:{...draft,recipientId:Number(match.staff.id),attachmentIds:files.map(file=>file.id)}}
@@ -1545,9 +1546,10 @@ async function prepareDispatchAction(message, state, {userId,attachmentIds=[]}={
   const dueAt = parseDueAt(message) || draft.dueAt || null;
   if ((requireReply || requireCompletion) && !dueAt) {
     const name = staff.full_name || staff.username || staff.email;
+    const displayName = shortStaffName(name);
     return {
       intent:'dispatch',
-      text:`I have ${items.length ? `${items.length} work item${items.length===1?'':'s'}` : 'the file'} for ${name}${files.length ? ` with ${files.length} attachment${files.length===1?'':'s'}` : ''}. Because a reply/completion is required, tell me the deadline, for example “Friday 15:00”.`,
+      text:`I have ${items.length ? `${items.length} work item${items.length===1?'':'s'}` : 'the file'} for ${displayName}${files.length ? ` with ${files.length} attachment${files.length===1?'':'s'}` : ''}. Because a reply/completion is required, tell me the deadline, for example “Friday 15:00”.`,
       rows:items.slice(0,10).map((item,index)=>({id:index+1,title:item.title,detail:item.detail||'',meta:item.dueAt?`Source due ${String(item.dueAt).slice(0,10)}`:''})),
       attachments:files,
       actions:[],
@@ -1579,6 +1581,7 @@ async function prepareDispatchAction(message, state, {userId,attachmentIds=[]}={
       : 'Cudo staff message';
 
   const name=staff.full_name||staff.username||staff.email;
+  const displayName=shortStaffName(name);
   const recipientContact=channel==='email'
     ? (staff.email || 'no email')
     : channel==='whatsapp'
@@ -1597,8 +1600,8 @@ async function prepareDispatchAction(message, state, {userId,attachmentIds=[]}={
       ? (files.length===1?'this file':`${files.length} files`)
       : 'this message';
   const previewText = availability.available
-    ? `Ready to send ${payloadLabel} to ${name} (${recipientContact}) through ${channelText}${senderText}${files.length ? ` with ${files.length} attachment${files.length===1?'':'s'}` : ''}${deadlineText}. ${requireReply?'A reply is required. ':''}${requireCompletion?'Completion will be monitored. ':''}Nothing will be sent until you confirm.`
-    : `I prepared ${payloadLabel} for ${name} (${recipientContact}) by ${channelText}${senderText}, but that external channel is not ready: ${availability.reason || 'provider unavailable'} Nothing has been sent.`;
+    ? `Ready to send ${payloadLabel} to ${displayName} (${recipientContact}) through ${channelText}${senderText}${files.length ? ` with ${files.length} attachment${files.length===1?'':'s'}` : ''}${deadlineText}. ${requireReply?'A reply is required. ':''}${requireCompletion?'Completion will be monitored. ':''}Nothing will be sent until you confirm.`
+    : `I prepared ${payloadLabel} for ${displayName} (${recipientContact}) by ${channelText}${senderText}, but that external channel is not ready: ${availability.reason || 'provider unavailable'} Nothing has been sent.`;
 
   return {
     intent:'dispatch',
@@ -1805,12 +1808,13 @@ async function answerCudo({ message, state = null, context = null, userId = null
   const staffMatch = await resolveStaffMatch(workingMessage,workingState?.selection?.staffId || null);
   if (staffMatch.staff && staffMatch.needsConfirmation) {
     const staffName = staffMatch.staff.full_name || staffMatch.staff.username || staffMatch.staff.email;
+    const staffDisplayName = shortStaffName(staffName);
     return {
       intent:'staff_confirmation',
-      text:`I found a near staff-name match. I think “${staffMatch.matchedText || 'that name'}” means ${staffName}. Type “yes” to use ${staffName}, or type the correct staff name before I search the CRM.`,
+      text:`I found a near staff-name match. I think “${staffMatch.matchedText || 'that name'}” means ${staffDisplayName}. Type “yes” to use ${staffDisplayName}, or type the correct staff name before I search the CRM.`,
       rows:[],
       actions:[],
-      suggestions:[`Yes, use ${staffName}`],
+      suggestions:[`Yes, use ${staffDisplayName}`],
       state:{
         ...workingState,
         pendingStaff:{
