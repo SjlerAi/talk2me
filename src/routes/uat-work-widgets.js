@@ -31,6 +31,34 @@ function clean(value, max = 5000) {
   return String(value == null ? '' : value).trim().slice(0, max);
 }
 
+function staffShortName(row) {
+  const email=clean(row?.email,255).toLowerCase();
+  const username=clean(row?.username,80).toLowerCase();
+  if(email==='gerda@talk-online.co.za'||username==='gerda') return 'Gerda';
+  const first=clean(row?.first_name,120);
+  if(first){
+    if(/^van\s+zyl$/i.test(first)) return 'Van Zyl';
+    return first.split(/\s+/)[0];
+  }
+  if(username && !username.includes('@')){
+    if(username==='vanzyl') return 'Van Zyl';
+    return username.charAt(0).toUpperCase()+username.slice(1);
+  }
+  const full=clean(row?.full_name,180);
+  return full ? full.split(/\s+/)[0] : clean(row?.email,255) || 'Staff';
+}
+
+function broadcastEligibleStaff(row,actorId) {
+  const username=clean(row?.username,80).toLowerCase();
+  const email=clean(row?.email,255).toLowerCase();
+  const fullName=clean(row?.full_name,180).toLowerCase();
+  return Number(row?.id)!==Number(actorId)
+    && !['test','uat-test'].includes(username)
+    && !/^test(?:[._+-]|@)/.test(email)
+    && fullName!=='test';
+}
+
+
 function sqlDateTime(value) {
   const raw = clean(value, 19);
   if (!raw) return null;
@@ -663,7 +691,12 @@ router.get('/api/uat/tasks', requireAuth, async (req, res, next) => {
       urgent: Number(countRows?.[0]?.urgent || 0),
       attention: Number(countRows?.[0]?.attention || 0)
     };
-    const [staff] = await db.execute('SELECT id,full_name,role FROM staff_users WHERE is_active=1 ORDER BY full_name');
+    const [staffRows] = await db.execute('SELECT id,full_name,first_name,username,email,role FROM staff_users WHERE is_active=1 ORDER BY full_name');
+    const staff=staffRows.map(row=>({
+      ...row,
+      display_name:staffShortName(row),
+      broadcast_eligible:broadcastEligibleStaff(row,userId)
+    }));
     res.json({ ok: true, scope, view, filter, counts, management: isManager, staff, tasks });
   } catch (error) { next(error); }
 });
@@ -731,58 +764,134 @@ router.post('/api/uat/tasks', requireAuth, taskUploadMiddleware, async (req, res
     await ensureSchema();
     const title = clean(req.body.title, 180);
     const message = clean(req.body.message, 5000);
-    const assignedTo = idOf(req.body.assigned_to);
+    const rawAssignedTo = clean(req.body.assigned_to, 40).toLowerCase();
+    const sendToEverybody = rawAssignedTo === 'all';
+    const assignedTo = sendToEverybody ? null : idOf(req.body.assigned_to);
     const priority = ['normal','high','urgent'].includes(String(req.body.priority || '')) ? String(req.body.priority) : 'normal';
     const dueAt = sqlDateTime(req.body.due_at);
     const relatedClientId = idOf(req.body.related_client_id);
-    if (!title || !message || !assignedTo) { cleanupTaskFiles(req.files); return res.status(400).json({ ok: false, error: 'Choose a person and enter a title and task.' }); }
-    const [[recipient]] = await db.execute('SELECT id,full_name FROM staff_users WHERE id=:id AND is_active=1 LIMIT 1', { id: assignedTo });
-    if (!recipient) { cleanupTaskFiles(req.files); return res.status(400).json({ ok: false, error: 'The assigned staff member was not found.' }); }
+    const actorId = Number(req.session.user.id);
+    const isManager = management(req.session.user);
+
+    if (!title || !message || (!sendToEverybody && !assignedTo)) {
+      cleanupTaskFiles(req.files);
+      return res.status(400).json({ ok:false, error:'Choose a person or Everybody, and enter a title and task.' });
+    }
+    if (sendToEverybody && !isManager) {
+      cleanupTaskFiles(req.files);
+      return res.status(403).json({ ok:false, error:'Only management can assign a task to Everybody.' });
+    }
+
+    let recipients=[];
+    if(sendToEverybody){
+      const [rows]=await db.execute(`SELECT id,full_name,first_name,username,email,role
+        FROM staff_users WHERE is_active=1 ORDER BY full_name`);
+      recipients=rows.filter(row=>broadcastEligibleStaff(row,actorId));
+      if(!recipients.length){
+        cleanupTaskFiles(req.files);
+        return res.status(400).json({ok:false,error:'There are no active staff members available for Everybody.'});
+      }
+    }else{
+      const [[recipient]]=await db.execute(`SELECT id,full_name,first_name,username,email,role
+        FROM staff_users WHERE id=:id AND is_active=1 LIMIT 1`,{id:assignedTo});
+      if(!recipient){
+        cleanupTaskFiles(req.files);
+        return res.status(400).json({ok:false,error:'The assigned staff member was not found.'});
+      }
+      recipients=[recipient];
+    }
+
     if (relatedClientId) {
       const [[client]] = await db.execute('SELECT id FROM clients WHERE id=:id LIMIT 1', { id: relatedClientId });
-      if (!client) { cleanupTaskFiles(req.files); return res.status(400).json({ ok: false, error: 'The related customer was not found.' }); }
+      if (!client) {
+        cleanupTaskFiles(req.files);
+        return res.status(400).json({ ok:false, error:'The related customer was not found.' });
+      }
     }
-    const [result] = await db.execute(`INSERT INTO staff_tasks
-      (type,title,message,priority,assigned_to,created_by,due_at,related_client_id,email_status)
-      VALUES ('task',:title,:message,:priority,:assignedTo,:createdBy,:dueAt,:relatedClientId,'not_requested')`, {
-      title, message, priority, assignedTo, createdBy: Number(req.session.user.id), dueAt, relatedClientId
-    });
-    await db.execute(`INSERT INTO staff_task_workflow (task_id,workflow_state,my_priority_date) VALUES (:taskId,'active',DATE(:dueAt)) ON DUPLICATE KEY UPDATE task_id=VALUES(task_id),my_priority_date=VALUES(my_priority_date)`, { taskId: result.insertId, dueAt });
-    const [createdComment] = await db.execute(`INSERT INTO staff_task_comments (task_id,staff_id,comment) VALUES (:taskId,:userId,'Task created')`, { taskId: result.insertId, userId: Number(req.session.user.id) });
-    await saveTaskAttachments({
-      taskId: result.insertId,
-      commentId: createdComment.insertId,
-      userId: Number(req.session.user.id),
-      files: req.files
-    });
-    taskFilesPersisted = true;
-    if (dueAt) {
-      await ensureAgentResponsibilitySchema();
-      await db.execute(`INSERT INTO agent_task_watches
-        (task_id,issued_by,assigned_to,due_at,alert_enabled,overdue_alerted_at)
-        VALUES (:taskId,:issuedBy,:assignedTo,:dueAt,1,NULL)
-        ON DUPLICATE KEY UPDATE issued_by=VALUES(issued_by),assigned_to=VALUES(assigned_to),due_at=VALUES(due_at),
-          alert_enabled=1,overdue_alerted_at=NULL,updated_at=NOW()`, {
-        taskId: result.insertId,
-        issuedBy: Number(req.session.user.id),
-        assignedTo,
-        dueAt
-      });
+    if(dueAt) await ensureAgentResponsibilitySchema();
+
+    const conn=await db.getConnection();
+    const created=[];
+    try{
+      await conn.beginTransaction();
+      for(const recipient of recipients){
+        const recipientId=Number(recipient.id);
+        const [result]=await conn.execute(`INSERT INTO staff_tasks
+          (type,title,message,priority,assigned_to,created_by,due_at,related_client_id,email_status)
+          VALUES ('task',:title,:message,:priority,:assignedTo,:createdBy,:dueAt,:relatedClientId,'not_requested')`,{
+          title,message,priority,assignedTo:recipientId,createdBy:actorId,dueAt,relatedClientId
+        });
+        const taskId=Number(result.insertId);
+        await conn.execute(`INSERT INTO staff_task_workflow (task_id,workflow_state,my_priority_date)
+          VALUES (:taskId,'active',DATE(:dueAt))
+          ON DUPLICATE KEY UPDATE task_id=VALUES(task_id),my_priority_date=VALUES(my_priority_date)`,{taskId,dueAt});
+        const [createdComment]=await conn.execute(`INSERT INTO staff_task_comments (task_id,staff_id,comment)
+          VALUES (:taskId,:userId,'Task created')`,{taskId,userId:actorId});
+        for(const file of Array.isArray(req.files)?req.files:[]){
+          await conn.execute(`INSERT INTO staff_task_attachments
+            (task_id,comment_id,uploaded_by,original_name,stored_filename,mime_type,file_bytes)
+            VALUES (:taskId,:commentId,:userId,:originalName,:storedFilename,:mimeType,:fileBytes)`,{
+            taskId,
+            commentId:Number(createdComment.insertId),
+            userId:actorId,
+            originalName:clean(path.basename(String(file.originalname||'attachment')),255),
+            storedFilename:path.basename(String(file.filename||'')),
+            mimeType:clean(file.mimetype,120),
+            fileBytes:Number(file.size||0)
+          });
+        }
+        if(dueAt){
+          await conn.execute(`INSERT INTO agent_task_watches
+            (task_id,issued_by,assigned_to,due_at,alert_enabled,overdue_alerted_at)
+            VALUES (:taskId,:issuedBy,:assignedTo,:dueAt,1,NULL)
+            ON DUPLICATE KEY UPDATE issued_by=VALUES(issued_by),assigned_to=VALUES(assigned_to),due_at=VALUES(due_at),
+              alert_enabled=1,overdue_alerted_at=NULL,updated_at=NOW()`,{
+            taskId,issuedBy:actorId,assignedTo:recipientId,dueAt
+          });
+        }
+        if(recipientId!==actorId){
+          await conn.execute(`INSERT INTO staff_task_notifications
+            (task_id,recipient_staff_id,actor_staff_id,event_type,notification_text,action_required)
+            VALUES (:taskId,:recipientId,:actorId,'assigned',:message,0)`,{
+            taskId,recipientId,actorId,
+            message:clean(`${req.session.user.full_name} assigned “${title}” to you.`,500)
+          });
+        }
+        created.push({id:taskId,assignedTo:recipientId,name:staffShortName(recipient)});
+      }
+      await conn.commit();
+      taskFilesPersisted=true;
+    }catch(error){
+      await conn.rollback();
+      throw error;
+    }finally{
+      conn.release();
     }
-    await taskNotification({
-      taskId: result.insertId,
-      recipientId: assignedTo,
-      actorId: Number(req.session.user.id),
-      eventType: 'assigned',
-      message: `${req.session.user.full_name} assigned “${title}” to you.`
-    });
+
     await trackEvent({
-      staffId:req.session.user.id,eventType:'work_task_created',screenKey:'work',
-      routePath:'/api/uat/tasks',moduleName:'work',entityType:'staff_tasks',entityId:result.insertId,
-      httpMethod:'POST',httpStatus:200,metadata:{assignedTo,priority,hasDueDate:Boolean(dueAt),attachmentCount:Array.isArray(req.files)?req.files.length:0}
+      staffId:actorId,eventType:'work_task_created',screenKey:'work',
+      routePath:'/api/uat/tasks',moduleName:'work',entityType:'staff_tasks',entityId:created[0]?.id||null,
+      httpMethod:'POST',httpStatus:200,
+      metadata:{
+        assignedTo:sendToEverybody?'all':assignedTo,
+        recipientCount:created.length,
+        priority,
+        hasDueDate:Boolean(dueAt),
+        attachmentCount:Array.isArray(req.files)?req.files.length:0
+      }
     });
-    res.json({ ok: true, id: result.insertId });
-  } catch (error) { if (!taskFilesPersisted) cleanupTaskFiles(req.files); next(error); }
+    res.json({
+      ok:true,
+      id:created[0]?.id||null,
+      ids:created.map(item=>item.id),
+      count:created.length,
+      everybody:sendToEverybody,
+      recipients:created.map(item=>({id:item.assignedTo,name:item.name}))
+    });
+  } catch (error) {
+    if (!taskFilesPersisted) cleanupTaskFiles(req.files);
+    next(error);
+  }
 });
 
 router.post('/api/uat/tasks/:id/status', requireAuth, async (req, res, next) => {

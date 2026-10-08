@@ -479,7 +479,7 @@
     clearInterval(chatPoll);
     fitWidgetMode(taskWidget,taskWidgetKey,{width:840,height:700,minWidth:560,minHeight:420});
     const defaultDue=prefill.date?`${prefill.date}T09:00`:'';
-    taskBody.innerHTML=`<form class="t2m-task-form t2m-task-form-new" data-task-form enctype="multipart/form-data"><div class="t2m-task-form-scroll" data-task-form-scroll><h3>New task</h3><label>Assign to<select name="assigned_to" required><option value="">Choose person</option>${(taskState.staff||[]).map(s=>`<option value="${s.id}">${esc(s.full_name)}</option>`).join('')}</select></label><label>Title<input name="title" maxlength="180" required placeholder="What needs doing?"></label><label>Task<textarea name="message" required placeholder="Short clear instruction"></textarea></label><div class="t2m-task-form-grid"><label>Due<input type="datetime-local" name="due_at" value="${esc(defaultDue)}"></label><label>Priority<select name="priority"><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></select></label></div><div class="t2m-task-file-picker"><div class="t2m-task-file-picker-row"><button type="button" data-task-files-choose>📎 Attach files</button><small>PDF, Word, Excel, PowerPoint, images and common office files · max 5 files, 15 MB each</small></div><input type="file" name="attachments" multiple accept="${taskFileAccept}" data-task-files hidden><div class="t2m-task-file-selection" data-task-files-list hidden></div></div></div><div class="t2m-task-form-actions" data-task-form-actions><button type="button" data-task-cancel>Cancel</button><button type="submit" class="primary">Create task</button></div></form>`;
+    taskBody.innerHTML=`<form class="t2m-task-form t2m-task-form-new" data-task-form enctype="multipart/form-data"><div class="t2m-task-form-scroll" data-task-form-scroll><h3>New task</h3><label>Assign to<select name="assigned_to" required><option value="">Choose person</option>${taskState.management?'<option value="all">Everybody</option>':''}${(taskState.staff||[]).map(s=>`<option value="${s.id}">${esc(s.display_name||String(s.full_name||'').split(/\\s+/)[0]||'Staff')}</option>`).join('')}</select></label><label>Title<input name="title" maxlength="180" required placeholder="What needs doing?"></label><label>Task<textarea name="message" required placeholder="Short clear instruction"></textarea></label><div class="t2m-task-form-grid"><label>Due<input type="datetime-local" name="due_at" value="${esc(defaultDue)}"></label><label>Priority<select name="priority"><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></select></label></div><div class="t2m-task-file-picker"><div class="t2m-task-file-picker-row"><button type="button" data-task-files-choose>📎 Attach files</button><small>PDF, Word, Excel, PowerPoint, images and common office files · max 5 files, 15 MB each</small></div><input type="file" name="attachments" multiple accept="${taskFileAccept}" data-task-files hidden><div class="t2m-task-file-selection" data-task-files-list hidden></div></div></div><div class="t2m-task-form-actions" data-task-form-actions><button type="button" data-task-cancel>Cancel</button><button type="submit" class="primary">Create task</button></div></form>`;
     const form=taskBody.querySelector('[data-task-form]');
     const formScroll=form.querySelector('[data-task-form-scroll]');
     bindTaskFilePicker(form);
@@ -502,7 +502,10 @@
       submit.textContent='Creating…';
       try{
         const values=new FormData(form);
-        await jsonFetch('/api/uat/tasks',{method:'POST',body:values});
+        const created=await jsonFetch('/api/uat/tasks',{method:'POST',body:values});
+        if(created.everybody&&created.count){
+          window.setTimeout(()=>window.alert(`Task sent to ${created.count} staff members.`),0);
+        }
         await loadTasks({scope:'mine',view:'latest',filter:'all'});
         window.dispatchEvent(new Event('workspace:refresh'));
       }catch(error){window.alert(error.message);}
