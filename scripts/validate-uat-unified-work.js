@@ -36,6 +36,9 @@ assert(widgets.includes('const taskWidget=workWidget'), 'Tasks must use the shar
 assert(widgets.includes("data-work-head=\"inbox\""), 'Work header must expose Inbox');
 assert(widgets.includes("data-work-head=\"messages\""), 'Work header must expose Messages');
 assert(widgets.includes("data-work-head=\"new\""), 'Work header must expose the single +Task action');
+assert(widgets.includes('<option value="all">Everybody</option>'), 'New Task assignee list must expose Everybody for management');
+assert(widgets.includes("s.display_name||String(s.full_name||'').split(/\\\\s+/)[0]"), 'New Task assignee list must show short names instead of surnames/full names');
+assert(widgets.includes('Task sent to ${created.count} staff members.'), 'Everybody task creation must confirm the recipient count');
 assert(widgets.includes("workHead.insertBefore(workHeadNav,workHeadActions)"), 'Work navigation must live in the dark window header');
 assert(!widgets.includes('data-task-new'), 'Inbox must not contain a duplicate +Task button');
 assert(!widgets.includes('workModeNav('), 'body-level Work navigation must be removed');
@@ -70,6 +73,11 @@ assert(loader.includes("event_type:'feature_open'"), 'feature opens must have a 
 assert(server.includes('app.use(usageMiddleware())'), 'usage middleware must be active globally');
 assert(server.includes('/api/uat/telemetry/health'), 'telemetry must have a UAT health proof');
 assert(widgetRoutes.includes("eventType:'work_task_created'"), 'Work task creation must have semantic telemetry');
+assert(widgetRoutes.includes("const sendToEverybody = rawAssignedTo === 'all'"), 'Work task API must accept Everybody explicitly');
+assert(widgetRoutes.includes("Only management can assign a task to Everybody."), 'Everybody assignment must be management-only');
+assert(widgetRoutes.includes('broadcastEligibleStaff(row,actorId)'), 'Everybody assignment must exclude sender/test accounts');
+assert(widgetRoutes.includes('recipientCount:created.length'), 'Everybody task telemetry must record how many staff received the task');
+assert(widgetRoutes.includes('display_name:staffShortName(row)'), 'Task staff API must supply short display names');
 assert(widgetRoutes.includes("eventType:'work_message_sent'"), 'Work messages must have semantic telemetry');
 
 assert(auth.includes("BUSINESS_TIMEZONE = 'Africa/Johannesburg'"), 'daily login must use the South Africa business timezone');
