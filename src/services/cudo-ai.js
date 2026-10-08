@@ -10,6 +10,7 @@ const ACTIVE_TASK = "('unread','seen','in_progress')";
 const OPEN_INQUIRY = "('open','follow_up','waiting_customer','waiting_network','waiting_supplier')";
 const MAX_RESULTS = 100;
 const MAX_BATCH_TASKS = 50;
+const ASSIGNABLE_SELECTIONS = new Set(['upgrade','birthday','deal','client_followup_activity','followup','unallocated_clients']);
 
 function clean(value, max = 5000) {
   return String(value == null ? '' : value).trim().slice(0, max);
@@ -312,6 +313,175 @@ async function resolveStaffMatch(message, fallbackId = null) {
 async function resolveStaff(message, fallbackId = null) {
   const match = await resolveStaffMatch(message,fallbackId);
   return match.staff && !match.needsConfirmation ? match.staff : null;
+}
+
+const NUMBER_WORDS = Object.freeze({
+  one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10,
+  eleven:11,twelve:12,thirteen:13,fourteen:14,fifteen:15,sixteen:16,seventeen:17,
+  eighteen:18,nineteen:19,twenty:20,thirty:30,forty:40,fifty:50
+});
+
+function numberWordsToDigits(value) {
+  return String(value || '').replace(/\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty)\b/gi,
+    word => String(NUMBER_WORDS[String(word).toLowerCase()] || word));
+}
+
+function parseIndexSelector(value, remaining, total, singleStaff = false) {
+  const text = lower(numberWordsToDigits(value));
+  const available = Array.isArray(remaining) ? remaining.slice() : [];
+  const limit = Math.min(Number(total || 0), MAX_BATCH_TASKS);
+  const valid = index => Number.isInteger(index) && index >= 1 && index <= limit;
+
+  if (/\b(?:the\s+)?(?:rest|remaining)\b/.test(text)) return available;
+  const range = text.match(/\b(\d{1,2})\s*(?:-|to|through)\s*(\d{1,2})\b/);
+  if (range) {
+    const start = Math.min(Number(range[1]),Number(range[2]));
+    const end = Math.max(Number(range[1]),Number(range[2]));
+    return Array.from({length:end-start+1},(_,i)=>start+i).filter(valid);
+  }
+  const first = text.match(/\bfirst\s+(\d{1,2})\b/);
+  if (first) return Array.from({length:Math.min(Number(first[1]),limit)},(_,i)=>i+1).filter(valid);
+  const next = text.match(/\bnext\s+(\d{1,2})\b/);
+  if (next) return available.slice(0,Math.min(Number(next[1]),available.length));
+
+  const explicit = text.match(/\b(?:number|item|items)\s+([\d\s,]+(?:and\s+\d{1,2})?)/);
+  if (explicit) return [...explicit[1].matchAll(/\d{1,2}/g)].map(m=>Number(m[0])).filter(valid);
+
+  const nums = [...text.matchAll(/\b\d{1,2}\b/g)].map(m=>Number(m[0])).filter(valid);
+  if (nums.length >= 2 && /,|\band\b/.test(text)) return [...new Set(nums)];
+  if (nums.length === 1) {
+    const count = nums[0];
+    if (/\b(?:number|item)\b/.test(text)) return valid(count) ? [count] : [];
+    return available.slice(0,Math.min(count,available.length));
+  }
+  return singleStaff ? available : [];
+}
+
+function clientAssignmentIntent(message,state) {
+  const selection = state && state.selection;
+  if (!selection || !ASSIGNABLE_SELECTIONS.has(selection.kind) || !Array.isArray(selection.items) || !selection.items.some(item=>Number(item.clientId||0))) return false;
+  if (state && state.assignmentDraft && Array.isArray(state.assignmentDraft.groups) && state.assignmentDraft.groups.length && (
+    parseDueAt(message) || /\b(?:deadline|due|today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/.test(lower(message))
+  )) return true;
+  const q=lower(message);
+  if (/\btasks?\b/.test(q) && !/\b(?:reassign|move|allocate|ownership|customer|client)\b/.test(q)) return false;
+  return /\b(?:assign|reassign|give|move|allocate)\b/.test(q);
+}
+
+function staffAliasList(staff) {
+  const values=[staff.full_name,staff.username,staff.email && String(staff.email).split('@')[0]].filter(Boolean);
+  const aliases=[];
+  for (const value of values) {
+    const normalised=normaliseName(value);
+    if (!normalised) continue;
+    aliases.push(normalised);
+    const first=normalised.split(/\s+/)[0];
+    if (first && first.length>=3) aliases.push(first);
+  }
+  return [...new Set(aliases)].sort((a,b)=>b.length-a.length);
+}
+
+async function allocationGroups(message,selection) {
+  const items=Array.isArray(selection.items)?selection.items.slice(0,MAX_BATCH_TASKS):[];
+  const staffRows=await activeStaff();
+  const normal=normaliseName(numberWordsToDigits(message));
+  const mentions=[];
+  for (const staff of staffRows) {
+    for (const alias of staffAliasList(staff)) {
+      const index=normal.indexOf(alias);
+      if (index>=0) mentions.push({staff,alias,start:index,end:index+alias.length});
+    }
+  }
+  mentions.sort((a,b)=>a.start-b.start || b.alias.length-a.alias.length);
+  const unique=[];
+  for (const mention of mentions) {
+    if (unique.some(row=>mention.start>=row.start && mention.end<=row.end)) continue;
+    unique.push(mention);
+  }
+
+  if (!unique.length) {
+    const match=await resolveStaffMatch(message,selection.staffId||null);
+    if (!match.staff) return {error:'Tell me which staff member should receive these customers.'};
+    if (match.needsConfirmation) {
+      const name=match.staff.full_name||match.staff.username||match.staff.email;
+      return {error:'I think that staff name means '+name+'. Please use the full staff name so I do not assign customers to the wrong person.'};
+    }
+    unique.push({staff:match.staff,alias:'',start:normal.length,end:normal.length});
+  }
+
+  const remaining=Array.from({length:items.length},(_,i)=>i+1);
+  const used=new Set();
+  const groups=[];
+  for (let i=0;i<unique.length;i+=1) {
+    const mention=unique[i];
+    const previousEnd=i===0?0:unique[i-1].end;
+    const prefix=normal.slice(previousEnd,mention.start);
+    const nextStart=i===unique.length-1?normal.length:unique[i+1].start;
+    const suffix=normal.slice(mention.end,nextStart);
+    const selector=/\b(?:first|next|rest|remaining|number|item|items|\d)\b/.test(prefix)?prefix:suffix;
+    const available=remaining.filter(n=>!used.has(n));
+    const indexes=parseIndexSelector(selector,available,items.length,unique.length===1).filter(n=>!used.has(n));
+    if (!indexes.length) {
+      const staffName=mention.staff.full_name||mention.staff.username||mention.staff.email;
+      return {error:'I found '+staffName+', but I could not tell which numbered results should go to them. Say “first 5”, “1 to 5”, “items 1, 3 and 7”, or “the rest”.'};
+    }
+    indexes.forEach(n=>used.add(n));
+    groups.push({
+      staffId:Number(mention.staff.id),
+      staffName:mention.staff.full_name||mention.staff.username||mention.staff.email,
+      items:indexes.map(n=>Object.assign({},items[n-1],{resultNumber:n}))
+    });
+  }
+  return {groups,unassignedIndexes:remaining.filter(n=>!used.has(n))};
+}
+
+async function prepareClientReassignment(message,state) {
+  const selection=state && state.selection;
+  if (!selection || !ASSIGNABLE_SELECTIONS.has(selection.kind)) {
+    return {intent:'assignment',text:'Find the customer work first, then tell me how you want it divided between staff.',rows:[],actions:[],state:state||{selection:null}};
+  }
+
+  let groups=state && state.assignmentDraft && state.assignmentDraft.groups;
+  let unassignedIndexes=(state && state.assignmentDraft && state.assignmentDraft.unassignedIndexes)||[];
+  if (!groups || /\b(?:assign|reassign|give|move|allocate)\b/.test(lower(message))) {
+    const parsed=await allocationGroups(message,selection);
+    if (parsed.error) return {intent:'assignment',text:parsed.error,rows:[],actions:[],state};
+    groups=parsed.groups;
+    unassignedIndexes=parsed.unassignedIndexes;
+  }
+
+  const dueAt=parseDueAt(message)||(state && state.assignmentDraft && state.assignmentDraft.dueAt)||null;
+  const q=lower(message);
+  const priority=/\burgent\b/.test(q)?'urgent':/\bhigh\b/.test(q)?'high':((state && state.assignmentDraft && state.assignmentDraft.priority)||'normal');
+  const selectedCount=groups.reduce((sum,group)=>sum+group.items.length,0);
+  const summary=groups.map(group=>group.items.length+' to '+group.staffName).join(' · ');
+  const previewRows=groups.flatMap(group=>group.items.map(item=>({
+    id:item.resultNumber,
+    title:'#'+item.resultNumber+' '+item.title,
+    detail:(group.staffName+' · '+(item.detail||'')).replace(/ · $/,''),
+    meta:item.dueAt?'Source due '+String(item.dueAt).slice(0,10):''
+  })));
+
+  if (!dueAt) {
+    return {
+      intent:'assignment',
+      text:'I have '+selectedCount+' customer item'+(selectedCount===1?'':'s')+' ready: '+summary+'. '+(unassignedIndexes.length?(unassignedIndexes.length+' result'+(unassignedIndexes.length===1?' is':'s are')+' still unassigned. '):'')+'Tell me the follow-up deadline, for example “Friday 15:00”. Nothing has changed yet.',
+      rows:previewRows.slice(0,MAX_BATCH_TASKS),
+      grouped:Object.fromEntries(groups.map(group=>[group.staffName,group.items.length])),
+      actions:['cancel_action'],
+      state:Object.assign({},state,{assignmentDraft:{groups,unassignedIndexes,priority,dueAt:null}})
+    };
+  }
+
+  return {
+    intent:'assignment',
+    text:'Ready to assign '+selectedCount+' customer item'+(selectedCount===1?'':'s')+': '+summary+'. Follow-up deadline: '+dueAt.slice(0,16).replace(' ',' at ')+'. '+(unassignedIndexes.length?(unassignedIndexes.length+' result'+(unassignedIndexes.length===1?' remains':'s remain')+' unchanged. '):'')+'I will update the CRM ownership, create monitored tasks and keep the normal deadline follow-up active. Nothing changes until you confirm.',
+    rows:previewRows.slice(0,MAX_BATCH_TASKS),
+    grouped:Object.fromEntries(groups.map(group=>[group.staffName,group.items.length])),
+    actions:['confirm_reassignment','cancel_action'],
+    pendingAction:{type:'reassign_client_work',sourceKind:selection.kind,groups,dueAt,priority},
+    state:Object.assign({},state,{assignmentDraft:{groups,unassignedIndexes,priority,dueAt}})
+  };
 }
 
 function resultState(kind, rows, staff, extra = {}) {
@@ -810,13 +980,13 @@ async function queryUpgrades(message) {
   return {
     intent:'upgrades',
     text,
-    rows: rows.slice(0, 20).map(row => ({
+    rows: rows.slice(0, MAX_BATCH_TASKS).map(row => ({
       id:row.id,
       title:row.client_name || 'Customer',
       detail:[row.package_name,row.cell_number,row.staff_name].filter(Boolean).join(' · '),
       meta:row.next_upgrade_date ? `Due ${sqlDate(row.next_upgrade_date)}` : ''
     })),
-    actions: rows.length ? ['show_all','create_tasks','open_agent'] : ['open_agent'],
+    actions: rows.length ? ['show_all','assign_work','create_tasks','open_agent'] : ['open_agent'],
     state: resultState('upgrade', rows, staff, { period })
   };
 }
@@ -892,9 +1062,14 @@ async function queryBirthdays(message) {
   return {
     intent:'birthdays',
     text,
-    rows:rowsForUi,
+    rows:selected.slice(0,MAX_BATCH_TASKS).map(row => ({
+      id:row.id,
+      title:row.client_name || 'Customer',
+      detail:[row.staff_name,row.cell_number,Number(row.followed_up) ? 'Followed up' : 'Not followed up'].filter(Boolean).join(' · '),
+      meta:sqlDate(row.birthday_occurrence)
+    })),
     grouped,
-    actions:selected.length ? ['show_all','create_tasks','open_agent'] : ['open_agent'],
+    actions:selected.length ? ['show_all','assign_work','create_tasks','open_agent'] : ['open_agent'],
     state:resultState('birthday', selected, staff, { period })
   };
 }
@@ -1118,12 +1293,12 @@ async function queryDeals(message) {
     text: rows.length
       ? `I found ${rows.length} CRM deal/prospect${rows.length === 1 ? '' : 's'}${person} in ${period.label}.`
       : `I could not find matching CRM deals/prospects${person} in ${period.label}.`,
-    rows:rows.slice(0,20).map(row=>({
+    rows:rows.slice(0,MAX_BATCH_TASKS).map(row=>({
       id:row.id,title:row.client_name || 'Prospect',
       detail:[row.staff_name,row.lead_status,row.lead_source,row.cell_number].filter(Boolean).join(' · '),
       meta:sqlDate(row.created_at)
     })),
-    actions:rows.length ? ['show_all','create_tasks','open_agent'] : ['open_agent'],
+    actions:rows.length ? ['show_all','assign_work','create_tasks','open_agent'] : ['open_agent'],
     state:resultState('deal', rows.map(row=>({...row,title:row.client_name || 'Prospect',detail:[row.lead_status,row.lead_source].filter(Boolean).join(' · ')})), staff, { period })
   };
 }
@@ -1602,6 +1777,10 @@ async function answerCudo({ message, state = null, context = null, userId = null
     ));
   if (isDispatch) return prepareDispatchAction(workingMessage,workingState,{userId,attachmentIds:currentAttachmentIds.length?currentAttachmentIds:workingState?.dispatchDraft?.attachmentIds||[]});
 
+  if (clientAssignmentIntent(workingMessage,workingState)) {
+    return prepareClientReassignment(workingMessage,workingState);
+  }
+
   const looksLikeActionContinuation = Boolean(selectionKind) && (
     actionIntent(workingMessage)
     || /\b(deadline|due)\b/.test(q)
@@ -1676,6 +1855,7 @@ async function answerCudo({ message, state = null, context = null, userId = null
   }
 
   if (dispatchIntent(workingMessage,currentAttachmentIds)) return prepareDispatchAction(workingMessage,workingState,{userId,attachmentIds:currentAttachmentIds});
+  if (clientAssignmentIntent(workingMessage,workingState)) return prepareClientReassignment(workingMessage,workingState);
   if (actionIntent(workingMessage)) return prepareBatchAction(workingMessage,workingState);
 
   if (/^(hi|hello|hey|help|what can you do)[.!? ]*$/.test(q)) {
@@ -1703,6 +1883,10 @@ module.exports = {
   resolveStaffMatch,
   nameSimilarity,
   detectIntent,
+  numberWordsToDigits,
+  parseIndexSelector,
+  clientAssignmentIntent,
+  prepareClientReassignment,
   queryAttendanceManagement,
   queryUnallocatedClients,
   queryDatabaseFirstFallback,

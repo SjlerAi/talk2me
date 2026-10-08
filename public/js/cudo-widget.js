@@ -240,10 +240,11 @@
     const grouped=data.grouped&&typeof data.grouped==='object'
       ? Object.entries(data.grouped).filter(([,n])=>Number(n)>0).map(([name,n])=>`<div class="cudo-result"><strong>${esc(name)}</strong><span>${Number(n)} outstanding</span></div>`).join('')
       : '';
-    const list=rows.slice(0,20).map(row=>`<div class="cudo-result"><strong>${esc(row.title||'Item')}</strong><span>${esc(row.detail||'')}</span><small>${esc(row.meta||'')}</small></div>`).join('');
+    const assignable=(data.actions||[]).includes('assign_work');
+    const list=rows.slice(0,50).map((row,index)=>`<div class="cudo-result${index>=20?' cudo-result-extra':''}" ${index>=20?'hidden':''} data-cudo-result-index="${index+1}">${assignable?`<button type="button" class="cudo-pick" data-cudo-pick="${index+1}" aria-pressed="false" title="Select item ${index+1}">□</button>`:''}<b class="cudo-result-number">${index+1}</b><div><strong>${esc(row.title||'Item')}</strong><span>${esc(row.detail||'')}</span><small>${esc(row.meta||'')}</small></div></div>`).join('');
     const actions=(data.actions||[]).map(action=>{
-      const labels={show_all:'Show all',create_tasks:'Create tasks',open_agent:'Open Gerda Agent',confirm_tasks:'Create monitored tasks',confirm_dispatch:'Send now',cancel_action:'Cancel'};
-      const cls=(action==='confirm_tasks'||action==='confirm_dispatch')?' primary':action==='cancel_action'?' danger':'';
+      const labels={show_all:'Show all',assign_work:'Assign / reassign',create_tasks:'Create tasks',open_agent:'Open Gerda Agent',confirm_tasks:'Create monitored tasks',confirm_reassignment:'Confirm assignments',confirm_dispatch:'Send now',cancel_action:'Cancel'};
+      const cls=(action==='confirm_tasks'||action==='confirm_reassignment'||action==='confirm_dispatch')?' primary':action==='cancel_action'?' danger':'';
       return `<button type="button" class="cudo-action${cls}" data-cudo-action="${esc(action)}">${esc(labels[action]||action)}</button>`;
     }).join('');
     const evidence=data.evidence&&data.evidence.summary
@@ -335,13 +336,21 @@
   async function runAction(action,button){
     if(action==='open_agent'){location.href=(bootstrap?.openAgentUrl||BASE+'/agent');return;}
     if(action==='show_all'){button.closest('.cudo-bubble')?.querySelectorAll('.cudo-result').forEach(x=>x.hidden=false);return;}
+    if(action==='assign_work'){
+      const bubble=button.closest('.cudo-bubble');
+      const selected=[...(bubble?.querySelectorAll('.cudo-pick[aria-pressed="true"]')||[])].map(item=>Number(item.dataset.cudoPick)).filter(Boolean);
+      textarea.value=selected.length?'Assign items '+selected.join(', ')+' to ':'Assign the first 5 to ';
+      textarea.focus();
+      addAssistant({text:selected.length?'Tell me which staff member should receive the selected numbered customers, and add a deadline. You can also split them, for example: “items 1 to 5 to Brabet, 6 to 10 to Stefan, Friday 15:00”.':'Tell me how to divide the numbered customers. For example: “first 5 to Brabet, next 5 to Stefan, the rest to Gerda, Friday 15:00”. Nothing changes until you confirm.',rows:[],actions:[]});
+      return;
+    }
     if(action==='create_tasks'){
       textarea.value='Assign these as tasks to ';
       textarea.focus();
       addAssistant({text:'Tell me who should receive these items and the deadline, for example: “Assign these to Johnny, due Friday 15:00”.',rows:[],actions:[]});
       return;
     }
-    if(action==='cancel_action'||action==='confirm_tasks'||action==='confirm_dispatch'){
+    if(action==='cancel_action'||action==='confirm_tasks'||action==='confirm_reassignment'||action==='confirm_dispatch'){
       button.disabled=true;
       try{
         const apiAction=action==='cancel_action'?'cancel':action;
@@ -424,7 +433,18 @@
       addAssistant({text:'The microphone is already busy. Wait a moment and try again.',rows:[],actions:[]});
     }
   });
-  stream.addEventListener('click',e=>{const b=e.target.closest('[data-cudo-action]');if(b)runAction(b.dataset.cudoAction,b);});
+  stream.addEventListener('click',e=>{
+    const pick=e.target.closest('[data-cudo-pick]');
+    if(pick){
+      const selected=pick.getAttribute('aria-pressed')==='true';
+      pick.setAttribute('aria-pressed',selected?'false':'true');
+      pick.textContent=selected?'□':'☑';
+      pick.closest('.cudo-result')?.classList.toggle('is-selected',!selected);
+      return;
+    }
+    const b=e.target.closest('[data-cudo-action]');
+    if(b)runAction(b.dataset.cudoAction,b);
+  });
 
   launcher.addEventListener('pointerdown',e=>{
     if(e.button!==0)return;
