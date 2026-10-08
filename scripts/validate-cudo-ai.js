@@ -3,7 +3,7 @@
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
-const { parsePeriod, parseDueAt, detectIntent, nameSimilarity, numberWordsToDigits, parseIndexSelector, clientAssignmentIntent } = require('../src/services/cudo-ai');
+const { parsePeriod, parseDueAt, detectIntent, nameSimilarity, numberWordsToDigits, shortStaffName, parseIndexSelector, clientAssignmentIntent } = require('../src/services/cudo-ai');
 
 const root = path.resolve(__dirname, '..');
 const read = file => fs.readFileSync(path.join(root,file),'utf8');
@@ -32,6 +32,9 @@ assert(route.includes("String(user.role || '').toLowerCase() === 'owner'"), 'Cud
 assert(!route.includes('MANAGEMENT_ROLES'), 'Cudo must not allow manager/admin role shortcuts');
 assert(service.includes('sendAgentInstruction'), 'Cudo must use existing monitored task path');
 assert(service.includes('prepareClientReassignment'), 'Cudo must prepare customer reassignment from the current numbered result set');
+assert(service.includes('shortStaffName(row.staff_name)'), 'Cudo result cards must display only staff first names');
+assert(service.includes("shortStaffName(group.staffName)"), 'Cudo assignment previews must display only staff first names');
+assert(service.includes('staffName: staff ? (staff.full_name || staff.username || staff.email) : null'), 'Cudo must retain the full resolved staff identity internally for safe matching');
 assert(service.includes('assignmentDraft'), 'Cudo must keep a multi-turn assignment draft while waiting for a deadline');
 assert(assignmentService.includes('cudo_client_reassigned'), 'Cudo reassignment must create an audit trail');
 assert(assignmentService.includes('customer_accounts'), 'Cudo reassignment must preserve account-level ownership');
@@ -81,6 +84,9 @@ assert(nameSimilarity('Stefan','Stephan') >= 0.95, 'Stefan should fuzzy-match St
 assert(nameSimilarity('Gerta','Gerda') >= 0.79, 'Gerta should fuzzy-match Gerda');
 assert(nameSimilarity('Jonny','Johnny') >= 0.79, 'Jonny should fuzzy-match Johnny');
 assert.equal(numberWordsToDigits('give five to Gerda'),'give 5 to Gerda');
+assert.equal(shortStaffName('Jonathan Olivier'),'Jonathan');
+assert.equal(shortStaffName('Brabant Allan Van Onselen'),'Brabant');
+assert.equal(shortStaffName('gerda.le.roux@talk-online.co.za'),'gerda');
 assert.deepEqual(parseIndexSelector('first five',[1,2,3,4,5,6,7],7),[1,2,3,4,5]);
 assert.deepEqual(parseIndexSelector('1 to 5',[1,2,3,4,5,6,7],7),[1,2,3,4,5]);
 assert.deepEqual(parseIndexSelector('items 1, 3 and 7',[1,2,3,4,5,6,7],7),[1,3,7]);
