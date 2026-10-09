@@ -408,12 +408,28 @@ async function getMonthlyImportSummary({month=null}={}){
 }
 
 async function getManagementSnapshot({rangeKey='today',month=null}={}){
-  const [scorecard,targets,importSummary]=await Promise.all([
+  const [scorecard,targets,importSummary,workRows]=await Promise.all([
     getOfficeScorecard({rangeKey}),
     getTargetCentre({month}),
-    getMonthlyImportSummary({month})
+    getMonthlyImportSummary({month}),
+    db.execute(`SELECT
+        COUNT(*) active_delegated,
+        SUM(CASE WHEN t.priority='urgent' THEN 1 ELSE 0 END) urgent_delegated,
+        SUM(CASE WHEN t.due_at IS NOT NULL AND t.due_at<NOW() THEN 1 ELSE 0 END) overdue_delegated,
+        SUM(CASE WHEN t.priority='high' THEN 1 ELSE 0 END) important_delegated
+      FROM staff_tasks t
+      WHERE t.created_by<>t.assigned_to AND t.status IN ${ACTIVE_TASK}`)
   ]);
-  return {scorecard,targets,importSummary};
+  const work=workRows[0][0]||{};
+  return {
+    scorecard,targets,importSummary,
+    delegatedWork:{
+      active:Number(work.active_delegated||0),
+      urgent:Number(work.urgent_delegated||0),
+      overdue:Number(work.overdue_delegated||0),
+      important:Number(work.important_delegated||0)
+    }
+  };
 }
 
 module.exports={
