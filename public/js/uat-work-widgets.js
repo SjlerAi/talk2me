@@ -393,7 +393,7 @@
           <button class="${taskState.scope==='mine'?'is-active':''}" data-task-context="mine">Mine</button>
           ${taskState.management
             ? `<button class="${taskState.scope==='team'?'is-active':''}" data-task-context="team">Team</button>`
-            : `<button class="${taskState.scope==='all'?'is-active':''}" data-task-context="all">All</button>`}
+            : ''}
         </div>
         <div class="t2m-work-view-switch" role="tablist" aria-label="Priority view">
           <button class="${taskState.view==='latest'&&taskState.filter!=='completed'?'is-active':''}" data-task-view="latest"><span>Latest</span><b>${Number(counts.latest||0)}</b></button>
