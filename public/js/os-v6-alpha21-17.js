@@ -41,6 +41,7 @@
     addStylesheet('data-uat-responsive-polish', `${basePath}/public/css/uat-responsive-polish.css?v=${encodeURIComponent(uatAssetVersion)}`);
     addStylesheet('data-uat-launcher-strip', `${basePath}/public/css/uat-launcher-strip.css?v=${encodeURIComponent(uatAssetVersion)}`);
     addStylesheet('data-uat-work-widgets', `${basePath}/public/css/uat-work-widgets.css?v=${encodeURIComponent(uatAssetVersion)}`);
+    addStylesheet('data-uat-work-operating-model', `${basePath}/public/css/uat-work-operating-model.css?v=${encodeURIComponent(uatAssetVersion)}-approved1`);
     addStylesheet('data-uat-widget-polish', `${basePath}/public/css/uat-widget-polish.css?v=${encodeURIComponent(uatAssetVersion)}`);
     addStylesheet('data-uat-mobile-first', `${basePath}/public/css/uat-mobile-first.css?v=${encodeURIComponent(uatAssetVersion)}`);
     addScript('data-uat-responsive-polish', `${basePath}/public/js/uat-responsive-polish.js?v=${encodeURIComponent(uatAssetVersion)}`);
@@ -49,7 +50,9 @@
       addScript('data-calendar-home-uat', `${basePath}/public/js/calendar-home-uat.js?v=${encodeURIComponent(uatAssetVersion)}`, () => {
         addScript('data-uat-command-centre-sidebar', `${basePath}/public/js/uat-command-centre-sidebar.js?v=${encodeURIComponent(uatAssetVersion)}`);
         addScript('data-uat-work-widgets', `${basePath}/public/js/uat-work-widgets.js?v=${encodeURIComponent(uatAssetVersion)}`, () => {
-          addScript('data-uat-widget-polish', `${basePath}/public/js/uat-widget-polish.js?v=${encodeURIComponent(uatAssetVersion)}`);
+          addScript('data-uat-work-operating-model', `${basePath}/public/js/uat-work-operating-model.js?v=${encodeURIComponent(uatAssetVersion)}-approved1`, () => {
+              addScript('data-uat-widget-polish', `${basePath}/public/js/uat-widget-polish.js?v=${encodeURIComponent(uatAssetVersion)}`);
+          });
         });
       });
     });
