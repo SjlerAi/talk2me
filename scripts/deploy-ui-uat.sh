@@ -11,6 +11,60 @@ SITE_URL=https://uent.co.za/talk2me
 
 fail(){ echo "TALK2ME_UI_UAT_DEPLOY_FAILED: $*" >&2; exit 1; }
 
+app_process_count(){
+  local pids
+  pids="$(pgrep -f "^lsnode:${APP_DIR}/$" 2>/dev/null || true)"
+  if [ -z "$pids" ]; then
+    echo 0
+  else
+    printf '%s\n' "$pids" | wc -l | tr -d ' '
+  fi
+}
+
+app_process_snapshot(){
+  ps -eo pid=,ppid=,etime=,stat=,cmd= | grep -F "lsnode:${APP_DIR}/" | grep -v grep || true
+}
+
+verify_single_app_process(){
+  local stable=0 count attempt
+  for attempt in $(seq 1 30); do
+    count="$(app_process_count)"
+    echo "TALK2ME_UI_UAT_APP_PROCESS_CHECK attempt=$attempt count=$count"
+    if [ "$count" -eq 1 ]; then
+      stable=$((stable + 1))
+      if [ "$stable" -ge 3 ]; then
+        echo "TALK2ME_UI_UAT_APP_PROCESS_COUNT=1"
+        return 0
+      fi
+    else
+      stable=0
+    fi
+    sleep 1
+  done
+  echo "TALK2ME_UI_UAT_APP_PROCESS_SNAPSHOT_BEGIN" >&2
+  app_process_snapshot >&2
+  echo "TALK2ME_UI_UAT_APP_PROCESS_SNAPSHOT_END" >&2
+  return 1
+}
+
+SELECTOR="$(command -v cloudlinux-selector || true)"
+if [ -z "$SELECTOR" ] && [ -x /usr/sbin/cloudlinux-selector ]; then SELECTOR=/usr/sbin/cloudlinux-selector; fi
+
+restart_runtime(){
+  if [ -n "$SELECTOR" ]; then
+    echo "TALK2ME_UI_UAT_RESTART_METHOD=cloudlinux-selector"
+    if ! "$SELECTOR" restart --json --interpreter nodejs --app-root "$APP_ROOT" >/tmp/talk2me-ui-uat-selector.json 2>&1; then
+      cat /tmp/talk2me-ui-uat-selector.json 2>/dev/null || true
+      return 1
+    fi
+    cat /tmp/talk2me-ui-uat-selector.json 2>/dev/null || true
+  else
+    echo "TALK2ME_UI_UAT_RESTART_METHOD=passenger-restart-file"
+    mkdir -p "$APP_DIR/tmp"
+    touch "$APP_DIR/tmp/restart.txt"
+  fi
+}
+
 [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]] || fail "invalid expected SHA"
 [[ "$EXPECTED_BRANCH" == release/* ]] || fail "deployment branch must be release/*"
 [ -d "$REPO_ROOT/.git" ] || fail "deployment checkout missing"
@@ -21,6 +75,15 @@ cd "$REPO_ROOT"
 [ "$(git rev-parse HEAD)" = "$EXPECTED_SHA" ] || fail "exact SHA mismatch"
 git diff --quiet || fail "deployment checkout has unstaged changes"
 git diff --cached --quiet || fail "deployment checkout has staged changes"
+
+pre_process_count="$(app_process_count)"
+echo "TALK2ME_UI_UAT_PREDEPLOY_APP_PROCESS_COUNT=$pre_process_count"
+if [ "$pre_process_count" -gt 1 ]; then
+  echo "TALK2ME_UI_UAT_APP_PROCESS_SNAPSHOT_BEGIN" >&2
+  app_process_snapshot >&2
+  echo "TALK2ME_UI_UAT_APP_PROCESS_SNAPSHOT_END" >&2
+  fail "pre-existing duplicate Talk2Me Passenger processes; refusing to deploy"
+fi
 
 current_lock=""
 if [ -f "$APP_DIR/package-lock.json" ]; then
@@ -87,8 +150,7 @@ rollback(){
     echo "Talk2Me UI UAT activation failed; restoring previous release." >&2
     for target in "${targets[@]}"; do rm -rf "$APP_DIR/$target"; done
     tar -xzf "$BACKUP_FILE" -C "$APP_DIR"
-    mkdir -p "$APP_DIR/tmp"
-    touch "$APP_DIR/tmp/restart.txt"
+    restart_runtime || true
   fi
   exit "$code"
 }
@@ -101,15 +163,7 @@ for target in "${targets[@]}"; do
 done
 
 printf '%s\n' "$EXPECTED_SHA" > "$APP_DIR/.deployed_commit"
-mkdir -p "$APP_DIR/tmp"
-touch "$APP_DIR/tmp/restart.txt"
-
-SELECTOR="$(command -v cloudlinux-selector || true)"
-if [ -z "$SELECTOR" ] && [ -x /usr/sbin/cloudlinux-selector ]; then SELECTOR=/usr/sbin/cloudlinux-selector; fi
-if [ -n "$SELECTOR" ]; then
-  "$SELECTOR" restart --json --interpreter nodejs --app-root "$APP_ROOT" >/tmp/talk2me-ui-uat-selector.json 2>&1 || true
-  cat /tmp/talk2me-ui-uat-selector.json 2>/dev/null || true
-fi
+restart_runtime || fail "Talk2Me runtime restart failed"
 
 proved=false
 for attempt in $(seq 1 24); do
@@ -133,6 +187,7 @@ PY
   sleep 5
 done
 [ "$proved" = true ] || fail "exact public release proof failed"
+verify_single_app_process || fail "expected exactly one Talk2Me Passenger process after restart"
 
 widgets="$(curl -LfsS --connect-timeout 8 --max-time 18 "$SITE_URL/api/uat/widgets/health" 2>/dev/null || true)"
 WIDGETS="$widgets" python3 - <<'PY'
@@ -144,6 +199,13 @@ PY
 
 agent_login="$(curl -LfsS --connect-timeout 8 --max-time 18 "$SITE_URL/agent/login" 2>/dev/null || true)"
 printf '%s' "$agent_login" | grep -Fq 'Gerda Agent' || fail "Gerda Agent login runtime proof failed"
+
+for attempt in $(seq 1 6); do
+  code="$(curl -LfsS -o /dev/null -w '%{http_code}' --connect-timeout 8 --max-time 18 "$SITE_URL" 2>/dev/null || true)"
+  echo "TALK2ME_UI_UAT_PAGE_PROBE attempt=$attempt http=$code"
+  [ "$code" = 200 ] || fail "Talk2Me page probe failed after restart"
+done
+verify_single_app_process || fail "Talk2Me Passenger process count changed after runtime probes"
 
 trap - ERR
 find "$BACKUP_DIR" -maxdepth 1 -type f -name 'talk2me-ui-uat-before-*.tar.gz' -printf '%T@ %p\n' | sort -nr | tail -n +6 | cut -d' ' -f2- | xargs -r rm -f
