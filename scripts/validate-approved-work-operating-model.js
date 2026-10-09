@@ -65,6 +65,11 @@ assert(ui.includes('Monthly Import Summary'),'Owner Import Summary missing.');
 assert(ui.includes('Complete / Close'),'Task Complete/Close language missing.');
 assert(ui.includes('Reply with what you did, or attach a file'),'Task conversation reply language missing.');
 assert(ui.includes('shortStaff'),'First-name display helper missing.');
+assert(ui.includes("if(inbox&&inbox.textContent!=='Tasks')inbox.textContent='Tasks';"),'Work header mutation must be idempotent inside the MutationObserver.');
+assert(ui.includes('function setTextIfChanged(node,value)'),'Work DOM normalisation must use an idempotent text setter.');
+assert(ui.includes("complete&&complete.textContent!=='Complete / Close'"),'Complete/Close label mutation must be guarded to avoid observer feedback loops.');
+assert(!ui.includes("if(inbox)inbox.textContent='Tasks';"),'Unconditional Work header mutation can create an infinite MutationObserver loop.');
+
 assert(css.includes('.t2m-om-delegated.is-urgent'),'Urgent delegated styling missing.');
 assert(css.includes('.t2m-om-delegated.is-high'),'Important delegated styling missing.');
 assert(css.includes('.t2m-task-comment.t2m-om-thread-bubble'),'WhatsApp-style task conversation styling missing.');
