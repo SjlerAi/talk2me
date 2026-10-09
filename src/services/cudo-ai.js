@@ -952,8 +952,7 @@ async function queryClientAttention(message) {
       AND COALESCE(c.line_status,'active')<>'cancelled'
       AND c.next_upgrade_date IS NOT NULL
       AND DATE(c.next_upgrade_date)<CURRENT_DATE()
-    ORDER BY c.next_upgrade_date ASC
-    LIMIT 250`);
+    ORDER BY c.next_upgrade_date ASC`);
   for (const row of upgrades) add(row,{
     type:'upgrade',
     label:`Upgrade overdue by ${Math.max(1,Number(row.days_overdue||0))} day${Number(row.days_overdue||0)===1?'':'s'}`,
@@ -970,8 +969,7 @@ async function queryClientAttention(message) {
       AND COALESCE(f.status,'') NOT IN ('completed','cancelled','canceled')
       AND f.scheduled_at IS NOT NULL
       AND f.scheduled_at<NOW()
-    ORDER BY f.scheduled_at ASC
-    LIMIT 250`);
+    ORDER BY f.scheduled_at ASC`);
   for (const row of followups) add(row,{
     type:'follow_up',
     label:`Follow-up overdue since ${sqlDate(row.scheduled_at) || 'an earlier date'}`,
@@ -989,8 +987,7 @@ async function queryClientAttention(message) {
       AND COALESCE(cb.status,'') NOT IN ('completed','cancelled','canceled')
       AND cb.scheduled_at IS NOT NULL
       AND cb.scheduled_at<NOW()
-    ORDER BY cb.scheduled_at ASC
-    LIMIT 250`);
+    ORDER BY cb.scheduled_at ASC`);
   for (const row of callbacks) add(row,{
     type:'callback',
     label:`Callback overdue since ${sqlDate(row.scheduled_at) || 'an earlier date'}`,
@@ -1006,8 +1003,7 @@ async function queryClientAttention(message) {
     WHERE c.is_active=1
       AND COALESCE(c.line_status,'active')<>'cancelled'
       AND i.status IN ${OPEN_INQUIRY}
-    ORDER BY i.follow_up_at IS NULL,i.follow_up_at ASC,i.created_at ASC
-    LIMIT 250`);
+    ORDER BY i.follow_up_at IS NULL,i.follow_up_at ASC,i.created_at ASC`);
   for (const row of inquiries) add(row,{
     type:'inquiry',
     label:row.follow_up_at && new Date(row.follow_up_at).getTime()<Date.now()
@@ -1027,8 +1023,7 @@ async function queryClientAttention(message) {
       AND t.status IN ${ACTIVE_TASK}
       AND t.due_at IS NOT NULL
       AND t.due_at<NOW()
-    ORDER BY t.due_at ASC
-    LIMIT 250`);
+    ORDER BY t.due_at ASC`);
   for (const row of tasks) add(row,{
     type:'task',
     label:`Customer task overdue since ${sqlDate(row.due_at) || 'an earlier date'}`,
@@ -1059,8 +1054,7 @@ async function queryClientAttention(message) {
         WHERE i.client_id=c.id AND i.status='completed'
           AND DATE(COALESCE(i.completed_at,i.updated_at,i.created_at))>=DATE_SUB(CURRENT_DATE(),INTERVAL 7 DAY)
       )
-    ORDER BY DATE_FORMAT(c.birthday,'%m-%d')
-    LIMIT 250`);
+    ORDER BY DATE_FORMAT(c.birthday,'%m-%d')`);
   for (const row of birthdays) add(row,{
     type:'birthday',
     label:`Birthday follow-up not recorded (${new Date(row.birthday).toLocaleDateString('en-ZA',{day:'2-digit',month:'short'})})`,
@@ -1081,8 +1075,7 @@ async function queryClientAttention(message) {
           )
         )
       )
-    ORDER BY c.created_at ASC
-    LIMIT 250`);
+    ORDER BY c.created_at ASC`);
   for (const row of unallocated) add(row,{
     type:'unallocated',
     label:'No staff member is allocated to this client',
