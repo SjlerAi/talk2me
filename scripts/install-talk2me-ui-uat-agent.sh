@@ -7,14 +7,16 @@ STATE_DIR=/home/uent/.talk2me-ui-uat-deploy
 BIN_DIR=/home/uent/bin
 CONTROL_BRANCH=deploy/ui-uat-control
 CRON_MARKER='talk2me-ui-uat-deploy-agent'
+GLOBAL_GUARD_DIR=/home/uent/.deploy-agent-guard
+GLOBAL_GUARD_LOCK="$GLOBAL_GUARD_DIR/global.lock"
 
 test "$(whoami)" = uent
 test -d "$SOURCE_REPO/.git"
 test -f "$SOURCE_REPO/scripts/talk2me-ui-uat-agent.sh"
 test -f "$SOURCE_REPO/scripts/deploy-ui-uat.sh"
 
-mkdir -p "$BIN_DIR" "$STATE_DIR" "$STATE_DIR/logs"
-chmod 700 "$STATE_DIR" "$STATE_DIR/logs"
+mkdir -p "$BIN_DIR" "$STATE_DIR" "$STATE_DIR/logs" "$GLOBAL_GUARD_DIR"
+chmod 700 "$STATE_DIR" "$STATE_DIR/logs" "$GLOBAL_GUARD_DIR"
 install -m 700 "$SOURCE_REPO/scripts/talk2me-ui-uat-agent.sh" "$BIN_DIR/talk2me-ui-uat-agent"
 install -m 700 "$SOURCE_REPO/scripts/deploy-ui-uat.sh" "$BIN_DIR/talk2me-deploy-ui-uat"
 
@@ -32,7 +34,7 @@ existing_cron="$(crontab -l 2>/dev/null || true)"
 clean_cron="$(printf '%s\n' "$existing_cron" | grep -Fv "$CRON_MARKER" || true)"
 {
   printf '%s\n' "$clean_cron"
-  printf '%s\n' '* * * * * /home/uent/bin/talk2me-ui-uat-agent >> /home/uent/.talk2me-ui-uat-deploy/cron.log 2>&1 # talk2me-ui-uat-deploy-agent'
+  printf '%s\n' '* * * * * /bin/flock -n /home/uent/.deploy-agent-guard/global.lock /bin/timeout -k 15s 10m /home/uent/bin/talk2me-ui-uat-agent >> /home/uent/.talk2me-ui-uat-deploy/cron.log 2>&1 # talk2me-ui-uat-deploy-agent'
 } | sed '/^[[:space:]]*$/d' | crontab -
 
 touch "$STATE_DIR/cron.log"
