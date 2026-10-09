@@ -26,6 +26,8 @@ requireText('docs/DEPLOYMENT_PROFILE_V2.md', 'deploy/ui-uat-control', 'profile m
 requireText('docs/DEPLOYMENT_PROFILE_V2.md', '/home/uent/bin/talk2me-ui-uat-agent', 'profile must name the permanent poller');
 requireText('docs/DEPLOYMENT_PROFILE_V2.md', '/home/uent/bin/talk2me-deploy-ui-uat', 'profile must name the installed deploy driver');
 requireText('docs/DEPLOYMENT_PROFILE_V2.md', 'Routine deployment must not use GitHub Actions SSH/SCP', 'profile must prohibit routine push deployment');
+requireText('docs/DEPLOYMENT_PROFILE_V2.md', '/home/uent/bin/desktop-commander-remote-low', 'profile must require the low-resource remote launcher');
+requireText('docs/DEPLOYMENT_PROFILE_V2.md', 'shared CloudLinux account', 'profile must document shared-host thread headroom');
 
 const poller = read('scripts/talk2me-ui-uat-agent.sh');
 for (const required of [
@@ -53,6 +55,11 @@ for (const required of [
   'restart_runtime',
   'app_process_count',
   'verify_single_app_process',
+  'user_thread_count',
+  'verify_thread_headroom',
+  'TALK2ME_UI_UAT_USER_THREADS',
+  'insufficient CloudLinux thread headroom before deploy',
+  'CloudLinux thread headroom exhausted after deploy',
   'pre-existing duplicate Talk2Me Passenger processes; refusing to deploy',
   'TALK2ME_UI_UAT_APP_PROCESS_COUNT=1',
   'TALK2ME_UI_UAT_PAGE_PROBE',
@@ -74,9 +81,25 @@ const installer = read('scripts/install-talk2me-ui-uat-agent.sh');
 for (const required of [
   'GLOBAL_GUARD_DIR=/home/uent/.deploy-agent-guard',
   '/bin/flock -n /home/uent/.deploy-agent-guard/global.lock',
-  '/bin/timeout -k 15s 10m /home/uent/bin/talk2me-ui-uat-agent'
+  '/bin/timeout -k 15s 10m /home/uent/bin/talk2me-ui-uat-agent',
+  'start-desktop-commander-remote-low.sh',
+  'desktop-commander-remote-low'
 ]) {
   if (!installer.includes(required)) failures.push(`UI-UAT poller commissioning missing global deploy guard: ${required}`);
+}
+
+const lowRemote = read('scripts/start-desktop-commander-remote-low.sh');
+for (const required of [
+  'UV_THREADPOOL_SIZE',
+  'UV_THREADPOOL_SIZE:-2',
+  '--v8-pool-size=1',
+  'node_modules/.bin/desktop-commander',
+  'exec "$NODE" "$ENTRY" remote'
+]) {
+  if (!lowRemote.includes(required)) failures.push(`low-resource Desktop Commander launcher missing: ${required}`);
+}
+if (lowRemote.includes('npm exec') || lowRemote.includes('npx ')) {
+  failures.push('low-resource Desktop Commander launcher must not keep a persistent npm/npx parent process');
 }
 
 if (fs.existsSync(path.join(root, '.github/workflows/deploy-ui-uat.yml'))) {
@@ -99,3 +122,4 @@ console.log('- controlled release/* exact SHA only');
 console.log('- no routine GitHub Actions SSH/SCP deployment workflow');
 console.log('- exact public SHA, page probes and Agent runtime proof remain mandatory');
 console.log('- deployment uses one restart mechanism and must prove exactly one Talk2Me Passenger process');
+console.log('- shared-host thread headroom is enforced and remote tooling has a low-resource launcher');
