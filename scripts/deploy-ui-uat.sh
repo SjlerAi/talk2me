@@ -13,7 +13,7 @@ fail(){ echo "TALK2ME_UI_UAT_DEPLOY_FAILED: $*" >&2; exit 1; }
 
 app_process_count(){
   local pids
-  pids="$(pgrep -f "^lsnode:${APP_DIR}/$" 2>/dev/null || true)"
+  pids="$(pgrep -f "^lsnode:${APP_DIR}/[[:space:]]*$" 2>/dev/null || true)"
   if [ -z "$pids" ]; then
     echo 0
   else
