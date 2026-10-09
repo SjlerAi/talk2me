@@ -550,7 +550,7 @@ function resultState(kind, rows, staff, extra = {}) {
 function clientAttentionIntent(message) {
   const q = lower(message);
   const subject = /\b(?:clients?|customers?|accounts?|items?|records?|people)\b/.test(q);
-  const attention = /\b(?:need(?:s|ing)?\s+(?:some\s+)?attention|requires?\s+attention|attention\s+needed|need(?:s)?\s+service|service\s+needed|must\s+(?:be\s+)?contact(?:ed)?|need(?:s)?\s+(?:to\s+be\s+)?contact(?:ed)?|need(?:s)?\s+(?:a\s+)?follow[- ]?up|must\s+follow[- ]?up|slipping\s+through|neglect(?:ed|ing)?)\b/.test(q);
+  const attention = /\b(?:need(?:s|ing)?\s+(?:some\s+)?attention|requires?\s+attention|attention\s+needed|need(?:s)?\s+service|service\s+needed|(?:must|should)\s+(?:we\s+)?(?:be\s+)?contact(?:ed)?|need(?:s)?\s+(?:to\s+be\s+)?contact(?:ed)?|need(?:s)?\s+(?:a\s+)?follow[- ]?up|(?:must|should)\s+(?:we\s+)?follow[- ]?up|slipping\s+through|neglect(?:ed|ing)?)\b/.test(q);
   if (subject && attention) return true;
   if (/\bwho\b.*\b(?:needs?|requires?)\b.*\b(?:attention|service|contact|follow[- ]?up)\b/.test(q)) return true;
   if (/\bwhat\b.*\b(?:needs?|requires?)\b.*\battention\b/.test(q)) return true;
