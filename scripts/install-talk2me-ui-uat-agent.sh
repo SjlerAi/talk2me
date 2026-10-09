@@ -19,6 +19,7 @@ mkdir -p "$BIN_DIR" "$STATE_DIR" "$STATE_DIR/logs" "$GLOBAL_GUARD_DIR"
 chmod 700 "$STATE_DIR" "$STATE_DIR/logs" "$GLOBAL_GUARD_DIR"
 install -m 700 "$SOURCE_REPO/scripts/talk2me-ui-uat-agent.sh" "$BIN_DIR/talk2me-ui-uat-agent"
 install -m 700 "$SOURCE_REPO/scripts/deploy-ui-uat.sh" "$BIN_DIR/talk2me-deploy-ui-uat"
+install -m 700 "$SOURCE_REPO/scripts/start-desktop-commander-remote-low.sh" "$BIN_DIR/desktop-commander-remote-low"
 
 remote_url="$(git -C "$SOURCE_REPO" remote get-url origin)"
 if [ -d "$CONTROL_DIR/.git" ]; then

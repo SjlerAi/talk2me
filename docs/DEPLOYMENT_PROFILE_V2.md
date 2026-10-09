@@ -34,6 +34,18 @@ Feature/fix branch → PR/CI → merge to `uat/talk2me-ui-redesign` → exact `r
 
 Routine deployment must not use GitHub Actions SSH/SCP, FTP, manual uploads, cPanel file reconstruction, or a second transport.
 
+## Shared-host resource headroom
+
+The Elitehost UAT account has a tight per-user PID/thread budget shared by Passenger applications and remote tooling. Desktop Commander 0.2.x defaults each Node process to a 16-thread libuv pool, so the normal `npx ... remote` launcher can consume most of the available headroom before Talk2Me handles office traffic.
+
+For persistent remote access on `cp47-jhb.za-dns.com`, use the commissioned lightweight launcher:
+
+`/home/uent/bin/desktop-commander-remote-low`
+
+It sets `UV_THREADPOOL_SIZE=2`, avoids the persistent `npm exec` parent process, and reduces V8 worker threads. Routine UI-UAT deployment must refuse to start when the user thread count exceeds the safe pre-deploy threshold, and must verify post-deploy headroom before reporting COMPLETE.
+
+This resource guard is part of the deployment road: do not bypass it by manually restarting Passenger or by running the high-thread `npx @wonderwhy-er/desktop-commander ... remote` process during office-hours deployment.
+
 ## Dependency rule
 
 The commissioned UI-UAT deploy driver preserves the existing host `node_modules` and requires the active and requested `package-lock.json` hashes to match. A dependency-lock change is a separate maintenance/commissioning event and must not be improvised during product deployment.
