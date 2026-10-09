@@ -363,7 +363,7 @@ async function getMonthlyImportSummary({month=null}={}){
       WHERE created_at>=:monthKey AND created_at<DATE_ADD(:monthKey,INTERVAL 1 MONTH)`,{monthKey:key});
     const [[matchSummary]]=await db.execute(`SELECT
         SUM(m.classification='exact_match') exact_matches,
-        SUM(m.classification='conflict' AND m.review_status='pending' AND a.applied_status='not_applied') needs_review,
+        SUM(m.classification='conflict' AND m.review_status='pending' AND COALESCE(a.applied_status,'not_applied')='not_applied') needs_review,
         SUM(a.applied_status='applied' AND a.action_type='create_mobile_record') new_clients_applied,
         SUM(a.applied_status='applied' AND a.action_type='create_mobile_record'
           AND (c.id IS NULL OR NULLIF(TRIM(COALESCE(ca.account_number,c.account_number)), '') IS NULL)) incomplete_clients
@@ -371,8 +371,10 @@ async function getMonthlyImportSummary({month=null}={}){
       JOIN monthly_import_rows r ON r.batch_id=b.id
       LEFT JOIN monthly_import_matches m ON m.import_row_id=r.id
       LEFT JOIN monthly_import_actions a ON a.import_row_id=r.id
-      LEFT JOIN clients c ON c.id=a.applied_client_id
-      LEFT JOIN customer_accounts ca ON ca.id=a.applied_account_id
+      LEFT JOIN clients c ON c.id=CASE
+        WHEN a.target_entity_type='clients' AND a.target_entity_id IS NOT NULL THEN a.target_entity_id
+        ELSE m.proposed_client_id END
+      LEFT JOIN customer_accounts ca ON ca.id=COALESCE(c.account_id,m.proposed_account_id)
       WHERE b.created_at>=:monthKey AND b.created_at<DATE_ADD(:monthKey,INTERVAL 1 MONTH)`,{monthKey:key});
     const [files]=await db.execute(`SELECT b.id,b.original_filename,b.import_type,b.source_system,b.total_rows,b.valid_rows,b.duplicate_rows,b.exception_rows,b.status,b.created_at,
         COALESCE(s.full_name,s.email,'Unknown') imported_by_name
