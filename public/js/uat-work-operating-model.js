@@ -54,7 +54,7 @@
     const nav=panel?.querySelector('.t2m-work-head-nav');
     if(!nav)return;
     const inbox=nav.querySelector('[data-work-head="inbox"] strong');
-    if(inbox)inbox.textContent='Tasks';
+    if(inbox&&inbox.textContent!=='Tasks')inbox.textContent='Tasks';
     if(!nav.querySelector('[data-work-head="overview"]')){
       const button=document.createElement('button');
       button.type='button';
@@ -216,27 +216,37 @@
     }catch(error){holder.innerHTML='<div class="t2m-chat-empty"><strong>Could not load import summary</strong><span>'+esc(error.message)+'</span></div>';}
   }
 
+  function setTextIfChanged(node,value){
+    if(node&&node.textContent!==value)node.textContent=value;
+  }
+
   function simplifyNames(root=document){
-    root.querySelectorAll?.('.t2m-task-inbox-people span').forEach(node=>{node.textContent=shortStaff(node.textContent);});
-    root.querySelectorAll?.('.t2m-task-inbox-latest-by').forEach(node=>{const parts=node.textContent.split(' · ');if(parts.length>1)node.textContent=shortStaff(parts[0])+' · '+parts.slice(1).join(' · ');});
+    root.querySelectorAll?.('.t2m-task-inbox-people span').forEach(node=>setTextIfChanged(node,shortStaff(node.textContent)));
+    root.querySelectorAll?.('.t2m-task-inbox-latest-by').forEach(node=>{
+      const parts=node.textContent.split(' · ');
+      if(parts.length>1)setTextIfChanged(node,shortStaff(parts[0])+' · '+parts.slice(1).join(' · '));
+    });
     root.querySelectorAll?.('.t2m-task-detail-meta span').forEach(node=>{
       const text=String(node.textContent||'');
-      if(text.startsWith('From '))node.textContent='From '+shortStaff(text.slice(5));
-      if(text.startsWith('To '))node.textContent='To '+shortStaff(text.slice(3));
+      if(text.startsWith('From '))setTextIfChanged(node,'From '+shortStaff(text.slice(5)));
+      if(text.startsWith('To '))setTextIfChanged(node,'To '+shortStaff(text.slice(3)));
     });
-    root.querySelectorAll?.('.t2m-chat-person-copy strong,.t2m-chat-bubble-head strong').forEach(node=>{if(node.textContent!=='Office'&&node.textContent!=='You')node.textContent=shortStaff(node.textContent);});
+    root.querySelectorAll?.('.t2m-chat-person-copy strong,.t2m-chat-bubble-head strong').forEach(node=>{
+      if(node.textContent!=='Office'&&node.textContent!=='You')setTextIfChanged(node,shortStaff(node.textContent));
+    });
     root.querySelectorAll?.('.t2m-task-comment').forEach(comment=>{
       comment.classList.add('t2m-om-thread-bubble');
       const name=comment.querySelector('strong');
       if(name){
         const mine=shortStaff(name.textContent).toLowerCase()===shortStaff(user.full_name||user.name||'').toLowerCase();
         comment.classList.toggle('is-me',mine);
-        name.textContent=mine?'You':shortStaff(name.textContent);
+        setTextIfChanged(name,mine?'You':shortStaff(name.textContent));
       }
     });
-    root.querySelector('[data-task-complete]')?.replaceChildren(document.createTextNode('Complete / Close'));
+    const complete=root.querySelector('[data-task-complete]');
+    if(complete&&complete.textContent!=='Complete / Close')setTextIfChanged(complete,'Complete / Close');
     const composer=root.querySelector('[data-task-comment]');
-    if(composer)composer.placeholder='Reply with what you did, or attach a file';
+    if(composer&&composer.placeholder!=='Reply with what you did, or attach a file')composer.placeholder='Reply with what you did, or attach a file';
     if(!isManagement)root.querySelectorAll?.('[data-task-context="all"],[data-task-context="team"]').forEach(button=>button.remove());
   }
 
