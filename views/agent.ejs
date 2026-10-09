@@ -85,7 +85,7 @@
         <div class="subgrid">
           <div class="subpanel"><h3>Office Scorecard · <%= om.scorecard&&om.scorecard.range?om.scorecard.range.label:'' %></h3>
             <% if(om.scorecard&&om.scorecard.rows&&om.scorecard.rows.length){ %>
-              <div class="table-wrap"><table class="table"><thead><tr><th>Staff</th><th>Queries</th><th>Upgrades</th><th>Tasks done</th><th>O/S tasks</th><th>Overdue upgrades</th></tr></thead><tbody>
+              <div class="table-wrap"><table class="table"><thead><tr><th>Staff</th><th>Queries handeled</th><th>Upgrade Updated</th><th>Task Completed</th><th>U/S Task</th><th>Over Due Upgrades</th></tr></thead><tbody>
               <% om.scorecard.rows.forEach(function(x){ %><tr><td><strong><%= shortName(x.staffName) %></strong></td><td><%= x.queriesHandled %></td><td><%= x.upgradesUpdated %></td><td><%= x.tasksCompleted %></td><td><%= x.outstandingTasks %></td><td><%= x.overdueUpgrades %></td></tr><% }) %>
               </tbody></table></div>
             <% } else { %><div class="empty">No scorecard rows available.</div><% } %>
