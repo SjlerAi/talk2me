@@ -14,13 +14,13 @@ CACHE_ROOT="${DESKTOP_COMMANDER_CACHE_ROOT:-/home/uent/.npm/_npx}"
 [ -x "$NODE" ] || { echo "Desktop Commander Node runtime unavailable: $NODE" >&2; exit 1; }
 
 ENTRY="$(
-  find "$CACHE_ROOT" -path '*/node_modules/.bin/desktop-commander' -type f -printf '%T@ %p\n' 2>/dev/null \
+  find "$CACHE_ROOT" -path '*/node_modules/.bin/desktop-commander' -printf '%T@ %p\n' 2>/dev/null \
     | sort -nr \
     | head -n 1 \
     | cut -d' ' -f2-
 )"
 
-if [ -z "$ENTRY" ] || [ ! -f "$ENTRY" ]; then
+if [ -z "$ENTRY" ] || [ ! -e "$ENTRY" ]; then
   echo "Desktop Commander cache is not available under $CACHE_ROOT." >&2
   echo "Prime the package cache once, then use this lightweight launcher for normal remote access." >&2
   exit 1
