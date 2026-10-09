@@ -22,11 +22,12 @@
   </style>
 </head>
 <body>
-<% const fmt = value => value ? new Date(value).toLocaleString('en-ZA',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : '—'; %>
+<% const fmt = value => value ? new Date(value).toLocaleString('en-ZA',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : '—';
+   const shortName = value => { const raw=String(value||'').trim(); if(!raw)return ''; const source=raw.includes('@')?raw.split('@')[0]:raw; const parts=source.split(/[\\s._-]+/).filter(Boolean); return String(parts[0]||'').toLowerCase()==='van'&&String(parts[1]||'').toLowerCase()==='zyl'?'Van Zyl':(parts[0]||raw); }; %>
   <main class="app">
     <header class="top">
       <div class="brand"><div class="mark">T2M</div><div><strong>Talk2Me</strong><span>Private Management Agent</span></div></div>
-      <div class="user"><span class="name"><%= currentUser.full_name || currentUser.email %></span><form method="post" action="<%= basePath %>/logout?return=agent"><button class="logout" type="submit">Sign out</button></form></div>
+      <div class="user"><span class="name"><%= shortName(currentUser.full_name || currentUser.email) %></span><form method="post" action="<%= basePath %>/logout?return=agent"><button class="logout" type="submit">Sign out</button></form></div>
     </header>
 
     <div class="statusbar"><span class="live"><i></i> LIVE · <%= report.range.label %></span><button class="install" id="agent-install" type="button">Add to phone</button></div>
@@ -39,7 +40,7 @@
 
     <% if (typeof agentError!=='undefined' && agentError) { %><div class="agent-alert"><strong>Could not send instruction</strong><%= agentError %></div><% } %>
     <% if (report.deadlineAlerts && report.deadlineAlerts.length) { %>
-      <div class="agent-alert"><strong><%= report.deadlineAlerts.length %> missed management deadline<%= report.deadlineAlerts.length===1?'':'s' %></strong><ul><% report.deadlineAlerts.slice(0,8).forEach(function(a){ %><li><%= a.assignee_name %> · <%= a.title %> · due <%= fmt(a.due_at) %></li><% }) %></ul></div>
+      <div class="agent-alert"><strong><%= report.deadlineAlerts.length %> missed management deadline<%= report.deadlineAlerts.length===1?'':'s' %></strong><ul><% report.deadlineAlerts.slice(0,8).forEach(function(a){ %><li><%= shortName(a.assignee_name) %> · <%= a.title %> · due <%= fmt(a.due_at) %></li><% }) %></ul></div>
     <% } %>
 
     <% if(typeof managementAnswer!=='undefined' && managementAnswer){ %>
@@ -60,7 +61,7 @@
           <div class="mini"><span>Stalled queries 24h+</span><strong><%= management.queries.stalled.length %></strong></div>
         </div>
         <div class="subgrid">
-          <div class="subpanel"><h3>Staff statistics · <%= management.range.label %></h3><div class="table-wrap"><table class="table"><thead><tr><th>Staff</th><th>Clients</th><th>Complete</th><th>Added</th><th>Updated</th><th>Tasks done</th></tr></thead><tbody><% management.staff.forEach(function(s){ %><tr><td><strong><%= s.staff_name %></strong></td><td><%= s.clients_total %></td><td><%= s.clients_complete %></td><td><%= s.clients_added %></td><td><%= s.clients_updated %></td><td><%= s.tasks_completed %>/<%= s.tasks_received %></td></tr><% }) %></tbody></table></div></div>
+          <div class="subpanel"><h3>Staff statistics · <%= management.range.label %></h3><div class="table-wrap"><table class="table"><thead><tr><th>Staff</th><th>Clients</th><th>Complete</th><th>Added</th><th>Updated</th><th>Tasks done</th></tr></thead><tbody><% management.staff.forEach(function(s){ %><tr><td><strong><%= shortName(s.staff_name) %></strong></td><td><%= s.clients_total %></td><td><%= s.clients_complete %></td><td><%= s.clients_added %></td><td><%= s.clients_updated %></td><td><%= s.tasks_completed %>/<%= s.tasks_received %></td></tr><% }) %></tbody></table></div></div>
           <div class="subpanel"><h3>Business intelligence</h3>
             <% const topPackage=management.commercial.packages[0]; const topTown=management.commercial.towns[0]; %>
             <div class="item"><strong>Top package</strong><small><%= topPackage ? topPackage.package_name+' · '+topPackage.client_lines+' active lines' : 'No package data' %></small></div>
@@ -72,12 +73,49 @@
       </section>
     <% } %>
 
+    <% if(report.operatingModel){ const om=report.operatingModel; const imp=(om.importSummary&&om.importSummary.totals)||{}; const dw=om.delegatedWork||{}; %>
+      <section class="section" id="shared-operating-model">
+        <div class="detail-head"><div><h2>CRM work summary</h2><p>The same live figures used by My Work and Cudo.</p></div></div>
+        <div class="staff-overview">
+          <div class="mini"><span>Delegated work</span><strong><%= Number(dw.active||0) %></strong></div>
+          <div class="mini"><span>Urgent delegated</span><strong><%= Number(dw.urgent||0) %></strong></div>
+          <div class="mini"><span>Overdue delegated</span><strong><%= Number(dw.overdue||0) %></strong></div>
+          <div class="mini"><span>Imported this month</span><strong><%= Number(imp.imported||0) %></strong></div>
+        </div>
+        <div class="subgrid">
+          <div class="subpanel"><h3>Office Scorecard · <%= om.scorecard&&om.scorecard.range?om.scorecard.range.label:'' %></h3>
+            <% if(om.scorecard&&om.scorecard.rows&&om.scorecard.rows.length){ %>
+              <div class="table-wrap"><table class="table"><thead><tr><th>Staff</th><th>Queries</th><th>Upgrades</th><th>Tasks done</th><th>O/S tasks</th><th>Overdue upgrades</th></tr></thead><tbody>
+              <% om.scorecard.rows.forEach(function(x){ %><tr><td><strong><%= shortName(x.staffName) %></strong></td><td><%= x.queriesHandled %></td><td><%= x.upgradesUpdated %></td><td><%= x.tasksCompleted %></td><td><%= x.outstandingTasks %></td><td><%= x.overdueUpgrades %></td></tr><% }) %>
+              </tbody></table></div>
+            <% } else { %><div class="empty">No scorecard rows available.</div><% } %>
+          </div>
+          <div class="subpanel"><h3>Monthly import</h3>
+            <div class="item"><strong>Upgrades</strong><small><%= Number(imp.upgrades||0) %></small></div>
+            <div class="item"><strong>New lines</strong><small><%= Number(imp.newLines||0) %></small></div>
+            <div class="item"><strong>Exact matches</strong><small><%= Number(imp.exactMatches||0) %></small></div>
+            <div class="item"><strong>Needs review</strong><small><%= Number(imp.needsReview||0) %></small></div>
+            <div class="item"><strong>Incomplete clients</strong><small><%= Number(imp.incompleteClients||0) %></small></div>
+          </div>
+        </div>
+        <% if(om.targets&&om.targets.staff&&om.targets.staff.length){ %>
+          <div class="subpanel" style="margin-top:12px"><h3>Target progress · <%= String(om.targets.monthKey||'').slice(0,7) %></h3>
+            <div class="table-wrap"><table class="table"><thead><tr><th>Staff</th><th>Measure</th><th>Actual</th><th>Target</th><th>Progress</th></tr></thead><tbody>
+            <% om.targets.staff.forEach(function(person){ (person.goals||[]).forEach(function(goal){ %>
+              <tr><td><strong><%= shortName(person.staffName) %></strong></td><td><%= goal.label %></td><td><%= goal.actual %></td><td><%= goal.target==null?'—':goal.target %></td><td><%= goal.progress==null?'—':goal.progress+'%' %></td></tr>
+            <% }) }) %>
+            </tbody></table></div>
+          </div>
+        <% } %>
+      </section>
+    <% } %>
+
     <section class="staff-strip">
       <div class="strip-head"><div><h2>Current staff</h2><span>Tap a person to see what they have been doing.</span></div></div>
       <div class="staff-chips">
         <% report.staffSummaries.forEach(function(s){ %>
           <a class="staff-chip <%= report.selectedStaff && Number(report.selectedStaff.staff.id)===Number(s.id)?'active':'' %>" href="<%= basePath %>/agent?range=<%= report.range.key %>&staff=<%= s.id %>#staff-detail">
-            <span class="staff-name"><i class="dot <%= Number(s.working_now)?'on':'' %>"></i><%= s.staff_name %></span>
+            <span class="staff-name"><i class="dot <%= Number(s.working_now)?'on':'' %>"></i><%= shortName(s.staff_name) %></span>
             <span class="staff-meta"><%= Number(s.working_now)?'Working now':'Not clocked in' %></span>
             <% if(s.daily){ %><span class="responsibility-bar"><span class="resp">Expected<b><%= s.daily.expected %></b></span><span class="resp done">Done<b><%= s.daily.completed %></b></span><span class="resp">Open<b><%= s.daily.outstanding %></b></span><span class="resp late">Late<b><%= s.daily.overdue %></b></span></span><% } %>
           </a>
@@ -102,7 +140,7 @@
 
     <% if(report.selectedStaff){ const s=report.selectedStaff.staff; const daily=report.selectedStaff.daily || {items:[],upcomingUpgrades:[],summary:{expected:0,completed:0,outstanding:0,overdue:0}}; %>
       <section class="section" id="staff-detail">
-        <div class="detail-head"><div><h2><%= s.staff_name %></h2><p><%= report.range.label %> activity from the CRM records currently available.</p></div><a class="close" href="<%= basePath %>/agent?range=<%= report.range.key %>">Close</a></div>
+        <div class="detail-head"><div><h2><%= shortName(s.staff_name) %></h2><p><%= report.range.label %> activity from the CRM records currently available.</p></div><a class="close" href="<%= basePath %>/agent?range=<%= report.range.key %>">Close</a></div>
         <div class="staff-overview">
           <div class="mini"><span>Expected today</span><strong><%= daily.summary.expected %></strong></div>
           <div class="mini"><span>Completed</span><strong><%= daily.summary.completed %></strong></div>
@@ -111,13 +149,13 @@
         </div>
 
         <form class="instruction" method="post" action="<%= basePath %>/agent/instructions">
-          <h3>Send <%= s.staff_name %> an instruction</h3>
+          <h3>Send <%= shortName(s.staff_name) %> an instruction</h3>
           <input type="hidden" name="assigned_to" value="<%= s.id %>">
           <label class="wide">What must be done?<input name="title" maxlength="180" required placeholder="e.g. Phone Mr Botha about his upgrade"></label>
           <label class="wide">Details<textarea name="message" placeholder="Optional instructions or context"></textarea></label>
           <label>Complete by<input name="due_at" type="datetime-local" required></label>
           <label>Priority<select name="priority"><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></select></label>
-          <button type="submit">Send to <%= s.staff_name %></button>
+          <button type="submit">Send to <%= shortName(s.staff_name) %></button>
         </form>
 
         <div class="subpanel" style="margin-bottom:12px">
@@ -126,7 +164,7 @@
             <div class="daily-item <%= x.status %>"><i class="daily-state"></i><div><strong><%= x.title %></strong><small><%= x.detail || '' %><%= x.dueAt?' · due '+fmt(x.dueAt):'' %></small>
               <% if(x.manualCheck && x.status!=='completed'){ %><form method="post" action="<%= basePath %>/agent/responsibilities/complete"><input type="hidden" name="staff_id" value="<%= s.id %>"><input type="hidden" name="source_type" value="<%= x.sourceType %>"><input type="hidden" name="source_key" value="<%= x.sourceKey %>"><button class="markdone" type="submit">Mark done</button></form><% } %>
             </div><span class="daily-status"><%= String(x.status).replaceAll('_',' ') %></span></div>
-          <% }) %></div><% } else { %><div class="empty">Nothing is currently due for <%= s.staff_name %> today.</div><% } %>
+          <% }) %></div><% } else { %><div class="empty">Nothing is currently due for <%= shortName(s.staff_name) %> today.</div><% } %>
           <% if(daily.upcomingUpgrades && daily.upcomingUpgrades.length){ %><div style="margin-top:12px"><strong>Upgrades coming in the next 7 days</strong><% daily.upcomingUpgrades.slice(0,10).forEach(function(u){ %><div class="item"><strong><%= u.client_name || 'Customer' %></strong><small><%= fmt(u.next_upgrade_date) %><%= u.cell_number?' · '+u.cell_number:'' %></small></div><% }) %></div><% } %>
         </div>
         <div class="subgrid">
