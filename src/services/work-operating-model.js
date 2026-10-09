@@ -25,7 +25,7 @@ const DEFAULT_TARGETS = Object.freeze({
   ],
   gerhard: [
     ['printers','Printers',null],
-    ['telephone_system','Telephone System',null],
+    ['telephone_system','Telefoon Sistem',null],
     ['management','Management',null],
     ['business_connections','Business Connections',null],
     ['solar','Solar',null]
@@ -338,14 +338,16 @@ async function getOfficeScorecard({rangeKey='month'}={}){
     ORDER BY staff_name`);
   return {
     range,
-    rows:rows.map(row=>({
-      staffId:Number(row.id),staffName:shortName(row.staff_name),
-      queriesHandled:Number(row.queries_handled||0),upgradesUpdated:Number(row.upgrades_updated||0),
-      newClientsAdded:Number(row.new_clients_added||0),tasksSent:Number(row.tasks_sent||0),
-      tasksUpdated:Number(row.tasks_updated||0),tasksCompleted:Number(row.tasks_completed||0),
-      clientsClaimed:Number(row.clients_claimed||0),outstandingTasks:Number(row.outstanding_tasks||0),
-      overdueUpgrades:Number(row.overdue_upgrades||0)
-    }))
+    rows:rows
+      .filter(row=>targetTemplateFor({full_name:row.staff_name}).length>0)
+      .map(row=>({
+        staffId:Number(row.id),staffName:shortName(row.staff_name),
+        queriesHandled:Number(row.queries_handled||0),upgradesUpdated:Number(row.upgrades_updated||0),
+        newClientsAdded:Number(row.new_clients_added||0),tasksSent:Number(row.tasks_sent||0),
+        tasksUpdated:Number(row.tasks_updated||0),tasksCompleted:Number(row.tasks_completed||0),
+        clientsClaimed:Number(row.clients_claimed||0),outstandingTasks:Number(row.outstanding_tasks||0),
+        overdueUpgrades:Number(row.overdue_upgrades||0)
+      }))
   };
 }
 

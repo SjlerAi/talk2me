@@ -28,9 +28,17 @@ assert(route.includes("String(req.session.user.role||'').toLowerCase()!=='owner'
 
 assert(service.includes('CREATE TABLE IF NOT EXISTS staff_target_goals'),'Target goal table missing.');
 assert(service.includes('CREATE TABLE IF NOT EXISTS staff_target_weekly'),'Weekly target table missing.');
-for(const label of ['Upgrades','New Lines','Transfers','Versekering','Siebel simplified','E20','Office','LTE','Wireless','Management','Smart Homes','Printers','Telephone System','Business Connections','Solar']){
+for(const label of ['Upgrades','New Lines','Transfers','Versekering','Siebel simplified','E20','Office','LTE','Wireless','Management','Smart Homes','Printers','Telefoon Sistem','Business Connections','Solar']){
   assert(service.includes("'"+label+"'"),'Missing approved target category: '+label);
 }
+for(const heading of ['Queries handeled','Upgrade Updated','New Clients added','Tasks Send','Task Updated','Task Completed','Client Claimed','U/S Task','Over Due Upgrades']){
+  assert(ui.includes(heading),'Missing approved scorecard heading: '+heading);
+}
+assert(service.includes(".filter(row=>targetTemplateFor({full_name:row.staff_name}).length>0)"),'Office Scorecard must stay limited to staff represented in the approved workbooks.');
+assert(agentView.includes('Queries handeled'),'Gerda Agent scorecard must preserve the approved workbook terminology.');
+assert(agentView.includes('U/S Task'),'Gerda Agent scorecard must preserve U/S Task terminology.');
+assert(agentView.includes('Over Due Upgrades'),'Gerda Agent scorecard must preserve Over Due Upgrades terminology.');
+
 for(const fn of ['getMyWorkOverview','getOfficeScorecard','getTargetCentre','saveTargetGoal','getMonthlyImportSummary','getManagementSnapshot']){
   assert(service.includes('async function '+fn),'Shared service function missing: '+fn);
 }
