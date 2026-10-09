@@ -27,7 +27,7 @@ requireText('docs/DEPLOYMENT_PROFILE_V2.md', '/home/uent/bin/talk2me-ui-uat-agen
 requireText('docs/DEPLOYMENT_PROFILE_V2.md', '/home/uent/bin/talk2me-deploy-ui-uat', 'profile must name the installed deploy driver');
 requireText('docs/DEPLOYMENT_PROFILE_V2.md', 'Routine deployment must not use GitHub Actions SSH/SCP', 'profile must prohibit routine push deployment');
 requireText('docs/DEPLOYMENT_PROFILE_V2.md', '/home/uent/bin/desktop-commander-remote-low', 'profile must require the low-resource remote launcher');
-requireText('docs/DEPLOYMENT_PROFILE_V2.md', 'shared CloudLinux account', 'profile must document shared-host thread headroom');
+requireText('docs/DEPLOYMENT_PROFILE_V2.md', 'The Elitehost UAT account has a tight per-user PID/thread budget', 'profile must document shared-host thread headroom');
 
 const poller = read('scripts/talk2me-ui-uat-agent.sh');
 for (const required of [
