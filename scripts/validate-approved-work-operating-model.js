@@ -13,6 +13,7 @@ const css=read('public/css/uat-work-operating-model.css');
 const loader=read('public/js/os-v6-alpha21-17.js');
 const cudo=read('src/services/cudo-ai.js');
 const agent=read('src/services/office-intelligence-agent.js');
+const agentView=read('views/agent.ejs');
 
 assert(route.includes("const { ensureWorkOperatingSchema, getMyWorkOverview, getOfficeScorecard, getTargetCentre, saveTargetGoal, getMonthlyImportSummary }"),'UAT work route must use the shared operating model.');
 assert(route.includes("const where = scope === 'sent'"),'Task scope query missing.');
@@ -75,5 +76,11 @@ for(const fn of ['queryMyWorkOperating','queryTargetsOperating','queryOfficeScor
 assert(agent.includes("require('./work-operating-model')"),'Gerda Agent must use the shared operating model.');
 assert(agent.includes('getManagementSnapshot({rangeKey})'),'Gerda Agent shared management snapshot missing.');
 assert(agent.includes('operatingModel,'),'Gerda Agent report must expose the operating model snapshot.');
+assert(agentView.includes('CRM work summary'),'Gerda Agent must show the shared CRM work summary.');
+assert(agentView.includes('om.delegatedWork'),'Gerda Agent must show delegated work status.');
+assert(agentView.includes('om.scorecard'),'Gerda Agent must show the shared Office Scorecard.');
+assert(agentView.includes('om.importSummary'),'Gerda Agent must show the shared Monthly Import Summary.');
+assert(agentView.includes('om.targets'),'Gerda Agent must show the shared Target Centre progress.');
+assert(agentView.includes('shortName'),'Gerda Agent staff displays must use short names.');
 
 console.log('APPROVED_WORK_OPERATING_MODEL_VALIDATION=PASS');
