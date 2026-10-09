@@ -7,35 +7,72 @@ MANIFEST="$CONTROL_DIR/deploy/uat.json"
 STATE_DIR=/home/uent/.talk2me-deploy
 INBOX_DIR=/home/uent/.config/talk2me/inbox
 DRIVER=/home/uent/bin/talk2me-deploy-uat
-NODE_BIN=/opt/alt/alt-nodejs20/root/usr/bin/node
+PYTHON_BIN=/usr/bin/python3
+MAX_USER_THREADS="${TALK2ME_DEPLOY_MAX_USER_THREADS:-75}"
 LOCK_DIR="$STATE_DIR/agent.lock"
+LOCK_PID="$LOCK_DIR/pid"
 
 mkdir -p "$STATE_DIR" "$INBOX_DIR"
 
+user_thread_count(){
+  ps -u "$(id -un)" -L --no-headers 2>/dev/null | wc -l | tr -d ' '
+}
+
 if [ "${1:-}" = "--status" ]; then
   status=UNKNOWN
-  [ -f "$MANIFEST" ] && status="$($NODE_BIN -e "try{process.stdout.write(String(JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).status||'UNKNOWN'))}catch{process.stdout.write('INVALID')}" "$MANIFEST")"
+  if [ -f "$MANIFEST" ]; then
+    status="$("$PYTHON_BIN" - "$MANIFEST" <<'PY'
+import json,sys
+try:
+    print(json.load(open(sys.argv[1],encoding='utf-8')).get('status','UNKNOWN'))
+except Exception:
+    print('INVALID')
+PY
+)"
+  fi
   echo "Talk2Me UAT agent installed; control=$status"
   exit 0
 fi
 
-if ! mkdir "$LOCK_DIR" 2>/dev/null; then
-  echo "$(date -Is) another agent run is active"
+if threads="$(user_thread_count 2>/dev/null)"; then
+  if [ "$threads" -gt "$MAX_USER_THREADS" ]; then
+    echo "$(date -Is) deployment agent deferred; user_threads=$threads max=$MAX_USER_THREADS"
+    exit 0
+  fi
+fi
+
+acquire_lock(){
+  if mkdir "$LOCK_DIR" 2>/dev/null; then
+    printf '%s\n' "$$" > "$LOCK_PID"
+    return 0
+  fi
+  holder=""
+  [ -f "$LOCK_PID" ] && holder="$(cat "$LOCK_PID" 2>/dev/null || true)"
+  if [[ "$holder" =~ ^[0-9]+$ ]] && kill -0 "$holder" 2>/dev/null; then
+    echo "$(date -Is) deployment agent already active as pid $holder"
+    return 1
+  fi
+  echo "$(date -Is) removing stale deployment-agent lock"
+  rm -rf "$LOCK_DIR"
+  mkdir "$LOCK_DIR"
+  printf '%s\n' "$$" > "$LOCK_PID"
+}
+
+if ! acquire_lock; then
   exit 0
 fi
-trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
+trap 'rm -rf "$LOCK_DIR" 2>/dev/null || true' EXIT
 
 git -C "$CONTROL_DIR" fetch --quiet origin "$CONTROL_BRANCH:refs/remotes/origin/$CONTROL_BRANCH"
 git -C "$CONTROL_DIR" reset --quiet --hard "origin/$CONTROL_BRANCH"
 
-eval "$($NODE_BIN - "$MANIFEST" <<'NODE'
-const fs = require('fs');
-const manifest = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
-const quote = value => `'${String(value ?? '').replace(/'/g, `'"'"'`)}'`;
-for (const key of ['status','repository','environment','commit','workflowRunId','artifact','sha256']) {
-  console.log(`${key.toUpperCase()}=${quote(manifest[key])}`);
-}
-NODE
+eval "$("$PYTHON_BIN" - "$MANIFEST" <<'PY'
+import json,shlex,sys
+manifest=json.load(open(sys.argv[1],encoding='utf-8'))
+for key in ['status','repository','environment','commit','workflowRunId','artifact','sha256']:
+    value=manifest.get(key,'')
+    print(f"{key.upper()}={shlex.quote(str('' if value is None else value))}")
+PY
 )"
 
 if [ "$STATUS" = HOLD ]; then
@@ -53,9 +90,20 @@ test "$ARTIFACT" = "$expected_artifact"
 
 request_id="${COMMIT}-${WORKFLOWRUNID}"
 if [ -f "$STATE_DIR/last-request.json" ]; then
-  previous="$($NODE_BIN -e "try{const v=JSON.parse(require('fs').readFileSync(process.argv[1],'utf8'));process.stdout.write(v.requestId||'')}catch{}" "$STATE_DIR/last-request.json")"
-  previous_status="$($NODE_BIN -e "try{const v=JSON.parse(require('fs').readFileSync(process.argv[1],'utf8'));process.stdout.write(v.status||'')}catch{}" "$STATE_DIR/last-request.json")"
-  if [ "$previous" = "$request_id" ] && [ "$previous_status" = FAILED ]; then
+  previous="$("$PYTHON_BIN" - "$STATE_DIR/last-request.json" <<'PY'
+import json,sys
+try:
+    v=json.load(open(sys.argv[1],encoding='utf-8'))
+    print(str(v.get('requestId','')))
+    print(str(v.get('status','')))
+except Exception:
+    print()
+    print()
+PY
+)"
+  previous_id="$(printf '%s\n' "$previous" | sed -n '1p')"
+  previous_status="$(printf '%s\n' "$previous" | sed -n '2p')"
+  if [ "$previous_id" = "$request_id" ] && [ "$previous_status" = FAILED ]; then
     echo "$(date -Is) request $request_id already failed; waiting for a new manifest"
     exit 1
   fi
@@ -69,10 +117,20 @@ if [ ! -f "$artifact_path" ] || [ ! -f "$checksum_path" ]; then
 fi
 
 write_request() {
-  REQUEST_STATUS="$1" REQUEST_MESSAGE="$2" REQUEST_ID="$request_id" REQUEST_COMMIT="$COMMIT" REQUEST_RUN="$WORKFLOWRUNID" "$NODE_BIN" - "$STATE_DIR/last-request.json" <<'NODE'
-const fs = require('fs');
-fs.writeFileSync(process.argv[2], JSON.stringify({ requestId: process.env.REQUEST_ID, status: process.env.REQUEST_STATUS, commit: process.env.REQUEST_COMMIT, workflowRunId: process.env.REQUEST_RUN, message: process.env.REQUEST_MESSAGE, recordedAt: new Date().toISOString() }, null, 2) + '\n');
-NODE
+  REQUEST_STATUS="$1" REQUEST_MESSAGE="$2" REQUEST_ID="$request_id" REQUEST_COMMIT="$COMMIT" REQUEST_RUN="$WORKFLOWRUNID" \
+    "$PYTHON_BIN" - "$STATE_DIR/last-request.json" <<'PY'
+import datetime,json,os,sys
+data={
+  'requestId':os.environ['REQUEST_ID'],
+  'status':os.environ['REQUEST_STATUS'],
+  'commit':os.environ['REQUEST_COMMIT'],
+  'workflowRunId':os.environ['REQUEST_RUN'],
+  'message':os.environ['REQUEST_MESSAGE'],
+  'recordedAt':datetime.datetime.now(datetime.timezone.utc).isoformat()
+}
+with open(sys.argv[1],'w',encoding='utf-8') as f:
+    json.dump(data,f,indent=2); f.write('\n')
+PY
 }
 
 write_request RUNNING 'Deployment started'
