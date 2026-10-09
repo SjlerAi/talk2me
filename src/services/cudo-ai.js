@@ -10,7 +10,7 @@ const ACTIVE_TASK = "('unread','seen','in_progress')";
 const OPEN_INQUIRY = "('open','follow_up','waiting_customer','waiting_network','waiting_supplier')";
 const MAX_RESULTS = 100;
 const MAX_BATCH_TASKS = 50;
-const ASSIGNABLE_SELECTIONS = new Set(['upgrade','birthday','deal','client_followup_activity','followup','unallocated_clients']);
+const ASSIGNABLE_SELECTIONS = new Set(['upgrade','birthday','deal','client_followup_activity','followup','unallocated_clients','client_attention']);
 
 function clean(value, max = 5000) {
   return String(value == null ? '' : value).trim().slice(0, max);
@@ -257,9 +257,33 @@ function nameSimilarity(a, b) {
   return Math.max(0,1-(levenshtein(left,right)/max));
 }
 
+const STAFF_NAME_STOP_WORDS = new Set([
+  'the','this','that','there','these','those','with','from','into','onto','show','look','find','check','client','clients',
+  'customer','customers','account','accounts','need','needs','needed','attention','service','serviced','contact','follow',
+  'followup','work','task','tasks','item','items','thing','things','today','tomorrow','overdue','outstanding','open',
+  'please','about','what','which','where','when','why','who','how','our','your','their','database','crm','office','reason',
+  'any','all','some','more','must','should','could','would','give','assign','reassign','move','allocate','first','next',
+  'rest','remaining','due','before','after','month','week','day'
+]);
+
+function staffFuzzyAllowed(message) {
+  const q = normaliseName(message);
+  if (!q) return false;
+  const words = q.split(/\s+/).filter(Boolean);
+  if (/\b(?:staff|person|member|assigned|assignee|responsible|owner|agent)\b/.test(q)) return true;
+  for (let i=0;i<words.length-1;i+=1) {
+    if (!['for','to','by','from'].includes(words[i])) continue;
+    const next = words[i+1];
+    if (next && next.length >= 3 && !STAFF_NAME_STOP_WORDS.has(next)) return true;
+  }
+  if (/\bwhat\s+(?:has|does)\s+[a-z][a-z'-]{2,}\b/.test(q)) return true;
+  return false;
+}
+
 function scoreNameMatch(message, staff) {
   const q = normaliseName(message);
-  const words = q.split(/\s+/).filter(word => word.length >= 3);
+  const allowFuzzy = staffFuzzyAllowed(message);
+  const words = q.split(/\s+/).filter(word => word.length >= 3 && !STAFF_NAME_STOP_WORDS.has(word));
   const rawValues = [
     staff.full_name,
     staff.username,
@@ -281,6 +305,7 @@ function scoreNameMatch(message, staff) {
           if (exact.score > best.score) best = exact;
           continue;
         }
+        if (!allowFuzzy) continue;
         const score = nameSimilarity(word,candidate);
         if (score > best.score) {
           best = { score, matchedText:word, matchedCandidate:candidate, exact:false };
@@ -507,7 +532,7 @@ function resultState(kind, rows, staff, extra = {}) {
         id: Number(row.id || row.client_id || row.item_id || 0) || null,
         clientId: Number(
           row.client_id
-          || (['birthday','upgrade','client_followup_activity','unallocated_clients'].includes(kind) ? row.id : 0)
+          || (['birthday','upgrade','client_followup_activity','unallocated_clients','client_attention'].includes(kind) ? row.id : 0)
           || 0
         ) || null,
         sourceKind:clean(row.source_type || kind,50) || kind,
@@ -520,6 +545,16 @@ function resultState(kind, rows, staff, extra = {}) {
       ...extra
     }
   };
+}
+
+function clientAttentionIntent(message) {
+  const q = lower(message);
+  const subject = /\b(?:clients?|customers?|accounts?|items?|records?|people)\b/.test(q);
+  const attention = /\b(?:need(?:s|ing)?\s+(?:some\s+)?attention|requires?\s+attention|attention\s+needed|need(?:s)?\s+service|service\s+needed|(?:must|should)\s+(?:we\s+)?(?:be\s+)?contact(?:ed)?|need(?:s)?\s+(?:to\s+be\s+)?contact(?:ed)?|need(?:s)?\s+(?:a\s+)?follow[- ]?up|(?:must|should)\s+(?:we\s+)?follow[- ]?up|slipping\s+through|neglect(?:ed|ing)?)\b/.test(q);
+  if (subject && attention) return true;
+  if (/\bwho\b.*\b(?:needs?|requires?)\b.*\b(?:attention|service|contact|follow[- ]?up)\b/.test(q)) return true;
+  if (/\bwhat\b.*\b(?:needs?|requires?)\b.*\battention\b/.test(q)) return true;
+  return false;
 }
 
 function detectIntent(message) {
@@ -550,6 +585,7 @@ function detectIntent(message) {
   ) return 'attendance';
   if (/\bupgrades?\b/.test(q)) return 'upgrades';
   if (/\bdeals?\b|\bprospects?\b|opportunit/.test(q)) return 'deals';
+  if (clientAttentionIntent(message)) return 'client_attention';
   if (
     /\b(?:files?|documents?|dispatch(?:es)?)\b.*\b(?:reply|replied|respond|responded|opened|seen|complete|completed|overdue|status)\b/.test(q)
     || /\bwho\b.*\b(?:hasn'?t|has not|not)\b.*\b(?:reply|replied|respond|responded)\b/.test(q)
@@ -879,6 +915,237 @@ async function queryUnallocatedClients() {
   };
 }
 
+async function queryClientAttention(message) {
+  const staff = await resolveStaff(message);
+  const attention = new Map();
+
+  function add(row,{type,label,rank,dueAt=null,detail=null}={}) {
+    const clientId = Number(row?.client_id || row?.id || 0);
+    if (!clientId) return;
+    let item = attention.get(clientId);
+    if (!item) {
+      item = {
+        id:clientId,
+        client_id:clientId,
+        client_name:row.client_name || row.customer_name || `Client #${clientId}`,
+        cell_number:row.cell_number || row.contact_number || null,
+        account_number:row.account_number || null,
+        reasons:[],
+        rank:Number(rank || 99),
+        due_at:dueAt || null,
+        assigned_staff_id:null,
+        staff_name:'Unassigned',
+        source_type:'client_attention'
+      };
+      attention.set(clientId,item);
+    }
+    item.rank=Math.min(item.rank,Number(rank || 99));
+    if (dueAt && (!item.due_at || new Date(dueAt) < new Date(item.due_at))) item.due_at=dueAt;
+    const reason={type:type || 'attention',label:clean(label,220),detail:clean(detail,300),dueAt:dueAt || null};
+    if (reason.label && !item.reasons.some(existing=>existing.type===reason.type && existing.label===reason.label)) item.reasons.push(reason);
+  }
+
+  const [upgrades] = await db.execute(`SELECT c.id client_id,c.client_name,c.cell_number,c.account_number,c.next_upgrade_date,
+      DATEDIFF(CURRENT_DATE(),DATE(c.next_upgrade_date)) days_overdue
+    FROM clients c
+    WHERE c.is_active=1
+      AND COALESCE(c.line_status,'active')<>'cancelled'
+      AND c.next_upgrade_date IS NOT NULL
+      AND DATE(c.next_upgrade_date)<CURRENT_DATE()
+    ORDER BY c.next_upgrade_date ASC`);
+  for (const row of upgrades) add(row,{
+    type:'upgrade',
+    label:`Upgrade overdue by ${Math.max(1,Number(row.days_overdue||0))} day${Number(row.days_overdue||0)===1?'':'s'}`,
+    rank:40,
+    dueAt:row.next_upgrade_date
+  });
+
+  const [followups] = await db.execute(`SELECT c.id client_id,c.client_name,c.cell_number,c.account_number,
+      f.scheduled_at,f.reason
+    FROM customer_followups f
+    JOIN clients c ON c.id=f.client_id
+    WHERE c.is_active=1
+      AND COALESCE(c.line_status,'active')<>'cancelled'
+      AND COALESCE(f.status,'') NOT IN ('completed','cancelled','canceled')
+      AND f.scheduled_at IS NOT NULL
+      AND f.scheduled_at<NOW()
+    ORDER BY f.scheduled_at ASC`);
+  for (const row of followups) add(row,{
+    type:'follow_up',
+    label:`Follow-up overdue since ${sqlDate(row.scheduled_at) || 'an earlier date'}`,
+    rank:10,
+    dueAt:row.scheduled_at,
+    detail:row.reason
+  });
+
+  const [callbacks] = await db.execute(`SELECT c.id client_id,c.client_name,c.cell_number,c.account_number,
+      cb.scheduled_at,cb.reason
+    FROM customer_callbacks cb
+    JOIN clients c ON c.id=cb.client_id
+    WHERE c.is_active=1
+      AND COALESCE(c.line_status,'active')<>'cancelled'
+      AND COALESCE(cb.status,'') NOT IN ('completed','cancelled','canceled')
+      AND cb.scheduled_at IS NOT NULL
+      AND cb.scheduled_at<NOW()
+    ORDER BY cb.scheduled_at ASC`);
+  for (const row of callbacks) add(row,{
+    type:'callback',
+    label:`Callback overdue since ${sqlDate(row.scheduled_at) || 'an earlier date'}`,
+    rank:10,
+    dueAt:row.scheduled_at,
+    detail:row.reason
+  });
+
+  const [inquiries] = await db.execute(`SELECT c.id client_id,c.client_name,c.cell_number,c.account_number,
+      i.follow_up_at,i.query_text,i.status
+    FROM inquiries i
+    JOIN clients c ON c.id=i.client_id
+    WHERE c.is_active=1
+      AND COALESCE(c.line_status,'active')<>'cancelled'
+      AND i.status IN ${OPEN_INQUIRY}
+    ORDER BY i.follow_up_at IS NULL,i.follow_up_at ASC,i.created_at ASC`);
+  for (const row of inquiries) add(row,{
+    type:'inquiry',
+    label:row.follow_up_at && new Date(row.follow_up_at).getTime()<Date.now()
+      ? `Open inquiry overdue since ${sqlDate(row.follow_up_at) || 'an earlier date'}`
+      : 'Open inquiry needs attention',
+    rank:20,
+    dueAt:row.follow_up_at,
+    detail:row.query_text || row.status
+  });
+
+  const [tasks] = await db.execute(`SELECT c.id client_id,c.client_name,c.cell_number,c.account_number,
+      t.due_at,t.title
+    FROM staff_tasks t
+    JOIN clients c ON c.id=t.related_client_id
+    WHERE c.is_active=1
+      AND COALESCE(c.line_status,'active')<>'cancelled'
+      AND t.status IN ${ACTIVE_TASK}
+      AND t.due_at IS NOT NULL
+      AND t.due_at<NOW()
+    ORDER BY t.due_at ASC`);
+  for (const row of tasks) add(row,{
+    type:'task',
+    label:`Customer task overdue since ${sqlDate(row.due_at) || 'an earlier date'}`,
+    rank:30,
+    dueAt:row.due_at,
+    detail:row.title
+  });
+
+  const birthdayWindow = Array.from({length:8},(_,i)=>`DATE_FORMAT(DATE_SUB(CURRENT_DATE(),INTERVAL ${i} DAY),'%m-%d')`).join(',');
+  const [birthdays] = await db.execute(`SELECT c.id client_id,c.client_name,c.cell_number,c.account_number,c.birthday
+    FROM clients c
+    WHERE c.is_active=1
+      AND COALESCE(c.line_status,'active')<>'cancelled'
+      AND c.birthday IS NOT NULL
+      AND DATE_FORMAT(c.birthday,'%m-%d') IN (${birthdayWindow})
+      AND NOT EXISTS(
+        SELECT 1 FROM customer_followups f
+        WHERE f.client_id=c.id AND f.status='completed'
+          AND DATE(COALESCE(f.completed_at,f.created_at))>=DATE_SUB(CURRENT_DATE(),INTERVAL 7 DAY)
+      )
+      AND NOT EXISTS(
+        SELECT 1 FROM customer_callbacks cb
+        WHERE cb.client_id=c.id AND cb.status='completed'
+          AND DATE(COALESCE(cb.completed_at,cb.created_at))>=DATE_SUB(CURRENT_DATE(),INTERVAL 7 DAY)
+      )
+      AND NOT EXISTS(
+        SELECT 1 FROM inquiries i
+        WHERE i.client_id=c.id AND i.status='completed'
+          AND DATE(COALESCE(i.completed_at,i.updated_at,i.created_at))>=DATE_SUB(CURRENT_DATE(),INTERVAL 7 DAY)
+      )
+    ORDER BY DATE_FORMAT(c.birthday,'%m-%d')`);
+  for (const row of birthdays) add(row,{
+    type:'birthday',
+    label:`Birthday follow-up not recorded (${new Date(row.birthday).toLocaleDateString('en-ZA',{day:'2-digit',month:'short'})})`,
+    rank:50
+  });
+
+  const [unallocated] = await db.execute(`SELECT c.id client_id,c.client_name,c.cell_number,c.account_number
+    FROM clients c
+    WHERE c.is_active=1
+      AND COALESCE(c.line_status,'active')<>'cancelled'
+      AND NOT EXISTS(
+        SELECT 1 FROM client_assignments ca
+        WHERE ca.is_active=1 AND (
+          ca.client_id=c.id OR (
+            COALESCE(ca.account_number,'')<>''
+            AND COALESCE(c.account_number,'')<>''
+            AND ca.account_number=c.account_number
+          )
+        )
+      )
+    ORDER BY c.created_at ASC`);
+  for (const row of unallocated) add(row,{
+    type:'unallocated',
+    label:'No staff member is allocated to this client',
+    rank:60
+  });
+
+  const allIds=[...attention.keys()];
+  if (allIds.length) {
+    const marks=allIds.map(()=>'?').join(',');
+    const [assigned]=await db.query(`SELECT c.id client_id,
+        MAX(ca.assigned_staff_id) assigned_staff_id,
+        MAX(COALESCE(NULLIF(s.full_name,''),s.email,'Unassigned')) staff_name
+      FROM clients c
+      LEFT JOIN client_assignments ca ON ca.is_active=1
+        AND (ca.client_id=c.id OR (COALESCE(ca.account_number,'')<>'' AND ca.account_number=c.account_number))
+      LEFT JOIN staff_users s ON s.id=ca.assigned_staff_id
+      WHERE c.id IN (${marks})
+      GROUP BY c.id`,allIds);
+    for (const row of assigned) {
+      const item=attention.get(Number(row.client_id));
+      if (!item) continue;
+      item.assigned_staff_id=Number(row.assigned_staff_id||0)||null;
+      item.staff_name=row.staff_name || 'Unassigned';
+    }
+  }
+
+  let rows=[...attention.values()];
+  if (staff) rows=rows.filter(row=>Number(row.assigned_staff_id||0)===Number(staff.id));
+  rows.sort((a,b)=>a.rank-b.rank || new Date(a.due_at||'2999-12-31')-new Date(b.due_at||'2999-12-31') || String(a.client_name).localeCompare(String(b.client_name)));
+
+  const reasonCounts={};
+  for (const row of rows) {
+    for (const reason of row.reasons) reasonCounts[reason.type]=(reasonCounts[reason.type]||0)+1;
+    row.detail=row.reasons.slice(0,3).map(reason=>reason.label).join(' · ') + (row.reasons.length>3?` · +${row.reasons.length-3} more`:'');
+  }
+
+  const total=rows.length;
+  const visible=rows.slice(0,MAX_BATCH_TASKS);
+  const person=staff ? ` for ${displayStaff(staff)}` : '';
+  const text=total
+    ? `I found ${total} client${total===1?'':'s'} that need attention${person} in the CRM. I checked overdue upgrades, follow-ups, callbacks, open inquiries, overdue customer tasks, recent birthdays without follow-up, and clients with no staff allocation.${total>MAX_BATCH_TASKS?` I am showing the first ${MAX_BATCH_TASKS}.`:''}`
+    : `I checked the CRM and found no clients that currently match the attention rules${person}.`;
+
+  return {
+    intent:'client_attention',
+    text,
+    rows:visible.map(row=>({
+      id:row.id,
+      title:row.client_name || `Client #${row.id}`,
+      detail:row.detail,
+      meta:[shortStaffName(row.staff_name),row.cell_number].filter(Boolean).join(' · ')
+    })),
+    grouped:{
+      'Overdue follow-ups':reasonCounts.follow_up||0,
+      'Overdue callbacks':reasonCounts.callback||0,
+      'Open inquiries':reasonCounts.inquiry||0,
+      'Overdue customer tasks':reasonCounts.task||0,
+      'Overdue upgrades':reasonCounts.upgrade||0,
+      'Birthday follow-ups':reasonCounts.birthday||0,
+      'Unallocated clients':reasonCounts.unallocated||0
+    },
+    actions:visible.length?['show_all','assign_work','create_tasks','open_agent']:['open_agent'],
+    evidence:{
+      summary:`Checked ${total} distinct clients requiring attention across client service and follow-up records.`,
+      sources:['clients','client_assignments','customer_followups','customer_callbacks','inquiries','staff_tasks']
+    },
+    state:resultState('client_attention',visible,staff,{reasonCounts,total})
+  };
+}
+
 async function queryClientDatabaseOverview() {
   const [[row]] = await db.execute(`SELECT
       COUNT(DISTINCT CASE WHEN c.is_active=1 AND COALESCE(c.line_status,'active')<>'cancelled' THEN c.id END) active_clients,
@@ -920,13 +1187,18 @@ async function queryClientDatabaseOverview() {
 
 async function queryDatabaseFirstFallback(message) {
   const q = lower(message);
-  const staffMatch = await resolveStaffMatch(message,null);
-  if (staffMatch.staff && !staffMatch.needsConfirmation) {
-    return queryOfficeWork(`${message} ${staffMatch.staff.full_name || staffMatch.staff.username || staffMatch.staff.email}`);
+
+  if (clientAttentionIntent(message)) {
+    return queryClientAttention(message);
   }
 
   if (/\b(?:client|clients|customer|customers|account|accounts)\b/.test(q)) {
     return queryClientDatabaseOverview();
+  }
+
+  const staffMatch = await resolveStaffMatch(message,null);
+  if (staffMatch.staff && !staffMatch.needsConfirmation) {
+    return queryOfficeWork(`${message} ${staffMatch.staff.full_name || staffMatch.staff.username || staffMatch.staff.email}`);
   }
 
   const [[snapshot]] = await db.execute(`SELECT
@@ -1805,6 +2077,10 @@ async function answerCudo({ message, state = null, context = null, userId = null
   );
   if (looksLikeActionContinuation) return prepareBatchAction(workingMessage,workingState);
 
+  const directIntent = detectIntent(workingMessage);
+  if (directIntent === 'client_attention') return queryClientAttention(workingMessage);
+  if (directIntent === 'context') return queryCurrentCustomer(context || {});
+
   const staffMatch = await resolveStaffMatch(workingMessage,workingState?.selection?.staffId || null);
   if (staffMatch.staff && staffMatch.needsConfirmation) {
     const staffName = staffMatch.staff.full_name || staffMatch.staff.username || staffMatch.staff.email;
@@ -1833,8 +2109,6 @@ async function answerCudo({ message, state = null, context = null, userId = null
     q = lower(workingMessage);
   }
 
-  const directIntent = detectIntent(workingMessage);
-  if (directIntent === 'context') return queryCurrentCustomer(context || {});
   if (directIntent === 'birthdays') return queryBirthdays(workingMessage);
   if (directIntent === 'upgrades') return queryUpgrades(workingMessage);
   if (directIntent === 'deals') return queryDeals(workingMessage);
@@ -1899,6 +2173,8 @@ module.exports = {
   resolveStaff,
   resolveStaffMatch,
   nameSimilarity,
+  staffFuzzyAllowed,
+  clientAttentionIntent,
   detectIntent,
   numberWordsToDigits,
   shortStaffName,
@@ -1907,6 +2183,7 @@ module.exports = {
   prepareClientReassignment,
   queryAttendanceManagement,
   queryUnallocatedClients,
+  queryClientAttention,
   queryDatabaseFirstFallback,
   dispatchIntent,
   prepareDispatchAction,
