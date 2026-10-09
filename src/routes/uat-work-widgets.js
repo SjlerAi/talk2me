@@ -8,6 +8,7 @@ const crypto = require('crypto');
 const { ensureAgentResponsibilitySchema } = require('../services/office-intelligence-agent');
 const { trackEvent } = require('../services/usage-telemetry');
 const { getTaskAttachmentDownload } = require('../services/work-dispatch');
+const { ensureWorkOperatingSchema, getMyWorkOverview, getOfficeScorecard, getTargetCentre, saveTargetGoal, getMonthlyImportSummary } = require('../services/work-operating-model');
 
 const router = express.Router();
 const IS_UAT = String(process.env.UAT_MODE || '').trim().toLowerCase() === 'true';
@@ -369,6 +370,74 @@ router.get('/api/uat/widgets/health', async (req, res) => {
   }
 });
 
+router.get('/api/uat/work/health', async (req,res) => {
+  if (!IS_UAT) return res.sendStatus(404);
+  try {
+    await ensureWorkOperatingSchema();
+    const [rows]=await db.execute(`SELECT TABLE_NAME FROM information_schema.TABLES
+      WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN ('staff_target_goals','staff_target_weekly')`);
+    const names=new Set(rows.map(row=>row.TABLE_NAME));
+    res.json({
+      status:names.size===2?'ok':'error',
+      environment:'uat',
+      workOperatingModel:true,
+      targets:names.has('staff_target_goals')&&names.has('staff_target_weekly'),
+      myWork:true,
+      scorecard:true,
+      importSummary:true
+    });
+  } catch(error) {
+    res.status(503).json({status:'error',environment:'uat',workOperatingModel:false,error:error.message});
+  }
+});
+
+router.get('/api/uat/work/overview', requireAuth, async (req,res,next) => {
+  try {
+    await ensureSchema();
+    const overview=await getMyWorkOverview({userId:Number(req.session.user.id),month:req.query.month});
+    res.json({ok:true,overview});
+  } catch(error){next(error);}
+});
+
+router.get('/api/uat/work/scorecard', requireAuth, async (req,res,next) => {
+  try {
+    if(String(req.session.user.role||'').toLowerCase()!=='owner') return res.sendStatus(403);
+    const scorecard=await getOfficeScorecard({rangeKey:req.query.range||'month'});
+    res.json({ok:true,scorecard});
+  } catch(error){next(error);}
+});
+
+router.get('/api/uat/work/targets', requireAuth, async (req,res,next) => {
+  try {
+    const owner=String(req.session.user.role||'').toLowerCase()==='owner';
+    const requested=owner?idOf(req.query.staff_id):Number(req.session.user.id);
+    const targets=await getTargetCentre({staffId:requested,month:req.query.month,actorId:Number(req.session.user.id)});
+    res.json({ok:true,owner,targets});
+  } catch(error){next(error);}
+});
+
+router.post('/api/uat/work/targets/:id', requireAuth, async (req,res,next) => {
+  try {
+    if(String(req.session.user.role||'').toLowerCase()!=='owner') return res.sendStatus(403);
+    await saveTargetGoal({
+      goalId:idOf(req.params.id),
+      actorId:Number(req.session.user.id),
+      targetValue:req.body?.target,
+      weeks:Array.isArray(req.body?.weeks)?req.body.weeks:[]
+    });
+    const targets=await getTargetCentre({month:req.body?.month,actorId:Number(req.session.user.id)});
+    res.json({ok:true,targets});
+  } catch(error){next(error);}
+});
+
+router.get('/api/uat/work/import-summary', requireAuth, async (req,res,next) => {
+  try {
+    if(String(req.session.user.role||'').toLowerCase()!=='owner') return res.sendStatus(403);
+    const summary=await getMonthlyImportSummary({month:req.query.month});
+    res.json({ok:true,summary});
+  } catch(error){next(error);}
+});
+
 router.get('/api/uat/chat/bootstrap', requireAuth, async (req, res, next) => {
   try {
     await ensureSchema();
@@ -530,9 +599,7 @@ router.get('/api/uat/tasks', requireAuth, async (req, res, next) => {
       ? 'sent'
       : requestedScope === 'team' && isManager
         ? 'team'
-        : requestedScope === 'all' && !isManager
-          ? 'all'
-          : 'mine';
+        : 'mine';
     const view = ['latest','urgent','attention'].includes(requestedView) ? requestedView : 'latest';
     const filter = legacyCompleted
       ? 'completed'
@@ -544,9 +611,7 @@ router.get('/api/uat/tasks', requireAuth, async (req, res, next) => {
       ? 't.created_by=:userId'
       : scope === 'team'
         ? '1=1'
-        : scope === 'all'
-          ? '(t.assigned_to=:userId OR t.created_by=:userId OR t.assigned_to IS NULL)'
-          : '(t.assigned_to=:userId OR t.created_by=:userId)';
+        : 't.assigned_to=:userId';
 
     const activeStatusWhere = `(t.status IN ${ACTIVE_TASKS} OR (t.status='completed' AND w.workflow_state='awaiting_sender_ack'))`;
     const historyFilter = ['new','old','7days','14days','month','history_all'].includes(filter);

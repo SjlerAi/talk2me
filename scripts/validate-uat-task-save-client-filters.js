@@ -19,12 +19,12 @@ const indexRoute = read('src/routes/index.js');
 
 need(taskRoute, "DATE_FORMAT(due_at,'%Y-%m-%d %H:%i:%s') persisted_due", 'task database save verification');
 need(taskRoute, "verified: true", 'verified reschedule response');
-need(taskRoute, "requestedScope === 'all' && !isManager", 'staff All task scope');
-need(taskRoute, "(t.assigned_to=:userId OR t.created_by=:userId OR t.assigned_to IS NULL)", 'staff All task restriction');
+need(taskRoute, ": 't.assigned_to=:userId';", 'staff Mine assigned-only restriction');
+if (taskRoute.includes("requestedScope === 'all' && !isManager")) throw new Error('Ordinary staff must not have an All task scope.');
 
 need(taskUi, 'data-task-reschedule-notice', 'visible task save confirmation');
 need(taskUi, '✓ Saved — follow-up is now', 'task saved message');
-need(taskUi, 'data-task-context="all">All</button>', 'staff All task context');
+if (taskUi.includes('data-task-context="all">All</button>')) throw new Error('Ordinary staff must not see an All task context.');
 need(taskUi, 'data-task-context="mine">Mine</button>', 'staff Mine task context');
 
 need(clientRoute, "scope === 'staff'", 'management staff selection scope');
