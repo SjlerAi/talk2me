@@ -5,6 +5,7 @@ const { sendAgentInstruction, buildDailyResponsibilities } = require('./office-i
 const { ensureAttendanceSchema } = require('./attendance');
 const { answerManagementQuestion } = require('./management-intelligence');
 const { listFilesForUser, channelAvailability, recentDispatchStatus } = require('./work-dispatch');
+const { getMyWorkOverview, getOfficeScorecard, getTargetCentre, getMonthlyImportSummary } = require('./work-operating-model');
 
 const ACTIVE_TASK = "('unread','seen','in_progress')";
 const OPEN_INQUIRY = "('open','follow_up','waiting_customer','waiting_network','waiting_supplier')";
@@ -583,6 +584,12 @@ function detectIntent(message) {
     || /\bwho.*\b(?:at|in)\s+(?:the\s+)?shop\b/.test(q)
     || /\bwho\s+is\s+(?:in|working)\s+today\b/.test(q)
   ) return 'attendance';
+  if (/\b(?:my\s+work|what\s+must\s+i\s+do|what\s+do\s+i\s+need\s+to\s+do)\b/.test(q)) return 'my_work';
+  if (/\b(?:targets?|target\s+centre|against\s+target|target\s+progress)\b/.test(q)) return 'targets';
+  if (/\b(?:office\s+scorecard|staff\s+scorecard|scorecard|who\s+did\s+what)\b/.test(q)
+    || /\bwho\b.*\b(?:most|least)\b.*\b(?:outstanding\s+tasks?|overdue\s+upgrades?|tasks?\s+completed)\b/.test(q)) return 'office_scorecard';
+  if (/\b(?:monthly\s+import|import\s+summary|what\s+did\s+we\s+import|what\s+was\s+imported|import\s+problems?|import\s+exceptions?)\b/.test(q)
+    || /\b(?:new\s+clients?|upgrades?|new\s+lines?)\b.*\bimport(?:ed)?\b/.test(q)) return 'import_summary';
   if (/\bupgrades?\b/.test(q)) return 'upgrades';
   if (/\bdeals?\b|\bprospects?\b|opportunit/.test(q)) return 'deals';
   if (clientAttentionIntent(message)) return 'client_attention';
@@ -1181,6 +1188,109 @@ async function queryClientDatabaseOverview() {
       summary:'Checked CRM client and assignment records before asking for clarification.',
       sources:['clients','client_assignments']
     },
+    state:{selection:null}
+  };
+}
+
+async function queryMyWorkOperating(userId) {
+  const overview=await getMyWorkOverview({userId:Number(userId)});
+  const delegated=overview.delegated||[];
+  const customerItems=overview.customers?.items||[];
+  const targetGoals=overview.targets?.goals||[];
+  return {
+    intent:'my_work',
+    text:`Your CRM shows ${Number(overview.tasks?.active||0)} active task${Number(overview.tasks?.active||0)===1?'':'s'}, including ${Number(overview.tasks?.delegated||0)} delegated by management, ${Number(overview.tasks?.urgent||0)} urgent and ${Number(overview.tasks?.overdue||0)} overdue. ${Number(overview.customers?.total||0)} of your assigned clients need attention. You have ${targetGoals.length} target measure${targetGoals.length===1?'':'s'} configured.`,
+    rows:[
+      ...delegated.slice(0,12).map(item=>({
+        id:item.id,title:item.title,
+        detail:[item.overdue?'OVERDUE':String(item.priority||'normal').toUpperCase(),`From ${item.delegatedBy||'management'}`,item.clientName].filter(Boolean).join(' · '),
+        meta:item.dueAt?`Due ${sqlDate(item.dueAt)}`:''
+      })),
+      ...customerItems.slice(0,8).map(item=>({
+        id:item.id,title:item.name||'Customer',detail:(item.reasons||[]).join(' · '),meta:'Customer needs attention'
+      }))
+    ].slice(0,20),
+    grouped:{
+      'Delegated work':Number(overview.tasks?.delegated||0),
+      'Active tasks':Number(overview.tasks?.active||0),
+      'Urgent':Number(overview.tasks?.urgent||0),
+      'Overdue':Number(overview.tasks?.overdue||0),
+      'Customers needing attention':Number(overview.customers?.total||0)
+    },
+    actions:['open_agent'],
+    evidence:{summary:'Read the same My Work service used by the CRM dashboard.',sources:['staff_tasks','client_assignments','clients','staff_target_goals']},
+    state:{selection:null}
+  };
+}
+
+async function queryTargetsOperating(message) {
+  const staff=await resolveStaff(message);
+  const centre=await getTargetCentre({staffId:staff?Number(staff.id):null});
+  const people=centre.staff||[];
+  const rows=[];
+  for(const person of people){
+    for(const goal of person.goals||[]){
+      rows.push({
+        id:goal.id,
+        title:`${person.staffName} · ${goal.label}`,
+        detail:`Actual ${goal.actual}${goal.target==null?'':` / Target ${goal.target}`}`,
+        meta:goal.progress==null?(goal.source==='automatic'?'Automatic actual':'Target not set'):`${goal.progress}%`
+      });
+    }
+  }
+  const name=staff?displayStaff(staff):'the team';
+  return {
+    intent:'targets',
+    text:rows.length
+      ? `I checked the CRM Target Centre for ${name}. There are ${rows.length} active target measure${rows.length===1?'':'s'} for ${String(centre.monthKey||'').slice(0,7)}.`
+      : `I checked the CRM Target Centre for ${name}, but there are no target measures configured for this month.`,
+    rows:rows.slice(0,MAX_RESULTS),
+    actions:['open_agent'],
+    evidence:{summary:'Read the shared Target Centre used by My Work and management.',sources:['staff_target_goals','staff_target_weekly','audit_log']},
+    state:{selection:null}
+  };
+}
+
+async function queryOfficeScorecardOperating(message) {
+  const q=lower(message);
+  const range=/\btoday\b/.test(q)?'today':/\bthis\s+week|\bweek\b/.test(q)?'week':/\blast\s+month|previous\s+month/.test(q)?'last_month':'month';
+  const scorecard=await getOfficeScorecard({rangeKey:range});
+  const rows=(scorecard.rows||[]).map(row=>({
+    id:row.staffId,
+    title:row.staffName,
+    detail:`Queries ${row.queriesHandled} · Upgrades ${row.upgradesUpdated} · New clients ${row.newClientsAdded} · Tasks completed ${row.tasksCompleted}`,
+    meta:`O/S tasks ${row.outstandingTasks} · Overdue upgrades ${row.overdueUpgrades}`
+  }));
+  return {
+    intent:'office_scorecard',
+    text:`I checked the live Office Scorecard for ${scorecard.range?.label||'this period'}. It covers ${rows.length} active staff member${rows.length===1?'':'s'} and uses the same CRM figures as the owner dashboard.`,
+    rows,actions:['open_agent'],
+    evidence:{summary:'Read the shared Office Scorecard metrics from CRM activity.',sources:['inquiries','staff_tasks','staff_task_comments','audit_log','clients','client_assignments']},
+    state:{selection:null}
+  };
+}
+
+async function queryImportSummaryOperating(message) {
+  const summary=await getMonthlyImportSummary({});
+  const t=summary.totals||{};
+  const rows=(summary.files||[]).map(file=>({
+    id:file.id,title:file.name,
+    detail:[file.type,file.source,`${file.validRows} valid`,`${file.exceptions} exceptions`].filter(Boolean).join(' · '),
+    meta:`Processed by ${file.processedBy||'Unknown'}`
+  }));
+  return {
+    intent:'import_summary',
+    text:summary.available
+      ? `For ${String(summary.monthKey||'').slice(0,7)}, the CRM import summary shows ${Number(t.imported||0)} imported rows: ${Number(t.upgrades||0)} upgrades and ${Number(t.newLines||0)} new lines. ${Number(t.exactMatches||0)} exact matches were found, ${Number(t.needsReview||0)} need review, and ${Number(t.incompleteClients||0)} applied new clients are incomplete.`
+      : `I could not read the monthly import summary: ${summary.error||'import data unavailable'}.`,
+    rows:rows.slice(0,MAX_RESULTS),
+    grouped:{
+      Imported:Number(t.imported||0),Upgrades:Number(t.upgrades||0),'New lines':Number(t.newLines||0),
+      'Exact matches':Number(t.exactMatches||0),'Needs review':Number(t.needsReview||0),
+      'Incomplete clients':Number(t.incompleteClients||0),Exceptions:Number(t.exceptions||0)
+    },
+    actions:['open_agent'],
+    evidence:{summary:'Read the same Monthly Import Summary used by the owner My Work dashboard.',sources:['monthly_import_batches','monthly_import_rows','monthly_import_matches','monthly_import_actions']},
     state:{selection:null}
   };
 }
@@ -2079,6 +2189,10 @@ async function answerCudo({ message, state = null, context = null, userId = null
 
   const directIntent = detectIntent(workingMessage);
   if (directIntent === 'client_attention') return queryClientAttention(workingMessage);
+  if (directIntent === 'my_work') return queryMyWorkOperating(userId);
+  if (directIntent === 'targets') return queryTargetsOperating(workingMessage);
+  if (directIntent === 'office_scorecard') return queryOfficeScorecardOperating(workingMessage);
+  if (directIntent === 'import_summary') return queryImportSummaryOperating(workingMessage);
   if (directIntent === 'context') return queryCurrentCustomer(context || {});
 
   const staffMatch = await resolveStaffMatch(workingMessage,workingState?.selection?.staffId || null);
@@ -2184,6 +2298,10 @@ module.exports = {
   queryAttendanceManagement,
   queryUnallocatedClients,
   queryClientAttention,
+  queryMyWorkOperating,
+  queryTargetsOperating,
+  queryOfficeScorecardOperating,
+  queryImportSummaryOperating,
   queryDatabaseFirstFallback,
   dispatchIntent,
   prepareDispatchAction,
