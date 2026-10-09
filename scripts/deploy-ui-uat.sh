@@ -25,6 +25,22 @@ app_process_snapshot(){
   ps -eo pid=,ppid=,etime=,stat=,cmd= | grep -F "lsnode:${APP_DIR}/" | grep -v grep || true
 }
 
+user_thread_count(){
+  ps -u "$(id -un)" -L --no-headers 2>/dev/null | wc -l | tr -d ' '
+}
+
+verify_thread_headroom(){
+  local phase="$1"
+  local max_threads="${2:-75}"
+  local count
+  count="$(user_thread_count)"
+  echo "TALK2ME_UI_UAT_USER_THREADS phase=$phase count=$count max=$max_threads"
+  if [ "$count" -gt "$max_threads" ]; then
+    echo "TALK2ME_UI_UAT_RESOURCE_HINT=Use /home/uent/bin/desktop-commander-remote-low instead of the default npx remote launcher." >&2
+    return 1
+  fi
+}
+
 verify_single_app_process(){
   local stable=0 count attempt
   for attempt in $(seq 1 30); do
@@ -76,6 +92,7 @@ cd "$REPO_ROOT"
 git diff --quiet || fail "deployment checkout has unstaged changes"
 git diff --cached --quiet || fail "deployment checkout has staged changes"
 
+verify_thread_headroom predeploy "${TALK2ME_UI_UAT_MAX_PREDEPLOY_THREADS:-75}" || fail "insufficient CloudLinux thread headroom before deploy"
 pre_process_count="$(app_process_count)"
 echo "TALK2ME_UI_UAT_PREDEPLOY_APP_PROCESS_COUNT=$pre_process_count"
 if [ "$pre_process_count" -gt 1 ]; then
@@ -206,6 +223,7 @@ for attempt in $(seq 1 6); do
   [ "$code" = 200 ] || fail "Talk2Me page probe failed after restart"
 done
 verify_single_app_process || fail "Talk2Me Passenger process count changed after runtime probes"
+verify_thread_headroom postdeploy "${TALK2ME_UI_UAT_MAX_POSTDEPLOY_THREADS:-80}" || fail "CloudLinux thread headroom exhausted after deploy"
 
 trap - ERR
 find "$BACKUP_DIR" -maxdepth 1 -type f -name 'talk2me-ui-uat-before-*.tar.gz' -printf '%T@ %p\n' | sort -nr | tail -n +6 | cut -d' ' -f2- | xargs -r rm -f
