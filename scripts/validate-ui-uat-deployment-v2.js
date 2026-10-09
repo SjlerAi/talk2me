@@ -50,12 +50,33 @@ for (const required of [
   'BACKUP_DIR=/home/uent/deployment-backups/talk2me-ui-uat',
   '.talk2me-release.json',
   'tmp/restart.txt',
+  'restart_runtime',
+  'app_process_count',
+  'verify_single_app_process',
+  'pre-existing duplicate Talk2Me Passenger processes; refusing to deploy',
+  'TALK2ME_UI_UAT_APP_PROCESS_COUNT=1',
+  'TALK2ME_UI_UAT_PAGE_PROBE',
   '/api/health',
   '/api/release',
   '/agent/login',
   'exact public release proof failed'
 ]) {
   if (!driver.includes(required)) failures.push(`deploy driver missing locked V2 responsibility: ${required}`);
+}
+
+const restartTouches = (driver.match(/touch "\$APP_DIR\/tmp\/restart\.txt"/g) || []).length;
+if (restartTouches !== 1) failures.push('deploy driver must keep exactly one restart-file fallback, not combine it with the CloudLinux selector restart');
+if (!driver.includes('if [ -n "$SELECTOR" ]; then') || !driver.includes('else\n    echo "TALK2ME_UI_UAT_RESTART_METHOD=passenger-restart-file"')) {
+  failures.push('deploy driver must choose exactly one restart mechanism: CloudLinux selector or restart-file fallback');
+}
+
+const installer = read('scripts/install-talk2me-ui-uat-agent.sh');
+for (const required of [
+  'GLOBAL_GUARD_DIR=/home/uent/.deploy-agent-guard',
+  '/bin/flock -n /home/uent/.deploy-agent-guard/global.lock',
+  '/bin/timeout -k 15s 10m /home/uent/bin/talk2me-ui-uat-agent'
+]) {
+  if (!installer.includes(required)) failures.push(`UI-UAT poller commissioning missing global deploy guard: ${required}`);
 }
 
 if (fs.existsSync(path.join(root, '.github/workflows/deploy-ui-uat.yml'))) {
@@ -76,4 +97,5 @@ console.log('Talk2Me UI-UAT Deployment Bible V2 validation passed.');
 console.log('- one control branch, one permanent poller, one installed driver');
 console.log('- controlled release/* exact SHA only');
 console.log('- no routine GitHub Actions SSH/SCP deployment workflow');
-console.log('- exact public SHA and Agent runtime proof remain mandatory');
+console.log('- exact public SHA, page probes and Agent runtime proof remain mandatory');
+console.log('- deployment uses one restart mechanism and must prove exactly one Talk2Me Passenger process');
