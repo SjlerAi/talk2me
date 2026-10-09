@@ -167,7 +167,7 @@
       const periods=[['today','Today'],['week','This Week'],['month','This Month'],['last_month','Last Month']];
       holder.innerHTML='<div class="t2m-om-admin"><header><button data-om-back>← My Work</button><div><small>OWNER VIEW</small><h3>Office Scorecard</h3><p>Live CRM activity · '+esc(data.scorecard?.range?.label||'')+'</p></div></header>'+
         '<div class="t2m-om-periods">'+periods.map(p=>'<button data-om-range="'+p[0]+'" class="'+(p[0]===range?'is-active':'')+'">'+p[1]+'</button>').join('')+'</div>'+
-        '<div class="t2m-om-table-wrap"><table class="t2m-om-scorecard"><thead><tr><th>Staff</th><th>Queries handled</th><th>Upgrade updated</th><th>New clients</th><th>Tasks sent</th><th>Task updated</th><th>Task completed</th><th>Client claimed</th><th>O/S tasks</th><th>Overdue upgrades</th></tr></thead><tbody>'+
+        '<div class="t2m-om-table-wrap"><table class="t2m-om-scorecard"><thead><tr><th>Staff</th><th>Queries handeled</th><th>Upgrade Updated</th><th>New Clients added</th><th>Tasks Send</th><th>Task Updated</th><th>Task Completed</th><th>Client Claimed</th><th>U/S Task</th><th>Over Due Upgrades</th></tr></thead><tbody>'+
         rows.map(row=>'<tr><th>'+esc(row.staffName)+'</th><td>'+num(row.queriesHandled)+'</td><td>'+num(row.upgradesUpdated)+'</td><td>'+num(row.newClientsAdded)+'</td><td>'+num(row.tasksSent)+'</td><td>'+num(row.tasksUpdated)+'</td><td>'+num(row.tasksCompleted)+'</td><td>'+num(row.clientsClaimed)+'</td><td class="'+(num(row.outstandingTasks)?'is-warn':'')+'">'+num(row.outstandingTasks)+'</td><td class="'+(num(row.overdueUpgrades)?'is-danger':'')+'">'+num(row.overdueUpgrades)+'</td></tr>').join('')+
         '</tbody></table></div></div>';
       holder.querySelector('[data-om-back]').onclick=openWork;
