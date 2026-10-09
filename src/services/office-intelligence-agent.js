@@ -2,6 +2,7 @@
 
 const db = require('../config/db');
 const { ensureOfficeIntelligenceSchema, rangeSql } = require('./office-intelligence');
+const { getManagementSnapshot } = require('./work-operating-model');
 
 const ACTIVE_TASK = `(t.status IN ('unread','seen','in_progress') OR (t.status='completed' AND w.workflow_state='awaiting_sender_ack'))`;
 const OPEN_INQUIRY = `i.status IN ('open','follow_up','waiting_customer','waiting_network','waiting_supplier')`;
@@ -649,10 +650,11 @@ async function buildAgentOfficeReport({ rangeKey='today', requestedBy=null, requ
     buildStaffDetail(staffId,range)
   ]);
 
-  const [teamDaily,selectedDaily,deadlineAlerts] = await Promise.all([
+  const [teamDaily,selectedDaily,deadlineAlerts,operatingModel] = await Promise.all([
     buildTeamDailyOverview(staffSummaries),
     staffId ? buildDailyResponsibilities(staffId) : Promise.resolve(null),
-    refreshOverdueWatches()
+    refreshOverdueWatches(),
+    getManagementSnapshot({rangeKey})
   ]);
   if (selectedStaff && selectedDaily) selectedStaff.daily = selectedDaily;
 
@@ -674,6 +676,7 @@ async function buildAgentOfficeReport({ rangeKey='today', requestedBy=null, requ
     staffSummaries: teamDaily,
     selectedStaff,
     deadlineAlerts,
+    operatingModel,
     metricDetail,
     recentAudit: recentAudit.rows,
     screenUsage: screenUsage.rows,
