@@ -38,6 +38,22 @@
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#039;');
 
+  const staffAliases = new Map([
+    ['gertrudia johanna le roux', 'Gerda'],
+    ['elias booyens', 'Sias'],
+    ['jonathan olivier', 'Johnny']
+  ]);
+
+  const shortStaffName = value => {
+    const raw = String(value ?? '').trim();
+    if (!raw || raw.toLowerCase() === 'unassigned') return 'Unassigned';
+    const alias = staffAliases.get(raw.toLowerCase());
+    if (alias) return alias;
+    const parts = raw.split(/\s+/).filter(Boolean);
+    if (String(parts[0] || '').toLowerCase() === 'van' && String(parts[1] || '').toLowerCase() === 'zyl') return 'Van Zyl';
+    return parts[0] || raw;
+  };
+
   const staffKey = item => {
     const id = Number(item?.assignedTo || 0);
     if (Number.isInteger(id) && id > 0) return `id:${id}`;
@@ -322,7 +338,7 @@
         const key = staffKey(item);
         if (!map.has(key)) map.set(key, {
           key,
-          name: item.assignedName || 'Unassigned',
+          name: shortStaffName(item.assignedName),
           color: staffColor(item)
         });
       }
@@ -371,7 +387,7 @@
         return `<article class="t2m-home-agenda-item" style="--staff-color:${color}">
           <div class="t2m-home-agenda-top"><span>${esc(meta.icon)} ${esc(meta.label)}</span><time>${esc(item.time || 'All day')}</time></div>
           <strong>${esc(item.title || meta.label)}</strong>
-          <span class="t2m-home-owner"><i></i>${esc(item.assignedName || 'Unassigned')}</span>
+          <span class="t2m-home-owner"><i></i>${esc(shortStaffName(item.assignedName))}</span>
           ${item.details ? `<p>${esc(item.details)}</p>` : ''}
           <div class="t2m-home-agenda-actions">
             ${item.url ? `<button type="button" data-open-calendar-item="${esc(item.id)}">${item.source === 'personal' ? 'View' : 'Open'}</button>` : ''}
@@ -390,7 +406,7 @@
             appKey: 'dated-work',
             title: item.title || meta.label,
             icon: meta.icon,
-            subtitle: `${meta.label} · ${item.assignedName || 'Unassigned'}`,
+            subtitle: `${meta.label} · ${shortStaffName(item.assignedName)}`,
             url: item.url,
             width: 980,
             height: 680
@@ -442,7 +458,7 @@
         button.className = `t2m-home-day${outside ? ' is-outside' : ''}${key === state.selected ? ' is-selected' : ''}${key === todayKey ? ' is-today' : ''}`;
         const markers = items.slice(0, 4).map(item => {
           const meta = eventMeta[item.type] || eventMeta.other;
-          return `<span class="t2m-home-event-mark" style="--staff-color:${staffColor(item)}" title="${esc(item.assignedName || 'Unassigned')} · ${esc(meta.label)}"><i></i><b>${esc(meta.icon)}</b></span>`;
+          return `<span class="t2m-home-event-mark" style="--staff-color:${staffColor(item)}" title="${esc(shortStaffName(item.assignedName))} · ${esc(meta.label)}"><i></i><b>${esc(meta.icon)}</b></span>`;
         }).join('');
         button.innerHTML = `<span class="t2m-home-day-top"><b>${date.getDate()}</b>${items.length ? `<em>${items.length}</em>` : ''}</span><span class="t2m-home-event-marks">${markers}</span>${items.length ? `<small>${items.length === 1 ? esc((eventMeta[items[0].type] || eventMeta.other).label) : `${items.length} items`}</small>` : '<small>&nbsp;</small>'}`;
         button.onclick = () => {
