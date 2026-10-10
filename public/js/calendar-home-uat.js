@@ -40,6 +40,7 @@
 
   const staffAliases = new Map([
     ['gertrudia johanna le roux', 'Gerda'],
+    ['gertruida johanna le roux', 'Gerda'],
     ['elias booyens', 'Sias'],
     ['jonathan olivier', 'Johnny']
   ]);
@@ -50,7 +51,9 @@
     const alias = staffAliases.get(raw.toLowerCase());
     if (alias) return alias;
     const parts = raw.split(/\s+/).filter(Boolean);
-    if (String(parts[0] || '').toLowerCase() === 'van' && String(parts[1] || '').toLowerCase() === 'zyl') return 'Van Zyl';
+    const first = String(parts[0] || '').toLowerCase();
+    if (first === 'gertruida' || first === 'gertrudia') return 'Gerda';
+    if (first === 'van' && String(parts[1] || '').toLowerCase() === 'zyl') return 'Van Zyl';
     return parts[0] || raw;
   };
 
