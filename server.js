@@ -20,6 +20,18 @@ const sessionSecure = String(process.env.SESSION_SECURE || 'false').toLowerCase(
 const UAT_MODE = String(process.env.UAT_MODE || '').trim().toLowerCase() === 'true';
 const EIGHT_HOURS_MS = 8 * 60 * 60 * 1000;
 
+function assetVersionForRelease() {
+  const baseVersion = String(packageInfo.version || process.env.APP_VERSION || 'dev');
+  try {
+    const release = JSON.parse(fs.readFileSync(path.join(__dirname, '.talk2me-release.json'), 'utf8'));
+    const commit = String(release.commit || '').trim().toLowerCase();
+    if (/^[0-9a-f]{7,40}$/.test(commit)) return `${baseVersion}-${commit.slice(0,12)}`;
+  } catch (_) {
+    // Local development / pre-release CI has no release metadata yet.
+  }
+  return baseVersion;
+}
+
 class MySqlSessionStore extends session.Store {
   key(sid) { return crypto.createHash('sha256').update(String(sid)).digest('hex'); }
   get(sid, callback) {
@@ -164,6 +176,7 @@ app.use((req, res, next) => {
   res.locals.currentUser = req.session.user || null;
   res.locals.appName = process.env.APP_NAME || 'Talk2Me CRM';
   res.locals.appVersion = packageInfo.version || process.env.APP_VERSION || 'dev';
+  res.locals.assetVersion = assetVersionForRelease();
   res.locals.appBuild = process.env.APP_BUILD || '2026-07-13';
   res.locals.panelMode = String(req.query.panel || '') === '1';
   res.locals.voipUrlTemplate = process.env.VOIP_URL_TEMPLATE || '';
@@ -209,7 +222,7 @@ registerPwaRoute('/offline', (req, res) => {
 
 registerPwaRoute('/service-worker.js', (req, res) => {
   const base = BASE_PATH || '';
-  const version = String(packageInfo.version || 'dev').replace(/[^a-zA-Z0-9._-]/g, '-');
+  const version = assetVersionForRelease().replace(/[^a-zA-Z0-9._-]/g, '-');
   res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.type('application/javascript').send(`
 const CACHE_NAME = 'talk2me-static-${version}';
@@ -243,6 +256,15 @@ self.addEventListener('fetch', event => {
   if (!isStatic) return;
   event.respondWith(caches.open(CACHE_NAME).then(async cache => {
     const cached = await cache.match(request);
+    if (${UAT_MODE ? 'true' : 'false'}) {
+      try {
+        const response = await fetch(request, { cache: 'no-store' });
+        if (response.ok) cache.put(request, response.clone());
+        return response;
+      } catch (_) {
+        return cached || Response.error();
+      }
+    }
     const network = fetch(request).then(response => {
       if (response.ok) cache.put(request, response.clone());
       return response;

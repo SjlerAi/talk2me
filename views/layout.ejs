@@ -3,30 +3,30 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <title><%= title %> | Talk2Me Command</title>
-  <link rel="icon" href="<%= basePath %>/public/images/favicon.ico?v=<%= encodeURIComponent(appVersion) %>">
-  <link rel="apple-touch-icon" sizes="192x192" href="<%= basePath %>/public/images/favicon-192x192.png?v=<%= encodeURIComponent(appVersion) %>">
-  <link rel="manifest" href="<%= basePath %>/public/site.webmanifest?v=<%= encodeURIComponent(appVersion) %>">
+  <link rel="icon" href="<%= basePath %>/public/images/favicon.ico?v=<%= encodeURIComponent(assetVersion || appVersion) %>">
+  <link rel="apple-touch-icon" sizes="192x192" href="<%= basePath %>/public/images/favicon-192x192.png?v=<%= encodeURIComponent(assetVersion || appVersion) %>">
+  <link rel="manifest" href="<%= basePath %>/public/site.webmanifest?v=<%= encodeURIComponent(assetVersion || appVersion) %>">
   <meta name="theme-color" content="#111827">
-  <link rel="stylesheet" href="<%= basePath %>/public/css/app.css?v=<%= encodeURIComponent(appVersion) %>">
-  <link rel="stylesheet" href="<%= basePath %>/public/css/notifications.css?v=<%= encodeURIComponent(appVersion) %>">
-  <link rel="stylesheet" href="<%= basePath %>/public/css/command.css?v=<%= encodeURIComponent(appVersion) %>">
-  <link rel="stylesheet" href="<%= basePath %>/public/css/command-4.0.1.css?v=<%= encodeURIComponent(appVersion) %>">
-  <link rel="stylesheet" href="<%= basePath %>/public/css/command-4.0.2.css?v=<%= encodeURIComponent(appVersion) %>">
-  <link rel="stylesheet" href="<%= basePath %>/public/css/attendance.css?v=<%= encodeURIComponent(appVersion) %>">
-  <link rel="stylesheet" href="<%= basePath %>/public/css/attendance-tabs.css?v=<%= encodeURIComponent(appVersion) %>">
-  <link rel="stylesheet" href="<%= basePath %>/public/css/layout-polish.css?v=<%= encodeURIComponent(appVersion) %>">
-  <link rel="stylesheet" href="<%= basePath %>/public/css/task-workflow.css?v=<%= encodeURIComponent(appVersion) %>">
-  <link rel="stylesheet" href="<%= basePath %>/public/css/legacy-client-claim-decisions.css?v=<%= encodeURIComponent(appVersion) %>">
-  <link rel="stylesheet" href="<%= basePath %>/public/css/client-assignment-centre.css?v=<%= encodeURIComponent(appVersion) %>">
-  <link rel="stylesheet" href="<%= basePath %>/public/css/approval-centre.css?v=<%= encodeURIComponent(appVersion) %>">
-  <link rel="stylesheet" href="<%= basePath %>/public/css/legacy-client-claim-reconciliation.css?v=<%= encodeURIComponent(appVersion) %>">
-  <% if(isUat){ %><link rel="stylesheet" href="<%= basePath %>/public/uat-safety.css?v=<%= encodeURIComponent(appVersion) %>"><link rel="stylesheet" href="<%= basePath %>/public/css/uat-mobile-first.css?v=<%= encodeURIComponent(appVersion) %>"><% } %>
-  <% if(isUat && currentUser && String(currentUser.role||'').toLowerCase()==='owner' && !panelMode){ %><link rel="stylesheet" href="<%= basePath %>/public/css/cudo-widget.css?v=<%= encodeURIComponent(appVersion) %>"><% } %>
-  <script defer src="<%= basePath %>/public/js/customer-actions.js?v=<%= encodeURIComponent(appVersion) %>"></script>
-  <script defer src="<%= basePath %>/public/js/attendance-nightly-settings.js?v=<%= encodeURIComponent(appVersion) %>"></script>
-  <% if(currentUser){ %><script defer src="<%= basePath %>/public/js/session-status-monitor.js?v=<%= encodeURIComponent(appVersion) %>" data-base-path="<%= basePath %>"></script><% } %>
-  <% if(currentUser && ['owner','admin','manager'].includes(currentUser.role)){ %><script defer src="<%= basePath %>/public/js/approval-badges.js?v=<%= encodeURIComponent(appVersion) %>" data-base-path="<%= basePath %>"></script><% } %>
-  <% if(isUat && currentUser && String(currentUser.role||'').toLowerCase()==='owner' && !panelMode){ %><script defer src="<%= basePath %>/public/js/cudo-widget.js?v=<%= encodeURIComponent(appVersion) %>" data-base-path="<%= basePath %>"></script><% } %>
+  <link rel="stylesheet" href="<%= basePath %>/public/css/app.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>">
+  <link rel="stylesheet" href="<%= basePath %>/public/css/notifications.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>">
+  <link rel="stylesheet" href="<%= basePath %>/public/css/command.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>">
+  <link rel="stylesheet" href="<%= basePath %>/public/css/command-4.0.1.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>">
+  <link rel="stylesheet" href="<%= basePath %>/public/css/command-4.0.2.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>">
+  <link rel="stylesheet" href="<%= basePath %>/public/css/attendance.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>">
+  <link rel="stylesheet" href="<%= basePath %>/public/css/attendance-tabs.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>">
+  <link rel="stylesheet" href="<%= basePath %>/public/css/layout-polish.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>">
+  <link rel="stylesheet" href="<%= basePath %>/public/css/task-workflow.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>">
+  <link rel="stylesheet" href="<%= basePath %>/public/css/legacy-client-claim-decisions.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>">
+  <link rel="stylesheet" href="<%= basePath %>/public/css/client-assignment-centre.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>">
+  <link rel="stylesheet" href="<%= basePath %>/public/css/approval-centre.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>">
+  <link rel="stylesheet" href="<%= basePath %>/public/css/legacy-client-claim-reconciliation.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>">
+  <% if(isUat){ %><link rel="stylesheet" href="<%= basePath %>/public/uat-safety.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>"><link rel="stylesheet" href="<%= basePath %>/public/css/uat-mobile-first.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>"><% } %>
+  <% if(isUat && currentUser && String(currentUser.role||'').toLowerCase()==='owner' && !panelMode){ %><link rel="stylesheet" href="<%= basePath %>/public/css/cudo-widget.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>"><% } %>
+  <script defer src="<%= basePath %>/public/js/customer-actions.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>"></script>
+  <script defer src="<%= basePath %>/public/js/attendance-nightly-settings.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>"></script>
+  <% if(currentUser){ %><script defer src="<%= basePath %>/public/js/session-status-monitor.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>" data-base-path="<%= basePath %>"></script><% } %>
+  <% if(currentUser && ['owner','admin','manager'].includes(currentUser.role)){ %><script defer src="<%= basePath %>/public/js/approval-badges.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>" data-base-path="<%= basePath %>"></script><% } %>
+  <% if(isUat && currentUser && String(currentUser.role||'').toLowerCase()==='owner' && !panelMode){ %><script defer src="<%= basePath %>/public/js/cudo-widget.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>" data-base-path="<%= basePath %>"></script><% } %>
 </head>
 <body class="command-body <%= panelMode?'panel-mode':'' %>">
 <% if(currentUser && !panelMode){ const management=['owner','admin','manager'].includes(currentUser.role); const safeUnreadTaskCount=typeof unreadTaskCount==='undefined'?0:Number(unreadTaskCount||0); const safeApprovalCentreCount=typeof approvalCentreCount==='undefined'?0:Number(approvalCentreCount||0); %>
