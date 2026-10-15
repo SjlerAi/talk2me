@@ -5,7 +5,8 @@
   const config = configNode ? JSON.parse(configNode.textContent || '{}') : {};
   const basePath = String(config.basePath || '');
   const appVersion = String(config.appVersion || '');
-  const uatAssetVersion = `${appVersion}-widgets-7`;
+  const assetVersion = String(config.assetVersion || appVersion || '');
+  const uatAssetVersion = `${assetVersion}-widgets-7`;
   let redirecting = false;
 
   function addStylesheet(marker, href) {
@@ -31,8 +32,8 @@
   }
 
   function loadWorkflowAssets() {
-    addStylesheet('data-task-workflow', `${basePath}/public/css/task-workflow.css?v=${encodeURIComponent(appVersion)}`);
-    addScript('data-task-workflow', `${basePath}/public/js/task-workflow-notifications.js?v=${encodeURIComponent(appVersion)}`);
+    addStylesheet('data-task-workflow', `${basePath}/public/css/task-workflow.css?v=${encodeURIComponent(assetVersion)}`);
+    addScript('data-task-workflow', `${basePath}/public/js/task-workflow-notifications.js?v=${encodeURIComponent(assetVersion)}`);
   }
 
   function loadUatProductivityAssets() {
