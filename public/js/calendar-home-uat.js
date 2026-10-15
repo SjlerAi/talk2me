@@ -2,12 +2,20 @@
   'use strict';
 
   const configNode = document.getElementById('talk2me-os-config');
-  if (!configNode || !window.Talk2MeOS?.windows) return;
+  if (!configNode) return;
 
   const config = JSON.parse(configNode.textContent || '{}');
   const basePath = String(config.basePath || '');
   const isManagement = Boolean(config.isManagement);
-  const windows = window.Talk2MeOS.windows;
+
+  function openWorkWindow(options = {}) {
+    const manager = window.Talk2MeOS?.windows;
+    if (manager?.open) return manager.open(options);
+    if (options.url) {
+      window.location.assign(new URL(options.url, window.location.href).href);
+    }
+    return null;
+  }
   const shell = document.getElementById('talk2me-os');
   const workspace = document.getElementById('os-workspace');
   const sidebar = document.querySelector('.t2m-os-sidebar');
@@ -404,7 +412,7 @@
           const item = state.events.find(event => String(event.id) === String(button.dataset.openCalendarItem));
           if (!item?.url) return;
           const meta = eventMeta[item.type] || eventMeta.other;
-          windows.open({
+          openWorkWindow({
             id: `dated:${String(item.id).replace(/[^a-zA-Z0-9:_-]/g, '-')}`,
             appKey: 'dated-work',
             title: item.title || meta.label,
@@ -501,7 +509,7 @@
     }
 
     function openTask() {
-      windows.open({
+      openWorkWindow({
         id: 'quick:task', appKey: 'quick-action', title: 'Add Task', icon: '✓',
         subtitle: `Task for ${state.selected}`,
         url: `${basePath}/os/quick-add/task?date=${encodeURIComponent(state.selected)}`,
@@ -577,6 +585,21 @@
     load();
   }
 
-  simplifyShell();
-  mountCalendar();
+  // Mount My Day first. The calendar is the primary workspace and must not
+  // depend on optional shell/window enhancements being available for a role.
+  // This specifically protects owner/management sessions from falling back to
+  // the legacy Today’s Work dashboard if another OS enhancement fails.
+  try {
+    mountCalendar();
+    shell.dataset.calendarHomeReady = '1';
+  } catch (error) {
+    console.error('Talk2Me My Day mount failed:', error);
+    return;
+  }
+
+  try {
+    simplifyShell();
+  } catch (error) {
+    console.error('Talk2Me My Day shell enhancement failed:', error);
+  }
 })();
