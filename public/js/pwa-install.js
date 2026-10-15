@@ -53,8 +53,10 @@
   window.addEventListener('load', async () => {
     try {
       const registration = await navigator.serviceWorker.register(`${basePath}/service-worker.js`, {
-        scope: `${basePath || ''}/`
+        scope: `${basePath || ''}/`,
+        updateViaCache: 'none'
       });
+      await registration.update().catch(() => {});
 
       function offerUpdate(worker) {
         if (!worker) return;
