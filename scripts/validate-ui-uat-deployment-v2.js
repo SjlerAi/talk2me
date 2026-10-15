@@ -83,7 +83,8 @@ for (const required of [
   '/bin/flock -n /home/uent/.deploy-agent-guard/global.lock',
   '/bin/timeout -k 15s 10m /home/uent/bin/talk2me-ui-uat-agent',
   'start-desktop-commander-remote-low.sh',
-  'desktop-commander-remote-low'
+  'desktop-commander-remote-low',
+  '1-59/4 * * * * /bin/flock -n /home/uent/.deploy-agent-guard/global.lock'
 ]) {
   if (!installer.includes(required)) failures.push(`UI-UAT poller commissioning missing global deploy guard: ${required}`);
 }

@@ -35,7 +35,7 @@ existing_cron="$(crontab -l 2>/dev/null || true)"
 clean_cron="$(printf '%s\n' "$existing_cron" | grep -Fv "$CRON_MARKER" || true)"
 {
   printf '%s\n' "$clean_cron"
-  printf '%s\n' '* * * * * /bin/flock -n /home/uent/.deploy-agent-guard/global.lock /bin/timeout -k 15s 10m /home/uent/bin/talk2me-ui-uat-agent >> /home/uent/.talk2me-ui-uat-deploy/cron.log 2>&1 # talk2me-ui-uat-deploy-agent'
+  printf '%s\n' '1-59/4 * * * * /bin/flock -n /home/uent/.deploy-agent-guard/global.lock /bin/timeout -k 15s 10m /home/uent/bin/talk2me-ui-uat-agent >> /home/uent/.talk2me-ui-uat-deploy/cron.log 2>&1 # talk2me-ui-uat-deploy-agent'
 } | sed '/^[[:space:]]*$/d' | crontab -
 
 touch "$STATE_DIR/cron.log"
