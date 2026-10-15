@@ -19,6 +19,15 @@
   <link rel="stylesheet" href="<%= basePath %>/public/css/client-assignment-centre.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>">
   <link rel="stylesheet" href="<%= basePath %>/public/css/os-sidebar-collapse.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>">
   <link rel="stylesheet" href="<%= basePath %>/public/css/os-window-geometry.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>">
+  <link rel="stylesheet" data-calendar-home-uat href="<%= basePath %>/public/css/calendar-home-uat.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>">
+  <% if (isUat) { %>
+  <style id="t2m-uat-myday-first-paint">
+    #talk2me-os:not([data-calendar-home-ready="1"]) #os-desk-widgets { display: none !important; }
+    .t2m-my-day-bootstrap { padding: 28px; max-width: 720px; }
+    .t2m-my-day-bootstrap h1 { font-size: 1.65rem; margin: 0 0 10px; }
+    .t2m-my-day-bootstrap p { margin: 0; color: #64748b; }
+  </style>
+  <% } %>
   <% if(isUat && currentUser && String(currentUser.role||'').toLowerCase()==='owner'){ %><link rel="stylesheet" href="<%= basePath %>/public/css/cudo-widget.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>"><% } %>
 </head>
 <body class="t2m-os-body">
@@ -67,6 +76,12 @@
       <button class="t2m-os-launcher-arrow" type="button" data-launcher-scroll="next" aria-label="Next launcher">›</button>
     </nav>
     <main class="t2m-os-workspace" id="os-workspace" aria-label="Talk2Me workspace">
+      <% if (isUat) { %>
+      <section class="t2m-my-day-bootstrap" aria-label="My Day is starting">
+        <h1>My Day</h1>
+        <p>Opening your work calendar… If it does not appear, refresh the page.</p>
+      </section>
+      <% } %>
       <section class="t2m-os-desk-widgets" id="os-desk-widgets" aria-label="Today overview">
         <article class="t2m-os-desk-widget" data-widget="work"><header><div><span>My desk</span><strong>Today’s Work</strong></div><button type="button" data-widget-collapse aria-label="Collapse Today’s Work">−</button></header><div class="t2m-os-widget-body">
           <% if(isManagement){ %><div class="t2m-os-widget-row is-view-only"><button class="t2m-os-widget-view" type="button" data-os-route="<%= basePath %>/approvals" data-route-title="Approval Centre" data-route-icon="◆" aria-label="Open approvals needed"><span data-approval-label><%= approvalCount?'Approvals needed':'Approvals' %></span><strong data-status="approvalCount" data-positive="<%= approvalCount > 0 %>"><%= approvalCount %></strong></button></div><% } %>
@@ -97,6 +112,7 @@
   <script defer src="<%= basePath %>/public/js/os-v6-alpha21.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>"></script>
   <script defer src="<%= basePath %>/public/js/os-v6-alpha21-7.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>"></script>
   <script defer src="<%= basePath %>/public/js/os-v6-alpha21-8.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>"></script>
+  <script defer data-calendar-home-uat src="<%= basePath %>/public/js/calendar-home-uat.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>"></script>
   <script defer src="<%= basePath %>/public/js/os-v6-alpha21-17.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>"></script>
   <% if(isManagement){ %><script defer src="<%= basePath %>/public/js/approval-badges.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>" data-base-path="<%= basePath %>"></script><% } %>
   <% if(isUat && currentUser && String(currentUser.role||'').toLowerCase()==='owner'){ %><script defer src="<%= basePath %>/public/js/cudo-widget.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>" data-base-path="<%= basePath %>"></script><% } %>

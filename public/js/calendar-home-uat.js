@@ -22,6 +22,7 @@
   const launcher = document.querySelector('.t2m-os-launcher');
   const topActions = document.querySelector('.t2m-os-top-actions');
   if (!shell || !workspace || !sidebar) return;
+  if (shell.dataset.calendarHomeReady === '1') return; // Idempotent if another loader retries.
 
   const palette = [
     '#7c3aed', '#2563eb', '#059669', '#ea580c', '#db2777', '#0891b2', '#9333ea', '#16a34a',
