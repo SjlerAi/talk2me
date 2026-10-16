@@ -26,7 +26,30 @@
   <header class="topbar"><div class="mobile-brand brand"><span class="zippy-logo">Z<span>↗</span></span><strong>Zippy</strong></div><span id="today-date" class="today-date"></span><div class="top-actions"><span class="connection-status" id="connection-state">Private mode</span><button class="notification-toggle" id="voice-replies" aria-pressed="false" title="Toggle spoken replies">🔊 <span>Voice replies</span></button><button class="notification-toggle" id="install-button" type="button" hidden>Install app</button><button class="notification-toggle" id="push-setup" type="button" title="Enable phone notifications">♧ <span>Enable alerts</span></button><button class="avatar" id="account-avatar" title="Your account" aria-label="Your account">Z</button></div></header>
   <main class="page">
    <section class="hero" id="hero"><div class="hero-content"><span class="eyebrow">GOOD TO SEE YOU</span><h1 id="greeting">Good morning <span aria-hidden="true">✳</span></h1><p>What can I take off your mind today?</p><div class="quick-prompt" id="quick-examples"><button data-example="Remind me at 12 to phone my mother">"Phone my mother at twelve"</button><button data-example="Remind me tomorrow at 9 to review the day">"Tomorrow's reminder"</button></div></div><div class="hero-art" aria-hidden="true"><div class="hero-sun">✳</div><span class="hero-curve">〰</span></div></section>
-   <section class="command-section" aria-labelledby="command-title"><div class="command-top"><div><p class="eyebrow">ONE SENTENCE IS ENOUGH</p><h2 id="command-title">Just tell Zippy.</h2></div><div class="language"><label for="language">Voice</label><select id="language"><option value="en-ZA">English</option><option value="af-ZA">Afrikaans</option></select></div></div><form id="command-form" class="command-bar"><button id="mic-button" type="button" class="mic-btn" title="Tap to speak" aria-label="Tap to speak"><span aria-hidden="true">🎙</span></button><input id="command-input" autocomplete="off" maxlength="2500" aria-label="Talk to Zippy" placeholder="Zippy, remind me to phone my mother at 12…"><button class="send-btn" id="command-send" type="submit" aria-label="Send to Zippy">➜</button></form><p class="command-hint" id="mic-hint">Speak naturally in English or Afrikaans. Tap the microphone, or type a command.</p><div id="command-result" class="command-result" role="status" aria-live="polite" hidden></div></section>
+   <section class="command-section" aria-labelledby="command-title"><div class="command-top"><div><p class="eyebrow">ONE SENTENCE IS ENOUGH</p><h2 id="command-title">Just tell Zippy.</h2></div><div class="language"><label for="language">Voice</label><select id="language"><option value="en-ZA">English</option><option value="af-ZA">Afrikaans</option></select></div></div><form id="command-form" class="command-bar"><button id="mic-button" type="button" class="mic-btn" title="Tap to speak" aria-label="Tap to speak"><span aria-hidden="true">🎙</span></button><input id="command-input" autocomplete="off" maxlength="2500" aria-label="Talk to Zippy" placeholder="Zippy, remind me to phone my mother at 12…"><button class="send-btn" id="command-send" type="submit" aria-label="Send to Zippy">➜</button></form><p class="command-hint" id="mic-hint">Speak naturally in English or Afrikaans. Tap the microphone, or type a command.</p><div id="command-result" class="command-result" role="status" aria-live="polite" hidden></div>
+    <section id="review-panel" class="review-panel" aria-label="Review your Talk2Me message" hidden>
+      <div class="review-heading"><strong>Review before sending</strong><span class="review-unsent">NOT SENT</span></div>
+      <p id="review-recipient" class="review-recipient"></p>
+      <p id="review-reference" class="muted fine"></p>
+      <label for="review-message"><strong>Your message — edit before sending</strong></label>
+      <textarea id="review-message" rows="5" maxlength="1750" spellcheck="true" aria-describedby="review-note"></textarea>
+      <p id="review-note" class="muted fine">Only the message above is editable. Verified CRM contact details are appended automatically where available.</p>
+      <p id="review-deadline" class="review-deadline"></p>
+      <label id="recipient-check-wrap" hidden>Verify a similar-sounding name <input id="recipient-verify" maxlength="160" placeholder="Type recipient's first name"></label>
+      <div class="review-buttons">
+        <button id="review-read" class="secondary" type="button">🔊 Read message</button>
+        <button id="review-send" class="primary" type="button">✓ Send to CRM</button>
+        <button id="review-cancel" class="secondary" type="button">Cancel</button>
+      </div>
+      <p class="review-hint" id="review-hint">You can say “send”, “stuur”, “read message” or “cancel” while this preview is open. Nothing is sent until you approve.</p>
+    </section>
+   </section>
+   <section class="card action-timeline" aria-labelledby="action-title">
+     <div class="panel-heading"><div><p class="eyebrow">YOUR PERSONAL AND OFFICE UPDATES</p><h2 id="action-title">What Zippy did</h2></div>
+      <button id="refresh-actions" class="secondary" type="button">↻ Refresh</button></div>
+     <div class="timeline-status" id="live-status">Checking reminder service…</div>
+     <div id="activity-list" class="items-list" aria-live="polite"><p class="empty">Your confirmed actions and recorded CRM replies will appear here.</p></div>
+   </section>
    <section class="dashboard-grid" id="today-grid"><div class="card reminders-panel"><div class="panel-heading"><div><span class="eyebrow">UPCOMING</span><h2>On your mind</h2></div><button class="link-button" data-view="reminders">See all →</button></div><div id="today-reminders" class="items-list"><p class="empty">Nothing coming up yet. Give Zippy your first reminder.</p></div></div><div class="side-cards"><div class="card focus-card"><div class="panel-heading"><div><span class="eyebrow">TODAY</span><h2>At a glance</h2></div><span class="mini-icon">✦</span></div><div id="today-count" class="today-count">0</div><p id="today-description">reminders to keep track of today</p></div><div class="card crm-card"><span class="eyebrow">CONNECTED TO YOUR OFFICE</span><div class="crm-icon">▤</div><h2>Talk2Me, when you need it</h2><p>Ask Zippy to find a client or send staff an instruction. Your personal life stays private.</p><button id="crm-action" class="secondary" data-view="office">Office actions <span>↗</span></button></div></div></section>
    <section class="card full-list" id="reminders-view" hidden><div class="panel-heading"><div><span class="eyebrow">YOUR PRIVATE DIARY</span><h2>All reminders & appointments</h2></div><button id="add-reminder" class="secondary">+ Add reminder</button></div><div id="all-reminders" class="items-list"></div></section>
    <section class="card full-list" id="contacts-view" hidden><div class="panel-heading"><div><span class="eyebrow">PRIVATE CONTACTS</span><h2>Your people</h2></div></div><form id="contact-form" class="contact-form"><label>Name <input name="name" required maxlength="160" placeholder="e.g. My mother"></label><label>Relationship <input name="relationship" maxlength="96" placeholder="e.g. Mother"></label><label>Phone <input name="phone" type="tel" maxlength="64" placeholder="Optional"></label><button class="primary" type="submit">Save contact</button></form><div id="contacts-list" class="items-list"></div></section>
@@ -38,4 +61,18 @@
 </div>
 <dialog id="new-reminder-dialog"><form method="dialog" class="dialog-card" id="new-reminder-form"><h2>New personal reminder</h2><label>What should I remember?<input name="title" required minlength="2" maxlength="160" placeholder="Phone my mother"></label><label>When?<input name="dueAt" type="datetime-local" required></label><label>Repeat?<select name="recurrence"><option value="">Once</option><option value="daily">Every day</option><option value="weekdays">Every weekday</option><option value="weekly">Every week</option><option value="monthly">Every month</option></select></label><div class="dialog-actions"><button type="button" id="close-reminder-dialog" class="secondary">Cancel</button><button type="submit" class="primary">Save reminder</button></div></form></dialog>
 <dialog id="password-dialog"><form id="password-form" class="dialog-card"><h2>Change your Zippy password</h2><label>Current password<input name="currentPassword" type="password" autocomplete="current-password" required></label><label>New password (14+ characters)<input name="newPassword" type="password" autocomplete="new-password" required ></label><label>Confirm new password<input name="confirmPassword" type="password" autocomplete="new-password" required ></label><p role="alert" class="form-error" id="password-error" hidden></p><div class="dialog-actions"><button type="button" class="secondary" id="cancel-password">Cancel</button><button type="submit" class="primary">Update password</button></div></form></dialog>
-<script src="/app.js" defer></script></body></html>
+<dialog id="reminder-popup" class="reminder-popup" aria-labelledby="popup-title">
+  <div class="reminder-popup-card">
+    <p class="eyebrow">⏰ ZIPPY REMINDER · ACTION NEEDED</p>
+    <h2 id="popup-title">Your reminder is due</h2>
+    <p id="popup-body" class="popup-body"></p>
+    <p id="popup-when" class="muted"></p>
+    <div class="popup-actions">
+      <a id="popup-call" class="primary" href="#" hidden>📞 Call now</a>
+      <button id="popup-done" class="primary" type="button">✓ Done</button>
+      <button id="popup-snooze" class="secondary" type="button">◷ Snooze 10 minutes</button>
+    </div>
+    <p class="fine muted">Your reminder stays outstanding until you acknowledge it. Phone sound and vibration depend on your device permissions.</p>
+  </div>
+ </dialog>
+ <script src="/app.js" defer></script></body></html>

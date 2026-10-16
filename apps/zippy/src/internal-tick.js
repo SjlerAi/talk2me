@@ -1,6 +1,7 @@
 'use strict';
 const crypto=require('crypto');
 const {tick}=require('./tick');
+const {syncAll}=require('./activity');
 let running=false;
 function attach(app){
  app.post('/api/internal/tick',async(req,res)=>{
@@ -14,8 +15,12 @@ function attach(app){
   running=true;
   try{
    const result=await tick();
+   // Poll only Zippy-tracked tasks. Failed CRM lookup must never stop
+   // personal reminder scheduling or make its heartbeat unreliable.
+   let crmSync={checked:0,updates:0,failed:0};
+   try{crmSync=await syncAll();}catch(error){crmSync={checked:0,updates:0,failed:1};console.error('[zippy] background CRM sync unavailable',error.code||error.message);}
    res.set('Cache-Control','no-store');
-   res.json({ok:true,...result});
+   res.json({ok:true,...result,crmSync});
   }catch(error){
    console.error('[zippy] protected scheduler failed',error.code||error.message);
    res.status(503).json({ok:false,error:'Reminder scheduler unavailable'});
