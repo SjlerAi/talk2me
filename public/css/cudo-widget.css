@@ -39,3 +39,14 @@
 .cudo-compose{grid-template-columns:auto auto minmax(0,1fr) 43px auto auto;gap:6px}
 .cudo-voice-language{min-width:0;width:43px;align-self:stretch;border:1px solid #bfdcff;border-radius:10px;background:#f2f8ff;color:#075fce;font-size:10px;font-weight:850}
 @media(max-width:450px){.cudo-compose{gap:4px;padding:8px}.cudo-attach,.cudo-library,.cudo-mic,.cudo-send{width:34px}.cudo-voice-language{width:38px;font-size:9px}}
+
+
+/* The instruction is free-form; this card only previews CRM identity and delivery. */
+.cudo-command-preview{margin-top:9px;padding:10px;border:1px solid #a8cdee;border-radius:11px;background:#eff7ff}
+.cudo-command-preview strong{display:block;color:#164e83;font-size:12px}
+.cudo-command-preview p{margin:6px 0;color:#244059;font-size:11px;line-height:1.45;overflow-wrap:anywhere}
+.cudo-command-preview label{display:grid;gap:5px;margin-top:9px;color:#334155;font-weight:800;font-size:11px}
+.cudo-command-preview input{width:100%;border:1px solid #94bde5;border-radius:9px;padding:8px;background:#fff;font:inherit;font-size:12px}
+.cudo-name-choices{display:grid;gap:5px;margin-top:10px}
+.cudo-name-choices strong{font-size:11px;color:#475569}
+.cudo-name-choices button{width:100%;text-align:left;border:1px solid #bddafa;background:#fff;border-radius:8px;padding:8px 9px;color:#194878;cursor:pointer}

@@ -336,3 +336,14 @@
 .t2m-quick-task-more{justify-self:start;border:1px solid #cbd5e1;background:#fff;border-radius:10px;padding:10px 13px;color:#334155;font-weight:750;font-size:11px;cursor:pointer}
 .t2m-quick-task-more:hover{background:#ecf3f9}
 @media(max-width:620px){.t2m-simple-new-task{padding:10px}}
+
+
+.t2m-quick-command-preview{padding:11px;border:1px solid #bad8f1;border-radius:11px;background:#eff8ff;color:#24425e}
+.t2m-quick-command-preview strong{display:block;font-size:11px}
+.t2m-quick-command-preview p{margin:6px 0;font-size:11px;line-height:1.45;overflow-wrap:anywhere}
+.t2m-quick-command-preview label{display:grid;gap:5px;margin:9px 0;font-size:10px;font-weight:800}
+.t2m-quick-command-preview input{height:34px;border:1px solid #bad1e9;border-radius:8px;padding:8px;font-size:12px}
+.t2m-quick-confirm-actions,.t2m-quick-choice-list{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px}
+.t2m-quick-command-preview button{border:1px solid #b9cde0;border-radius:8px;background:#fff;color:#235071;padding:8px 10px;font-size:11px;font-weight:800;cursor:pointer}
+.t2m-quick-command-preview button.primary{background:#0b75be;color:#fff;border-color:#0b75be}
+.t2m-quick-command-preview button:disabled{opacity:.55}

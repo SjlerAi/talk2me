@@ -6,7 +6,8 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { ensureAgentResponsibilitySchema } = require('../services/office-intelligence-agent');
-const { executeSimpleTaskCommand } = require('../services/quick-task-commands');
+const {prepareNaturalCommand,chooseNaturalCommand}=require('../services/cudo-natural-plan');
+const {sendNaturalCommand}=require('../services/cudo-natural-send');
 const { trackEvent } = require('../services/usage-telemetry');
 const { getTaskAttachmentDownload } = require('../services/work-dispatch');
 const { ensureWorkOperatingSchema, getMyWorkOverview, getOfficeScorecard, getTargetCentre, saveTargetGoal, getMonthlyImportSummary } = require('../services/work-operating-model');
@@ -824,28 +825,56 @@ router.get('/api/uat/tasks/:id', requireAuth, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-// Simple internal management task commands use the existing monitored task service.
+// One sentence -> CRM name resolution -> draft -> one explicit confirmation.
+// The task description is free-form: there is no preset task catalogue.
 router.post('/api/uat/tasks/command',requireAuth,async(req,res,next)=>{
+ try{
+  if(!management(req.session.user))return res.status(403).json({ok:false,error:'Only management can delegate staff work.'});
+  const message=clean(req.body?.message,3000);
+  if(!message)return res.status(400).json({ok:false,error:'Say who should do what.'});
+  await ensureSchema();
+  const result=await prepareNaturalCommand({
+   message,source:req.body?.source==='voice'?'voice':'text'
+  });
+  if(!result.handled)return res.status(422).json({ok:false,error:'Cudo could not identify the intended recipient and instruction. Use “Ask Johnny to phone Stefan” or “Johnny must phone Stefan”.'});
+  req.session.workCommandPending=result.pendingAction||null;
+  res.set('Cache-Control','no-store');
+  res.json({ok:true,intent:result.intent,text:result.text,preview:result.preview||null,
+   choices:result.choices||[],actions:result.actions||[],rows:result.rows||[]});
+ }catch(error){next(error);}
+});
+router.post('/api/uat/tasks/command/choice',requireAuth,async(req,res,next)=>{
+ try{
+  if(!management(req.session.user))return res.sendStatus(403);
+  const result=await chooseNaturalCommand(req.session.workCommandPending,req.body?.choice);
+  req.session.workCommandPending=result.pendingAction||null;
+  res.json({ok:true,intent:result.intent,text:result.text,preview:result.preview||null,
+   choices:result.choices||[],actions:result.actions||[],rows:result.rows||[]});
+ }catch(error){res.status(400).json({ok:false,error:error.message});}
+});
+router.post('/api/uat/tasks/command/confirm',requireAuth,async(req,res,next)=>{
+ try{
+  if(!management(req.session.user))return res.sendStatus(403);
+  await ensureSchema();
+  const draft=req.session.workCommandPending;
+  if(!draft||draft.type!=='natural_instruction')return res.status(409).json({ok:false,error:'Prepare the CRM instruction before sending.'});
+  const result=await sendNaturalCommand({draft,actorId:Number(req.session.user.id),typedName:req.body?.typedName});
+  req.session.workCommandPending=null;
   try{
-    if(!management(req.session.user))return res.status(403).json({ok:false,error:'Only management may assign staff tasks by command.'});
-    const message=clean(req.body?.message,3000);
-    if(!message)return res.status(400).json({ok:false,error:'Say what must be done and by whom.'});
-    await ensureSchema();
-    const result=await executeSimpleTaskCommand({message,userId:Number(req.session.user.id),
-      source:req.body?.source==='voice'?'voice':'text'});
-    if(!result.handled)return res.status(422).json({ok:false,
-      error:'This is not one clear task. Use Cudo for bulk work or say “Give Johanna a task to phone the customer tomorrow at 14:00”.'});
-    if(result.status==='created'){
-      await trackEvent({staffId:Number(req.session.user.id),eventType:'work_task_created',
-        screenKey:'work',routePath:'/api/uat/tasks/command',moduleName:'work',
-        entityType:'staff_tasks',entityId:result.task.id,httpMethod:'POST',httpStatus:200,
-        metadata:{command:true,source:result.source,assignedTo:result.task.staffId,
-          dueAt:result.task.dueAt,defaultedDeadline:result.defaultedDeadline}});
-    }
-    res.set('Cache-Control','no-store');
-    res.json({ok:true,actionOk:Boolean(result.ok),status:result.status||
-      (result.needsClarification?'needs_clarification':'failed'),text:result.text,task:result.task||null});
-  }catch(error){next(error);}
+   await trackEvent({staffId:Number(req.session.user.id),eventType:'work_task_created',
+    screenKey:'work',routePath:'/api/uat/tasks/command/confirm',moduleName:'work',
+    entityType:'staff_tasks',entityId:result.taskId,httpMethod:'POST',httpStatus:200,
+    metadata:{naturalCommand:true,channel:draft.channel,
+      recipientId:draft.assignee.id,source:draft.source,duplicate:Boolean(result.duplicate)}});
+  }catch(error){console.error('Natural task telemetry error:',error.message);}
+  return res.json({ok:true,text:result.text,taskId:result.taskId,
+   status:result.duplicate?'duplicate':'sent',actionOk:true});
+ }catch(error){res.status(400).json({ok:false,error:error.message});}
+});
+router.post('/api/uat/tasks/command/cancel',requireAuth,async(req,res)=>{
+ if(!management(req.session.user))return res.sendStatus(403);
+ req.session.workCommandPending=null;
+ res.json({ok:true,text:'Cancelled. No message or task was sent.'});
 });
 
 router.post('/api/uat/tasks', requireAuth, taskUploadMiddleware, async (req, res, next) => {

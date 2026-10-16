@@ -4,7 +4,9 @@ const express = require('express');
 const multer = require('multer');
 const { audit } = require('../services/audit');
 const { answerCudo, createTasks, getAlerts } = require('../services/cudo-ai');
-const { executeSimpleTaskCommand } = require('../services/quick-task-commands');
+const { prepareNaturalCommand,chooseNaturalCommand } = require('../services/cudo-natural-plan');
+const { sendNaturalCommand } = require('../services/cudo-natural-send');
+const { ensureSchema:ensureUatWorkSchema } = require('./uat-work-widgets');
 const { reassignClientWork } = require('../services/cudo-client-assignment');
 const {
   storeUploadedFile,
@@ -100,25 +102,18 @@ router.post('/api/cudo/chat', requireOwner, async (req, res, next) => {
     const attachmentIds = Array.isArray(req.body?.attachmentIds)
       ? req.body.attachmentIds.map(Number).filter(Number.isFinite).slice(0,20)
       : [];
-    // A clear, single internal task is a command, not a multi-turn chat.
-    // Attachments and batch/customer ownership changes continue through previews.
-    const direct=attachmentIds.length?{handled:false}:await executeSimpleTaskCommand({
-      message,userId:Number(req.session.user.id),source:req.body?.source==='voice'?'voice':'text'
+    // Interpret Gerda's words as a CRM-backed instruction; never select a preset task.
+    // Nothing is sent from the chat endpoint. The action endpoint requires confirmation.
+    const natural=attachmentIds.length?{handled:false}:await prepareNaturalCommand({
+      message,source:req.body?.source==='voice'?'voice':'text'
     });
-    if(direct.handled){
-      req.session.cudoPendingAction=null;
+    if(natural.handled){
+      req.session.cudoPendingAction=natural.pendingAction||null;
       req.session.cudoState={selection:null};
-      if(direct.status==='created'){
-        try{await audit(req,{actionType:'cudo_task_command_created',
-          entityType:'staff_tasks',entityId:direct.task.id,
-          description:'Cudo created a monitored task from a direct instruction.',
-          after:{staffId:direct.task.staffId,dueAt:direct.task.dueAt,
-            priority:direct.task.priority,source:direct.source}});}
-        catch(auditError){console.error('Cudo command audit failed:',auditError.message);}
-      }
       res.set('Cache-Control','no-store');
-      return res.json({ok:true,intent:direct.ok?'task_created':'task_clarification',
-        text:direct.text,rows:[],actions:[],suggestions:[]});
+      return res.json({ok:true,intent:natural.intent,text:natural.text,
+        preview:natural.preview||null,choices:natural.choices||[],
+        rows:natural.rows||[],actions:natural.actions||[],suggestions:[]});
     }
 
     const result = await answerCudo({
@@ -184,6 +179,38 @@ router.post('/api/cudo/action', requireOwner, async (req, res, next) => {
 
     const pending = req.session.cudoPendingAction;
     if (!pending) return res.status(409).json({ ok:false, error:'There is no pending Cudo action to confirm.' });
+
+    if(actionName==='choose_natural_name'){
+      if(pending.type!=='natural_name_choice')return res.status(409).json({ok:false,error:'There is no CRM person waiting for selection.'});
+      const result=await chooseNaturalCommand(pending,req.body?.choice);
+      req.session.cudoPendingAction=result.pendingAction||null;
+      res.set('Cache-Control','no-store');
+      return res.json({ok:true,intent:result.intent,text:result.text,
+        preview:result.preview||null,choices:result.choices||[],
+        rows:result.rows||[],actions:result.actions||[]});
+    }
+
+    if(actionName==='confirm_natural_instruction'){
+      if(pending.type!=='natural_instruction')return res.status(409).json({ok:false,error:'There is no prepared CRM instruction to send.'});
+      await ensureUatWorkSchema();
+      if(pending.source==='voice'||pending.assigneeNear){
+        const typed=String(req.body?.typedName||'').trim().toLowerCase();
+        const allowed=[String(pending.assignee.shortName||'').toLowerCase(),String(pending.assignee.name||'').toLowerCase()];
+        if(!typed||!allowed.includes(typed))return res.status(400).json({ok:false,error:'Type '+pending.assignee.shortName+' to confirm the recipient before sending.'});
+      }
+      const result=await sendNaturalCommand({
+        draft:pending,actorId:Number(req.session.user.id),typedName:req.body?.typedName
+      });
+      req.session.cudoPendingAction=null;
+      try{
+        await audit(req,{actionType:'cudo_natural_instruction_sent',entityType:'staff_tasks',
+          entityId:result.taskId,description:'Confirmed CRM-based staff instruction and message.',
+          after:{taskId:result.taskId,messageId:result.messageId||null,
+            channel:pending.channel,recipientId:pending.assignee.id,source:pending.source,
+            duplicate:Boolean(result.duplicate)}});
+      }catch(error){console.error('Cudo natural instruction audit error:',error.message);}
+      return res.json({ok:true,text:result.text,taskId:result.taskId||null,alreadySent:Boolean(result.duplicate)});
+    }
 
     if (actionName === 'confirm_reassignment') {
       if (pending.type !== 'reassign_client_work') {

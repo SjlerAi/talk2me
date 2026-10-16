@@ -64,13 +64,15 @@ assert(service.includes("relatedClientId:client.clientId"),'Resolved customer mu
 assert(monitor.includes('agent_task_watches'),'Existing agent watches must monitor new tasks');
 assert(route.includes("router.post('/api/uat/tasks/command',requireAuth"),'Unified Work task command endpoint is required');
 assert(route.includes('if(!management(req.session.user))'),'Direct task assignment must be management only');
-assert(cudo.includes('executeSimpleTaskCommand'),'Cudo must share exactly the same safe command path');
-assert(cudo.includes("req.session.cudoPendingAction=null;"),'Cudo command must clear previous pending action');
+assert(cudo.includes('prepareNaturalCommand'),'Cudo must interpret every spoken instruction using CRM name resolution before any action');
+assert(cudo.includes('req.session.cudoPendingAction=natural.pendingAction||null;'),'Cudo must keep the preview pending until Gerda confirms');
 assert(taskUi.includes('data-quick-task-form'),'Work Inbox must show one instruction field');
 assert(taskUi.includes('data-quick-task-language'),'Speech must allow the user to select language');
 assert(taskUi.includes("window.SpeechRecognition||window.webkitSpeechRecognition"),'Work Inbox microphone must support browser speech recognition');
 assert(taskUi.includes("source:quickVoiceSource?'voice':'text'"),'Command source must be recorded');
-assert(taskUi.includes("field.focus();"),'User can review the speech transcript before the action is sent');
+assert(taskUi.includes('form.requestSubmit()'),'Speech should prepare a CRM preview immediately');
+assert(taskUi.includes('data-quick-name-verify'),'Voice recipient name must be confirmed before sending');
+assert(taskUi.includes('/api/uat/tasks/command/confirm'),'Only the explicit confirmation endpoint sends the message');
 assert(cudoUi.includes('cudo-voice-language')&&cudoUi.includes('recognition.lang=voiceLanguage'), 'Cudo must allow Afrikaans/English voice selection');
 assert(cudoUi.includes("text:'Voice transcript is ready in the box."),'Cudo voice must still require transcript review');
 assert(css.includes('.t2m-quick-task-form'),'New Task commander must have responsive styles');

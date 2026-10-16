@@ -135,6 +135,7 @@ assert(css.includes('.cudo-pick'), 'Cudo result selection styling missing');
 assert(css.includes('.cudo-evidence'), 'Cudo evidence styling missing');
 assert(widget.includes('Voice transcript is ready in the box'), 'Voice must require transcript review before sending');
 const voiceEnd = widget.slice(widget.indexOf('recognition.onend'), widget.indexOf('async function sendMessage'));
-assert(!voiceEnd.includes('sendMessage(full)'), 'Voice recognition must not auto-submit');
+assert(voiceEnd.includes('sendMessage(full)'),'Speech commands should prepare a CRM draft immediately; never dispatch from the chat endpoint');
+assert(route.includes("actionName==='confirm_natural_instruction'"),'Only an explicit owner confirmation can send a natural instruction');
 
 console.log('CUDO_AI_VALIDATION=PASS');
