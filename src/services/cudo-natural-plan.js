@@ -6,14 +6,14 @@ const {channelAvailability}=require('./work-dispatch');
 const {normal,taskWords,staffMatches,referencedName,rankPeople,pickMatch}=require('./cudo-natural-parser');
 
 async function crmStaff(){
- const [rows]=await db.execute('SELECT id,full_name,first_name,username,email,role FROM staff_users WHERE is_active=1 ORDER BY full_name');
+ const [rows]=await db.execute('SELECT id,full_name,first_name,username,email,contact_number,role FROM staff_users WHERE is_active=1 ORDER BY full_name');
  return rows;
 }
 async function crmClients(name){
  const term=normal(name).slice(0,60);
  if(term.length<3)return [];
  const alternative=term.replace(/f/g,'ph'),inverse=term.replace(/ph/g,'f');
- const [rows]=await db.execute('SELECT id,client_name FROM clients WHERE is_active=1 AND (client_name LIKE :term OR client_name LIKE :alternate OR client_name LIKE :inverse) ORDER BY client_name LIMIT 30',{
+ const [rows]=await db.execute('SELECT id,client_name,cell_number,account_number FROM clients WHERE is_active=1 AND (client_name LIKE :term OR client_name LIKE :alternate OR client_name LIKE :inverse) ORDER BY client_name LIMIT 30',{
   term:'%'+term+'%',alternate:'%'+alternative+'%',inverse:'%'+inverse+'%'
  });
  return rows;
@@ -29,7 +29,7 @@ function draftResponse(action){
   text:verification+'To: '+person.shortName+' (staff)'+target+'. Channel: '+channelName+
    '. Deadline: '+action.dueAt.slice(0,16).replace(' ',' at ')+'. '+(disabled?'Cannot send: '+availability.reason:'Can I send the message?'),
   preview:{assignee:{id:person.id,name:person.name,displayName:person.shortName,heard:action.heardAssignee},
-   reference:action.reference?{id:action.reference.id,kind:action.reference.kind,name:action.reference.name}:null,
+   reference:action.reference?{id:action.reference.id,kind:action.reference.kind,name:action.reference.name,phone:action.reference.phone||null}:null,
    instruction:action.instruction,channel:action.channel,dueAt:action.dueAt,priority:action.priority,
    confirmName:Boolean(action.source==='voice'||action.assigneeNear)},
   actions:disabled?['cancel_action']:['confirm_natural_instruction','cancel_action'],
