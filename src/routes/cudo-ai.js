@@ -4,7 +4,7 @@ const express = require('express');
 const multer = require('multer');
 const { audit } = require('../services/audit');
 const { answerCudo, createTasks, getAlerts } = require('../services/cudo-ai');
-const { prepareNaturalCommand,chooseNaturalCommand } = require('../services/cudo-natural-plan');
+const { prepareNaturalCommand,chooseNaturalCommand,continueNaturalPronoun,naturalNameReply } = require('../services/cudo-natural-plan');
 const { sendNaturalCommand } = require('../services/cudo-natural-send');
 const { ensureSchema:ensureUatWorkSchema } = require('./uat-work-widgets');
 const { reassignClientWork } = require('../services/cudo-client-assignment');
@@ -104,9 +104,15 @@ router.post('/api/cudo/chat', requireOwner, async (req, res, next) => {
       : [];
     // Interpret Gerda's words as a CRM-backed instruction; never select a preset task.
     // Nothing is sent from the chat endpoint. The action endpoint requires confirmation.
-    const natural=attachmentIds.length?{handled:false}:await prepareNaturalCommand({
-      message,source:req.body?.source==='voice'?'voice':'text'
-    });
+    const userId=Number(req.session.user.id);
+    const pronounPending=req.session.cudoPendingAction;
+    const resumePronoun=!attachmentIds.length&&pronounPending?.type==='natural_pronoun_question'
+      &&naturalNameReply(message);
+    const natural=attachmentIds.length?{handled:false}:resumePronoun
+      ?await continueNaturalPronoun(pronounPending,message,{requesterId:userId})
+      :await prepareNaturalCommand({
+        message,source:req.body?.source==='voice'?'voice':'text',requesterId:userId
+      });
     if(natural.handled){
       req.session.cudoPendingAction=natural.pendingAction||null;
       req.session.cudoState={selection:null};
@@ -182,7 +188,7 @@ router.post('/api/cudo/action', requireOwner, async (req, res, next) => {
 
     if(actionName==='choose_natural_name'){
       if(pending.type!=='natural_name_choice')return res.status(409).json({ok:false,error:'There is no CRM person waiting for selection.'});
-      const result=await chooseNaturalCommand(pending,req.body?.choice);
+      const result=await chooseNaturalCommand(pending,req.body?.choice,{requesterId:Number(req.session.user.id)});
       req.session.cudoPendingAction=result.pendingAction||null;
       res.set('Cache-Control','no-store');
       return res.json({ok:true,intent:result.intent,text:result.text,
