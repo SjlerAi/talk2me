@@ -8,3 +8,33 @@
 @media(max-width:800px){.shell{grid-template-columns:1fr}.sidebar{display:none}.mobile-brand{display:flex}.mobile-brand .zippy-logo{height:38px;width:38px;font-size:1.55rem;border-radius:13px}.mobile-brand strong{font-size:1.3rem}.topbar{height:72px;padding:0 18px}.topbar .today-date{display:none}.mobile-nav{position:fixed;display:flex;z-index:5;justify-content:space-around;bottom:0;left:0;right:0;background:white;border-top:1px solid #e2e9f2;padding:6px 6px max(6px,env(safe-area-inset-bottom));box-shadow:0 -4px 20px #1e3e6e13}.mobile-nav button{background:none;border:0;color:#91a2b9;display:grid;justify-items:center;gap:2px;padding:7px 10px;font-size:1.5rem}.mobile-nav button span{font-size:.7rem;font-weight:800}.mobile-nav button.selected{color:#137cb2}.page{padding:17px 16px 102px}.hero{padding:28px 24px;min-height:205px}.hero h1{font-size:2.4rem}.hero-art{right:-56px}.command-section{padding:20px}.login-shell{grid-template-columns:1fr}.login-art{display:none}}
 @media(max-width:560px){.connection-status{display:none}.top-actions{gap:7px}.notification-toggle{padding:10px;border-radius:12px}.notification-toggle span{display:none}.hero{min-height:182px;padding:25px 19px}.hero h1{font-size:2.15rem}.hero .quick-prompt{max-width:230px}.quick-prompt button{font-size:.7rem;padding:8px}.hero-art{opacity:.35;right:-95px}.command-section{margin:16px 0;padding:20px 14px}.command-top h2{font-size:1.48rem}.command-bar{gap:5px;padding:6px}.command-bar input{font-size:.89rem}.mic-btn,.send-btn{width:40px;height:40px}.side-cards{grid-template-columns:1fr}.card{padding:19px}.item-actions{flex-wrap:wrap;max-width:95px}.contact-form{grid-template-columns:1fr}.login-panel{padding:35px 24px}.brand.big{margin-bottom:50px}}
 #voice-replies[aria-pressed="true"]{background:#d7f7ec;color:#15886d;border-color:#9bdec8}
+
+/* One-screen Zippy action flow: keep the reviewed message visible until action. */
+.review-panel{display:grid;gap:13px;margin-top:19px;padding:22px;border:2px solid #2381b9;border-radius:18px;background:#eef7ff;color:#1c3655;box-shadow:0 12px 30px #165c9420}
+.review-panel[hidden]{display:none}.review-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:1.15rem}
+.review-unsent{display:inline-block;border-radius:40px;background:#fef2d9;color:#845012;padding:6px 11px;font-size:.74rem;letter-spacing:.09em;font-weight:900}
+.review-recipient{font-size:1.14rem;font-weight:800;margin:0}.review-panel p{margin:0}
+.review-panel label{font-weight:700;display:grid;gap:8px}
+#review-message{width:100%;min-height:118px;line-height:1.55;font-size:1.05rem;resize:vertical;padding:14px;border:1px solid #86b3db;border-radius:12px;background:white;color:#172b45}
+#recipient-verify{width:100%;max-width:350px;padding:12px;border:1px solid #86b3db;border-radius:10px;background:#fff}
+.review-deadline{font-size:.94rem}.review-buttons{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.review-buttons button{min-height:48px}.review-buttons #review-send{min-width:165px;font-size:1rem}
+.review-hint{font-size:.8rem;color:#526b89;line-height:1.5}.review-panel button:disabled{opacity:.6}
+.action-timeline{margin-bottom:22px;border:1px solid #bdd9e7}
+.action-timeline .panel-heading{margin-bottom:12px}.timeline-status{font-size:.84rem;color:#51738b;margin-bottom:15px}
+.timeline-item{display:flex;align-items:flex-start;gap:12px;padding:13px 15px;background:#f5f9ff;border:1px solid #e1ebf7;border-radius:14px}
+.timeline-item .timeline-mark{flex:none;display:grid;place-items:center;height:36px;width:36px;border-radius:11px;background:#deefec;color:#206c63;font-size:1.2rem}
+.timeline-item.crm_reply{background:#ebf8f2;border-color:#b6dfd0}
+.timeline-item.crm_overdue{background:#fff4ee;border-color:#f7d5c4}
+.timeline-text{min-width:0;flex:1}.timeline-text strong{display:block;font-size:.95rem}
+.timeline-text p{white-space:pre-wrap;overflow-wrap:anywhere;margin:6px 0;font-size:.92rem;line-height:1.5}
+.timeline-text small{color:#73869a;font-size:.77rem}.timeline-link{font-size:.78rem;white-space:nowrap}
+.reminder-popup{width:min(95vw,520px);border:3px solid #efb34d;animation:zippy-alert-flash 1.5s ease-in-out infinite}
+.reminder-popup::backdrop{background:#0d1c36d9}
+.reminder-popup-card{padding:32px;display:grid;gap:15px;background:#fffdfa}
+.reminder-popup h2{font-size:1.7rem;line-height:1.2;margin:0}
+.reminder-popup .eyebrow{color:#9d5d08}.reminder-popup .popup-body{font-size:1.3rem;color:#193c58;font-weight:800;line-height:1.45;overflow-wrap:anywhere;margin:0}
+.reminder-popup .popup-actions{display:flex;flex-wrap:wrap;gap:10px}.reminder-popup .popup-actions button,.reminder-popup .popup-actions a{padding:14px;min-height:46px;text-decoration:none}
+@keyframes zippy-alert-flash{0%,100%{border-color:#f3cb64;box-shadow:0 0 0 6px #fbe4b128,0 25px 50px #07142963}50%{border-color:#e96137;box-shadow:0 0 0 13px #e9613736,0 25px 50px #07142963}}
+@media(prefers-reduced-motion:reduce){.reminder-popup{animation:none}}
+@media(max-width:560px){.review-panel{padding:16px;margin-top:14px}.review-buttons{display:grid;grid-template-columns:1fr 1fr}.review-buttons #review-read{grid-column:1/-1}.review-buttons #review-send{min-width:0}.reminder-popup-card{padding:22px}.reminder-popup .popup-actions{display:grid}}
