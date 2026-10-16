@@ -20,7 +20,8 @@ db.query=async(sql,params=[])=>{
    title:params[3],body:params[4],task_id:params[5],created_at:'2026-10-16 12:00:00'};
   state.events.set(id,item);return [{affectedRows:1}];
  }
- if(sql.includes('SELECT task_id,recipient_name,last_status FROM zippy_crm_tracking')){
+ if(sql.includes('SELECT task_id,recipient_name,last_status FROM zippy_crm_tracking')||
+  sql.includes('SELECT task_id,recipient_name,last_status,last_checked_at FROM zippy_crm_tracking')){
   return [[...state.links.values()].filter(r=>r.owner_key===params[0])];
  }
  if(sql.startsWith('UPDATE zippy_crm_tracking SET last_status=')){
