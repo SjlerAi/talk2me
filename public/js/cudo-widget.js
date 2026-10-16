@@ -385,7 +385,7 @@
           renderAttachments();
         }
         addAssistant({text:data.text||'Done.',rows:[],actions:['open_agent']});
-      }catch(error){addAssistant({text:error.message||'The action failed.',rows:[],actions:[]});}
+      }catch(error){button.disabled=false;addAssistant({text:error.message||'The action failed. No message was sent.',rows:[],actions:[]});}
       return;
     }
   }
