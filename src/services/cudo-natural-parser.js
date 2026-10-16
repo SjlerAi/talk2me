@@ -111,4 +111,4 @@ function pickMatch(candidates){
  if(ties.length>1)return {error:'ambiguous',choices:ties.slice(0,8)};
  return {person:candidates[0],near:best<100};
 }
-module.exports={normal,taskWords,staffMatches,referencedName,pronounKind,rankPeople,pickMatch,nearNameScore,incompleteInstruction};
+module.exports={normal,phonetic,taskWords,staffMatches,referencedName,pronounKind,rankPeople,pickMatch,nearNameScore,incompleteInstruction};
