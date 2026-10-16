@@ -23,7 +23,7 @@ async function ensureBridgeTables(){
 }
 async function requireSignedGerda(req,res,next){
  if(!UAT_ONLY)return fail(res,404,'Not found');
- if(!['preview','confirm'].includes(String(req.params.action||'')))
+ if(!['preview','confirm','updates'].includes(String(req.params.action||'')))
   return fail(res,404,'Not found');
  let secret='';
  try{secret=fs.readFileSync(SECRET_FILE,'utf8').trim();}catch(_){return fail(res,503,'The Zippy CRM connection has not been configured.');}
@@ -58,6 +58,37 @@ router.post('/api/integrations/zippy/:action',requireSignedGerda,async(req,res)=
  res.set('Cache-Control','no-store');
  const ownerId=req.zippyOwnerId;
  try{
+  if(req.params.action==='updates'){
+   // Only tasks actually issued by this signed-in owner are visible. Staff chat
+   // replies must explicitly reference those tasks; unrelated conversations
+   // and WhatsApp replies are not treated as evidence of completion.
+   const ids=[...new Set((Array.isArray(req.body?.taskIds)?req.body.taskIds:[])
+    .map(Number).filter(id=>Number.isSafeInteger(id)&&id>0))].slice(0,25);
+   if(ids.length===0)return res.json({ok:true,tasks:[],replies:[]});
+   const params={owner:ownerId};
+   const where=ids.map((id,i)=>{params['task'+i]=id;return ':task'+i;}).join(',');
+   const [tasks]=await db.execute(
+    'SELECT t.id,t.title,t.status,t.due_at,t.updated_at,t.completed_at,t.completion_note,'+
+    ' s.first_name AS recipient_name FROM staff_tasks t JOIN staff_users s ON s.id=t.assigned_to '+
+    ' WHERE t.created_by=:owner AND t.id IN ('+where+') ORDER BY t.id DESC LIMIT 25',params);
+   if(!tasks.length)return res.json({ok:true,tasks:[],replies:[]});
+   const taskSet=new Set(tasks.map(t=>Number(t.id)));
+   const [messages]=await db.execute(
+    'SELECT m.id,m.related_task_id AS task_id,m.body,m.created_at,s.first_name AS sender_name '+
+    'FROM staff_chat_messages m JOIN staff_tasks t ON t.id=m.related_task_id '+
+    'JOIN staff_users s ON s.id=m.sender_staff_id WHERE t.created_by=:owner '+
+    'AND m.related_task_id IN ('+where+') AND m.sender_staff_id<>:owner '+
+    "AND m.message_type='text' ORDER BY m.id DESC LIMIT 75",params);
+   return res.json({ok:true,tasks:tasks.map(t=>({
+    id:Number(t.id),title:String(t.title||'').slice(0,160),
+    status:String(t.status||'unread'),dueAt:t.due_at,updatedAt:t.updated_at,
+    completedAt:t.completed_at,completionNote:String(t.completion_note||'').slice(0,1200),
+    recipientName:String(t.recipient_name||'staff')
+   })),replies:messages.filter(m=>taskSet.has(Number(m.task_id))).map(m=>({
+    id:Number(m.id),taskId:Number(m.task_id),senderName:String(m.sender_name||'staff'),
+    body:String(m.body||'').slice(0,1800),createdAt:m.created_at
+   }))});
+  }
   if(req.params.action==='preview'){
    const message=String(req.body?.message||'').trim().slice(0,2500);
    const source=req.body?.source==='voice'?'voice':'text';
@@ -90,10 +121,21 @@ router.post('/api/integrations/zippy/:action',requireSignedGerda,async(req,res)=
    const [rows]=await db.execute('SELECT payload_json FROM zippy_bridge_drafts WHERE token_hash=:hash AND owner_id=:owner LIMIT 1',{hash,owner:ownerId});
    if(rows.length!==1)throw Error('Prepared message missing');
    const draft=JSON.parse(rows[0].payload_json);
+   const edited=req.body?.editedMessage;
+   if(edited!==undefined){
+    if(typeof edited!=='string'||edited.trim().length<3||edited.length>1750)
+     throw new Error('Message must contain 3 to 1,750 characters.');
+    draft.instruction=edited.trim();
+   }
    if(draft.channel!=='internal'||draft.type!=='natural_instruction'||Number(draft.requesterId)!==ownerId)
     throw Error('Prepared CRM action did not pass verification');
    await ensureWorkSchema();
-   const result=await sendNaturalCommand({draft,actorId:ownerId,typedName:req.body?.typedName||''});
+   // A distinct spoken "send" or Send-button approval after a visible draft
+   // is sufficient for an exact CRM name. A fuzzy name still requires typing.
+   const approvedByVoice=req.body?.approvalMode==='voice'
+     &&draft.source==='voice'&&!draft.assigneeNear;
+   const typedName=approvedByVoice?draft.assignee.shortName:req.body?.typedName||'';
+   const result=await sendNaturalCommand({draft,actorId:ownerId,typedName});
    sent=true;
    await db.execute("UPDATE zippy_bridge_drafts SET state='sent',completed_at=NOW(),task_id=:taskId WHERE token_hash=:hash AND owner_id=:owner",{
     hash,owner:ownerId,taskId:Number(result.taskId)||null
