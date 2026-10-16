@@ -347,8 +347,8 @@
       '<input id="t2m-quick-task" data-quick-task-input type="text" autocomplete="off" maxlength="3000" placeholder="Johanna must phone Mr Botha about his upgrade tomorrow at 14:00, urgent">'+
       '<select data-quick-task-language aria-label="Voice language"><option value="en-ZA">English</option><option value="af-ZA">Afrikaans</option></select>'+
       '<button data-quick-task-mic type="button" class="t2m-quick-task-mic" title="Speak instruction" aria-label="Speak instruction">🎙</button>'+
-      '<button data-quick-task-submit type="submit" class="t2m-quick-task-submit">Create task</button>'+
-      '</div><small>One instruction creates a monitored task. Default deadline: next working day at 16:00.</small>'+
+      '<button data-quick-task-submit type="submit" class="t2m-quick-task-submit">Prepare message</button>'+
+      '</div><small>Speak naturally. Cudo finds CRM names and shows a draft before sending. Default deadline: next working day at 16:00.</small>'+
       '<output data-quick-task-status role="status" aria-live="polite"></output>'+
       '</form>';
   }
@@ -361,7 +361,7 @@
     const mic=form.querySelector('[data-quick-task-mic]');
     const select=form.querySelector('[data-quick-task-language]');
     if(quickCommandStatus){status.textContent=quickCommandStatus.text;status.dataset.kind=quickCommandStatus.kind;}
-    field.addEventListener('input',()=>{quickVoiceSource=false;});
+    field.addEventListener('input',()=>{quickVoiceSource=false;form.querySelector('.t2m-quick-command-preview')?.remove();});
     select.value=quickLanguage;
     select.addEventListener('change',()=>{
       quickLanguage=select.value==='af-ZA'?'af-ZA':'en-ZA';
@@ -371,24 +371,65 @@
     const report=(text,kind='info')=>{
       quickCommandStatus={text,kind};status.textContent=text;status.dataset.kind=kind;
     };
+    async function showQuickResult(data){
+      form.querySelector('.t2m-quick-command-preview')?.remove();
+      report(data.text||'No matching command.',data.preview?'info':data.rows?.length?'success':'error');
+      if(!data.preview&&!data.choices?.length&&!data.rows?.length)return;
+      const panel=document.createElement('section');
+      panel.className='t2m-quick-command-preview';
+      const pv=data.preview;
+      if(pv){
+        panel.innerHTML='<strong>Ready for confirmation · not sent</strong>'+
+          '<p><b>To:</b> '+esc(pv.assignee.displayName)+' (staff)'+(pv.reference?' · <b>Regarding:</b> '+esc(pv.reference.name)+' ('+esc(pv.reference.kind)+')':'')+'</p>'+
+          '<p><b>Message:</b> '+esc(pv.instruction)+'</p>'+
+          '<p><b>Channel:</b> '+esc(pv.channel)+' · <b>Due:</b> '+esc(pv.dueAt.slice(0,16))+'</p>'+
+          (pv.confirmName?'<label>Confirm staff name<input type="text" data-quick-name-verify placeholder="Type '+esc(pv.assignee.displayName)+'"></label>':'')+
+          '<div class="t2m-quick-confirm-actions"><button type="button" class="primary" data-quick-confirm>Yes, send message + task</button><button type="button" data-quick-cancel>Cancel</button></div>';
+      }else if(data.choices?.length){
+        panel.innerHTML='<strong>Choose the correct CRM person</strong><div class="t2m-quick-choice-list">'+
+          data.choices.map(c=>'<button type="button" data-quick-choice="'+Number(c.id)+'" data-quick-kind="'+esc(c.kind)+'">'+esc(c.label||c.name)+'</button>').join('')+'</div>';
+      }else if(data.rows?.length){
+        panel.innerHTML='<strong>CRM names found</strong>'+
+          data.rows.slice(0,12).map(row=>'<p>'+esc(row.title)+' · '+esc(row.detail)+'</p>').join('');
+      }
+      status.insertAdjacentElement('afterend',panel);
+      panel.querySelector('[data-quick-confirm]')?.addEventListener('click',async e=>{
+        const button=e.currentTarget;button.disabled=true;
+        try{
+          const sent=await jsonFetch('/api/uat/tasks/command/confirm',{method:'POST',
+            body:JSON.stringify({typedName:panel.querySelector('[data-quick-name-verify]')?.value||''})});
+          quickCommandStatus={text:sent.text||'Sent.',kind:'success'};
+          await loadTasks({scope:'sent',view:'latest',filter:'all'});
+          window.dispatchEvent(new Event('workspace:refresh'));
+        }catch(error){report(error.message||'Nothing was sent.','error');button.disabled=false;}
+      });
+      panel.querySelector('[data-quick-cancel]')?.addEventListener('click',async()=>{
+        await jsonFetch('/api/uat/tasks/command/cancel',{method:'POST',body:'{}'}).catch(()=>{});
+        panel.remove();report('Cancelled. Nothing was sent.','info');
+      });
+      panel.querySelectorAll('[data-quick-choice]').forEach(button=>button.onclick=async()=>{
+        button.disabled=true;
+        try{
+          const choice={id:Number(button.dataset.quickChoice),kind:button.dataset.quickKind};
+          const next=await jsonFetch('/api/uat/tasks/command/choice',{method:'POST',body:JSON.stringify({choice})});
+          await showQuickResult(next);
+        }catch(error){report(error.message||'Please choose a CRM person.','error');button.disabled=false;}
+      });
+    }
+
     form.addEventListener('submit',async event=>{
       event.preventDefault();
       const message=field.value.trim();
       if(!message)return report('Say or type who must do what.','error');
-      button.disabled=true;mic.disabled=true;button.textContent='Saving…';
+      button.disabled=true;mic.disabled=true;button.textContent='Checking names…';
       try{
         const data=await jsonFetch('/api/uat/tasks/command',{
-          method:'POST',
-          body:JSON.stringify({message,source:quickVoiceSource?'voice':'text'})
+          method:'POST',body:JSON.stringify({message,source:quickVoiceSource?'voice':'text'})
         });
-        report(data.text||'Task saved.',data.actionOk?'success':'error');
-        if(data.actionOk){
-          quickVoiceSource=false;
-          await loadTasks({scope:'sent',view:'latest',filter:'all'});
-        }
-      }catch(error){report(error.message||'The task could not be saved.','error');}
+        await showQuickResult(data);
+      }catch(error){report(error.message||'No message was sent.','error');}
       finally{
-        if(button.isConnected){button.disabled=false;button.textContent='Create task';}
+        if(button.isConnected){button.disabled=false;button.textContent='Prepare message';}
         if(mic.isConnected&&QuickSpeech)mic.disabled=false;
       }
     });
@@ -426,8 +467,8 @@
         if(finalWords){
           field.value=[original,finalWords].filter(Boolean).join(' ').trim();
           quickVoiceSource=true;
-          report('Voice captured. Check the staff name and press Create task.','info');
-          field.focus();
+          report('Voice captured. Preparing CRM message preview…','info');
+          form.requestSubmit();
         }
       };
       try{recognition.start();}catch(error){
