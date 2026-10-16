@@ -1,0 +1,29 @@
+name: Zippy standalone validation
+on:
+  push:
+    paths:
+      - 'apps/zippy/**'
+      - 'src/routes/zippy-bridge.js'
+      - '.github/workflows/zippy-standalone.yml'
+  pull_request:
+    paths:
+      - 'apps/zippy/**'
+      - 'src/routes/zippy-bridge.js'
+      - '.github/workflows/zippy-standalone.yml'
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/zippy
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Zippy dependencies
+        run: npm install --no-audit --no-fund
+      - name: Validate standalone application and CRM bridge
+        run: npm run check
+      - name: Confirm no private environment file is committed
+        run: test ! -e .env && test ! -e private

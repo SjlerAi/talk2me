@@ -1,0 +1,1 @@
+'use strict';require('dotenv').config();const db=require('../src/db');db.bootstrap().then(()=>console.log('Zippy private database ready')).catch(e=>{console.error('Database initialization failed:',e.message);process.exitCode=1;}).finally(()=>db.close());

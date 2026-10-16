@@ -1,0 +1,1 @@
+'use strict';require('dotenv').config();const db=require('../src/db');const {tick}=require('../src/tick');tick().then(value=>console.log('ZIPPY_TICK',JSON.stringify(value))).catch(err=>{console.error('ZIPPY_TICK_FAILED',err.message);process.exitCode=1;}).finally(()=>db.close());
