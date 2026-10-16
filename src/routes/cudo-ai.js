@@ -193,6 +193,11 @@ router.post('/api/cudo/action', requireOwner, async (req, res, next) => {
     if(actionName==='confirm_natural_instruction'){
       if(pending.type!=='natural_instruction')return res.status(409).json({ok:false,error:'There is no prepared CRM instruction to send.'});
       await ensureUatWorkSchema();
+      if(pending.source==='voice'||pending.assigneeNear){
+        const typed=String(req.body?.typedName||'').trim().toLowerCase();
+        const allowed=[String(pending.assignee.shortName||'').toLowerCase(),String(pending.assignee.name||'').toLowerCase()];
+        if(!typed||!allowed.includes(typed))return res.status(400).json({ok:false,error:'Type '+pending.assignee.shortName+' to confirm the recipient before sending.'});
+      }
       const result=await sendNaturalCommand({
         draft:pending,actorId:Number(req.session.user.id),typedName:req.body?.typedName
       });
