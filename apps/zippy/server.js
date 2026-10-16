@@ -3,6 +3,7 @@ require('dotenv').config();
 const path=require('path');const crypto=require('crypto');const express=require('express');const helmet=require('helmet');
 const db=require('./src/db');const auth=require('./src/auth');const {interpret}=require('./src/commands');const push=require('./src/push');const crm=require('./src/crm');
 const {optionalAICommand}=require('./src/ai');const {normalizeOfficeSpeech}=require('./src/speech');
+const activity=require('./src/activity');const {resetRetriesForDevice}=require('./src/push-retry');
 const publicDir=path.join(__dirname,'public');const app=express();
 app.disable('x-powered-by');app.set('trust proxy',1);
 app.use(helmet({contentSecurityPolicy:{directives:{defaultSrc:["'self'"],scriptSrc:["'self'"],styleSrc:["'self'"],imgSrc:["'self'",'data:'],fontSrc:["'self'"],connectSrc:["'self'"],workerSrc:["'self'"],manifestSrc:["'self'"],objectSrc:["'none'"],frameAncestors:["'none'"]}}}));
@@ -25,15 +26,60 @@ app.post('/api/reminders',isAuth,auth.requireMutation,asyncHandler(async(req,res
  if(recurrence&&!/^(daily|weekdays|monthly|weekly:[0-6])$/.test(recurrence))return res.status(400).json({ok:false,error:'Unsupported recurrence.'});
  if(!['reminder','appointment'].includes(entryType))return res.status(400).json({ok:false,error:'Invalid item type.'});
  const [result]=await db.query('INSERT INTO zippy_reminders(owner_key,title,notes,entry_type,due_at,recurrence) VALUES(?,?,?,?,?,?)',[req.zippyIdentity.email,title.trim(),notes.trim(),entryType,db.utcSql(date),recurrence]);
+ try{await activity.logReminder(req.zippyIdentity.email,Number(result.insertId),title.trim(),date);}catch(e){console.error('[zippy] Could not append saved reminder to timeline',e.code||e.message);}
  res.status(201).json({ok:true,id:Number(result.insertId),text:'Saved. I will remind you '+new Intl.DateTimeFormat('en-ZA',{timeZone:'Africa/Johannesburg',dateStyle:'medium',timeStyle:'short'}).format(date)+'.'});
 }));
 app.post('/api/reminders/:id/action',isAuth,auth.requireMutation,asyncHandler(async(req,res)=>{
  const id=Number(req.params.id),action=String(req.body?.action||'');if(!Number.isSafeInteger(id)||id<=0)return res.status(400).json({ok:false,error:'Invalid reminder.'});
  let result;
- if(action==='done'||action==='cancel'){const state=action==='done'?'done':'cancelled';[result]=await db.query('UPDATE zippy_reminders SET state=?,lease_id=NULL,lease_until=NULL WHERE id=? AND owner_key=?',[state,id,req.zippyIdentity.email]);}
- else if(action==='snooze'){const mins=Number(req.body?.minutes||10);if(![5,10,15,30,60,1440].includes(mins))return res.status(400).json({ok:false,error:'Choose a supported snooze interval.'});[result]=await db.query('UPDATE zippy_reminders SET due_at=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL ? MINUTE),state=\'open\',lease_id=NULL,lease_until=NULL WHERE id=? AND owner_key=?',[mins,id,req.zippyIdentity.email]);}
+ if(action==='done'||action==='cancel'){
+  const [items]=await db.query('SELECT recurrence,state FROM zippy_reminders WHERE id=? AND owner_key=? LIMIT 1',
+   [id,req.zippyIdentity.email]);
+  if(!items.length)return res.status(404).json({ok:false,error:'Reminder not found.'});
+  if(action==='done'&&items[0].recurrence){
+   // Acknowledge this occurrence without cancelling future repeats.
+   await db.query('UPDATE zippy_alerts SET read_at=UTC_TIMESTAMP(3) WHERE reminder_id=? AND owner_key=? AND read_at IS NULL',
+    [id,req.zippyIdentity.email]);
+   return res.json({ok:true,recurring:true,text:'Done for now. Your repeating reminder stays scheduled.'});
+  }
+  const next=action==='done'?'done':'cancelled';
+  [result]=await db.query('UPDATE zippy_reminders SET state=?,lease_id=NULL,lease_until=NULL WHERE id=? AND owner_key=?',
+   [next,id,req.zippyIdentity.email]);
+  await db.query('UPDATE zippy_alerts SET read_at=UTC_TIMESTAMP(3) WHERE reminder_id=? AND owner_key=? AND read_at IS NULL',
+   [id,req.zippyIdentity.email]);
+ }
+ else if(action==='snooze'){const mins=Number(req.body?.minutes||10);if(![5,10,15,30,60,1440].includes(mins))return res.status(400).json({ok:false,error:'Choose a supported snooze interval.'});[result]=await db.query('UPDATE zippy_reminders SET due_at=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL ? MINUTE),state=\'open\',lease_id=NULL,lease_until=NULL WHERE id=? AND owner_key=?',[mins,id,req.zippyIdentity.email]);await db.query('UPDATE zippy_alerts SET read_at=UTC_TIMESTAMP(3) WHERE reminder_id=? AND owner_key=? AND read_at IS NULL',[id,req.zippyIdentity.email]);}
  else return res.status(400).json({ok:false,error:'Unsupported action.'});
  if(!result.affectedRows)return res.status(404).json({ok:false,error:'Reminder not found.'});res.json({ok:true});
+}));
+app.get('/api/activity',isAuth,asyncHandler(async(req,res)=>{
+ const items=await activity.getFeed(req.zippyIdentity.email,50);
+ res.json({ok:true,items});
+}));
+app.get('/api/system/status',isAuth,asyncHandler(async(req,res)=>{
+ const [[heartbeat]]=await db.query('SELECT last_tick_at,processed,failed FROM zippy_scheduler_status WHERE id=1 LIMIT 1');
+ const [[sub]]=await db.query('SELECT COUNT(*) total FROM zippy_push_subscriptions WHERE owner_key=?',
+  [req.zippyIdentity.email]);
+ const last=heartbeat?.last_tick_at?db.toIso(heartbeat.last_tick_at):null;
+ const fresh=Boolean(last&&Date.now()-new Date(last).getTime()<180000);
+ res.json({ok:true,scheduler:{running:fresh,lastTickAt:last,processed:Number(heartbeat?.processed||0),
+  failures:Number(heartbeat?.failed||0)},push:{configured:push.enabled(),deviceSubscriptions:Number(sub?.total||0)},
+  crmConnected:crm.configured()});
+}));
+app.get('/api/crm/pending',isAuth,asyncHandler(async(req,res)=>{
+ const [rows]=await db.query(
+  'SELECT id,preview_json,expires_at FROM zippy_crm_drafts '+
+  'WHERE owner_key=? AND confirmed_at IS NULL AND expires_at>UTC_TIMESTAMP(3) '+
+  'ORDER BY created_at DESC LIMIT 1',[req.zippyIdentity.email]);
+ const r=rows[0];
+ res.json({ok:true,draft:r?{draftId:r.id,preview:JSON.parse(r.preview_json),expiresAt:db.toIso(r.expires_at)}:null});
+}));
+app.post('/api/crm/cancel',isAuth,auth.requireMutation,asyncHandler(async(req,res)=>{
+ const id=String(req.body?.draftId||'');
+ if(!/^[\da-f-]{36}$/i.test(id))return res.status(400).json({ok:false,error:'Invalid message preview.'});
+ await db.query('DELETE FROM zippy_crm_drafts WHERE id=? AND owner_key=? AND confirmed_at IS NULL',
+  [id,req.zippyIdentity.email]);
+ res.json({ok:true,text:'Cancelled. Nothing was sent.'});
 }));
 app.get('/api/alerts',isAuth,asyncHandler(async(req,res)=>{
  const [rows]=await db.query('SELECT id,reminder_id,title,created_at,read_at FROM zippy_alerts WHERE owner_key=? ORDER BY id DESC LIMIT 70',[req.zippyIdentity.email]);res.json({ok:true,alerts:rows.map(r=>({...r,createdAt:db.toIso(r.created_at)}))});
@@ -47,7 +93,7 @@ app.post('/api/contacts',isAuth,auth.requireMutation,asyncHandler(async(req,res)
  const [saved]=await db.query('INSERT INTO zippy_contacts(owner_key,name,relationship,phone,email,notes) VALUES(?,?,?,?,?,?)',[req.zippyIdentity.email,name.trim(),relationship.trim(),phone.trim(),email.trim(),notes.trim()]);res.status(201).json({ok:true,id:Number(saved.insertId)});
 }));
 app.delete('/api/contacts/:id',isAuth,auth.requireMutation,asyncHandler(async(req,res)=>{await db.query('DELETE FROM zippy_contacts WHERE id=? AND owner_key=?',[Number(req.params.id),req.zippyIdentity.email]);res.json({ok:true});}));
-app.post('/api/push/subscribe',isAuth,auth.requireMutation,asyncHandler(async(req,res)=>{if(!push.enabled())return res.status(503).json({ok:false,error:'Push notifications are not configured yet.'});await push.saveSubscription(req.body?.subscription,req.zippyIdentity.email);res.json({ok:true});}));
+app.post('/api/push/subscribe',isAuth,auth.requireMutation,asyncHandler(async(req,res)=>{if(!push.enabled())return res.status(503).json({ok:false,error:'Push notifications are not configured yet.'});await push.saveSubscription(req.body?.subscription,req.zippyIdentity.email);await resetRetriesForDevice(req.zippyIdentity.email);res.json({ok:true});}));
 app.post('/api/interpret',isAuth,auth.requireMutation,asyncHandler(async(req,res)=>{
  const command=String(req.body?.message||'').slice(0,2500);let plan=interpret(command);
  if(plan.kind==='question'){const ai=await optionalAICommand(command,{user:req.zippyIdentity});if(ai)plan=ai;}
@@ -63,15 +109,29 @@ app.post('/api/interpret',isAuth,auth.requireMutation,asyncHandler(async(req,res
   return res.json({ok:true,status:'crm_preview',draftId:id,text:draft.text,preview:draft.preview,heard:command,interpreted});
  }
  const [result]=await db.query('INSERT INTO zippy_reminders(owner_key,title,entry_type,due_at,recurrence) VALUES(?,?,?,?,?)',[req.zippyIdentity.email,plan.title,plan.entryType,db.utcSql(plan.dueAt),plan.recurrence]);
+ try{await activity.logReminder(req.zippyIdentity.email,Number(result.insertId),plan.title,plan.dueAt);}catch(e){console.error('[zippy] Reminder feed log unavailable',e.code||e.message);}
  return res.status(201).json({ok:true,status:'saved',id:Number(result.insertId),title:plan.title,dueAt:plan.dueAt,recurrence:plan.recurrence,text:'Saved: '+plan.title+'. I will remind you at the scheduled time.'});
 }));
 app.post('/api/crm/confirm',isAuth,auth.requireMutation,asyncHandler(async(req,res)=>{
  const id=String(req.body?.draftId||'');if(!/^[\da-f-]{36}$/i.test(id))return res.status(400).json({ok:false,error:'Invalid message preview.'});
  const [rows]=await db.query('SELECT remote_token,confirmed_at FROM zippy_crm_drafts WHERE id=? AND owner_key=? AND expires_at>UTC_TIMESTAMP(3) LIMIT 1',[id,req.zippyIdentity.email]);
  if(!rows.length||rows[0].confirmed_at)return res.status(409).json({ok:false,error:'This CRM preview has expired or was already confirmed.'});
- const sent=await crm.bridgeCall('confirm',{token:rows[0].remote_token,typedName:String(req.body?.typedName||''),actorEmail:req.zippyIdentity.email});
+ const message=req.body?.editedMessage;
+ if(message!==undefined&&(typeof message!=='string'||message.trim().length<3||message.length>1750))
+  return res.status(400).json({ok:false,error:'Review and enter a message of 3 to 1,750 characters.'});
+ const sent=await crm.bridgeCall('confirm',{
+  token:rows[0].remote_token,typedName:String(req.body?.typedName||''),
+  editedMessage:message,approvalMode:req.body?.approvalMode==='voice'?'voice':'button',
+  actorEmail:req.zippyIdentity.email
+ });
  await db.query('UPDATE zippy_crm_drafts SET confirmed_at=UTC_TIMESTAMP(3) WHERE id=? AND owner_key=?',[id,req.zippyIdentity.email]);
- res.json({ok:true,status:'sent',text:sent.text||'The Talk2Me CRM instruction was sent.'});
+ const [previews]=await db.query('SELECT preview_json FROM zippy_crm_drafts WHERE id=? AND owner_key=? LIMIT 1',
+  [id,req.zippyIdentity.email]);
+ try{await activity.trackSent(req.zippyIdentity.email,sent.taskId,
+  previews[0]?JSON.parse(previews[0].preview_json):{},message);}
+ catch(e){console.error('[zippy] CRM task was sent but timeline tracking failed',e.code||e.message);}
+ res.json({ok:true,status:'sent',taskId:sent.taskId||null,
+  text:sent.text||'The Talk2Me CRM instruction was sent.'});
 }));
 require('./src/internal-tick').attach(app);
 app.get('/api/health',asyncHandler(async(_req,res)=>{try{await db.query('SELECT 1 AS ok');res.json({status:'ok',service:'zippy-standalone',database:'connected',crmBridge:crm.configured()});}catch(_){res.status(503).json({status:'error',service:'zippy-standalone',database:'unavailable'});}}));
