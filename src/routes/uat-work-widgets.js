@@ -6,7 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { ensureAgentResponsibilitySchema } = require('../services/office-intelligence-agent');
-const {prepareNaturalCommand,chooseNaturalCommand}=require('../services/cudo-natural-plan');
+const {prepareNaturalCommand,chooseNaturalCommand,continueNaturalPronoun,naturalNameReply}=require('../services/cudo-natural-plan');
 const {sendNaturalCommand}=require('../services/cudo-natural-send');
 const { trackEvent } = require('../services/usage-telemetry');
 const { getTaskAttachmentDownload } = require('../services/work-dispatch');
@@ -833,9 +833,11 @@ router.post('/api/uat/tasks/command',requireAuth,async(req,res,next)=>{
   const message=clean(req.body?.message,3000);
   if(!message)return res.status(400).json({ok:false,error:'Say who should do what.'});
   await ensureSchema();
-  const result=await prepareNaturalCommand({
-   message,source:req.body?.source==='voice'?'voice':'text'
-  });
+  const userId=Number(req.session.user.id);
+  const pending=req.session.workCommandPending;
+  const result=pending?.type==='natural_pronoun_question'&&naturalNameReply(message)
+   ?await continueNaturalPronoun(pending,message,{requesterId:userId})
+   :await prepareNaturalCommand({message,source:req.body?.source==='voice'?'voice':'text',requesterId:userId});
   if(!result.handled)return res.status(422).json({ok:false,error:'Cudo could not identify the intended recipient and instruction. Use “Ask Johnny to phone Stefan” or “Johnny must phone Stefan”.'});
   req.session.workCommandPending=result.pendingAction||null;
   res.set('Cache-Control','no-store');
@@ -846,7 +848,7 @@ router.post('/api/uat/tasks/command',requireAuth,async(req,res,next)=>{
 router.post('/api/uat/tasks/command/choice',requireAuth,async(req,res,next)=>{
  try{
   if(!management(req.session.user))return res.sendStatus(403);
-  const result=await chooseNaturalCommand(req.session.workCommandPending,req.body?.choice);
+  const result=await chooseNaturalCommand(req.session.workCommandPending,req.body?.choice,{requesterId:Number(req.session.user.id)});
   req.session.workCommandPending=result.pendingAction||null;
   res.json({ok:true,intent:result.intent,text:result.text,preview:result.preview||null,
    choices:result.choices||[],actions:result.actions||[],rows:result.rows||[]});
