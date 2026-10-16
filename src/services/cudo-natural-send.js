@@ -24,12 +24,18 @@ async function sendNaturalCommand({draft,actorId,typedName}={}){
   if(!person)throw new Error('The referenced CRM person is no longer active. Repeat the instruction.');
  }
  await ensureAgentResponsibilitySchema();
+ const instruction=String(draft.instruction).slice(0,1750);
+ const target=draft.reference;
+ const verifiedContact=target?'CRM contact: '+String(target.name).slice(0,160)+' ('+target.kind+
+  (target.phone?', '+String(target.phone).slice(0,50):'')+')':'';
+ const message=[instruction,verifiedContact].filter(Boolean).join('\n').slice(0,2000);
+ const title=instruction.replace(/[.!?]+$/,'').slice(0,160);
  if(draft.channel!=='internal'){
   const ready=channelAvailability(draft.channel);
   if(!ready.available)throw new Error(ready.reason||'External sending is not configured.');
   const result=await createWorkDispatch({createdBy:issuer,action:{
    type:'work_dispatch',recipientId:Number(recipient.id),channel:draft.channel,
-   senderKey:'primary',instruction:draft.instruction,subject:draft.instruction.slice(0,160),
+   senderKey:'primary',instruction:message,subject:title,
    priority:draft.priority,dueAt:draft.dueAt,requireReply:false,requireCompletion:true,
    items:[],attachmentIds:[]
   }});
@@ -37,8 +43,6 @@ async function sendNaturalCommand({draft,actorId,typedName}={}){
    text:result.externalResult?.sent?'Message sent to '+recipient.shortName+'. Monitored task #'+result.taskId+' created.':
     'Task #'+result.taskId+' created, but the external message was not delivered: '+(result.externalResult?.error||'Provider unavailable')};
  }
- const message=String(draft.instruction).slice(0,2000);
- const title=message.replace(/[.!?]+$/,'').slice(0,160);
  const identifier=crypto.createHash('sha256').update([issuer,recipient.id,message,draft.dueAt].join('|')).digest('hex').slice(0,36);
  const conn=await db.getConnection();let locked=false;let started=false;
  try{
