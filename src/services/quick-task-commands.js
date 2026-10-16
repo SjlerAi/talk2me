@@ -78,6 +78,8 @@ function bulkCommand(message){const q=norm(message);
 function looksLikeSimpleTask(message){
   const q=norm(message).replace(/^cudo[\s,:-]*/,'').replace(/^please\s+/,'');
   if(!q||bulkCommand(q))return false;
+  // Never silently convert a requested external communication into internal work.
+  if(/\b(whatsapp|whats app|e-mail|email|sms|send an email|stuur n epos|stuur 'n epos|mail to)\b/.test(q))return false;
   return (/^(?:create|add|make|give|assign|set|send|gee|maak|skep|stel|stuur)\b/.test(q)
       &&/\b(?:task|taak|opdrag|todo|to-do)\b/.test(q))
     ||/\b(?:must|moet|should|needs to)\b/.test(q.slice(0,100))
