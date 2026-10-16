@@ -250,7 +250,7 @@
     const preview=data.preview;
     const previewHtml=preview?`<section class="cudo-command-preview" aria-label="Proposed CRM message">
       <strong>Message ready · Not sent</strong>
-      <p><b>To:</b> ${esc(preview.assignee.displayName)} (staff)${preview.reference?` · <b>Regarding:</b> ${esc(preview.reference.name)} (${esc(preview.reference.kind)})`:''}</p>
+      <p><b>To:</b> ${esc(preview.assignee.displayName)} (staff)${preview.reference?` · <b>Regarding:</b> ${esc(preview.reference.name)} (${esc(preview.reference.kind)})${preview.reference.phone?' · '+esc(preview.reference.phone):''}`:''}</p>
       <p><b>Message:</b> ${esc(preview.instruction)}</p>
       <p><b>Delivery:</b> ${esc(preview.channel==='internal'?'Talk2Me Messages':preview.channel)} · <b>Due:</b> ${esc(preview.dueAt.slice(0,16))}</p>
       ${preview.confirmName?`<label>Confirm recipient name<input type="text" data-cudo-confirm-name autocomplete="off" placeholder="Type ${esc(preview.assignee.displayName)}"></label>`:''}
