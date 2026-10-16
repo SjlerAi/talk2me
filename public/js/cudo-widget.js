@@ -82,6 +82,7 @@
   let voiceBase='';
   let voiceFinal='';
   let voiceTranscriptReady=false;
+  let awaitingNaturalName=false;
   let voiceLanguage=(navigator.language||'en').toLowerCase().startsWith('af')?'af-ZA':'en-ZA';
   try{const saved=localStorage.getItem('t2m-cudo-voice-language');if(saved==='af-ZA'||saved==='en-ZA')voiceLanguage=saved;}catch(_){}
   voiceLanguageSelect.value=voiceLanguage;
@@ -240,6 +241,7 @@
     stream.appendChild(el);scrollEnd();
   }
   function addAssistant(data){
+    if(data?.intent)awaitingNaturalName=data.intent==='natural_pronoun_clarification';
     const el=document.createElement('div');
     el.className='cudo-msg assistant';
     const rows=Array.isArray(data.rows)?data.rows:[];
@@ -329,7 +331,7 @@
         voiceTranscriptReady=true;
         // Speaking an instruction opens the CRM draft immediately. This does NOT send it.
         const command=/^\s*(?:(?:hey|hi)\s+)?(?:cudo[\s,:-]*)?(?:(?:please|asseblief)\s+)?(?:ask|tell|instruct|vra|laat|sê|se|send|stuur|give|gee|find|soek|wys|show|look\s+up|[\p{L}'-]+(?:\s+[\p{L}'-]+){0,2}\s+(?:must|moet|should|needs?\s+to|has\s+to))\b/iu.test(full);
-        if(command && !pending)sendMessage(full);
+        if((command||awaitingNaturalName) && !pending)sendMessage(full);
         else addAssistant({
           text:'Voice transcript is ready in the box. Check the wording and press Send to ask Cudo.',
           rows:[],actions:[]
