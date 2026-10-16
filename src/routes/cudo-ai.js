@@ -4,6 +4,7 @@ const express = require('express');
 const multer = require('multer');
 const { audit } = require('../services/audit');
 const { answerCudo, createTasks, getAlerts } = require('../services/cudo-ai');
+const { executeSimpleTaskCommand } = require('../services/quick-task-commands');
 const { reassignClientWork } = require('../services/cudo-client-assignment');
 const {
   storeUploadedFile,
@@ -99,6 +100,27 @@ router.post('/api/cudo/chat', requireOwner, async (req, res, next) => {
     const attachmentIds = Array.isArray(req.body?.attachmentIds)
       ? req.body.attachmentIds.map(Number).filter(Number.isFinite).slice(0,20)
       : [];
+    // A clear, single internal task is a command, not a multi-turn chat.
+    // Attachments and batch/customer ownership changes continue through previews.
+    const direct=attachmentIds.length?{handled:false}:await executeSimpleTaskCommand({
+      message,userId:Number(req.session.user.id),source:req.body?.source==='voice'?'voice':'text'
+    });
+    if(direct.handled){
+      req.session.cudoPendingAction=null;
+      req.session.cudoState={selection:null};
+      if(direct.status==='created'){
+        try{await audit(req,{actionType:'cudo_task_command_created',
+          entityType:'staff_tasks',entityId:direct.task.id,
+          description:'Cudo created a monitored task from a direct instruction.',
+          after:{staffId:direct.task.staffId,dueAt:direct.task.dueAt,
+            priority:direct.task.priority,source:direct.source}});}
+        catch(auditError){console.error('Cudo command audit failed:',auditError.message);}
+      }
+      res.set('Cache-Control','no-store');
+      return res.json({ok:true,intent:direct.ok?'task_created':'task_clarification',
+        text:direct.text,rows:[],actions:[],suggestions:[]});
+    }
+
     const result = await answerCudo({
       message,
       state:req.session.cudoState || null,
