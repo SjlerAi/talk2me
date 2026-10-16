@@ -4,6 +4,7 @@ const path=require('path');const crypto=require('crypto');const express=require(
 const db=require('./src/db');const auth=require('./src/auth');const {interpret}=require('./src/commands');const push=require('./src/push');const crm=require('./src/crm');
 const {optionalAICommand}=require('./src/ai');const {normalizeOfficeSpeech}=require('./src/speech');
 const activity=require('./src/activity');const {resetRetriesForDevice}=require('./src/push-retry');
+const {answerTrackedWork}=require('./src/questions');
 const publicDir=path.join(__dirname,'public');const app=express();
 app.disable('x-powered-by');app.set('trust proxy',1);
 app.use(helmet({contentSecurityPolicy:{directives:{defaultSrc:["'self'"],scriptSrc:["'self'"],styleSrc:["'self'"],imgSrc:["'self'",'data:'],fontSrc:["'self'"],connectSrc:["'self'"],workerSrc:["'self'"],manifestSrc:["'self'"],objectSrc:["'none'"],frameAncestors:["'none'"]}}}));
@@ -101,7 +102,10 @@ app.post('/api/contacts',isAuth,auth.requireMutation,asyncHandler(async(req,res)
 app.delete('/api/contacts/:id',isAuth,auth.requireMutation,asyncHandler(async(req,res)=>{await db.query('DELETE FROM zippy_contacts WHERE id=? AND owner_key=?',[Number(req.params.id),req.zippyIdentity.email]);res.json({ok:true});}));
 app.post('/api/push/subscribe',isAuth,auth.requireMutation,asyncHandler(async(req,res)=>{if(!push.enabled())return res.status(503).json({ok:false,error:'Push notifications are not configured yet.'});await push.saveSubscription(req.body?.subscription,req.zippyIdentity.email);await resetRetriesForDevice(req.zippyIdentity.email);res.json({ok:true});}));
 app.post('/api/interpret',isAuth,auth.requireMutation,asyncHandler(async(req,res)=>{
- const command=String(req.body?.message||'').slice(0,2500);let plan=interpret(command);
+ const command=String(req.body?.message||'').slice(0,2500);
+ const trackedAnswer=await answerTrackedWork(command,req.zippyIdentity.email);
+ if(trackedAnswer)return res.json({ok:true,status:'chat',text:trackedAnswer.text});
+ let plan=interpret(command);
  if(plan.kind==='question'){const ai=await optionalAICommand(command,{user:req.zippyIdentity});if(ai)plan=ai;}
  if(plan.kind==='conversation')return res.json({ok:true,status:'chat',text:plan.text});
  if(plan.kind==='question')return res.json({ok:true,status:'question',question:plan.question,original:command});
