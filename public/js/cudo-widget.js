@@ -331,7 +331,7 @@
         const command=/^\s*(?:(?:hey|hi)\s+)?(?:cudo[\s,:-]*)?(?:(?:please|asseblief)\s+)?(?:ask|tell|instruct|vra|laat|sê|se|send|stuur|give|gee|find|soek|wys|show|look\s+up|[\p{L}'-]+(?:\s+[\p{L}'-]+){0,2}\s+(?:must|moet|should|needs?\s+to|has\s+to))\b/iu.test(full);
         if(command && !pending)sendMessage(full);
         else addAssistant({
-          text:'Voice transcript ready. Check the wording and press Send to ask Cudo.',
+          text:'Voice transcript is ready in the box. Check the wording and press Send to ask Cudo.',
           rows:[],actions:[]
         });
       }
