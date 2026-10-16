@@ -6,6 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { ensureAgentResponsibilitySchema } = require('../services/office-intelligence-agent');
+const { executeSimpleTaskCommand } = require('../services/quick-task-commands');
 const { trackEvent } = require('../services/usage-telemetry');
 const { getTaskAttachmentDownload } = require('../services/work-dispatch');
 const { ensureWorkOperatingSchema, getMyWorkOverview, getOfficeScorecard, getTargetCentre, saveTargetGoal, getMonthlyImportSummary } = require('../services/work-operating-model');
@@ -821,6 +822,30 @@ router.get('/api/uat/tasks/:id', requireAuth, async (req, res, next) => {
       }
     });
   } catch (error) { next(error); }
+});
+
+// Simple internal management task commands use the existing monitored task service.
+router.post('/api/uat/tasks/command',requireAuth,async(req,res,next)=>{
+  try{
+    if(!management(req.session.user))return res.status(403).json({ok:false,error:'Only management may assign staff tasks by command.'});
+    const message=clean(req.body?.message,3000);
+    if(!message)return res.status(400).json({ok:false,error:'Say what must be done and by whom.'});
+    await ensureSchema();
+    const result=await executeSimpleTaskCommand({message,userId:Number(req.session.user.id),
+      source:req.body?.source==='voice'?'voice':'text'});
+    if(!result.handled)return res.status(422).json({ok:false,
+      error:'This is not one clear task. Use Cudo for bulk work or say “Give Johanna a task to phone the customer tomorrow at 14:00”.'});
+    if(result.status==='created'){
+      await trackEvent({staffId:Number(req.session.user.id),eventType:'work_task_created',
+        screenKey:'work',routePath:'/api/uat/tasks/command',moduleName:'work',
+        entityType:'staff_tasks',entityId:result.task.id,httpMethod:'POST',httpStatus:200,
+        metadata:{command:true,source:result.source,assignedTo:result.task.staffId,
+          dueAt:result.task.dueAt,defaultedDeadline:result.defaultedDeadline}});
+    }
+    res.set('Cache-Control','no-store');
+    res.json({ok:true,actionOk:Boolean(result.ok),status:result.status||
+      (result.needsClarification?'needs_clarification':'failed'),text:result.text,task:result.task||null});
+  }catch(error){next(error);}
 });
 
 router.post('/api/uat/tasks', requireAuth, taskUploadMiddleware, async (req, res, next) => {
