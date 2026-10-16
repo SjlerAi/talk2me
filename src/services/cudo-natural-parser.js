@@ -40,7 +40,7 @@ function referencedName(text){
  const honor=raw.match(/\b(?:mr|mnr|mrs|ms|mev|mevrou)\.?\s+([\p{L}'-]+)/iu);
  if(honor)return honor[1];
  const prefix=raw.match(/\b(?:phone|call|contact|visit|meet|bel|skakel|kontak|besoek|with|met|vir|about|oor)\s+([\p{L}'-]+)/iu);
- if(prefix)return prefix[1];
+ if(prefix&&!['the','die','a','n','client','customer','klient','kliente','them','him','her','staff','someone','anyone'].includes(normal(prefix[1])))return prefix[1];
  const af=raw.match(/^([\p{L}'-]+)\s+(?:te\s+)?(?:bel|skakel|kontak)\b/iu);
  return af?af[1]:null;
 }
