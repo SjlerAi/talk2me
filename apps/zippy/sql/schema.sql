@@ -44,3 +44,13 @@ CREATE TABLE IF NOT EXISTS zippy_crm_drafts (
  expires_at DATETIME(3) NOT NULL, confirmed_at DATETIME(3) NULL,
  INDEX idx_owner_expiry (owner_key,expires_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- New sessions remain compatible with Gerda's existing login, while
+-- CRM-authenticated sessions track the live password version without copying it.
+CREATE TABLE IF NOT EXISTS zippy_auth_sessions (
+ token_hash CHAR(64) PRIMARY KEY,
+ auth_source ENUM('local','crm') NOT NULL,
+ credential_marker CHAR(64) NULL,
+ created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+ INDEX idx_auth_source (auth_source)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

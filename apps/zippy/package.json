@@ -2,14 +2,14 @@
   "name": "zippy-standalone",
   "version": "0.1.0",
   "private": true,
-  "description": "Gerda-only standalone personal assistant with optional Talk2Me CRM bridge",
+  "description": "Standalone private assistant for Gerda and Stephan using authorised Talk2Me CRM accounts",
   "main": "server.js",
   "engines": {
     "node": ">=22"
   },
   "scripts": {
     "start": "node server.js",
-    "check": "node --test tests/*.test.js && node --check server.js && node --check passenger.js && node --check src/internal-tick.js && node --check src/auth.js && node --check src/commands.js && node --check src/ai.js && node --check src/crm.js && node --check src/tick.js && node --check public/app.js && node --check public/sw.js && node --check ../../src/routes/zippy-bridge.js",
+    "check": "node --test tests/*.test.js && node --check server.js && node --check passenger.js && node --check src/internal-tick.js && node --check src/auth.js && node --check src/commands.js && node --check src/ai.js && node --check src/crm.js && node --check src/tick.js && node --check public/app.js && node --check public/sw.js && node --check ../../src/routes/zippy-bridge.js && node --check src/live-crm-auth.js && node --test tests/multiuser.test.js",
     "db:init": "node bin/init-db.js",
     "reminders:tick": "node bin/tick.js",
     "auth:hash": "node bin/hash-password.js"
@@ -19,6 +19,7 @@
     "express": "4.21.2",
     "helmet": "8.1.0",
     "mysql2": "3.14.3",
-    "web-push": "3.6.7"
+    "web-push": "3.6.7",
+    "bcryptjs": "2.4.3"
   }
 }
