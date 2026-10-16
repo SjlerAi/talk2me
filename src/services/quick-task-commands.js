@@ -106,12 +106,12 @@ function staffTarget(message,staffRows=[]){
     return {error:'More than one staff member has that name. Please use the full name.'};
   const prefix=q.slice(0,first.ix),suffix=q.slice(first.end);
   const explicit=/\b(create|add|make|give|assign|set|send|gee|maak|skep|stel|stuur)\b/.test(prefix);
-  const instructionStart=/^\s*(must|moet|should|needs to|has to|:|,|-)\b?/.test(suffix);
+  const instructionStart=/^\s*(?:must|moet|should|needs to|has to)\b/.test(suffix)||/^\s*[:,\-]/.test(suffix)||(/^(?:task|taak)\b/.test(prefix)&&/^\s*(?:to|om)\b/.test(suffix));
   if(!explicit&&!instructionStart)return {error:'Please say who must complete the task.'};
   if(matches.some(x=>x.person.id!==first.person.id&&x.ix<first.end+12))
     return {error:'I found several staff names. Please clarify the recipient.'};
   let instruction=suffix.replace(/^[\s,:\-]+/,'').replace(/^(must|moet|should|needs to|has to)\s+/,'')
-    .replace(/^(?:(an?|the|new|nuwe)\s+)?(task|taak|opdrag)\s*(to|om|for)?\s*/,'')
+    .replace(/^(?:(a|an|the|new|nuwe|'n|n)\s+)?(task|taak|opdrag)\s*(to|om|for)?\s*/,'')
     .replace(/^(to|om|that|wat|dat)\s+/,'').replace(/^[\s,:\-]+/,'').trim();
   if(instruction.length<6)return {error:'Please include what '+safe(first.person.first_name||first.alias,50)+' must do.'};
   return {staff:first.person,instruction,matched:first.alias};
