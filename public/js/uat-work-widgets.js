@@ -330,6 +330,101 @@
   const taskBody=workBody;
   let taskState={scope:'mine',view:'latest',filter:'all',counts:{latest:0,urgent:0,attention:0},tasks:[],staff:[],management:false,mode:'list',selected:null};
 
+  // A spoken or typed instruction is a single operation. No chat loop is needed.
+  let quickCommandStatus=null;
+  let quickVoiceRecognition=null;
+  let quickVoiceSource=false;
+  let quickLanguage=(navigator.language||'en').toLowerCase().startsWith('af')?'af-ZA':'en-ZA';
+  try{
+    const saved=localStorage.getItem('t2m-quick-task-language');
+    if(saved==='af-ZA'||saved==='en-ZA')quickLanguage=saved;
+  }catch(_){}
+  const QuickSpeech=window.SpeechRecognition||window.webkitSpeechRecognition;
+  function bindQuickCommand(){
+    const form=taskBody.querySelector('[data-quick-task-form]');
+    if(!form)return;
+    const field=form.querySelector('[data-quick-task-input]');
+    const status=form.querySelector('[data-quick-task-status]');
+    const button=form.querySelector('[data-quick-task-submit]');
+    const mic=form.querySelector('[data-quick-task-mic]');
+    const select=form.querySelector('[data-quick-task-language]');
+    if(quickCommandStatus){status.textContent=quickCommandStatus.text;status.dataset.kind=quickCommandStatus.kind;}
+    field.addEventListener('input',()=>{quickVoiceSource=false;});
+    select.value=quickLanguage;
+    select.addEventListener('change',()=>{
+      quickLanguage=select.value==='af-ZA'?'af-ZA':'en-ZA';
+      try{localStorage.setItem('t2m-quick-task-language',quickLanguage);}catch(_){}
+    });
+    if(!QuickSpeech){mic.disabled=true;mic.title='Voice input is unavailable in this browser. Type a task instead.';}
+    const report=(text,kind='info')=>{
+      quickCommandStatus={text,kind};status.textContent=text;status.dataset.kind=kind;
+    };
+    form.addEventListener('submit',async event=>{
+      event.preventDefault();
+      const message=field.value.trim();
+      if(!message)return report('Say or type who must do what.','error');
+      button.disabled=true;mic.disabled=true;button.textContent='Saving…';
+      try{
+        const data=await jsonFetch('/api/uat/tasks/command',{
+          method:'POST',
+          body:JSON.stringify({message,source:quickVoiceSource?'voice':'text'})
+        });
+        report(data.text||'Task saved.',data.actionOk?'success':'error');
+        if(data.actionOk){
+          quickVoiceSource=false;
+          await loadTasks({scope:'sent',view:'latest',filter:'all'});
+        }
+      }catch(error){report(error.message||'The task could not be saved.','error');}
+      finally{
+        if(button.isConnected){button.disabled=false;button.textContent='Create task';}
+        if(mic.isConnected&&QuickSpeech)mic.disabled=false;
+      }
+    });
+    mic.addEventListener('click',()=>{
+      if(!QuickSpeech)return;
+      if(quickVoiceRecognition){
+        try{quickVoiceRecognition.stop();}catch(_){}
+        return;
+      }
+      const recognition=new QuickSpeech();
+      quickVoiceRecognition=recognition;
+      recognition.lang=quickLanguage;
+      recognition.continuous=false;
+      recognition.interimResults=true;
+      const original=field.value.trim();
+      let finalWords='',interimWords='';
+      mic.classList.add('is-listening');
+      report(quickLanguage==='af-ZA'?'Luister…':'Listening…','info');
+      recognition.onresult=e=>{
+        for(let i=e.resultIndex;i<e.results.length;i++){
+          const words=String(e.results[i][0]?.transcript||'').trim();
+          if(e.results[i].isFinal){if(words)finalWords+=(finalWords?' ':'')+words;}
+          else interimWords=words;
+        }
+        field.value=[original,finalWords,interimWords].filter(Boolean).join(' ').trim();
+        quickVoiceSource=true;
+      };
+      recognition.onerror=e=>{
+        const blocked=e.error==='not-allowed'||e.error==='service-not-allowed';
+        report(blocked?'Allow microphone permission for Talk2Me in your browser.':'I could not hear that clearly. Please try again.','error');
+      };
+      recognition.onend=()=>{
+        if(quickVoiceRecognition===recognition)quickVoiceRecognition=null;
+        mic.classList.remove('is-listening');
+        if(finalWords){
+          field.value=[original,finalWords].filter(Boolean).join(' ').trim();
+          quickVoiceSource=true;
+          report('Voice captured. Check the staff name and press Create task.','info');
+          field.focus();
+        }
+      };
+      try{recognition.start();}catch(error){
+        quickVoiceRecognition=null;mic.classList.remove('is-listening');
+        report('The microphone is busy. Please try again.','error');
+      }
+    });
+  }
+
   async function loadTasks(options={}){
     const next=typeof options==='string'?{scope:options}:options;
     const scope=next.scope||taskState.scope||'mine';
@@ -420,6 +515,18 @@
         </select>
       </div>`;
 
+    const quickCommandPanel=taskState.management?
+      '<form class="t2m-quick-task-form" data-quick-task-form>'+
+      '<label for="t2m-quick-task">Give Cudo one instruction</label>'+
+      '<div class="t2m-quick-task-compose">'+
+      '<input id="t2m-quick-task" data-quick-task-input type="text" autocomplete="off" maxlength="3000" placeholder="Johanna must phone Mr Botha about his upgrade tomorrow at 14:00, urgent">'+
+      '<select data-quick-task-language aria-label="Voice language"><option value="en-ZA">English</option><option value="af-ZA">Afrikaans</option></select>'+
+      '<button data-quick-task-mic type="button" class="t2m-quick-task-mic" title="Speak instruction" aria-label="Speak instruction">🎙</button>'+
+      '<button data-quick-task-submit type="submit" class="t2m-quick-task-submit">Create task</button>'+
+      '</div><small>One instruction creates a monitored task. Default deadline: next working day at 16:00.</small>'+
+      '<output data-quick-task-status role="status" aria-live="polite"></output>'+
+      '</form>':'';
+
     const cards=taskState.tasks.length?taskState.tasks.map(task=>{
       const badge=taskInboxBadge(task);
       const preview=taskInboxPreview(task);
@@ -453,8 +560,9 @@
       </article>`;
     }).join(''):`<div class="t2m-chat-empty"><strong>${emptyTitle}</strong><span>${emptyCopy}</span></div>`;
 
-    taskBody.innerHTML=`<div class="t2m-task-shell t2m-task-inbox-shell"><div class="t2m-task-inbox-head">${compactFilters}</div><div class="t2m-task-content">${cards}</div></div>`;
+    taskBody.innerHTML=`<div class="t2m-task-shell t2m-task-inbox-shell"><div class="t2m-task-inbox-head">${quickCommandPanel}${compactFilters}</div><div class="t2m-task-content">${cards}</div></div>`;
 
+    bindQuickCommand();
     taskBody.querySelectorAll('[data-task-view]').forEach(button=>button.onclick=()=>loadTasks({scope:taskState.scope==='sent'?'mine':taskState.scope,view:button.dataset.taskView,filter:'all'}));
     taskBody.querySelectorAll('[data-task-context]').forEach(button=>button.onclick=()=>loadTasks({scope:button.dataset.taskContext,view:'latest',filter:'all'}));
     taskBody.querySelector('[data-task-history]')?.addEventListener('change',event=>{
