@@ -380,7 +380,7 @@
       const pv=data.preview;
       if(pv){
         panel.innerHTML='<strong>Ready for confirmation · not sent</strong>'+
-          '<p><b>To:</b> '+esc(pv.assignee.displayName)+' (staff)'+(pv.reference?' · <b>Regarding:</b> '+esc(pv.reference.name)+' ('+esc(pv.reference.kind)+')':'')+'</p>'+
+          '<p><b>To:</b> '+esc(pv.assignee.displayName)+' (staff)'+(pv.reference?' · <b>Regarding:</b> '+esc(pv.reference.name)+' ('+esc(pv.reference.kind)+')'+(pv.reference.phone?' · '+esc(pv.reference.phone):''):'')+'</p>'+
           '<p><b>Message:</b> '+esc(pv.instruction)+'</p>'+
           '<p><b>Channel:</b> '+esc(pv.channel)+' · <b>Due:</b> '+esc(pv.dueAt.slice(0,16))+'</p>'+
           (pv.confirmName?'<label>Confirm staff name<input type="text" data-quick-name-verify placeholder="Type '+esc(pv.assignee.displayName)+'"></label>':'')+
