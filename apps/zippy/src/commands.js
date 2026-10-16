@@ -17,7 +17,7 @@ function interpret(message,{now=new Date()}={}){
  const normalized=normal(stripCommand(raw));
  if(/^(?:what(?:'s| is)?\s+(?:on\s+)?my\s+(?:calendar|schedule)|wat\s+is\s+op\s+my\s+kalender|my\s+day|my\s+dag|show\s+my\s+(?:reminders|calendar)|wys\s+my\s+(?:herinneringe|kalender))/.test(normalized))return {kind:'agenda'};
  const withoutRepeat=stripCommand(raw).replace(/^(?:every|each|elke)\s+\w+\s+/i,'');
- if(WORK.test(raw)||/^(?:[\p{L}'-]+(?:\s+[\p{L}'-]+){0,2})\s+(?:must|moet|should|has to|needs to)\b/iu.test(withoutRepeat))return {kind:'office',original:raw,crmMessage:normalizeOfficeSpeech(raw)};
+ if(WORK.test(raw)||WORK.test(normalizeOfficeSpeech(raw))||/^(?:[\p{L}'-]+(?:\s+[\p{L}'-]+){0,2})\s+(?:must|moet|should|has to|needs to)\b/iu.test(withoutRepeat))return {kind:'office',original:raw,crmMessage:normalizeOfficeSpeech(raw)};
  if(PERSONAL.test(raw)||PERSONAL.test(withoutRepeat)||CALENDAR.test(raw)){
   const when=parseWhen(raw,{now});const title=titleFor(raw);
   if(!title||title.length<2)return {kind:'question',question:'What should I remind you about?',partial:{original:raw}};
