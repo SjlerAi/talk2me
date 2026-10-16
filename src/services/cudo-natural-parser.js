@@ -5,7 +5,15 @@ function phonetic(value){return normal(value).replace(/ph/g,'f').replace(/ck/g,'
 function taskWords(message){
  const raw=String(message||'').trim().replace(/^cudo[\s,:-]*/i,'').replace(/^(please|asseblief)\s+/i,'');
  const lookup=raw.match(/^(?:find(?:\s+me)?|search(?:\s+for)?|look up|locate|soek(?:\s+vir)?|wys\s+(?:vir\s+)?my|show\s+me)\s+(.+)$/i);
- if(lookup)return {kind:'lookup',name:lookup[1].replace(/\s+(?:on|in)\s+(?:the\s+)?(?:crm|database)\.?$/i,'').trim()};
+ if(lookup){
+  const name=lookup[1].replace(/\s+(?:on|in)\s+(?:the\s+)?(?:crm|database)\.?$/i,'')
+   .replace(/^(?:(?:the|die|person|persoon|staff|customer|client|klient|kliënt)\s+)+/i,'').trim();
+  const topic=normal(name);
+  // Broad CRM reports keep their existing analytics paths; only named people go here.
+  if(!name||/\b(?:tasks?|work|overdue|outstanding|upgrades?|deals?|reports?|unallocated|followups?|queries|activities|everyone|everybody|all|how|who|what|clients?|customers?|today|yesterday|weeks?|months?)\b/.test(topic))
+   return {kind:'none'};
+  return {kind:'lookup',name};
+ }
  const patterns=[
   /^(?:send|stuur)\s+(?:(?:a|an|the|die|n|'n)\s+)?(?:message|boodskap|whatsapp|e-?mail|epos)\s+(?:to|for|aan|vir)\s+(.+?)\s+(?:to|om|that|wat|sodat)\s+(.+)$/i,
   /^(?:ask|tell|instruct|vra|laat|sê|se)\s+(?:vir\s+)?(.+?)\s+(?:to|om|that|wat|must|moet|should)\s+(.+)$/i,
@@ -21,7 +29,7 @@ function taskWords(message){
 }
 function staffNames(row){
  const all=[row.full_name,row.first_name,row.username,String(row.email||'').split('@')[0]];
- if(row.full_name)all.push(String(row.full_name).split(/\s+/)[0]);
+ if(row.full_name){const parts=String(row.full_name).split(/\s+/).filter(Boolean);all.push(parts[0],parts[parts.length-1]);}
  return [...new Set(all.filter(Boolean).map(normal))];
 }
 function staffMatches(name,rows){
