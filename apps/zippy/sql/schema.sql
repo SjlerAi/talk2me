@@ -54,3 +54,46 @@ CREATE TABLE IF NOT EXISTS zippy_auth_sessions (
  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
  INDEX idx_auth_source (auth_source)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Persist the visible one-screen history. A unique key makes background CRM
+-- polling and retries idempotent; records are isolated by Zippy owner_key.
+CREATE TABLE IF NOT EXISTS zippy_activity (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ owner_key VARCHAR(160) NOT NULL,
+ event_key VARCHAR(160) NOT NULL,
+ kind ENUM('reminder_saved','reminder_due','crm_sent','crm_reply','crm_completed','crm_status','crm_overdue') NOT NULL,
+ title VARCHAR(160) NOT NULL,
+ body TEXT NULL,
+ task_id BIGINT UNSIGNED NULL,
+ created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+ UNIQUE KEY uniq_owner_event (owner_key,event_key),
+ INDEX idx_owner_recent (owner_key,id),
+ INDEX idx_owner_task (owner_key,task_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE IF NOT EXISTS zippy_crm_tracking (
+ owner_key VARCHAR(160) NOT NULL,
+ task_id BIGINT UNSIGNED NOT NULL,
+ recipient_name VARCHAR(160) NOT NULL,
+ last_status VARCHAR(32) NOT NULL DEFAULT 'unread',
+ created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+ last_checked_at DATETIME(3) NULL,
+ PRIMARY KEY (owner_key,task_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- The push provider acknowledges acceptance, not physical phone delivery.
+-- Keep a durable record of retry attempts when phones are offline.
+CREATE TABLE IF NOT EXISTS zippy_push_retries (
+ alert_id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
+ owner_key VARCHAR(160) NOT NULL,
+ attempts INT NOT NULL DEFAULT 0,
+ next_attempt_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+ last_attempt_at DATETIME(3) NULL,
+ accepted_at DATETIME(3) NULL,
+ INDEX idx_pending (accepted_at,next_attempt_at,attempts)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE IF NOT EXISTS zippy_scheduler_status (
+ id INT NOT NULL PRIMARY KEY,
+ last_tick_at DATETIME(3) NULL,
+ processed INT NOT NULL DEFAULT 0,
+ failed INT NOT NULL DEFAULT 0,
+ updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
