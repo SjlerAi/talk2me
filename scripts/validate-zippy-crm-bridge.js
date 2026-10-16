@@ -14,6 +14,14 @@ const opts={timestamp,nonce,path,payload,signature:sig};
 assert.equal(sig.length,64);
 assert(verifySigned(opts,key,now).ok,'Valid server-side Zippy signature should verify');
 assert.equal(verifySigned(opts,key,now+121000).ok,false,'Stale commands must be rejected');
+const readPath='/api/integrations/zippy/updates';
+const readPayload={actorEmail:'info@b4s.co.za',taskIds:[201,301]};
+const readNonce=crypto.randomBytes(16).toString('hex');
+const readSignature=signature({timestamp,nonce:readNonce,path:readPath,payload:readPayload},key);
+assert(verifySigned({timestamp,nonce:readNonce,path:readPath,payload:readPayload,signature:readSignature},key,now).ok,
+ 'Signed read-only status and staff reply updates must be accepted');
+assert.equal(verifySigned({timestamp,nonce:readNonce,path:readPath,payload:{...readPayload,taskIds:[200]},signature:readSignature},key,now).ok,false,
+ 'Altered task IDs must invalidate signed readback');
 assert.equal(verifySigned({...opts,nonce:'xyz'},key,now).ok,false);
 assert.equal(verifySigned({...opts,path:'/api/private/admin'},key,now).ok,false);
 assert.equal(verifySigned({...opts,payload:{...payload,message:'Send all CRM details'}},key,now).ok,false);
