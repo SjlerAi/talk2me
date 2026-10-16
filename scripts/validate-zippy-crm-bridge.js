@@ -32,7 +32,7 @@ assert(route.includes("const SECRET_FILE='/home/uent/.zippy-t2m-uat-bridge-key'"
 assert(!route.includes('process.env.ZIPPY_CRM_BRIDGE_SECRET'),'Bridge key must be private, never embedded in a public release');
 assert(route.includes('zippy_bridge_nonces')&&route.includes('ER_DUP_ENTRY'),'Replay detection must be durable');
 assert(route.includes("state='sending'")&&route.includes("state='ready'"),'Confirmation must be single-claim and recoverable');
-assert(route.includes('sendNaturalCommand')&&route.includes('prepareNaturalCommand'),'Reuse CRM's existing natural task interpreter');
+assert(route.includes('sendNaturalCommand')&&route.includes('prepareNaturalCommand'),'Reuse the CRM natural task interpreter');
 assert(route.includes("action.channel!=='internal'"),'No unconfigured external WhatsApp or email sending');
 assert(route.includes("Number(draft.requesterId)!==ownerId"),'Draft must belong to authenticated Gerda');
 assert(route.includes("router.post('/api/integrations/zippy/:action',requireSignedGerda"),'All bridge actions must be signed');
