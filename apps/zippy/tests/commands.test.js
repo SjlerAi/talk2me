@@ -1,0 +1,12 @@
+'use strict';
+const test=require('node:test');const assert=require('node:assert/strict');
+const {interpret}=require('../src/commands');
+const now=new Date('2026-10-16T07:30:00Z');const plan=s=>interpret(s,{now});
+test('Gerda private spoken reminder is saved to personal channel',()=>{const c=plan('Zippy, remind me at twelve to phone my mother');assert.equal(c.kind,'personal');assert.equal(c.title,'phone my mother');assert.equal(c.entryType,'reminder');assert.equal(c.dueAt,'2026-10-16T10:00:00.000Z');});
+test('private recurrence is not routed to CRM',()=>{const c=plan('Every Friday remind me to pay the gardener at 12');assert.equal(c.kind,'personal');assert.equal(c.recurrence,'weekly:5');assert.equal(c.title,'pay the gardener');});
+test('Afrikaans private reminder',()=>{const c=plan('Herinner my om twaalfuur om my ma te bel');assert.equal(c.kind,'personal');assert.equal(c.dueAt,'2026-10-16T10:00:00.000Z');});
+test('private dentist appointment is an appointment',()=>{const c=plan('I have a dentist appointment next Tuesday at eleven');assert.equal(c.kind,'personal');assert.equal(c.entryType,'appointment');assert.equal(c.dueAt,'2026-10-20T09:00:00.000Z');});
+test('office messages and instructions go to CRM, never private task',()=>{for(const s of ['Ask Johnny to phone Stefan tomorrow','Johnny must phone Stefan tomorrow','Remind Johanna to finish the upgrades by four','Send a message to Johnny to phone Stefan']){const c=plan(s);assert.equal(c.kind,'office',s);assert.equal(c.original,s);}});
+test('free-form instructions remain free-form',()=>{const p=plan('Remind me tomorrow at 11 to invent a new business model for the training lab');assert.equal(p.kind,'personal');assert.match(p.title,/invent a new business model/i);});
+test('missing time and unknown domain ask a clear question',()=>{const p=plan('Remind me to phone my mother');assert.equal(p.kind,'question');assert.match(p.question,/time/i);assert.equal(plan('Do something somewhere').kind,'question');});
+test('agenda is a query without side effects',()=>{assert.equal(plan('What is on my calendar today?').kind,'agenda');});

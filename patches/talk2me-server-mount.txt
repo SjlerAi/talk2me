@@ -1,0 +1,19 @@
+Talk2Me UAT code integration (only when host is ready)
+
+Copy `src/routes/zippy-bridge.js` into the Talk2Me repo at the matching path.
+Near the existing UAT route mounts in `server.js`, add:
+
+if (UAT_MODE && process.env.ZIPPY_BRIDGE_SECRET && process.env.ZIPPY_BRIDGE_GERDA_STAFF_ID) {
+  const { router: zippyBridge } = require('./src/routes/zippy-bridge');
+  app.use('/', zippyBridge);
+  if (BASE_PATH) app.use(BASE_PATH, zippyBridge);
+}
+
+Do not add this to current production and do not set bridge environment variables until:
+- dedicated Zippy domain, SSL, database, password and push setup are verified;
+- Gerda's actual active owner/manager staff ID is confirmed in CRM;
+- a cryptographically strong unique bridge secret has been created and securely configured on both sides;
+- GitHub CI is green and the existing Talk2Me staggered deployment-control route is available;
+- the office is aware of a short UAT test window.
+
+The bridge remains unavailable without those variables, and the personal database never joins to CRM data.

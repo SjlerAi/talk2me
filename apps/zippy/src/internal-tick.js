@@ -1,0 +1,25 @@
+'use strict';
+const crypto=require('crypto');
+const {tick}=require('./tick');
+let running=false;
+function attach(app){
+ app.post('/api/internal/tick',async(req,res)=>{
+  const secret=String(process.env.ZIPPY_CRON_SECRET||'');
+  const supplied=String(req.get('x-zippy-cron')||'');
+  if(secret.length<48||supplied.length!==secret.length||
+   !crypto.timingSafeEqual(Buffer.from(secret),Buffer.from(supplied))){
+   return res.status(404).json({ok:false,error:'Not found'});
+  }
+  if(running)return res.status(202).json({ok:true,alreadyRunning:true});
+  running=true;
+  try{
+   const result=await tick();
+   res.set('Cache-Control','no-store');
+   res.json({ok:true,...result});
+  }catch(error){
+   console.error('[zippy] protected scheduler failed',error.code||error.message);
+   res.status(503).json({ok:false,error:'Reminder scheduler unavailable'});
+  }finally{running=false;}
+ });
+}
+module.exports={attach};
