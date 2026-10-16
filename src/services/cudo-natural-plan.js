@@ -58,14 +58,14 @@ async function prepareNaturalCommand({message,source='text',chosen={}}={}){
     meta:x.score===100?'Name match':'Similar name'})),pendingAction:null};
  }
  const matches=staffMatches(parsed.assignee,staff);
- const choice=chosen.assigneeId?{person:matches.find(x=>x.id===Number(chosen.assigneeId))}:pickMatch(matches);
+ const choice=chosen.assigneeId?{person:matches.find(x=>x.id===Number(chosen.assigneeId)),error:'not_found'}:pickMatch(matches);
  if(!choice.person)return namePrompt('assignee',parsed.assignee,choice,parsed.raw,source,chosen);
  const subject=referencedName(parsed.instruction);
  let reference=null;
  if(subject){
   const records=rankPeople(subject,staff,await crmClients(subject));
   const selected=chosen.referenceId?records.find(x=>x.id===Number(chosen.referenceId)&&x.kind===chosen.referenceKind):null;
-  const target=selected?{person:selected}:pickMatch(records);
+  const target=chosen.referenceId?{person:selected,error:'not_found'}:pickMatch(records);
   if(!target.person)return namePrompt('reference',subject,target,parsed.raw,source,{...chosen,assigneeId:choice.person.id});
   reference=target.person;
  }
