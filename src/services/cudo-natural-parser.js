@@ -107,7 +107,8 @@ function pickMatch(candidates){
  if(!candidates.length)return {error:'not_found'};
  const best=candidates[0].score;
  // Exact matches win, but competing approximate staff names require clarification.
- const ties=candidates.filter(x=>x.score===best||(best<100&&x.score>=78&&best-x.score<=10));
+ const ties=candidates.filter(x=>x.score===best||(best<100&&x.score>=78&&best-x.score<=10)||
+  (x.kind!==candidates[0].kind&&x.score>=78));
  if(ties.length>1)return {error:'ambiguous',choices:ties.slice(0,8)};
  return {person:candidates[0],near:best<100};
 }
