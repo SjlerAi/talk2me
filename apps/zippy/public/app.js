@@ -197,19 +197,58 @@ function draftSpeech(text){
  result('Your draft is still NOT SENT. Say “send”, “read message”, “change message to…” or “cancel”.',{type:'notice'});
  return true;
 }
-async function submitCommand(event){if(event)event.preventDefault();if(state.busy)return;let message=$('#command-input').value.trim();if(!message)return;
- if(state.pendingInput){const raw=state.pendingInput.original;const isNew=/^(zippy|remind|herinner|ask|tell|vra|stuur|send|book|schedule|i have)/i.test(message);if(!isNew&&raw)message=raw+' '+(/\b(at|om|teen|by)\b/i.test(message)?'':'at ')+message;state.pendingInput=null;}
- loading(true);try{const response=await api('/api/interpret',{method:'POST',body:{message,source:state.recognitionSource||'text'}});$('#command-input').value='';state.recognitionSource='text';
-  if(response.status==='saved'){result(response.text);await refresh();}
-  else if(response.status==='question'){result(response.question,{type:'notice',pending:{original:response.original||message}});$('#command-input').focus();}
-  else if(response.status==='crm_preview')officePreview(response);
-  else if(response.status==='agenda'){view('today');result(response.text);await refresh();}
-  else result(response.text||response.question||'I need another detail before I can do that.',{type:'notice'});
- }catch(e){result(e.message,{type:'error'});}finally{loading(false);}}
+async function submitCommand(event){
+ if(event)event.preventDefault();
+ if(state.busy)return;
+ let message=$('#command-input').value.trim();if(!message)return;
+ if(state.activeDraft){
+  $('#command-input').value='';
+  draftSpeech(message);return;
+ }
+ if(/^(?:send|send it|stuur|ja stuur|yes send)$/i.test(message)){
+  $('#command-input').value='';
+  return result('There is no reviewed message ready to send. First tell Zippy the instruction.',{type:'notice'});
+ }
+ if(state.pendingInput){
+  const raw=state.pendingInput.original;
+  const isNew=/^(zippy|remind|herinner|ask|tell|vra|stuur|send|book|schedule|i have)/i.test(message);
+  if(!isNew&&raw)message=raw+' '+(/\b(at|om|teen|by)\b/i.test(message)?'':'at ')+message;
+  state.pendingInput=null;
+ }
+ loading(true);
+ try{
+  const response=await api('/api/interpret',{method:'POST',body:{
+   message,source:state.recognitionSource||'text'
+  }});
+  $('#command-input').value='';state.recognitionSource='text';
+  if(response.status==='saved'){
+   result(response.text);await refresh();
+  }else if(response.status==='question'){
+   result(response.question,{type:'notice',pending:{original:response.original||message}});
+   $('#command-input').focus();
+  }else if(response.status==='crm_preview'){
+   officePreview(response);
+  }else if(response.status==='agenda'){
+   view('today');result(response.text);await refresh();
+  }else if(response.status==='chat'){
+   result(response.text||'What else can I help with?');
+  }else{
+   result(response.text||response.question||'I need one more detail before I can do that.',{type:'notice'});
+  }
+ }catch(e){result(e.message,{type:'error'});}
+ finally{loading(false);}
+}
+async function restorePendingDraft(){
+ if(!state.user||state.activeDraft)return;
+ try{
+  const response=await api('/api/crm/pending');
+  if(response.draft?.preview)officePreview(response.draft,{resume:true});
+ }catch(_){/* Do not block personal reminders if the CRM draft is unavailable. */}
+}
 function startVoice(){const Speech=window.SpeechRecognition||window.webkitSpeechRecognition;if(!Speech){result('This browser cannot transcribe speech. Please type your instruction, or try current Chrome or Edge.',{type:'notice'});return;}if(state.recognition){state.recognition.stop();return;}const rec=new Speech();rec.lang=$('#language').value;rec.continuous=false;rec.interimResults=true;let final='';let interim='';state.recognition=rec;$('#mic-button').classList.add('listening');$('#mic-hint').textContent='Listening… speak naturally.';
  rec.onresult=e=>{interim='';for(let i=e.resultIndex;i<e.results.length;i++){const txt=String(e.results[i][0]?.transcript||'').trim();if(e.results[i].isFinal)final+=(final?' ':'')+txt;else interim=txt;}$('#command-input').value=[final,interim].filter(Boolean).join(' ');};
  rec.onerror=e=>{if(e.error!=='aborted'){result(e.error==='not-allowed'?'Allow microphone access in your browser to speak to Zippy.':'I could not hear clearly. Please try again.',{type:'error'});}};
- rec.onend=()=>{state.recognition=null;$('#mic-button').classList.remove('listening');$('#mic-hint').textContent='Speak naturally in English or Afrikaans. Tap the microphone, or type a command.';if(final){$('#command-input').value=final;state.recognitionSource='voice';submitCommand();}};
+ rec.onend=()=>{state.recognition=null;$('#mic-button').classList.remove('listening');$('#mic-hint').textContent='Speak naturally in English or Afrikaans. Tap the microphone, or type a command.';if(final){$('#command-input').value=final;state.recognitionSource='voice';if(state.activeDraft){$('#command-input').value='';draftSpeech(final);}else submitCommand();}};
  try{rec.start();}catch(e){state.recognition=null;$('#mic-button').classList.remove('listening');result('The microphone is unavailable right now.',{type:'error'});}}
 async function enableNotifications(){try{if(!('serviceWorker'in navigator)||!('PushManager'in window)||!('Notification'in window)){result('Background notifications are not supported in this browser. You can still view reminders inside Zippy.',{type:'notice'});return;}if(!state.user.pushConfigured){result('The notification service must be configured on the Zippy server first.',{type:'notice'});return;}const permission=await Notification.requestPermission();if(permission!=='granted'){result('Please allow notifications for Zippy in your phone or browser settings.',{type:'notice'});return;}const reg=await navigator.serviceWorker.ready;const key=state.user.vapidPublicKey.replace(/-/g,'+').replace(/_/g,'/');const raw=atob(key+'='.repeat((4-key.length%4)%4));const arr=new Uint8Array([...raw].map(ch=>ch.charCodeAt(0)));const sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:arr});await api('/api/push/subscribe',{method:'POST',body:{subscription:sub.toJSON()}});result('Zippy notifications are enabled on this device.');$('#push-setup').innerText='Alerts on';}catch(e){result('Notification setup: '+e.message,{type:'error'});}}
 async function login(e){e.preventDefault();const el=$('#login-error');el.hidden=true;try{const response=await api('/api/login',{method:'POST',body:{email:$('#login-email').value,password:$('#login-password').value}});$('#login-password').value='';const profile=await api('/api/me');showApp(profile);await refresh();}catch(e){el.textContent=e.message;el.hidden=false;}}
