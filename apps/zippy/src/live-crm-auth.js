@@ -45,6 +45,7 @@ function credentialMarker(user){
 async function verifyLogin(email,password){
  const key=normalizedEmail(email);
  if(!ALLOWED.has(key)||typeof password!=='string'||password.length<1||password.length>256)return null;
+ if(!configured())throw Error('Live CRM authentication service is not configured.');
  const user=await findApprovedUser(key);
  if(!user||!await bcrypt.compare(password,user.passwordHash))return null;
  const {passwordHash,...safe}=user;
