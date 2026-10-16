@@ -87,8 +87,115 @@ async function refresh(){
  render();renderTimeline();dueReminder();
 }
 function view(name){if(!['today','reminders','contacts','office'].includes(name))return;state.view=name;$$('[data-view]').forEach(el=>el.classList.toggle('selected',el.dataset.view===name));$('#today-grid').hidden=name!=='today';$('#reminders-view').hidden=name!=='reminders';$('#contacts-view').hidden=name!=='contacts';$('#office-view').hidden=name!=='office';$('#hero').hidden=name!=='today';$('#alerts-panel').hidden=name==='contacts'||name==='office';if(name==='reminders')$('#reminders-view').scrollIntoView({behavior:'smooth',block:'start'});}
-function officePreview(data){const pv=data.preview||{},html='<section class="preview-card"><b>Message ready · NOT SENT</b><p><b>Recipient:</b> '+esc(pv.assignee?.name||pv.assignee?.displayName||'CRM staff')+'</p>'+(pv.reference?'<p><b>About:</b> '+esc(pv.reference.name)+' ('+esc(pv.reference.kind)+')</p>':'')+'<p><b>Instruction:</b> '+esc(pv.instruction||'')+'</p>'+(pv.confirmName?'<label>Confirm recipient name <input id="recipient-verify" class="name-confirm" placeholder="Type the staff first name"></label>':'')+'<div class="preview-buttons"><button type="button" class="primary" id="confirm-office">Yes, send to CRM</button><button type="button" class="secondary" id="cancel-office">Cancel</button></div></section>';
- result(data.text||'This CRM action is ready for approval.',{type:'notice',html});$('#confirm-office').onclick=async()=>{const btn=$('#confirm-office');btn.disabled=true;try{const confirmation=await api('/api/crm/confirm',{method:'POST',body:{draftId:data.draftId,typedName:$('#recipient-verify')?.value||''}});result(confirmation.text);}catch(e){result(e.message,{type:'error'});btn.disabled=false;}};$('#cancel-office').onclick=()=>result('Cancelled. Nothing was sent.',{type:'notice'});
+function reviewedMessage(preview,heard=''){
+ const name=String(preview.assignee?.displayName||preview.assignee?.name||'colleague').trim();
+ const reference=String(preview.reference?.name||'').trim();
+ let instruction=String(preview.instruction||'').trim();
+ const af=/(?:^|\s)(?:vra|s[eê]|asseblief|bel|skakel|om my)\b/i.test(heard);
+ if(reference&&/^(?:my|me)\s+(?:te\s+)?(?:bel|skakel|phone|call)$/i.test(instruction)){
+  instruction=af?'Kan jy asseblief vir '+reference+' bel?':'Please phone '+reference+'.';
+ }
+ if(!instruction)instruction=String(heard||'Please follow up as discussed.').trim();
+ const initial=instruction.charAt(0).toUpperCase()+instruction.slice(1);
+ return (af?'Hallo ':'Hi ')+name+',\n\n'+initial+'\n\n'+(af?'Dankie.':'Thank you.');
+}
+function isExactStaffName(pv){
+ const heard=String(pv.assignee?.heard||'').trim().toLowerCase();
+ const actual=String(pv.assignee?.displayName||pv.assignee?.name||'').trim().split(/\s+/)[0].toLowerCase();
+ return heard===actual;
+}
+function officePreview(data,{resume=false}={}){
+ const pv=data.preview||{},name=pv.assignee?.displayName||pv.assignee?.name||'CRM staff';
+ state.activeDraft={id:data.draftId,preview:pv,expiresAt:data.expiresAt||null};
+ $('#review-recipient').textContent='To: '+name+' · Talk2Me CRM';
+ $('#review-reference').textContent=pv.reference
+  ?'Verified CRM person: '+pv.reference.name+' ('+pv.reference.kind+')'+(pv.reference.phone?' · '+pv.reference.phone:'')
+  :'This instruction will be assigned to the selected staff member.';
+ $('#review-message').value=reviewedMessage(pv,data.heard||'');
+ const due=String(pv.dueAt||'').trim();
+ const dueDate=/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(due)
+  ?new Date(due.replace(' ','T')+'+02:00'):new Date(due);
+ $('#review-deadline').textContent='Follow-up deadline: '+
+  (Number.isFinite(dueDate.getTime())?when(dueDate.toISOString()):'Confirm in Talk2Me');
+ const fuzzy=Boolean(pv.confirmName&&!isExactStaffName(pv));
+ $('#recipient-check-wrap').hidden=!fuzzy;
+ $('#recipient-verify').value='';
+ $('#review-hint').textContent=fuzzy
+  ?'The spoken name may be approximate. Type the confirmed CRM staff first name before sending.'
+  :'Nothing has been sent. Read or edit the message, then click Send or say "send" / "stuur".';
+ $('#review-panel').hidden=false;
+ result(resume?'Unsent draft restored for your review.':"Message prepared for "+name+". Check it before sending.",{type:'notice'});
+ if(!resume)$('#review-panel').scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+function hideDraft(){state.activeDraft=null;$('#review-panel').hidden=true;$('#recipient-verify').value='';}
+function speakMessage(){
+ const draft=state.activeDraft;
+ if(!draft)return result('There is no message waiting for review.',{type:'notice'});
+ if(!('speechSynthesis'in window)||!('SpeechSynthesisUtterance'in window))
+  return result('Spoken reading is unavailable in this browser. The complete message is visible above.',{type:'notice'});
+ try{
+  speechSynthesis.cancel();
+  const speech=new SpeechSynthesisUtterance($('#review-message').value);
+  speech.lang=$('#language').value;speech.rate=.88;
+  speechSynthesis.speak(speech);
+ }catch(e){result('Your browser could not read this message aloud.',{type:'notice'});}
+}
+async function sendDraft(byVoice=false){
+ const draft=state.activeDraft;
+ if(!draft)return result('No reviewed CRM message is waiting to be sent.',{type:'notice'});
+ if(draft.expiresAt&&Date.now()>new Date(draft.expiresAt).getTime()){
+  return result('This approval has expired for safety. Cancel and repeat the instruction to prepare a fresh draft.',{type:'error'});
+ }
+ const body=$('#review-message').value.trim();
+ if(body.length<3||body.length>1750)return result('Please enter a message of 3 to 1,750 characters.',{type:'error'});
+ const typed=$('#recipient-verify').value.trim(),near=Boolean(draft.preview.confirmName&&!isExactStaffName(draft.preview));
+ if(near&&!typed)return result('Please type the CRM recipient’s verified first name before sending.',{type:'error'});
+ const btn=$('#review-send');btn.disabled=true;
+ try{
+  const sent=await api('/api/crm/confirm',{method:'POST',body:{
+   draftId:draft.id,editedMessage:body,typedName:typed,
+   approvalMode:draft.preview.confirmName&&!near?'voice':'button'
+  }});
+  hideDraft();
+  result(sent.text||'Sent to Talk2Me CRM. The task is being monitored.');
+  await refresh();
+ }catch(error){
+  // Never automatically retry an uncertain send. Only the explicit button/
+  // spoken approval can trigger a new submission.
+  result(error.message+' Check Talk2Me if the connection was interrupted; do not send twice.',{type:'error'});
+ }finally{btn.disabled=false;}
+}
+async function cancelDraft(){
+ const draft=state.activeDraft;if(!draft)return;
+ try{await api('/api/crm/cancel',{method:'POST',body:{draftId:draft.id}});}
+ catch(e){result('Unable to cancel on the server: '+e.message,{type:'error'});return;}
+ hideDraft();result('Cancelled. Nothing was sent.',{type:'notice'});
+}
+function draftSpeech(text){
+ if(!state.activeDraft)return false;
+ const s=String(text||'').trim().toLowerCase().replace(/[.!?]+$/,'').trim();
+ if(/^(?:yes[\s,]+)?(?:send|send it|send message|send the message|stuur|stuur dit|stuur die boodskap|ja stuur|ja stuur dit|ja send|yes send)$/i.test(s)){
+  sendDraft(true);return true;
+ }
+ if(/^(?:read|read it|read message|read the message|lees|lees die boodskap|lees dit|read aloud)$/i.test(s)){
+  speakMessage();return true;
+ }
+ if(/^(?:cancel|cancel message|don't send|do not send|kanselleer|moenie stuur nie|moet nie stuur nie)$/i.test(s)){
+  cancelDraft();return true;
+ }
+ const replacement=s.match(/^(?:change|replace|edit|verander|wysig)\s+(?:the\s+|die\s+)?(?:message|boodskap|it|dit)?\s*(?:to|na|met)\s+(.+)$/i);
+ if(replacement&&replacement[1]){
+  $('#review-message').value=replacement[1].trim();
+  result('Message changed. Please read it and say “send” when ready.',{type:'notice'});
+  return true;
+ }
+ if(/^(?:change|edit|verander|wysig)(?: it| dit| the message| die boodskap)?$/i.test(s)){
+  $('#review-message').focus();
+  result('Edit the message above or dictate “change message to…”',{type:'notice'});
+  return true;
+ }
+ result('Your draft is still NOT SENT. Say “send”, “read message”, “change message to…” or “cancel”.',{type:'notice'});
+ return true;
 }
 async function submitCommand(event){if(event)event.preventDefault();if(state.busy)return;let message=$('#command-input').value.trim();if(!message)return;
  if(state.pendingInput){const raw=state.pendingInput.original;const isNew=/^(zippy|remind|herinner|ask|tell|vra|stuur|send|book|schedule|i have)/i.test(message);if(!isNew&&raw)message=raw+' '+(/\b(at|om|teen|by)\b/i.test(message)?'':'at ')+message;state.pendingInput=null;}
