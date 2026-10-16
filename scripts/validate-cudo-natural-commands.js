@@ -24,6 +24,10 @@ assert.equal(taskWords('Find me Stefan on the CRM').kind,'lookup');
 assert.equal(taskWords('Soek vir Stefan').kind,'lookup');
 assert.equal(taskWords('Find me Stefan on the CRM').name,'Stefan');
 assert.equal(taskWords('Show me Stephan').kind,'lookup');
+assert.equal(taskWords('Show me staff Stefan').name,'Stefan');
+assert.equal(taskWords('Show me outstanding upgrades for Stefan').kind,'none','Analytics requests must not be hijacked by person search');
+assert.equal(taskWords('Find all unallocated clients').kind,'none','Client reports must still use CRM analytics');
+assert.equal(taskWords('What work has Johnny got left today?').kind,'none');
 assert.equal(taskWords('Give Johnny a task to prepare a completely new pricing strategy').instruction,
  'prepare a completely new pricing strategy','The task body must be free-form.');
 assert.equal(taskWords('Who has overdue tasks today?').kind,'none');
