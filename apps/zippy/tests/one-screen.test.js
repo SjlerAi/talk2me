@@ -93,6 +93,7 @@ test('one-screen action flow requires explicit reviewed approval and account-sco
  const html=fs.readFileSync(path.join(root,'public/index.html'),'utf8');
  const server=fs.readFileSync(path.join(root,'server.js'),'utf8');
  const crmRoute=fs.readFileSync(path.resolve(root,'../../src/routes/zippy-integration.js'),'utf8');
+ const signedClient=fs.readFileSync(path.join(root,'src/crm.js'),'utf8');
  const tick=fs.readFileSync(path.join(root,'src/tick.js'),'utf8');
  for(const marker of ['review-panel','review-message','review-send','review-cancel','activity-list','reminder-popup'])
   assert(html.includes('id="'+marker+'"'),marker);
@@ -104,6 +105,7 @@ test('one-screen action flow requires explicit reviewed approval and account-sco
  assert(server.includes("app.post('/api/crm/cancel'"));
  assert(server.includes('editedMessage:message'));
  assert(crmRoute.includes("if(req.params.action==='updates')"));
+ assert(signedClient.includes("'preview','confirm','updates'"),'Signed CRM client must allow read-only updates');
  assert(crmRoute.includes('t.created_by=:owner'));
  assert(crmRoute.includes("edited=req.body?.editedMessage"));
  assert(crmRoute.includes("approvedByVoice=req.body?.approvalMode==='voice'"));
