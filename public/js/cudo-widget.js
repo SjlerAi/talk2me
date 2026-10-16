@@ -42,6 +42,7 @@
         <button class="cudo-attach" type="button" aria-label="Attach file" title="Attach file">📎</button>
         <button class="cudo-library" type="button" aria-label="Attach from Library or Deals" title="Attach from Library / Deals">▣</button>
         <textarea name="message" rows="1" placeholder="Ask Cudo anything about your CRM or office…" autocomplete="off"></textarea>
+        <select class="cudo-voice-language" aria-label="Voice language" title="Voice language"><option value="en-ZA">EN</option><option value="af-ZA">AF</option></select>
         <button class="cudo-mic" type="button" aria-label="Speak to Cudo" title="Speak to Cudo">🎙</button>
         <button class="cudo-send" type="submit" aria-label="Send">➤</button>
       </form>
@@ -62,6 +63,7 @@
   const suggestions=root.querySelector('.cudo-suggestions');
   const textarea=root.querySelector('textarea');
   const mic=root.querySelector('.cudo-mic');
+  const voiceLanguageSelect=root.querySelector('.cudo-voice-language');
   const send=root.querySelector('.cudo-send');
   const attachButton=root.querySelector('.cudo-attach');
   const libraryButton=root.querySelector('.cudo-library');
@@ -79,6 +81,10 @@
   let listening=false;
   let voiceBase='';
   let voiceFinal='';
+  let voiceTranscriptReady=false;
+  let voiceLanguage=(navigator.language||'en').toLowerCase().startsWith('af')?'af-ZA':'en-ZA';
+  try{const saved=localStorage.getItem('t2m-cudo-voice-language');if(saved==='af-ZA'||saved==='en-ZA')voiceLanguage=saved;}catch(_){}
+  voiceLanguageSelect.value=voiceLanguage;
   let attachments=[];
 
   const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
@@ -272,7 +278,7 @@
       return;
     }
     recognition=new SpeechRecognition();
-    recognition.lang=/^af\b/i.test(navigator.language||'')?'af-ZA':'en-ZA';
+    recognition.lang=voiceLanguage;
     recognition.continuous=false;
     recognition.interimResults=true;
     recognition.maxAlternatives=1;
@@ -308,6 +314,7 @@
       if(full){
         textarea.value=full;
         textarea.focus();
+        voiceTranscriptReady=true;
         addAssistant({
           text:'Voice transcript is ready in the box. Please check staff names and wording, correct anything that is wrong, then press Send.',
           rows:[],
@@ -320,11 +327,13 @@
   async function sendMessage(text){
     text=String(text||textarea.value||'').trim();
     if(!text||pending)return;
+    const source=voiceTranscriptReady?'voice':'text';
+    voiceTranscriptReady=false;
     addUser(text);textarea.value='';pending=true;send.disabled=true;launcher.classList.add('is-thinking');
     try{
       const response=await fetch(BASE+'/api/cudo/chat',{
         method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({message:text,context:activeContext(),attachmentIds:attachments.map(file=>Number(file.id))})
+        body:JSON.stringify({message:text,source,context:activeContext(),attachmentIds:attachments.map(file=>Number(file.id))})
       });
       const data=await response.json().catch(()=>({}));
       if(!response.ok)throw new Error(data.error||'Cudo could not complete that request.');
@@ -418,6 +427,12 @@
   librarySearch.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();loadLibrary(librarySearch.value);}});
   root.querySelector('.cudo-compose').addEventListener('submit',e=>{e.preventDefault();sendMessage();});
   textarea.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage();}});
+  textarea.addEventListener('input',()=>{voiceTranscriptReady=false;});
+  voiceLanguageSelect.addEventListener('change',()=>{
+    voiceLanguage=voiceLanguageSelect.value==='af-ZA'?'af-ZA':'en-ZA';
+    try{localStorage.setItem('t2m-cudo-voice-language',voiceLanguage);}catch(_){}
+    if(recognition && !listening)recognition.lang=voiceLanguage;
+  });
   mic.addEventListener('click',()=>{
     if(!recognition||pending)return;
     if(panel.hidden)openPanel();
@@ -427,6 +442,8 @@
     }
     voiceBase=String(textarea.value||'').trim();
     voiceFinal='';
+    voiceTranscriptReady=false;
+    recognition.lang=voiceLanguage;
     try{recognition.start();}
     catch(error){
       setListening(false);
