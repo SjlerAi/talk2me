@@ -40,7 +40,7 @@ function staffMatches(name,rows){
    const phoneticMatch=!exact&&wanted.length>=4&&aliases.some(a=>phonetic(a)===phonetic(wanted));
    return {id:Number(row.id),name:row.full_name||row.first_name||row.username,
      shortName:String(row.first_name||row.full_name||row.username||'').split(/\s+/)[0],
-     kind:'staff',score:exact?100:phoneticMatch?88:0};
+     kind:'staff',phone:row.contact_number||null,score:exact?100:phoneticMatch?88:0};
  }).filter(m=>m.score).sort((a,b)=>b.score-a.score);
 }
 function referencedName(text){
@@ -56,7 +56,7 @@ function rankPeople(name,staff,clients){
  const a=normal(name);
  return [...staffMatches(name,staff),...clients.map(c=>({
   id:Number(c.id),name:String(c.client_name||''),shortName:String(c.client_name||''),
-  kind:'client',score:normal(c.client_name)===a||normal(c.client_name).split(/\s+/).includes(a)?100:0
+  kind:'client',phone:c.cell_number||null,accountNumber:c.account_number||null,score:normal(c.client_name)===a||normal(c.client_name).split(/\s+/).includes(a)?100:0
  })).filter(c=>c.score)].sort((x,y)=>y.score-x.score||x.name.localeCompare(y.name));
 }
 function pickMatch(candidates){
