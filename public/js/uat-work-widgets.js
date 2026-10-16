@@ -373,7 +373,12 @@
     };
     async function showQuickResult(data){
       form.querySelector('.t2m-quick-command-preview')?.remove();
-      report(data.text||'No matching command.',data.preview?'info':data.rows?.length?'success':'error');
+      report(data.text||'No matching command.',data.preview||data.intent==='natural_instruction_detail'?'info':data.rows?.length?'success':'error');
+      if(['natural_instruction_detail','natural_pronoun_clarification'].includes(data.intent)){
+        field.value='';
+        field.placeholder='Continue the same instruction…';
+        field.focus();
+      }
       if(!data.preview&&!data.choices?.length&&!data.rows?.length)return;
       const panel=document.createElement('section');
       panel.className='t2m-quick-command-preview';
