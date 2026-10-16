@@ -15,7 +15,7 @@ function verifySigned({timestamp,nonce,path,payload,signature:received},secret,n
  if(!/^\d{13}$/.test(String(timestamp))||!Number.isSafeInteger(Number(timestamp))
    ||Math.abs(now-Number(timestamp))>MAX_SKEW_MS)return {ok:false,reason:'expired'};
  if(!/^[0-9a-f]{32}$/.test(String(nonce)))return {ok:false,reason:'invalid_nonce'};
- if(!['/api/integrations/zippy/preview','/api/integrations/zippy/confirm'].includes(path))
+ if(!['/api/integrations/zippy/preview','/api/integrations/zippy/confirm','/api/integrations/zippy/updates'].includes(path))
    return {ok:false,reason:'invalid_path'};
  if(!/^[a-f0-9]{64}$/.test(String(received)))return {ok:false,reason:'invalid_signature'};
  const expected=signature({timestamp,nonce,path,payload},secret);
