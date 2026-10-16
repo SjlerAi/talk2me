@@ -4,7 +4,7 @@ const express = require('express');
 const multer = require('multer');
 const { audit } = require('../services/audit');
 const { answerCudo, createTasks, getAlerts } = require('../services/cudo-ai');
-const { prepareNaturalCommand,chooseNaturalCommand,continueNaturalPronoun,naturalNameReply } = require('../services/cudo-natural-plan');
+const { prepareNaturalCommand,chooseNaturalCommand,continueNaturalPronoun,naturalNameReply,continueNaturalIncomplete,naturalDetailReply } = require('../services/cudo-natural-plan');
 const { sendNaturalCommand } = require('../services/cudo-natural-send');
 const { ensureSchema:ensureUatWorkSchema } = require('./uat-work-widgets');
 const { reassignClientWork } = require('../services/cudo-client-assignment');
@@ -108,11 +108,15 @@ router.post('/api/cudo/chat', requireOwner, async (req, res, next) => {
     const pronounPending=req.session.cudoPendingAction;
     const resumePronoun=!attachmentIds.length&&pronounPending?.type==='natural_pronoun_question'
       &&naturalNameReply(message);
+    const resumeDetails=!attachmentIds.length&&pronounPending?.type==='natural_instruction_detail'
+      &&naturalDetailReply(message);
     const natural=attachmentIds.length?{handled:false}:resumePronoun
       ?await continueNaturalPronoun(pronounPending,message,{requesterId:userId})
-      :await prepareNaturalCommand({
-        message,source:req.body?.source==='voice'?'voice':'text',requesterId:userId
-      });
+      :resumeDetails
+        ?await continueNaturalIncomplete(pronounPending,message,{requesterId:userId})
+        :await prepareNaturalCommand({
+          message,source:req.body?.source==='voice'?'voice':'text',requesterId:userId
+        });
     if(natural.handled){
       req.session.cudoPendingAction=natural.pendingAction||null;
       req.session.cudoState={selection:null};
