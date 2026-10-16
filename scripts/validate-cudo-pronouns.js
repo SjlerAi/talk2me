@@ -66,7 +66,10 @@ async function run(){
     assert.equal(r.intent,'natural_pronoun_clarification');
     assert.equal(r.pendingAction.role,'assignee');
 
-    r=await prepareNaturalCommand({message:'Ask Gerda to phone her',requesterId:owner.id});
+    r=await prepareNaturalCommand({message:'Ask Gerda to call my client',requesterId:owner.id});
+    assert.equal(r.intent,'natural_pronoun_clarification','Possessive my client must not resolve as logged-in user');
+    assert.equal(r.pendingAction.role,'reference');
+        r=await prepareNaturalCommand({message:'Ask Gerda to phone her',requesterId:owner.id});
     assert.equal(r.intent,'natural_pronoun_clarification');
     assert.equal(r.pendingAction.role,'reference');
     assert(!r.actions.length,'Unresolved referenced person cannot be sent');
