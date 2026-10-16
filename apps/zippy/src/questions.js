@@ -9,6 +9,7 @@ function staffWorkQuestion(message){
  if(!/\b(?:did|has|have|het|wat|what|waar|status|klaar|voltooi|completed|finished|reply|replied|antwoord|terugvoer|update)\b/.test(text))return null;
  if(!/\b(?:crm|staff|taak|task|phoned|phone|called|call|bel|klaar|done|finished|completed|replied|reply|answered|antwoord|gese|say|said|update|terugvoer)\b/.test(text))return null;
  const m=text.match(/\b(?:did|has|het|what did|wat het|from|van)\s+([a-z][a-z'-]{1,28})\b/);
+ if(m&&['my','me','your','our','the','this','that','mother','mom','ma'].includes(m[1]))return null;
  return {name:m?.[1]||null,wantsReply:/\b(?:reply|replied|answer|answered|antwoord|said|say|gese|wat het)\b/.test(text)};
 }
 async function answerTrackedWork(message,owner){
