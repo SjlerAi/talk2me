@@ -93,7 +93,12 @@ async function prepareNaturalCommand({message,source='text',chosen={},requesterI
     meta:x.score===100?'Name match':'Similar name'})),pendingAction:null};
  }
  const self=sessionPerson(staff,requesterId),assigneePronoun=pronounKind(parsed.assignee);
- const subject=referencedName(parsed.instruction),subjectPronoun=pronounKind(subject);
+ // "my" is Afrikaans for "me", but in "call my customer" it is English possessive.
+// Never resolve an unspecified third party to the logged-in person by accident.
+ const possessive=/(?:\b(?:phone|call|contact|bel|skakel|kontak|met|with|vir)\s+my\s+)([\p{L}'-]+)/iu.exec(parsed.instruction);
+ const uncertainMy=possessive&&!/^(?:te|today|tomorrow|vandag|more|morre|now|nou|later|please|asseblief|again)$/i.test(possessive[1]);
+ const subject=referencedName(parsed.instruction),
+  subjectPronoun=uncertainMy&&normal(subject)==='my'?'unresolved':pronounKind(subject);
  let person=null;
  if(chosen.assigneeId){
   person=staffAsPerson(staff.find(row=>Number(row.id)===Number(chosen.assigneeId)));
