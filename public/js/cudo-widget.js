@@ -247,16 +247,28 @@
       ? Object.entries(data.grouped).filter(([,n])=>Number(n)>0).map(([name,n])=>`<div class="cudo-result"><strong>${esc(name)}</strong><span>${Number(n)} outstanding</span></div>`).join('')
       : '';
     const assignable=(data.actions||[]).includes('assign_work');
+    const preview=data.preview;
+    const previewHtml=preview?`<section class="cudo-command-preview" aria-label="Proposed CRM message">
+      <strong>Message ready · Not sent</strong>
+      <p><b>To:</b> ${esc(preview.assignee.displayName)} (staff)${preview.reference?` · <b>Regarding:</b> ${esc(preview.reference.name)} (${esc(preview.reference.kind)})`:''}</p>
+      <p><b>Message:</b> ${esc(preview.instruction)}</p>
+      <p><b>Delivery:</b> ${esc(preview.channel==='internal'?'Talk2Me Messages':preview.channel)} · <b>Due:</b> ${esc(preview.dueAt.slice(0,16))}</p>
+      ${preview.confirmName?`<label>Confirm recipient name<input type="text" data-cudo-confirm-name autocomplete="off" placeholder="Type ${esc(preview.assignee.displayName)}"></label>`:''}
+    </section>`:'';
+    const choicesHtml=(data.choices||[]).length?`<div class="cudo-name-choices"><strong>Choose the correct CRM record:</strong>
+      ${data.choices.map(item=>`<button type="button" data-cudo-choose data-person-kind="${esc(item.kind)}" data-person-id="${Number(item.id)}">${esc(item.label||item.name)}</button>`).join('')}
+    </div>`:'';
+
     const list=rows.slice(0,50).map((row,index)=>`<div class="cudo-result${index>=20?' cudo-result-extra':''}" ${index>=20?'hidden':''} data-cudo-result-index="${index+1}">${assignable?`<button type="button" class="cudo-pick" data-cudo-pick="${index+1}" aria-pressed="false" title="Select item ${index+1}">□</button>`:''}<b class="cudo-result-number">${index+1}</b><div><strong>${esc(row.title||'Item')}</strong><span>${esc(row.detail||'')}</span><small>${esc(row.meta||'')}</small></div></div>`).join('');
     const actions=(data.actions||[]).map(action=>{
-      const labels={show_all:'Show all',assign_work:'Assign / reassign',create_tasks:'Create tasks',open_agent:'Open Gerda Agent',confirm_tasks:'Create monitored tasks',confirm_reassignment:'Confirm assignments',confirm_dispatch:'Send now',cancel_action:'Cancel'};
-      const cls=(action==='confirm_tasks'||action==='confirm_reassignment'||action==='confirm_dispatch')?' primary':action==='cancel_action'?' danger':'';
+      const labels={show_all:'Show all',assign_work:'Assign / reassign',create_tasks:'Create tasks',open_agent:'Open Gerda Agent',confirm_tasks:'Create monitored tasks',confirm_reassignment:'Confirm assignments',confirm_dispatch:'Send now',confirm_natural_instruction:'Yes, send message + task',cancel_action:'Cancel'};
+      const cls=(action==='confirm_tasks'||action==='confirm_reassignment'||action==='confirm_dispatch'||action==='confirm_natural_instruction')?' primary':action==='cancel_action'?' danger':'';
       return `<button type="button" class="cudo-action${cls}" data-cudo-action="${esc(action)}">${esc(labels[action]||action)}</button>`;
     }).join('');
     const evidence=data.evidence&&data.evidence.summary
       ? `<div class="cudo-evidence"><strong>Checked:</strong> ${esc(data.evidence.summary)}</div>`
       : '';
-    el.innerHTML=`<img class="cudo-msg-avatar" alt="Cudo"><div class="cudo-bubble"><div>${esc(data.text||'')}</div>${evidence}${grouped||list?`<div class="cudo-result-list">${grouped}${list}</div>`:''}${actions?`<div class="cudo-actions">${actions}</div>`:''}</div>`;
+    el.innerHTML=`<img class="cudo-msg-avatar" alt="Cudo"><div class="cudo-bubble"><div>${esc(data.text||'')}</div>${evidence}${previewHtml}${choicesHtml}${grouped||list?`<div class="cudo-result-list">${grouped}${list}</div>`:''}${actions?`<div class="cudo-actions">${actions}</div>`:''}</div>`;
     mascot(el.querySelector('img'));
     stream.appendChild(el);scrollEnd();
     if(data.suggestions?.length)setSuggestions(data.suggestions);
@@ -315,10 +327,12 @@
         textarea.value=full;
         textarea.focus();
         voiceTranscriptReady=true;
-        addAssistant({
-          text:'Voice transcript is ready in the box. Please check staff names and wording, correct anything that is wrong, then press Send.',
-          rows:[],
-          actions:[]
+        // Speaking an instruction opens the CRM draft immediately. This does NOT send it.
+        const command=/^\s*(?:(?:hey|hi)\s+)?(?:cudo[\s,:-]*)?(?:(?:please|asseblief)\s+)?(?:ask|tell|instruct|vra|laat|sê|se|send|stuur|give|gee|find|soek|wys|show|look\s+up|[\p{L}'-]+(?:\s+[\p{L}'-]+){0,2}\s+(?:must|moet|should|needs?\s+to|has\s+to))\b/iu.test(full);
+        if(command && !pending)sendMessage(full);
+        else addAssistant({
+          text:'Voice transcript ready. Check the wording and press Send to ask Cudo.',
+          rows:[],actions:[]
         });
       }
     };
@@ -359,11 +373,11 @@
       addAssistant({text:'Tell me who should receive these items and the deadline, for example: “Assign these to Johnny, due Friday 15:00”.',rows:[],actions:[]});
       return;
     }
-    if(action==='cancel_action'||action==='confirm_tasks'||action==='confirm_reassignment'||action==='confirm_dispatch'){
+    if(action==='cancel_action'||action==='confirm_tasks'||action==='confirm_reassignment'||action==='confirm_dispatch'||action==='confirm_natural_instruction'){
       button.disabled=true;
       try{
         const apiAction=action==='cancel_action'?'cancel':action;
-        const response=await fetch(BASE+'/api/cudo/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:apiAction})});
+        const response=await fetch(BASE+'/api/cudo/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:apiAction,typedName:button.closest('.cudo-bubble')?.querySelector('[data-cudo-confirm-name]')?.value||''})});
         const data=await response.json().catch(()=>({}));
         if(!response.ok)throw new Error(data.error||'Cudo could not complete that action.');
         if(action==='confirm_dispatch'){
@@ -450,7 +464,24 @@
       addAssistant({text:'The microphone is already busy. Wait a moment and try again.',rows:[],actions:[]});
     }
   });
-  stream.addEventListener('click',e=>{
+  stream.addEventListener('click',async e=>{
+    const selected=e.target.closest('[data-cudo-choose]');
+    if(selected){
+      selected.disabled=true;
+      try{
+        const response=await fetch(BASE+'/api/cudo/action',{
+          method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({action:'choose_natural_name',choice:{
+            id:Number(selected.dataset.personId),kind:selected.dataset.personKind
+          }})
+        });
+        const data=await response.json().catch(()=>({}));
+        if(!response.ok)throw new Error(data.error||'Could not verify that CRM record.');
+        addAssistant(data);
+      }catch(error){addAssistant({text:error.message||'Name selection failed.',rows:[],actions:[]});}
+      finally{selected.disabled=false;}
+      return;
+    }
     const pick=e.target.closest('[data-cudo-pick]');
     if(pick){
       const selected=pick.getAttribute('aria-pressed')==='true';
