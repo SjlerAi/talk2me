@@ -75,6 +75,7 @@ assert(cudoService.includes('looksLikeDispatchDeadlineContinuation(workingMessag
 assert(cudoService.includes('queryDispatchStatus'),'Dispatch monitoring query missing');
 
 const voiceEnd=widget.slice(widget.indexOf('recognition.onend'),widget.indexOf('async function sendMessage'));
-assert(!voiceEnd.includes('sendMessage(full)'),'Voice must still require manual review before any send');
+assert(voiceEnd.includes('sendMessage(full)')&&cudoRoute.includes("actionName==='confirm_natural_instruction'"),
+ 'Voice may auto-open a draft but delivery still requires the protected confirmation action');
 
 console.log('WORK_DISPATCH_VALIDATION=PASS');
