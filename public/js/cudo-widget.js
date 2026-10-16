@@ -241,7 +241,7 @@
     stream.appendChild(el);scrollEnd();
   }
   function addAssistant(data){
-    if(data?.intent)awaitingNaturalName=data.intent==='natural_pronoun_clarification';
+    if(data?.intent)awaitingNaturalName=['natural_pronoun_clarification','natural_instruction_detail'].includes(data.intent);
     const el=document.createElement('div');
     el.className='cudo-msg assistant';
     const rows=Array.isArray(data.rows)?data.rows:[];
