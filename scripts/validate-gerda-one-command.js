@@ -16,7 +16,7 @@ assert.equal(due('Give Johanna a task to call Mr Botha').dueAt,'2026-10-19 16:00
 assert.equal(due('tomorrow at 2pm').dueAt,'2026-10-17 14:00:00');
 assert.equal(due('môre voor vieruur').dueAt,'2026-10-17 16:00:00');
 assert.equal(due('vandag teen 15:30').dueAt,'2026-10-16 15:30:00');
-assert.equal(due('by Friday at 15:00',{...{}}).dueAt,'2026-10-23 15:00:00');
+assert.equal(due('by Friday at 15:00').dueAt,'2026-10-23 15:00:00');
 assert.equal(due('next task 2026-11-04 at 14h30').dueAt,'2026-11-04 14:30:00');
 assert.equal(due('19/10/2026 at 10:00').dueAt,'2026-10-19 10:00:00');
 assert(due('vandag teen 08:00').error,'past deadline must not create a task');
