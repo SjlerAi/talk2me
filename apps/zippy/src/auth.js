@@ -36,6 +36,8 @@ async function changePassword({currentPassword,newPassword}={}){
  const temp=PASSWORD_FILE+'.'+crypto.randomBytes(7).toString('hex')+'.tmp';
  fs.writeFileSync(temp,hashPassword(b)+'\n',{mode:0o600,flag:'wx'});
  fs.renameSync(temp,PASSWORD_FILE);
+ // Discard the one-time initial password when Gerda chooses her own password.
+ try{fs.unlinkSync(path.join(__dirname,'../.owner-login-initial'));}catch(error){if(error.code!=='ENOENT')console.error('[zippy] onboarding cleanup:',error.code||'failed');}
  await query('DELETE FROM zippy_sessions WHERE owner_key=?',[ownerKey()]);
  return {ok:true};
 }
