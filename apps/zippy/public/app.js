@@ -1,7 +1,7 @@
 'use strict';
 const $=sel=>document.querySelector(sel);
 const $$=sel=>[...document.querySelectorAll(sel)];
-const state={user:null,view:'today',reminders:[],contacts:[],alerts:[],pendingInput:null,busy:false,recognition:null,speakBack:false};
+const state={user:null,view:'today',reminders:[],contacts:[],alerts:[],activity:[],system:null,activeDraft:null,popupId:null,pendingInput:null,busy:false,recognition:null,speakBack:false,recognitionSource:'text',lastReminderSignal:0};
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const zone='Africa/Johannesburg';
 const when=iso=>{if(!iso)return 'Time not set';try{return new Intl.DateTimeFormat('en-ZA',{timeZone:zone,weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}).format(new Date(iso))}catch(_){return 'Invalid time'}};
@@ -14,14 +14,14 @@ async function api(path,{method='GET',body}={}){
  if(response.status===401){if(path!=='/api/login')showLogin();throw Error(data.error||'Please sign in.');}
  if(!response.ok||data.ok===false)throw Error(data.error||'Something went wrong.');return data;
 }
-function showLogin(){state.user=null;state.reminders=[];state.contacts=[];state.alerts=[];state.pendingInput=null;$('#login-view').hidden=false;$('#app-view').hidden=true;render();}
-function showApp(profile){if(state.user?.email!==profile.email){state.reminders=[];state.contacts=[];state.alerts=[];state.pendingInput=null;render();}state.user=profile;$('#login-view').hidden=true;$('#app-view').hidden=false;$('#account-avatar').textContent=String(profile.name||'Z').slice(0,1).toUpperCase();$('#account-avatar').title=(profile.name||'Your')+' account';$('#change-password').hidden=profile.authSource==='crm';const hour=Number(new Intl.DateTimeFormat('en-GB',{timeZone:zone,hour:'2-digit',hourCycle:'h23'}).format(new Date()));$('#greeting').innerHTML=esc((hour<12?'Good morning, ':hour<17?'Good afternoon, ':'Good evening, ')+(profile.name||'there'))+' <span aria-hidden="true">✳</span>';$('#today-date').textContent=dateString();$('#connection-state').textContent=profile.crmConnected?'CRM connected':'Private mode';$('#connection-state').style.background=profile.crmConnected?'#e8f8f2':'#fff4db';$('#crm-connection-detail').textContent=profile.crmConnected?'Talk2Me is connected. All office messages require your confirmation.':'The Talk2Me secure bridge has not been activated. Personal reminders are fully separate and available now.';
+function showLogin(){state.user=null;state.reminders=[];state.contacts=[];state.alerts=[];state.activity=[];state.activeDraft=null;state.pendingInput=null;$('#review-panel').hidden=true;const popup=$('#reminder-popup');if(popup.open)popup.close();$('#login-view').hidden=false;$('#app-view').hidden=true;render();}
+function showApp(profile){if(state.user?.email!==profile.email){state.reminders=[];state.contacts=[];state.alerts=[];state.activity=[];state.activeDraft=null;$('#review-panel').hidden=true;state.pendingInput=null;render();}state.user=profile;$('#login-view').hidden=true;$('#app-view').hidden=false;$('#account-avatar').textContent=String(profile.name||'Z').slice(0,1).toUpperCase();$('#account-avatar').title=(profile.name||'Your')+' account';$('#change-password').hidden=profile.authSource==='crm';const hour=Number(new Intl.DateTimeFormat('en-GB',{timeZone:zone,hour:'2-digit',hourCycle:'h23'}).format(new Date()));$('#greeting').innerHTML=esc((hour<12?'Good morning, ':hour<17?'Good afternoon, ':'Good evening, ')+(profile.name||'there'))+' <span aria-hidden="true">✳</span>';$('#today-date').textContent=dateString();$('#connection-state').textContent=profile.crmConnected?'CRM connected':'Private mode';$('#connection-state').style.background=profile.crmConnected?'#e8f8f2':'#fff4db';$('#crm-connection-detail').textContent=profile.crmConnected?'Talk2Me is connected. All office messages require your confirmation.':'The Talk2Me secure bridge has not been activated. Personal reminders are fully separate and available now.';
  $('#push-setup').disabled=!profile.pushConfigured;$('#push-setup').title=profile.pushConfigured?'Allow phone reminders':'Push notifications require server setup';}
 function say(text){
  if(!state.speakBack||!('speechSynthesis'in window)||!('SpeechSynthesisUtterance'in window))return;
  try{speechSynthesis.cancel();const reply=new SpeechSynthesisUtterance(String(text||'').slice(0,280));reply.lang=$('#language').value;reply.rate=.98;speechSynthesis.speak(reply);}catch(_){}
 }
-function result(text,{type='success',html='',pending=null}={}){say(text);const el=$('#command-result');el.hidden=false;el.className='command-result'+(type==='error'?' error':type==='notice'?' notice':'');el.innerHTML='<div>'+esc(text)+'</div>'+html;state.pendingInput=pending;el.scrollIntoView({behavior:'smooth',block:'nearest'});}
+function result(text,{type='success',html='',pending=null}={}){say(text);const el=$('#command-result');el.hidden=false;el.className='command-result'+(type==='error'?' error':type==='notice'?' notice':'');el.innerHTML='<div>'+esc(text)+'</div>'+html;state.pendingInput=pending;if(!state.activeDraft)el.scrollIntoView({behavior:'smooth',block:'nearest'});}
 function loading(val){state.busy=val;$('#command-send').disabled=val;$('#mic-button').disabled=val;$('#command-send').textContent=val?'…':'➜';}
 function renderReminder(item){const completed=item.state==='done',fired=item.state==='fired';const past=new Date(item.dueAt)<new Date();const emoji=item.entry_type==='appointment'?'▣':'◷';let buttons='';if(!completed){buttons='<button data-action="done" data-id="'+Number(item.id)+'">Done</button>'+(!fired?'<button data-action="snooze" data-id="'+Number(item.id)+'">+10m</button>':'<button data-action="snooze" data-id="'+Number(item.id)+'">Again</button>');}
  let call='';const relation=state.contacts.find(c=>String(c.relationship||'').toLowerCase()==='mother'||String(c.relationship||'').toLowerCase()==='ma');if(relation?.phone&&/\b(mother|mom|mama|ma|mamma)\b/i.test(item.title||'')){call='<a class="call-link" href="tel:'+esc(relation.phone.replace(/[^+0-9]/g,''))+'" title="Call contact">Call</a>'}
@@ -30,7 +30,62 @@ function renderReminder(item){const completed=item.state==='done',fired=item.sta
 function render(){const list=state.reminders||[];const active=list.filter(x=>x.state==='open'||x.state==='fired');const today=active.filter(x=>keyFor(x.dueAt)===todayKey());$('#today-count').textContent=String(today.length);$('#today-description').textContent=today.length===1?'reminder to keep track of today':'reminders to keep track of today';$('#today-reminders').innerHTML=active.slice(0,5).map(renderReminder).join('')||'<p class="empty">Your mind is clear. Tell Zippy what to remember.</p>';$('#all-reminders').innerHTML=list.map(renderReminder).join('')||'<p class="empty">No reminders yet. Zippy is ready when you are.</p>';
  $('#contacts-list').innerHTML=state.contacts.map(c=>'<div class="reminder-item"><span class="item-mark">♙</span><div class="item-body"><strong>'+esc(c.name)+'</strong><small>'+esc(c.relationship||'Personal contact')+' · '+esc(c.phone||'No number yet')+'</small></div><div class="item-actions">'+(c.phone?'<a class="call-link" href="tel:'+esc(c.phone.replace(/[^0-9+]/g,''))+'">Call</a>':'')+'<button data-contact-remove="'+Number(c.id)+'">Remove</button></div></div>').join('')||'<p class="empty">Add private contacts, such as your mother or a friend.</p>';
  $('#alerts-list').innerHTML=state.alerts.slice(0,8).map(a=>'<div class="reminder-item alert-item"><span class="item-mark">♧</span><div class="item-body"><strong>'+esc(a.title)+'</strong><small>'+esc(when(a.createdAt))+(a.read_at?' · Read':' · New')+'</small></div>'+(a.read_at?'':'<div class="item-actions"><button data-alert-read="'+Number(a.id)+'">Dismiss</button></div>')+'</div>').join('')||'<p class="empty">You have no notifications. All caught up.</p>';}
-async function refresh(){if(!state.user)return;const [r,c,a]=await Promise.all([api('/api/reminders'),api('/api/contacts'),api('/api/alerts')]);state.reminders=r.reminders;state.contacts=c.contacts;state.alerts=a.alerts;render();}
+function renderTimeline(){
+ const feed=state.activity||[];
+ $('#activity-list').innerHTML=feed.slice(0,24).map(item=>{
+  const names={reminder_saved:'◷',reminder_due:'⏰',crm_sent:'↗',crm_reply:'↩',crm_completed:'✓',crm_status:'↻',crm_overdue:'!'};
+  const task=Number(item.taskId)||null;
+  return '<article class="timeline-item '+esc(item.kind)+'"><span class="timeline-mark" aria-hidden="true">'+
+   (names[item.kind]||'✓')+'</span><div class="timeline-text"><strong>'+esc(item.title)+'</strong>'+
+   '<p>'+esc(item.body||'')+'</p><small>'+esc(when(item.createdAt))+
+   (task?' · CRM task #'+task:' · Personal')+'</small></div>'+
+   (task?'<a class="timeline-link" href="https://uent.co.za/talk2me/workspace" target="_blank" rel="noopener">Open CRM ↗</a>':'')+'</article>';
+ }).join('')||'<p class="empty">No actions yet. Your saved reminders, messages and real CRM replies will appear here.</p>';
+ const sys=state.system;
+ if(sys){
+  const scheduler=sys.scheduler?.running?'Reminder scheduler ✓':'Reminder scheduler needs attention';
+  const push=sys.push?.deviceSubscriptions>0?'Phone alerts enabled for this account':'Phone alerts not yet enabled';
+  $('#live-status').textContent=scheduler+' · '+push+(sys.crmConnected?' · CRM connected':' · CRM not connected');
+ }else $('#live-status').textContent='Checking reminder and notification service…';
+}
+function dueReminder(){
+ if(!state.user||document.visibilityState==='hidden')return;
+ const due=(state.alerts||[]).find(a=>!a.read_at&&state.reminders.some(r=>Number(r.id)===Number(a.reminder_id)
+  &&r.state!=='done'&&r.state!=='cancelled'));
+ if(!due)return;
+ const dialog=$('#reminder-popup');
+ if(dialog.open&&state.popupId===Number(due.id))return;
+ const item=state.reminders.find(r=>Number(r.id)===Number(due.reminder_id));
+ if(!item)return;
+ if(dialog.open)dialog.close();
+ state.popupId=Number(due.id);
+ $('#popup-title').textContent='Remember: '+item.title;
+ $('#popup-body').textContent='Zippy is reminding you to '+item.title.replace(/^[Rr]emind me to\s+/,'')+'.';
+ $('#popup-when').textContent='Scheduled '+when(aDueTime(due,item));
+ const who=(state.contacts||[]).find(c=>/^(?:mother|ma|mom|mamma)$/i.test(String(c.relationship||'')));
+ const call=who&&/\b(mother|mom|ma|mamma)\b/i.test(item.title)&&who.phone;
+ $('#popup-call').hidden=!call;
+ if(call)$('#popup-call').href='tel:'+String(who.phone).replace(/[^+\d]/g,'');
+ try{dialog.showModal();}catch(_){dialog.setAttribute('open','');}
+ if(Date.now()-state.lastReminderSignal>30000){
+  state.lastReminderSignal=Date.now();
+  try{navigator.vibrate?.([250,140,250,140,350]);}catch(_){}
+  // Audio may be blocked without an earlier user gesture; the visual alert
+  // always remains visible regardless of sound/vibration permissions.
+  try{if(state.speakBack)say('Zippy reminder. '+item.title);}catch(_){}
+ }
+}
+function aDueTime(alert,item){return alert.scheduledAt||item.dueAt||alert.createdAt;}
+async function refresh(){
+ if(!state.user)return;
+ const [r,c,a,feed,status]=await Promise.all([
+  api('/api/reminders'),api('/api/contacts'),api('/api/alerts'),
+  api('/api/activity'),api('/api/system/status')
+ ]);
+ state.reminders=r.reminders||[];state.contacts=c.contacts||[];state.alerts=a.alerts||[];
+ state.activity=feed.items||[];state.system=status;
+ render();renderTimeline();dueReminder();
+}
 function view(name){if(!['today','reminders','contacts','office'].includes(name))return;state.view=name;$$('[data-view]').forEach(el=>el.classList.toggle('selected',el.dataset.view===name));$('#today-grid').hidden=name!=='today';$('#reminders-view').hidden=name!=='reminders';$('#contacts-view').hidden=name!=='contacts';$('#office-view').hidden=name!=='office';$('#hero').hidden=name!=='today';$('#alerts-panel').hidden=name==='contacts'||name==='office';if(name==='reminders')$('#reminders-view').scrollIntoView({behavior:'smooth',block:'start'});}
 function officePreview(data){const pv=data.preview||{},html='<section class="preview-card"><b>Message ready · NOT SENT</b><p><b>Recipient:</b> '+esc(pv.assignee?.name||pv.assignee?.displayName||'CRM staff')+'</p>'+(pv.reference?'<p><b>About:</b> '+esc(pv.reference.name)+' ('+esc(pv.reference.kind)+')</p>':'')+'<p><b>Instruction:</b> '+esc(pv.instruction||'')+'</p>'+(pv.confirmName?'<label>Confirm recipient name <input id="recipient-verify" class="name-confirm" placeholder="Type the staff first name"></label>':'')+'<div class="preview-buttons"><button type="button" class="primary" id="confirm-office">Yes, send to CRM</button><button type="button" class="secondary" id="cancel-office">Cancel</button></div></section>';
  result(data.text||'This CRM action is ready for approval.',{type:'notice',html});$('#confirm-office').onclick=async()=>{const btn=$('#confirm-office');btn.disabled=true;try{const confirmation=await api('/api/crm/confirm',{method:'POST',body:{draftId:data.draftId,typedName:$('#recipient-verify')?.value||''}});result(confirmation.text);}catch(e){result(e.message,{type:'error'});btn.disabled=false;}};$('#cancel-office').onclick=()=>result('Cancelled. Nothing was sent.',{type:'notice'});
