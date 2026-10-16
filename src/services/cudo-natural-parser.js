@@ -28,7 +28,7 @@ function nearNameScore(wanted,aliases){
 // This is grammatical completeness checking, not a catalogue of task types:
 // Cudo always preserves the freely spoken task text.
 function incompleteInstruction(instruction){
- const cleaned=normal(instruction).replace(/^(?:(?:please|asseblief|to|om)\s+)+/,'').trim();
+ const cleaned=normal(instruction).replace(/\b(?:please|asseblief|asb)\b/g,'').replace(/^(?:(?:to|om)\s+)+/,'').trim();
  if(!cleaned)return true;
  const words=cleaned.split(' ');
  if(words.length===1)return true; // e.g. "ask Stephen to find."
@@ -88,13 +88,19 @@ function pronounKind(value){
  return null;
 }
 function referencedName(text){
- const raw=String(text||'');
+ const raw=String(text||'').trim();
  const honor=raw.match(/\b(?:mr|mnr|mrs|ms|mev|mevrou)\.?\s+([\p{L}'-]+)/iu);
  if(honor)return honor[1];
- const prefix=raw.match(/\b(?:phone|call|contact|visit|meet|bel|skakel|kontak|besoek|with|met|vir|about|oor)\s+([\p{L}'-]+)/iu);
- if(prefix&&!['the','die','a','n','client','customer','klient','kliente','staff','someone','anyone'].includes(normal(prefix[1])))return prefix[1];
- const af=raw.match(/^([\p{L}'-]+)\s+(?:te\s+)?(?:bel|skakel|kontak)\b/iu);
- return af?af[1]:null;
+ const excluded=new Set(['the','die','a','n','client','customer','klient','kliente',
+  'staff','someone','anyone','please','asseblief','asb','now','nou','later',
+  'today','vandag','tomorrow','more','morre','quickly','gou','again','weer']);
+ // Afrikaans: "my te bel asseblief" means "call me", not "call asseblief".
+ // Resolve the word before "te bel" *before* looking after the verb.
+ const af=raw.match(/^(?:vir\s+)?([\p{L}'-]+)\s+(?:te\s+)?(?:bel|skakel|kontak)\b/iu);
+ if(af&&!excluded.has(normal(af[1])))return af[1];
+ const after=raw.match(/\b(?:phone|call|contact|visit|meet|bel|skakel|kontak|besoek|with|met|vir|about|oor)\s+([\p{L}'-]+)/iu);
+ if(after&&!excluded.has(normal(after[1])))return after[1];
+ return null;
 }
 function rankPeople(name,staff,clients){
  const a=normal(name);

@@ -2,7 +2,7 @@
 require('dotenv').config();
 const path=require('path');const crypto=require('crypto');const express=require('express');const helmet=require('helmet');
 const db=require('./src/db');const auth=require('./src/auth');const {interpret}=require('./src/commands');const push=require('./src/push');const crm=require('./src/crm');
-const {optionalAICommand}=require('./src/ai');
+const {optionalAICommand}=require('./src/ai');const {normalizeOfficeSpeech}=require('./src/speech');
 const publicDir=path.join(__dirname,'public');const app=express();
 app.disable('x-powered-by');app.set('trust proxy',1);
 app.use(helmet({contentSecurityPolicy:{directives:{defaultSrc:["'self'"],scriptSrc:["'self'"],styleSrc:["'self'"],imgSrc:["'self'",'data:'],fontSrc:["'self'"],connectSrc:["'self'"],workerSrc:["'self'"],manifestSrc:["'self'"],objectSrc:["'none'"],frameAncestors:["'none'"]}}}));
@@ -50,15 +50,17 @@ app.delete('/api/contacts/:id',isAuth,auth.requireMutation,asyncHandler(async(re
 app.post('/api/push/subscribe',isAuth,auth.requireMutation,asyncHandler(async(req,res)=>{if(!push.enabled())return res.status(503).json({ok:false,error:'Push notifications are not configured yet.'});await push.saveSubscription(req.body?.subscription,req.zippyIdentity.email);res.json({ok:true});}));
 app.post('/api/interpret',isAuth,auth.requireMutation,asyncHandler(async(req,res)=>{
  const command=String(req.body?.message||'').slice(0,2500);let plan=interpret(command);
- if(plan.kind==='question'){const ai=await optionalAICommand(command);if(ai)plan=ai;}
+ if(plan.kind==='question'){const ai=await optionalAICommand(command,{user:req.zippyIdentity});if(ai)plan=ai;}
+ if(plan.kind==='conversation')return res.json({ok:true,status:'chat',text:plan.text});
  if(plan.kind==='question')return res.json({ok:true,status:'question',question:plan.question,original:command});
  if(plan.kind==='agenda')return res.json({ok:true,status:'agenda',text:'Here is your Zippy agenda.'});
  if(plan.kind==='office'){
   if(!crm.configured())return res.json({ok:true,status:'connection_pending',text:'This is a Talk2Me office instruction. The secure CRM connection still needs to be activated; nothing has been sent.'});
-  const draft=await crm.bridgeCall('preview',{message:plan.original,source:req.body?.source==='voice'?'voice':'text',actorEmail:req.zippyIdentity.email});
-  if(!draft.pendingToken)return res.json({ok:true,status:'crm_clarification',text:draft.text||'I need one more CRM detail.',choices:draft.choices||[]});
+  const interpreted=normalizeOfficeSpeech(plan.crmMessage||plan.original);
+  const draft=await crm.bridgeCall('preview',{message:interpreted,source:req.body?.source==='voice'?'voice':'text',actorEmail:req.zippyIdentity.email});
+  if(!draft.pendingToken)return res.json({ok:true,status:'crm_clarification',text:draft.text||'I need one more CRM detail.',choices:draft.choices||[],heard:command,interpreted});
   const id=crypto.randomUUID();await db.query('INSERT INTO zippy_crm_drafts(id,owner_key,remote_token,preview_json,expires_at) VALUES(?,?,?,?,DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 10 MINUTE))',[id,req.zippyIdentity.email,draft.pendingToken,JSON.stringify(draft.preview||{})]);
-  return res.json({ok:true,status:'crm_preview',draftId:id,text:draft.text,preview:draft.preview});
+  return res.json({ok:true,status:'crm_preview',draftId:id,text:draft.text,preview:draft.preview,heard:command,interpreted});
  }
  const [result]=await db.query('INSERT INTO zippy_reminders(owner_key,title,entry_type,due_at,recurrence) VALUES(?,?,?,?,?)',[req.zippyIdentity.email,plan.title,plan.entryType,db.utcSql(plan.dueAt),plan.recurrence]);
  return res.status(201).json({ok:true,status:'saved',id:Number(result.insertId),title:plan.title,dueAt:plan.dueAt,recurrence:plan.recurrence,text:'Saved: '+plan.title+'. I will remind you at the scheduled time.'});
