@@ -10,6 +10,7 @@ const {ensureSchema:ensureWorkSchema}=require('./uat-work-widgets');
 const router=express.Router();
 const UAT_ONLY=String(process.env.UAT_MODE||'').toLowerCase()==='true';
 const OWNER_EMAIL='gerda@talk-online.co.za';
+const AUTHORIZED_OWNERS=new Set([OWNER_EMAIL,'info@b4s.co.za']);
 const SECRET_FILE='/home/uent/.zippy-t2m-uat-bridge-key';
 let readyPromise=null;
 const fail=(res,status,text)=>res.status(status).set('Cache-Control','no-store').json({ok:false,error:text});
@@ -34,10 +35,14 @@ async function requireSignedGerda(req,res,next){
  if(!validated.ok)return fail(res,401,'The Zippy request could not be verified.');
  if(JSON.stringify(req.body||{}).length>8192)return fail(res,413,'Command too long.');
  try{
-  const [users]=await db.execute("SELECT id,role,first_name,is_active FROM staff_users WHERE LOWER(email)=:email AND is_active=1 LIMIT 2",{email:OWNER_EMAIL});
+  const actorEmail=String(req.body?.actorEmail||OWNER_EMAIL).trim().toLowerCase();
+  if(!AUTHORIZED_OWNERS.has(actorEmail))
+   return fail(res,403,'This Talk2Me account is not authorised for Zippy.');
+  const [users]=await db.execute("SELECT id,role,first_name,is_active FROM staff_users WHERE LOWER(email)=:email AND is_active=1 LIMIT 2",{email:actorEmail});
   if(users.length!==1||String(users[0].role).toLowerCase()!=='owner')
-   return fail(res,403,'Gerda owner identity is not active.');
+   return fail(res,403,'That owner account is not active in Talk2Me UAT.');
   req.zippyOwnerId=Number(users[0].id);
+  req.zippyOwnerEmail=actorEmail;
   await ensureBridgeTables();
   try{
    await db.execute('INSERT INTO zippy_bridge_nonces(nonce,expires_at) VALUES(:nonce,DATE_ADD(NOW(),INTERVAL 10 MINUTE))',{nonce:req.get('x-zippy-nonce')});
