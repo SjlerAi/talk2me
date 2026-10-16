@@ -9,6 +9,7 @@ async function sendNaturalCommand({draft,actorId,typedName}={}){
  if(!draft||draft.type!=='natural_instruction')throw new Error('There is no instruction to send.');
  const issuer=Number(actorId);
  if(!Number.isSafeInteger(issuer)||issuer<=0)throw new Error('Sign in to send a message.');
+ if(draft.requesterId&&Number(draft.requesterId)!==issuer)throw new Error('This instruction belongs to a different signed-in user. Please repeat it.');
  if(Date.now()-Number(draft.createdAt)>10*60*1000)throw new Error('The name confirmation has expired. Please repeat the instruction.');
  const recipient=draft.assignee;
  if(draft.source==='voice'||draft.assigneeNear){

@@ -43,12 +43,22 @@ function staffMatches(name,rows){
      kind:'staff',phone:row.contact_number||null,score:exact?100:phoneticMatch?88:0};
  }).filter(m=>m.score).sort((a,b)=>b.score-a.score);
 }
+// Spoken pronouns are references, not CRM names. The planner resolves "me"
+// against the authenticated staff ID, never by searching for a client named "me".
+const SELF_WORDS=new Set(['me','myself','my','ek']);
+const OTHER_WORDS=new Set(['her','him','she','he','haar','hom','sy','hy','them','they','hulle','us','ons','you','yourself']);
+function pronounKind(value){
+ const word=normal(value);
+ if(SELF_WORDS.has(word))return 'self';
+ if(OTHER_WORDS.has(word))return 'unresolved';
+ return null;
+}
 function referencedName(text){
  const raw=String(text||'');
  const honor=raw.match(/\b(?:mr|mnr|mrs|ms|mev|mevrou)\.?\s+([\p{L}'-]+)/iu);
  if(honor)return honor[1];
  const prefix=raw.match(/\b(?:phone|call|contact|visit|meet|bel|skakel|kontak|besoek|with|met|vir|about|oor)\s+([\p{L}'-]+)/iu);
- if(prefix&&!['the','die','a','n','client','customer','klient','kliente','them','him','her','staff','someone','anyone'].includes(normal(prefix[1])))return prefix[1];
+ if(prefix&&!['the','die','a','n','client','customer','klient','kliente','staff','someone','anyone'].includes(normal(prefix[1])))return prefix[1];
  const af=raw.match(/^([\p{L}'-]+)\s+(?:te\s+)?(?:bel|skakel|kontak)\b/iu);
  return af?af[1]:null;
 }
@@ -66,4 +76,4 @@ function pickMatch(candidates){
  if(ties.length>1)return {error:'ambiguous',choices:ties.slice(0,8)};
  return {person:candidates[0],near:best<100};
 }
-module.exports={normal,taskWords,staffMatches,referencedName,rankPeople,pickMatch};
+module.exports={normal,taskWords,staffMatches,referencedName,pronounKind,rankPeople,pickMatch};
