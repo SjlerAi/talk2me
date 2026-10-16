@@ -64,8 +64,8 @@ assert(service.includes("relatedClientId:client.clientId"),'Resolved customer mu
 assert(monitor.includes('agent_task_watches'),'Existing agent watches must monitor new tasks');
 assert(route.includes("router.post('/api/uat/tasks/command',requireAuth"),'Unified Work task command endpoint is required');
 assert(route.includes('if(!management(req.session.user))'),'Direct task assignment must be management only');
-assert(cudo.includes('executeSimpleTaskCommand'),'Cudo must share exactly the same safe command path');
-assert(cudo.includes("req.session.cudoPendingAction=null;"),'Cudo command must clear previous pending action');
+assert(cudo.includes('prepareNaturalCommand'),'Cudo must interpret every spoken instruction using CRM name resolution before any action');
+assert(cudo.includes('req.session.cudoPendingAction=natural.pendingAction||null;'),'Cudo must keep the preview pending until Gerda confirms');
 assert(taskUi.includes('data-quick-task-form'),'Work Inbox must show one instruction field');
 assert(taskUi.includes('data-quick-task-language'),'Speech must allow the user to select language');
 assert(taskUi.includes("window.SpeechRecognition||window.webkitSpeechRecognition"),'Work Inbox microphone must support browser speech recognition');
