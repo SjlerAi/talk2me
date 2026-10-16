@@ -3,7 +3,7 @@ const db=require('../config/db');
 const crypto=require('crypto');
 const {parseDeadline,priorityFor,bulkCommand}=require('./quick-task-commands');
 const {channelAvailability}=require('./work-dispatch');
-const {normal,taskWords,staffMatches,referencedName,pronounKind,rankPeople,pickMatch}=require('./cudo-natural-parser');
+const {normal,taskWords,staffMatches,referencedName,pronounKind,rankPeople,pickMatch,incompleteInstruction}=require('./cudo-natural-parser');
 
 async function crmStaff(){
  const [rows]=await db.execute('SELECT id,full_name,first_name,username,email,contact_number,role FROM staff_users WHERE is_active=1 ORDER BY full_name');
@@ -70,6 +70,37 @@ function pronounPrompt({role,message,source,chosen,requesterId,assignee,subject}
   pendingAction:{type:'natural_pronoun_question',role,message,source,
    requesterId:Number(requesterId)||null,createdAt:Date.now(),chosen}};
 }
+function incompletePrompt({message,source,requesterId,person,instruction,chosen,near}){
+ const words=normal(instruction).split(' ');
+ const verb=words.length===1?words[0]:'';
+ const question=verb
+  ?(['phone','call','contact','bel','skakel','besoek','meet'].includes(verb)?'Who':'What')+
+   ' should '+person.shortName+' '+verb+'?'
+  :'What else should '+person.shortName+' do? Please finish the instruction.';
+ return {handled:true,intent:'natural_instruction_detail',text:question,
+  rows:[],actions:[],choices:[],pendingAction:{
+   type:'natural_instruction_detail',message,source,requesterId:Number(requesterId)||null,
+   createdAt:Date.now(),chosen:{...chosen,assigneeId:person.id,assigneeNameNear:Boolean(near)}
+  }};
+}
+function naturalDetailReply(message){
+ const value=String(message||'').trim();
+ return Boolean(value&&value.length<=500&&
+  !/^(?:ask|tell|send|stuur|give|gee|vra|laat|find|soek|show|wys|who|what|how|waar|wie|cancel|kanselleer)\b/i.test(value)&&
+  !/^\s*(?:[\p{L}'-]+\s+){0,3}(?:must|moet|should|has to|needs to)\b/iu.test(value));
+}
+async function continueNaturalIncomplete(pending,reply,{requesterId=null}={}){
+ if(!pending||pending.type!=='natural_instruction_detail'||!naturalDetailReply(reply))return {handled:false};
+ if(!pending.requesterId||Number(pending.requesterId)!==Number(requesterId))
+  return {handled:true,intent:'natural_instruction_error',text:'Your session changed. Repeat the instruction.',
+   rows:[],actions:[],pendingAction:null};
+ if(Date.now()-Number(pending.createdAt)>5*60*1000)
+  return {handled:true,intent:'natural_instruction_error',text:'That instruction expired. Please say it again.',
+   rows:[],actions:[],pendingAction:null};
+ const combined=String(pending.message||'').trim().replace(/[.!?]+$/,'')+' '+String(reply).trim();
+ return prepareNaturalCommand({message:combined,source:pending.source,
+  chosen:pending.chosen,requesterId});
+}
 function personUnavailable(){
  return {handled:true,intent:'natural_instruction_error',
   text:'I could not identify your signed-in account as an active CRM staff member. Nothing was sent.',
@@ -114,6 +145,10 @@ async function prepareNaturalCommand({message,source='text',chosen={},requesterI
   if(!choice.person)return namePrompt('assignee',parsed.assignee,choice,parsed.raw,source,chosen,requesterId);
   person=choice.person;
  }
+ if(incompleteInstruction(parsed.instruction))
+  return incompletePrompt({message:parsed.raw,source,requesterId,person,
+   instruction:parsed.instruction,chosen,
+   near:Boolean(chosen.assigneeNameNear)||(!chosen.assigneeId&&assigneePronoun===null&&person.score<100)});
  let reference=null;
  if(subject){
   if(chosen.referenceId){
@@ -142,7 +177,7 @@ async function prepareNaturalCommand({message,source='text',chosen={},requesterI
  const due=parseDeadline(parsed.raw);
  if(due.error)return {handled:true,intent:'natural_instruction_error',text:due.error+' Nothing has been sent.',actions:[],rows:[],pendingAction:null};
  const action={type:'natural_instruction',assignee:person,
-  assigneeNear:!chosen.assigneeId&&assigneePronoun===null&&person.score<100,
+  assigneeNear:Boolean(chosen.assigneeNameNear)||(!chosen.assigneeId&&assigneePronoun===null&&person.score<100),
   heardAssignee:parsed.assignee,instruction:parsed.instruction,reference,channel:parsed.channel,
   dueAt:due.dueAt,priority:priorityFor(parsed.raw),source,
   requesterId:Number(requesterId)||null,
@@ -191,4 +226,4 @@ async function continueNaturalPronoun(pending,reply,{requesterId=null}={}){
  else{chosen.referenceId=chosenPerson.person.id;chosen.referenceKind=chosenPerson.person.kind;}
  return prepareNaturalCommand({message:pending.message,source:pending.source,chosen,requesterId});
 }
-module.exports={prepareNaturalCommand,chooseNaturalCommand,continueNaturalPronoun,naturalNameReply,draftResponse,crmStaff,crmClients};
+module.exports={prepareNaturalCommand,chooseNaturalCommand,continueNaturalPronoun,naturalNameReply,continueNaturalIncomplete,naturalDetailReply,draftResponse,crmStaff,crmClients};

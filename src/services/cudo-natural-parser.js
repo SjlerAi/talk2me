@@ -2,6 +2,39 @@
 // Parse the shape of a spoken instruction; NEVER choose its task from a preset list.
 function normal(value){return String(value||'').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();}
 function phonetic(value){return normal(value).replace(/ph/g,'f').replace(/ck/g,'k').replace(/y/g,'i');}
+// Spelling variations from voice transcription are scored cautiously. A fuzzy match
+// must still be uniquely identified in the CRM; it never authorizes sending.
+function editDistanceOne(a,b){
+ if(a===b)return true;
+ if(Math.abs(a.length-b.length)>1)return false;
+ let i=0,j=0,edits=0;
+ while(i<a.length&&j<b.length){
+  if(a[i]===b[j]){i++;j++;continue;}
+  if(++edits>1)return false;
+  if(a.length>b.length)i++;else if(a.length<b.length)j++;else{i++;j++;}
+ }
+ return edits+(i<a.length?1:0)+(j<b.length?1:0)<=1;
+}
+function nearNameScore(wanted,aliases){
+ if(!wanted||wanted.length<5||wanted.length>32)return 0;
+ const spoken=phonetic(wanted);
+ if(spoken.length<5)return 0;
+ return aliases.some(alias=>{
+  const word=phonetic(alias);
+  return !word.includes(' ')&&word.length>=5&&word.length<=32&&
+   word.slice(0,3)===spoken.slice(0,3)&&editDistanceOne(spoken,word);
+ })?78:0;
+}
+// This is grammatical completeness checking, not a catalogue of task types:
+// Cudo always preserves the freely spoken task text.
+function incompleteInstruction(instruction){
+ const cleaned=normal(instruction).replace(/^(?:(?:please|asseblief|to|om)\s+)+/,'').trim();
+ if(!cleaned)return true;
+ const words=cleaned.split(' ');
+ if(words.length===1)return true; // e.g. "ask Stephen to find."
+ return /\b(?:to|om|for|vir|with|met|about|oor|the|die|a|an|my|our|n|se)$/.test(cleaned) ||
+  /\b(?:find out|search for|look for|bel vir|skakel vir)$/.test(cleaned);
+}
 function taskWords(message){
  const raw=String(message||'').trim().replace(/^cudo[\s,:-]*/i,'').replace(/^(please|asseblief)\s+/i,'');
  const lookup=raw.match(/^(?:find(?:\s+me)?|search(?:\s+for)?|look up|locate|soek(?:\s+vir)?|wys\s+(?:vir\s+)?my|show\s+me)\s+(.+)$/i);
@@ -38,9 +71,10 @@ function staffMatches(name,rows){
  return rows.map(row=>{
    const aliases=staffNames(row),exact=aliases.includes(wanted);
    const phoneticMatch=!exact&&wanted.length>=4&&aliases.some(a=>phonetic(a)===phonetic(wanted));
+   const closeMatch=!exact&&!phoneticMatch&&nearNameScore(wanted,aliases)>0;
    return {id:Number(row.id),name:row.full_name||row.first_name||row.username,
      shortName:String(row.first_name||row.full_name||row.username||'').split(/\s+/)[0],
-     kind:'staff',phone:row.contact_number||null,score:exact?100:phoneticMatch?88:0};
+     kind:'staff',phone:row.contact_number||null,score:exact?100:phoneticMatch?88:closeMatch?78:0};
  }).filter(m=>m.score).sort((a,b)=>b.score-a.score);
 }
 // Spoken pronouns are references, not CRM names. The planner resolves "me"
@@ -72,8 +106,10 @@ function rankPeople(name,staff,clients){
 function pickMatch(candidates){
  if(!candidates.length)return {error:'not_found'};
  const best=candidates[0].score;
- const ties=candidates.filter(x=>x.score===best||x.score>=88&&best>=88);
+ // Exact matches win, but competing approximate staff names require clarification.
+ const ties=candidates.filter(x=>x.score===best||(best<100&&x.score>=78&&best-x.score<=10)||
+  (x.kind!==candidates[0].kind&&x.score>=78));
  if(ties.length>1)return {error:'ambiguous',choices:ties.slice(0,8)};
  return {person:candidates[0],near:best<100};
 }
-module.exports={normal,taskWords,staffMatches,referencedName,pronounKind,rankPeople,pickMatch};
+module.exports={normal,phonetic,taskWords,staffMatches,referencedName,pronounKind,rankPeople,pickMatch,nearNameScore,incompleteInstruction};
