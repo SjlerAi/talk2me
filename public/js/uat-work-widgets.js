@@ -340,6 +340,18 @@
     if(saved==='af-ZA'||saved==='en-ZA')quickLanguage=saved;
   }catch(_){}
   const QuickSpeech=window.SpeechRecognition||window.webkitSpeechRecognition;
+  function quickCommandHtml(){
+    return       '<form class="t2m-quick-task-form" data-quick-task-form>'+
+      '<label for="t2m-quick-task">Give Cudo one instruction</label>'+
+      '<div class="t2m-quick-task-compose">'+
+      '<input id="t2m-quick-task" data-quick-task-input type="text" autocomplete="off" maxlength="3000" placeholder="Johanna must phone Mr Botha about his upgrade tomorrow at 14:00, urgent">'+
+      '<select data-quick-task-language aria-label="Voice language"><option value="en-ZA">English</option><option value="af-ZA">Afrikaans</option></select>'+
+      '<button data-quick-task-mic type="button" class="t2m-quick-task-mic" title="Speak instruction" aria-label="Speak instruction">🎙</button>'+
+      '<button data-quick-task-submit type="submit" class="t2m-quick-task-submit">Create task</button>'+
+      '</div><small>One instruction creates a monitored task. Default deadline: next working day at 16:00.</small>'+
+      '<output data-quick-task-status role="status" aria-live="polite"></output>'+
+      '</form>';
+  }
   function bindQuickCommand(){
     const form=taskBody.querySelector('[data-quick-task-form]');
     if(!form)return;
@@ -515,17 +527,7 @@
         </select>
       </div>`;
 
-    const quickCommandPanel=taskState.management?
-      '<form class="t2m-quick-task-form" data-quick-task-form>'+
-      '<label for="t2m-quick-task">Give Cudo one instruction</label>'+
-      '<div class="t2m-quick-task-compose">'+
-      '<input id="t2m-quick-task" data-quick-task-input type="text" autocomplete="off" maxlength="3000" placeholder="Johanna must phone Mr Botha about his upgrade tomorrow at 14:00, urgent">'+
-      '<select data-quick-task-language aria-label="Voice language"><option value="en-ZA">English</option><option value="af-ZA">Afrikaans</option></select>'+
-      '<button data-quick-task-mic type="button" class="t2m-quick-task-mic" title="Speak instruction" aria-label="Speak instruction">🎙</button>'+
-      '<button data-quick-task-submit type="submit" class="t2m-quick-task-submit">Create task</button>'+
-      '</div><small>One instruction creates a monitored task. Default deadline: next working day at 16:00.</small>'+
-      '<output data-quick-task-status role="status" aria-live="polite"></output>'+
-      '</form>':'';
+    const quickCommandPanel=taskState.management?quickCommandHtml():'';
 
     const cards=taskState.tasks.length?taskState.tasks.map(task=>{
       const badge=taskInboxBadge(task);
@@ -586,6 +588,15 @@
     renderWorkHeader('new');
     clearInterval(chatPoll);
     fitWidgetMode(taskWidget,taskWidgetKey,{width:840,height:700,minWidth:560,minHeight:420});
+    if(taskState.management&&!prefill.advanced){
+      // +Task opens Gerda's one-command screen. The detailed form is still available.
+      taskBody.innerHTML='<section class="t2m-simple-new-task">'+quickCommandHtml()+
+        '<button type="button" class="t2m-quick-task-more" data-task-more-options>More options · files, recipients and task details</button></section>';
+      bindQuickCommand();
+      taskBody.querySelector('[data-task-more-options]').onclick=()=>renderTaskNew({...prefill,advanced:true});
+      taskBody.querySelector('[data-quick-task-input]')?.focus();
+      return;
+    }
     const defaultDue=prefill.date?`${prefill.date}T09:00`:'';
     taskBody.innerHTML=`<form class="t2m-task-form t2m-task-form-new" data-task-form enctype="multipart/form-data"><div class="t2m-task-form-scroll" data-task-form-scroll><h3>New task</h3><label>Assign to<select name="assigned_to" required><option value="">Choose person</option>${taskState.management?'<option value="all">Everybody</option>':''}${(taskState.staff||[]).map(s=>`<option value="${s.id}">${esc(s.display_name||String(s.full_name||'').split(/\\s+/)[0]||'Staff')}</option>`).join('')}</select></label><label>Title<input name="title" maxlength="180" required placeholder="What needs doing?"></label><label>Task<textarea name="message" required placeholder="Short clear instruction"></textarea></label><div class="t2m-task-form-grid"><label>Due<input type="datetime-local" name="due_at" value="${esc(defaultDue)}"></label><label>Priority<select name="priority"><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></select></label></div><div class="t2m-task-file-picker"><div class="t2m-task-file-picker-row"><button type="button" data-task-files-choose>📎 Attach files</button><small>PDF, Word, Excel, PowerPoint, images and common office files · max 5 files, 15 MB each</small></div><input type="file" name="attachments" multiple accept="${taskFileAccept}" data-task-files hidden><div class="t2m-task-file-selection" data-task-files-list hidden></div></div></div><div class="t2m-task-form-actions" data-task-form-actions><button type="button" data-task-cancel>Cancel</button><button type="submit" class="primary">Create task</button></div></form>`;
     const form=taskBody.querySelector('[data-task-form]');
