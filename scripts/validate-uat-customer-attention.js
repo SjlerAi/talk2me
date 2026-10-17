@@ -73,6 +73,7 @@ const database={
     return [[{id:4,full_name:'Jonathan Olivier',role:'staff'}]];
   },
   async execute(sql,params){
+    if(sql.includes('information_schema.TABLES'))return [[{present:0}]];
     calls.push({sql,params:{...params}});
     if(sql.startsWith('SELECT COUNT(*) total FROM clients c'))return [[{total:4}]];
     if(sql.includes('SUM(c.is_active=1)'))return [[{active_count:2134,prospect_count:0,archived_count:0,incomplete_count:0}]];

@@ -41,7 +41,7 @@ function birthdayDays(start,end,prefix,params) {
   }
   return "c.birthday IS NOT NULL AND DATE_FORMAT(c.birthday,'%m-%d') IN ("+values.join(',')+")";
 }
-function buildAttentionConditions(settings,{management,scope,staffId,unassignedClause}) {
+function buildAttentionConditions(settings,{management,scope,staffId,unassignedClause,hasViralco=false}) {
   const {focus,birthday,contact,unallocated,today}=settings;
   // Preserve the original fast customer listing when no attention view is selected.
   if(focus==='all')return {clauses:[],params:{},projection:'',sort:null};
@@ -51,7 +51,8 @@ function buildAttentionConditions(settings,{management,scope,staffId,unassignedC
   const assignee=(alias,key='assigned_to')=>restricted?' AND '+alias+'.'+key+'=:attStaffId':'';
   const inquirer=restricted?' AND COALESCE(i.assigned_staff_id,i.staff_id)=:attStaffId':'';
   const active="c.is_active=1 AND COALESCE(c.line_status,'active')<>'cancelled'";
-  const upgrade="c.next_upgrade_date IS NOT NULL AND c.next_upgrade_date<:attToday";
+  const providerEligibility=hasViralco?" AND (NOT EXISTS (SELECT 1 FROM viralco_import_lines vl JOIN viralco_import_versions vv ON vv.id=vl.version_id WHERE vv.is_current=1 AND vl.matched_client_id=c.id) OR EXISTS (SELECT 1 FROM viralco_import_lines vl JOIN viralco_import_versions vv ON vv.id=vl.version_id WHERE vv.is_current=1 AND vl.matched_client_id=c.id AND vl.upgradable='Y'))":'';
+  const upgrade="c.next_upgrade_date IS NOT NULL AND c.next_upgrade_date<:attToday"+providerEligibility;
   const task="EXISTS (SELECT 1 FROM staff_tasks t WHERE t.related_client_id=c.id AND t.type='task' AND t.status IN ('unread','seen','in_progress') AND t.due_at<NOW()"+assignee('t')+")";
   const followup="EXISTS (SELECT 1 FROM customer_followups f WHERE f.client_id=c.id AND f.status='open' AND f.scheduled_at<NOW()"+assignee('f')+")";
   const callback="EXISTS (SELECT 1 FROM customer_callbacks cb WHERE cb.client_id=c.id AND cb.status='scheduled' AND cb.scheduled_at<NOW()"+assignee('cb')+")";

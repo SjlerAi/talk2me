@@ -353,6 +353,27 @@ router.get('/customers/:id/360', requireAuth, async (req, res, next) => {
     const mobileEvents = [];
     const currentMobileDataReady = false;
 
+    // Authoritative ViralCo fields are shown separately; never reinterpret average spend
+    // as an invoice amount or a status code as a confirmed cancellation.
+    let providerLine = null;
+    const staffId=Number(req.session.user?.id||0);
+    const allowedProviderDetail=['owner','manager','admin'].includes(String(req.session.user?.role||'').toLowerCase()) ||
+      (staffId>0 && (Number(accountRecord?.assigned_staff_id)===staffId || Number(assignment?.id)===staffId));
+    if (String(process.env.UAT_MODE || '').toLowerCase()==='true' && accountRecord && allowedProviderDetail) {
+      providerLine = await optionalSection('ViralCo line detail', id, null, async () => {
+        const [[table]] = await db.execute("SELECT COUNT(*) total FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='viralco_import_lines'");
+        if (!Number(table?.total)) return null;
+        const [[row]] = await db.execute(
+          'SELECT l.*,DATE_FORMAT(l.earliest_upgrade_date,"%Y-%m-%d") as eligible_iso,'+
+          'DATE_FORMAT(l.term_date,"%Y-%m-%d") as term_iso,v.published_at,v.provider_company_name '+
+          'FROM viralco_import_lines l JOIN viralco_import_versions v ON v.id=l.version_id '+
+          'WHERE v.account_id=:accountId AND v.is_current=1 AND l.matched_client_id=:clientId '+
+          'ORDER BY l.id DESC LIMIT 1',{accountId:accountRecord.id,clientId:id}
+        );
+        return row||null;
+      });
+    }
+
     res.render('customer-360', {
       title: client.client_name || 'Customer Workspace',
       client,
@@ -365,6 +386,7 @@ router.get('/customers/:id/360', requireAuth, async (req, res, next) => {
       pendingClaim,
       pendingAccountRequest,
       fixedAccounts,
+      providerLine,
       currentMobileDataReady,
       currentMobileServices,
       mobileEvents,
