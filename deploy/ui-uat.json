@@ -3,14 +3,14 @@
   "schema": 1,
   "repository": "SjlerAi/talk2me",
   "environment": "ui-uat",
-  "action": "deploy",
-  "status": "DEPLOY",
-  "requestId": "customer-filters-20261017-uat-764e3f64",
+  "action": "hold",
+  "status": "HOLD",
+  "requestId": "hold-after-customer-filters-resource-guard-20261017",
   "sourceBranch": "release/talk2me-ui-uat-2026-10-17-customer-filters",
   "sourceSha": "764e3f6429259fc389daa6e42b7cde3dd18b8a88",
   "commit": null,
   "workflowRunId": null,
   "artifact": null,
   "sha256": null,
-  "requestedAt": "2026-10-17T04:21:00Z"
+  "requestedAt": null
 }
