@@ -100,6 +100,12 @@ assert.deepEqual(crmState(own[0]),{package_name:'OLD PACKAGE',next_upgrade_date:
 assert.equal(intendedState({...parsed.rows[0],earliestUpgradeDate:null},own[0]).next_upgrade_date,'2025-01-01');
 
 (async()=>{
+  // UAT copies JS service modules but not standalone SQL migrations. Schema must be self-contained.
+  const ddl=[];
+  await require('../src/services/viralco-reconcile').ensureSchema({query:async sql=>{ddl.push(sql);return [[]];}});
+  assert.equal(ddl.length,3);
+  assert.ok(ddl.every(sql=>sql.startsWith('CREATE TABLE IF NOT EXISTS viralco_import_')));
+  assert.ok(ddl.every(sql=>!sql.includes('DROP TABLE')&&!sql.includes('UPDATE clients')));
   const page=fs.readFileSync('views/viralco-account-sync.ejs','utf8');
   const locals={basePath:'/talk2me',appVersion:'dev',assetVersion:'dev',
     client:{id:1001,client_name:'SAMPLE COMPANY'},
