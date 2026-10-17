@@ -1,93 +1,210 @@
-<section class="page-head"><div><h1>Customers</h1><p>Find clients and lines from the central database. Protected changes follow the approval workflow.</p></div><% if(['owner','manager'].includes(currentUser.role)){ %><a class="btn primary" href="<%= basePath %>/backoffice/clients/new">Add Client / Prospect</a><% } else { %><a class="btn primary" href="<%= basePath %>/queries/new">Quick Add / New Inquiry</a><% } %></section>
-<% if (saved) { %><div class="success-box">Client assignment saved.</div><% } %>
+<link rel="stylesheet" href="<%= basePath %>/css/uat-customer-filters.css">
+<section class="page-head">
+  <div><h1>Customers</h1><p>Find clients and lines from the central database. Protected changes follow the approval workflow.</p></div>
+  <% if(['owner','manager'].includes(currentUser.role)){ %>
+    <a class="btn primary" href="<%= basePath %>/backoffice/clients/new">Add Client / Prospect</a>
+  <% } else { %>
+    <a class="btn primary" href="<%= basePath %>/queries/new">Quick Add / New Inquiry</a>
+  <% } %>
+</section>
+<% if(saved){ %><div class="success-box">Client assignment saved.</div><% } %>
 <%
-  const staffScope = typeof staffVisibilityScope === 'string' ? staffVisibilityScope : null;
-  const staffScopeSelectedId = Number(typeof staffVisibilitySelectedId !== 'undefined' ? staffVisibilitySelectedId : 0) || null;
-  const managementVisibility = Boolean(typeof staffVisibilityManagement !== 'undefined' ? staffVisibilityManagement : false);
-  const visibilitySuffix = staffScope
-    ? '&scope=' + encodeURIComponent(staffScope) + (staffScopeSelectedId ? '&staff_id=' + encodeURIComponent(staffScopeSelectedId) : '')
-    : '';
+const staffScope=typeof staffVisibilityScope==='string'?staffVisibilityScope:'all';
+const staffScopeSelectedId=Number(typeof staffVisibilitySelectedId!=='undefined'?staffVisibilitySelectedId:0)||null;
+const managementVisibility=Boolean(typeof staffVisibilityManagement!=='undefined'?staffVisibilityManagement:false);
+const selected=(value,expected)=>value===expected?'selected':'';
+const staffFormValues=new URLSearchParams(queryStringFor({scope:'staff',staff_id:null,page:1}));
 %>
-<% if (staffScope) { %>
-<div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding:12px 14px;margin-bottom:12px">
-  <% if (managementVisibility) { %>
-    <div><strong>Customer visibility</strong><br><small>See the whole shop, only your customers, or one selected staff member.</small></div>
-    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap" role="group" aria-label="Customer visibility">
-      <a class="btn small <%= staffScope==='all'?'primary':'' %>" href="<%= basePath %>/backoffice/clients?view=<%= encodeURIComponent(view) %>&scope=all">All Staff</a>
-      <a class="btn small <%= staffScope==='mine'?'primary':'' %>" href="<%= basePath %>/backoffice/clients?view=<%= encodeURIComponent(view) %>&scope=mine">My Own</a>
-      <form method="get" style="display:flex;align-items:center;gap:6px;margin:0">
-        <input type="hidden" name="view" value="<%= view %>">
-        <input type="hidden" name="scope" value="staff">
-        <% if(q){ %><input type="hidden" name="q" value="<%= q %>"><% } %>
-        <select name="staff_id" aria-label="Filter customers by staff member" onchange="if(this.value)this.form.submit()" style="min-width:180px">
+<div class="card customer-visibility-card">
+  <% if(managementVisibility){ %>
+    <div><strong>Customer visibility</strong><small>View all customers, your own, or one staff member's customers.</small></div>
+    <div class="customer-visibility-actions" role="group" aria-label="Customer visibility">
+      <a class="btn small <%= staffScope==='all'?'primary':'' %>" href="<%= basePath %>/backoffice/clients?<%= queryStringFor({scope:'all',staff_id:null,page:1}) %>">All Staff</a>
+      <a class="btn small <%= staffScope==='mine'?'primary':'' %>" href="<%= basePath %>/backoffice/clients?<%= queryStringFor({scope:'mine',staff_id:null,page:1}) %>">My Own</a>
+      <form method="get" action="<%= basePath %>/backoffice/clients" class="customer-staff-picker">
+        <% for(const [name,value] of staffFormValues.entries()){ %><input type="hidden" name="<%= name %>" value="<%= value %>"><% } %>
+        <select name="staff_id" aria-label="Filter customers by staff member" onchange="if(this.value)this.form.submit()">
           <option value="">Choose staff member</option>
-          <% staff.forEach(person => { %><option value="<%= person.id %>" <%= staffScope==='staff' && Number(staffScopeSelectedId)===Number(person.id)?'selected':'' %>><%= person.full_name %></option><% }) %>
+          <% staff.forEach(person=>{ %><option value="<%= person.id %>" <%= staffScope==='staff' && staffScopeSelectedId===Number(person.id)?'selected':'' %>><%= person.full_name %></option><% }) %>
         </select>
       </form>
     </div>
-  <% } else { %>
-    <div><strong>Customer visibility</strong><br><small>All shows your customers plus every unassigned customer. My Own shows only customers assigned to you.</small></div>
-    <div style="display:flex;gap:8px" role="group" aria-label="Customer visibility">
-      <a class="btn small <%= staffScope==='all'?'primary':'' %>" href="<%= basePath %>/backoffice/clients?view=<%= encodeURIComponent(view) %>&scope=all">All</a>
-      <a class="btn small <%= staffScope==='mine'?'primary':'' %>" href="<%= basePath %>/backoffice/clients?view=<%= encodeURIComponent(view) %>&scope=mine">My Own</a>
+  <% }else{ %>
+    <div><strong>Customer visibility</strong><small>All includes your customers and unassigned customers; My Own shows only customers assigned to you.</small></div>
+    <div class="customer-visibility-actions" role="group" aria-label="Customer visibility">
+      <a class="btn small <%= staffScope==='all'?'primary':'' %>" href="<%= basePath %>/backoffice/clients?<%= queryStringFor({scope:'all',staff_id:null,page:1}) %>">All</a>
+      <a class="btn small <%= staffScope==='mine'?'primary':'' %>" href="<%= basePath %>/backoffice/clients?<%= queryStringFor({scope:'mine',staff_id:null,page:1}) %>">My Own</a>
     </div>
   <% } %>
 </div>
-<% } %>
 <nav class="client-tabs" aria-label="Client views">
-  <a class="<%= view==='all'?'active':'' %>" href="<%= basePath %>/backoffice/clients?view=all<%= visibilitySuffix %>">All active <span><%= counts.active_count||0 %></span></a>
-  <a class="<%= view==='prospects'?'active':'' %>" href="<%= basePath %>/backoffice/clients?view=prospects<%= visibilitySuffix %>">Prospects <span><%= counts.prospect_count||0 %></span></a>
-  <a class="<%= view==='incomplete'?'active':'' %>" href="<%= basePath %>/backoffice/clients?view=incomplete<%= visibilitySuffix %>">Incomplete <span><%= counts.incomplete_count||0 %></span></a>
-  <a class="<%= view==='unassigned'?'active':'' %>" href="<%= basePath %>/backoffice/clients?view=unassigned<%= visibilitySuffix %>">Unassigned <span><%= counts.unassigned_count||0 %></span></a>
-  <a class="<%= view==='archived'?'active':'' %>" href="<%= basePath %>/backoffice/clients?view=archived<%= visibilitySuffix %>">Archived <span><%= counts.archived_count||0 %></span></a>
+  <a class="<%= view==='all'?'active':'' %>" href="<%= basePath %>/backoffice/clients?<%= queryStringFor({view:'all',page:1}) %>">All active <span><%= counts.active_count||0 %></span></a>
+  <a class="<%= view==='prospects'?'active':'' %>" href="<%= basePath %>/backoffice/clients?<%= queryStringFor({view:'prospects',page:1}) %>">Prospects <span><%= counts.prospect_count||0 %></span></a>
+  <a class="<%= view==='incomplete'?'active':'' %>" href="<%= basePath %>/backoffice/clients?<%= queryStringFor({view:'incomplete',page:1}) %>">Incomplete <span><%= counts.incomplete_count||0 %></span></a>
+  <a class="<%= view==='unassigned'?'active':'' %>" href="<%= basePath %>/backoffice/clients?<%= queryStringFor({view:'unassigned',page:1}) %>">Unassigned <span><%= counts.unassigned_count||0 %></span></a>
+  <a class="<%= view==='archived'?'active':'' %>" href="<%= basePath %>/backoffice/clients?<%= queryStringFor({view:'archived',page:1}) %>">Archived <span><%= counts.archived_count||0 %></span></a>
 </nav>
-<div class="card form-card" id="customer-list-filter">
-  <form method="get" id="customer-list-filter-form">
+<section class="card customer-advanced-filter" id="customer-list-filter" aria-label="Customer list filters">
+  <div class="customer-filter-heading">
+    <div><strong>Find the customers and work you need</strong><small>Combine staff, upgrade month, work dates and status. Results update from the CRM.</small></div>
+    <a class="btn small customer-clear-filters" href="<%= basePath %>/backoffice/clients?view=all&scope=all">Clear Filters</a>
+  </div>
+  <% if(filters.error){ %><div class="customer-filter-error" role="alert"><%= filters.error %></div><% } %>
+  <form method="get" action="<%= basePath %>/backoffice/clients" id="customer-list-filter-form">
     <input type="hidden" name="view" value="<%= view %>">
-    <% if (staffScope) { %><input type="hidden" name="scope" value="<%= staffScope %>"><% } %>
-    <% if (staffScopeSelectedId) { %><input type="hidden" name="staff_id" value="<%= staffScopeSelectedId %>"><% } %>
-    <label>Filter this customer list</label><div class="search-row"><input id="customer-list-filter-input" name="q" value="<%= q %>" autocomplete="off" placeholder="Start typing a name, contact number, email, account or ID"><button class="primary">Search</button></div><small class="customer-list-filter-help">The selected <%= view.replace('_',' ') %> list filters automatically after three letters or digits.</small>
+    <input type="hidden" name="scope" value="<%= staffScope %>">
+    <% if(staffScope==='staff' && staffScopeSelectedId){ %><input type="hidden" name="staff_id" value="<%= staffScopeSelectedId %>"><% } %>
+    <div class="customer-filter-grid">
+      <label>Work type
+        <select name="work" aria-label="Work type">
+          <option value="all" <%= selected(filters.work,'all') %>>All Work / Customers</option>
+          <option value="upgrades" <%= selected(filters.work,'upgrades') %>>Upgrades</option>
+          <option value="tasks" <%= selected(filters.work,'tasks') %>>Tasks</option>
+          <option value="followups" <%= selected(filters.work,'followups') %>>Follow-ups / Callbacks</option>
+        </select>
+      </label>
+      <label>Upgrade month
+        <input type="month" name="upgrade_month" value="<%= filters.month %>" aria-label="Upgrade month and year">
+      </label>
+      <label>Work date
+        <select name="date" aria-label="Work date range">
+          <option value="any" <%= selected(filters.date,'any') %>>Any date</option>
+          <option value="today" <%= selected(filters.date,'today') %>>Today</option>
+          <option value="this_week" <%= selected(filters.date,'this_week') %>>This Week</option>
+          <option value="next_week" <%= selected(filters.date,'next_week') %>>Next Week</option>
+          <option value="next_7" <%= selected(filters.date,'next_7') %>>Next 7 Days</option>
+          <option value="next_14" <%= selected(filters.date,'next_14') %>>Next 14 Days</option>
+          <option value="next_30" <%= selected(filters.date,'next_30') %>>Next 30 Days</option>
+          <option value="custom" <%= selected(filters.date,'custom') %>>Custom Date Range</option>
+        </select>
+      </label>
+      <label>Task status
+        <select name="status" aria-label="Task or follow-up status">
+          <option value="all" <%= selected(filters.status,'all') %>>All Statuses</option>
+          <option value="outstanding" <%= selected(filters.status,'outstanding') %>>Outstanding</option>
+          <option value="overdue" <%= selected(filters.status,'overdue') %>>Overdue</option>
+          <option value="completed" <%= selected(filters.status,'completed') %>>Completed</option>
+        </select>
+      </label>
+      <label>Sort results
+        <select name="sort" aria-label="Sort customers">
+          <option value="recent" <%= selected(filters.sort,'recent') %>>Latest Updated Customers</option>
+          <option value="name_asc" <%= selected(filters.sort,'name_asc') %>>Name A–Z</option>
+          <option value="name_desc" <%= selected(filters.sort,'name_desc') %>>Name Z–A</option>
+          <option value="new_work" <%= selected(filters.sort,'new_work') %>>Newest Work</option>
+          <option value="upgrade_soon" <%= selected(filters.sort,'upgrade_soon') %>>Upcoming Upgrade Dates</option>
+        </select>
+      </label>
+      <label class="customer-date-custom">From
+        <input type="date" name="from" value="<%= filters.from %>" aria-label="From date">
+      </label>
+      <label class="customer-date-custom">To
+        <input type="date" name="to" value="<%= filters.to %>" aria-label="To date">
+      </label>
+    </div>
+    <div class="customer-filter-search">
+      <label for="customer-list-filter-input">Customer name, phone, email, account or ID</label>
+      <div class="search-row">
+        <input id="customer-list-filter-input" name="q" value="<%= q %>" autocomplete="off" placeholder="Search customers (three or more characters)">
+        <button type="submit" class="primary">Show Results</button>
+      </div>
+      <small class="customer-list-filter-help">Only the Next Upgrade field determines upgrade eligibility. Status applies to Tasks and Follow-ups.</small>
+    </div>
   </form>
+</section>
+<div class="customer-results-summary" role="status" aria-live="polite">
+  <strong><%= total.toLocaleString('en-ZA') %> matching customer<%= total===1?'':'s' %></strong>
+  <span><% if(total){ %>Showing <%= firstRecord %>–<%= lastRecord %> of <%= total %><% }else{ %>Try a different date, staff member or filter.<% } %></span>
 </div>
-<div class="card table-card"><table class="data-table customer-admin-table"><thead><tr><th>Client</th><th>Type</th><th>Contact</th><th>Latest inquiry</th><th>Town</th><th>Next Upgrade</th><th>Assigned staff</th><th aria-label="Edit"></th></tr></thead><tbody>
-<% if(!clients.length){ %><tr><td colspan="8">No records found in this view.</td></tr><% } %>
-<% clients.forEach(c => { %><tr>
-<td><a class="customer-name-link" href="<%= basePath %>/customers/<%= c.id %>/360"><strong><%= c.client_name %></strong><small><%= c.email || c.account_number || '' %></small></a></td>
-<td><span class="client-status <%= c.lifecycle_status || 'client' %>"><%= c.lifecycle_status || 'client' %></span><% if(c.lead_status){ %><br><small><%= c.lead_status.replace('_',' ') %></small><% } %></td>
-<td><%= c.cell_number || '—' %></td>
-<td><%= c.last_inquiry || '—' %><% if(c.last_action){ %><br><small><strong>Action:</strong> <%= c.last_action %></small><% } %></td>
-<td><%= c.city_town || '—' %></td>
-<td><strong><%= c.next_upgrade_date ? new Date(c.next_upgrade_date).toLocaleDateString('en-ZA') : (c.upgrade_date ? new Date(c.upgrade_date).toLocaleDateString('en-ZA') : '—') %></strong><% if(c.previous_upgrade_date){ %><br><small>Previous: <%= new Date(c.previous_upgrade_date).toLocaleDateString('en-ZA') %></small><% } %></td>
-<td>
-  <% if(['owner','manager'].includes(currentUser.role)){ %>
-  <form method="post" action="<%= basePath %>/backoffice/clients/<%= c.id %>/assign" class="assignment-form compact-assignment-form" data-assignment-form>
-    <input type="hidden" name="return_q" value="<%= q %>">
-    <input type="hidden" name="return_view" value="<%= view %>">
-    <% if (staffScope) { %><input type="hidden" name="return_scope" value="<%= staffScope %>"><% } %>
-    <% if (staffScopeSelectedId) { %><input type="hidden" name="return_staff_id" value="<%= staffScopeSelectedId %>"><% } %>
-    <select name="assigned_staff_id" aria-label="Assigned staff for <%= c.client_name %>" data-original-value="<%= c.assigned_staff_id || '' %>">
-      <option value="">Unassigned</option>
-      <% staff.forEach(s => { %><option value="<%= s.id %>" <%= Number(c.assigned_staff_id)===Number(s.id)?'selected':'' %>><%= s.full_name %></option><% }) %>
-    </select>
-    <button class="assignment-save-button" type="submit" aria-label="Save assignment" title="Save assignment" disabled>✓</button>
-  </form>
-  <% } else { %><span><%= c.assigned_staff_name || 'Unassigned' %></span><% } %>
-</td>
-<td class="customer-row-edit"><% if(['owner','manager'].includes(currentUser.role)){ %><a class="customer-edit-icon" href="<%= basePath %>/backoffice/clients/<%= c.id %>/edit" aria-label="Edit <%= c.client_name %>" title="Edit line">✎</a><% } %></td></tr><% }) %>
-</tbody></table></div>
+<div class="card table-card customer-results-card">
+  <table class="data-table customer-admin-table">
+    <thead><tr><th>Client and account</th><th>Type</th><th>Contact</th><th>Latest inquiry</th><th>Town</th><th>Next Upgrade</th><th>Assigned staff</th><th aria-label="Edit"></th></tr></thead>
+    <tbody>
+    <% if(!clients.length){ %><tr class="customer-empty-row"><td colspan="8">No customers match the selected filters.</td></tr><% } %>
+    <% clients.forEach(c=>{ %><tr>
+      <td data-label="Customer"><a class="customer-name-link" href="<%= basePath %>/customers/<%= c.id %>/360"><strong><%= c.client_name %></strong><% if(c.account_number){ %><small>Account: <%= c.account_number %></small><% } %><% if(c.email){ %><small><%= c.email %></small><% } %></a></td>
+      <td data-label="Type"><span class="client-status <%= c.lifecycle_status||'client' %>"><%= c.lifecycle_status||'client' %></span><% if(c.lead_status){ %><br><small><%= c.lead_status.replace('_',' ') %></small><% } %></td>
+      <td data-label="Contact"><%= c.cell_number||'—' %></td>
+      <td data-label="Latest inquiry"><%= c.last_inquiry||'—' %><% if(c.last_action){ %><br><small><strong>Action:</strong> <%= c.last_action %></small><% } %></td>
+      <td data-label="Town"><%= c.city_town||'—' %></td>
+      <td data-label="Next Upgrade"><strong><%= c.next_upgrade_date?new Date(c.next_upgrade_date).toLocaleDateString('en-ZA'):'—' %></strong><% if(c.previous_upgrade_date){ %><br><small>Previous: <%= new Date(c.previous_upgrade_date).toLocaleDateString('en-ZA') %></small><% } %></td>
+      <td data-label="Assigned staff">
+        <% if(['owner','manager'].includes(currentUser.role)){ %>
+          <form method="post" action="<%= basePath %>/backoffice/clients/<%= c.id %>/assign" class="assignment-form compact-assignment-form" data-assignment-form>
+            <input type="hidden" name="return_q" value="<%= q %>">
+            <input type="hidden" name="return_view" value="<%= view %>">
+            <input type="hidden" name="return_scope" value="<%= staffScope %>">
+            <% if(staffScopeSelectedId){ %><input type="hidden" name="return_staff_id" value="<%= staffScopeSelectedId %>"><% } %>
+            <input type="hidden" name="return_filters" value="<%= queryStringFor({page:page}) %>">
+            <select name="assigned_staff_id" aria-label="Assigned staff for <%= c.client_name %>" data-original-value="<%= c.assigned_staff_id||'' %>">
+              <option value="">Unassigned</option>
+              <% staff.forEach(s=>{ %><option value="<%= s.id %>" <%= Number(c.assigned_staff_id)===Number(s.id)?'selected':'' %>><%= s.full_name %></option><% }) %>
+            </select>
+            <button class="assignment-save-button" type="submit" aria-label="Save assignment" title="Save assignment" disabled>✓</button>
+          </form>
+        <% }else{ %><span><%= c.assigned_staff_name||'Unassigned' %></span><% } %>
+      </td>
+      <td class="customer-row-edit" data-label="Edit"><% if(['owner','manager'].includes(currentUser.role)){ %><a class="customer-edit-icon" href="<%= basePath %>/backoffice/clients/<%= c.id %>/edit" aria-label="Edit <%= c.client_name %>" title="Edit line">✎</a><% } %></td>
+    </tr><% }) %>
+    </tbody>
+  </table>
+</div>
+<% if(pageCount>1){ %>
+<nav class="customer-pagination" aria-label="Customer pages">
+  <% if(page>1){ %><a class="btn small" href="<%= basePath %>/backoffice/clients?<%= queryStringFor({page:page-1}) %>">← Previous</a><% } %>
+  <span>Page <%= page %> of <%= pageCount %></span>
+  <% if(page<pageCount){ %><a class="btn small" href="<%= basePath %>/backoffice/clients?<%= queryStringFor({page:page+1}) %>">Next →</a><% } %>
+</nav>
+<% } %>
 <script>
 (()=>{
   const form=document.getElementById('customer-list-filter-form');
   const input=document.getElementById('customer-list-filter-input');
-  const card=document.getElementById('customer-list-filter');
-  if(form&&input){let timer;input.addEventListener('input',()=>{clearTimeout(timer);const q=input.value.trim();if(q.length>0&&q.length<3)return;timer=setTimeout(()=>{card?.classList.add('customer-list-searching');form.requestSubmit()},350)})}
+  const dateSelect=form?.querySelector('[name="date"]');
+  const workSelect=form?.querySelector('[name="work"]');
+  const statusSelect=form?.querySelector('[name="status"]');
+  const from=form?.querySelector('[name="from"]');
+  const to=form?.querySelector('[name="to"]');
+  if(form){
+    const sync=()=>{
+      const custom=dateSelect?.value==='custom';
+      form.querySelectorAll('.customer-date-custom').forEach(node=>node.hidden=!custom);
+      if(from)from.required=custom;
+      if(to)to.required=custom;
+      if(statusSelect){
+        const upgrades=workSelect?.value==='upgrades';
+        if(upgrades)statusSelect.value='all';
+        statusSelect.disabled=upgrades;
+      }
+    };
+    sync();
+    form.querySelectorAll('select').forEach(select=>select.addEventListener('change',()=>{
+      sync();
+      if(dateSelect?.value==='custom'&&(!from?.value||!to?.value))return;
+      form.requestSubmit();
+    }));
+    form.querySelector('[name="upgrade_month"]')?.addEventListener('change',()=>form.requestSubmit());
+    form.querySelectorAll('.customer-date-custom input').forEach(el=>el.addEventListener('change',()=>{
+      if(dateSelect?.value==='custom'&&from?.value&&to?.value)form.requestSubmit();
+    }));
+    if(input){
+      let timer;
+      input.addEventListener('input',()=>{
+        clearTimeout(timer);const q=input.value.trim();
+        if(q.length>0&&q.length<3)return;
+        timer=setTimeout(()=>form.requestSubmit(),400);
+      });
+    }
+  }
   document.querySelectorAll('[data-assignment-form]').forEach(assignmentForm=>{
     const select=assignmentForm.querySelector('select');
     const button=assignmentForm.querySelector('.assignment-save-button');
     if(!select||!button)return;
-    const sync=()=>{const changed=String(select.value)!==String(select.dataset.originalValue||'');button.disabled=!changed;button.classList.toggle('is-ready',changed)};
-    select.addEventListener('change',sync);
-    sync();
+    const sync=()=>{
+      const changed=String(select.value)!==String(select.dataset.originalValue||'');
+      button.disabled=!changed;button.classList.toggle('is-ready',changed);
+    };
+    select.addEventListener('change',sync);sync();
   });
 })();
 </script>
