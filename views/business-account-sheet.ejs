@@ -1,0 +1,109 @@
+<link rel="stylesheet" href="<%= basePath %>/public/css/business-account-sheet.css?v=<%= encodeURIComponent(assetVersion||appVersion) %>">
+<section class="page-head business-sheet-heading">
+  <div>
+    <a href="<%= basePath %>/customers/<%= client.id %>/360" class="bs-back">← Back to Customer 360</a>
+    <h1>Business Account Sheets</h1>
+    <p>Quarterly mobile and data-line workbook for <strong><%= account.display_name||client.client_name %></strong></p>
+    <p>Official CRM account: <strong><%= account.account_number %></strong>. Every uploaded line remains linked to this account.</p>
+  </div>
+</section>
+<% if(message){ %><div class="success-box" role="status"><%= message %></div><% } %>
+<% if(error){ %><div class="warning-box" role="alert"><%= error %></div><% } %>
+<section class="bs-summary">
+  <article><small>Current version</small><strong><%= current?'Version '+current.version_no:'None uploaded' %></strong><span><%= current?new Date(current.uploaded_at).toLocaleDateString('en-ZA'):'Ready for the first upload' %></span></article>
+  <article><small>Account lines on current sheet</small><strong><%= current?current.line_count:0 %></strong><span>Stored as searchable CRM sheet records</span></article>
+  <article><small>Matched to existing CRM lines</small><strong><%= current?current.matched_count:0 %></strong><span><%= current?current.unmatched_count:0 %> lines not uniquely matched</span></article>
+</section>
+<section class="panel bs-upload">
+  <div class="bs-upload-heading">
+    <div><h2>Upload the next 3-month account sheet</h2><p>Use the Excel file you already prepare for this business. The system reads each line, lets you check the changes, and only replaces the current sheet after you confirm.</p></div>
+    <% if(current){ %><a class="btn" href="<%= basePath %>/customers/<%= client.id %>/business-sheet/download/<%= current.id %>">Download current Excel</a><% } %>
+  </div>
+  <form method="post" action="<%= basePath %>/customers/<%= client.id %>/business-sheet/preview" enctype="multipart/form-data" class="bs-upload-form">
+    <input type="hidden" name="sheet_csrf" value="<%= csrfToken %>">
+    <label for="quarterly-excel">Choose business-account Excel (.xlsx)</label>
+    <input id="quarterly-excel" type="file" name="sheet" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required>
+    <button class="btn primary" type="submit">Preview the New Sheet</button>
+  </form>
+  <p class="bs-hint">Expected columns: <strong>Number, Package, Upgrade Date, End Date, Usage, Current Cost.</strong> Empty costs stay empty. The workbook's <strong>Upgrade Date</strong> is kept separately from the CRM's calculated <strong>Next Upgrade</strong>; they are never silently confused.</p>
+</section>
+<% if(preview){ %>
+<section class="panel bs-preview" id="business-sheet-preview">
+  <div class="bs-preview-title">
+    <div><span class="bs-eyebrow">Review before replacing</span><h2>New Sheet Preview — <%= preview.rowCount %> lines</h2>
+      <p><strong>Selected CRM account:</strong> <%= account.display_name||client.client_name %> — <%= account.account_number %></p>
+      <p><strong>Uploaded filename:</strong> <%= preview.filename %> · Worksheet: <%= preview.sheetName %></p>
+    </div>
+  </div>
+  <section class="bs-diff">
+    <article><strong><%= preview.differences.added %></strong><span>New lines</span></article>
+    <article><strong><%= preview.differences.updated %></strong><span>Changed lines</span></article>
+    <article><strong><%= preview.differences.unchanged %></strong><span>Unchanged</span></article>
+    <article><strong><%= preview.differences.removed %></strong><span>No longer on new sheet</span></article>
+  </section>
+  <p class="bs-hint"><strong><%= preview.matched %></strong> lines match existing mobile records on this CRM account; <strong><%= preview.unmatched %></strong> are not uniquely matched. All valid Excel rows are preserved; an unmatched line will not be allocated to the wrong account.</p>
+  <p class="bs-hint"><strong><%= preview.lines.filter(x=>x.currentCost===null).length %></strong> of the first <%= preview.lines.length %> displayed lines have no Current Cost value. These will not erase existing CRM amounts.</p>
+  <div class="bs-table-wrap">
+    <table class="data-table bs-table">
+      <thead><tr><th>Number</th><th>Package</th><th>Upgrade Date (sheet)</th><th>End Date</th><th>Usage</th><th>Current Cost</th><th>CRM match</th></tr></thead>
+      <tbody><% preview.lines.forEach(line=>{ %>
+        <tr><td><%= line.number %></td><td><%= line.packageName %></td><td><%= line.upgradeDate||'—' %></td><td><%= line.endDate||'—' %></td>
+        <td><%= line.usage||'—' %></td><td><%= line.currentCost===null?'—':'R '+Number(line.currentCost).toFixed(2) %></td>
+        <td><%= line.matchStatus==='matched'?'Existing line #'+line.matchedClientId:line.matchStatus==='ambiguous'?'Needs identity review':'Not on this CRM account' %></td></tr>
+      <% }) %></tbody>
+    </table>
+  </div>
+  <% if(preview.rowCount>preview.lines.length){ %><small>Showing the first <%= preview.lines.length %> of <%= preview.rowCount %> lines. All lines will be saved when confirmed.</small><% } %>
+  <% if(preview.differences.removed>0){ %><div class="warning-box">The new sheet omits <strong><%= preview.differences.removed %></strong> line(s) from the previous version. They remain in the archived workbook and are not deleted from CRM customer records.</div><% } %>
+  <form method="post" action="<%= basePath %>/customers/<%= client.id %>/business-sheet/confirm" class="bs-confirm-form">
+    <input type="hidden" name="sheet_csrf" value="<%= csrfToken %>">
+    <input type="hidden" name="preview_id" value="<%= preview.id %>">
+    <label class="bs-confirm-choice"><input type="checkbox" name="replace_current" value="yes" required>
+      <span>I confirm this is the correct workbook for CRM account <strong><%= account.account_number %></strong>. Make it the current sheet and archive the previous version.</span>
+    </label>
+    <div class="bs-actions"><button type="submit" class="btn primary">Confirm & Replace Current Sheet</button>
+      <a class="btn" href="<%= basePath %>/customers/<%= client.id %>/business-sheet">Cancel Preview</a></div>
+  </form>
+</section>
+<% } %>
+<section class="panel">
+  <div class="bs-section-title"><div><h2>Current Quarter — Line Details</h2><p>The current published sheet is shown below; the original file and every previous version are retained.</p></div></div>
+  <% if(!current){ %><div class="empty-state">No quarterly account sheet has been uploaded for this business yet.</div><% } else { %>
+    <div class="bs-table-wrap">
+      <table class="data-table bs-table"><thead><tr><th>Line</th><th>Package</th><th>Upgrade (sheet)</th><th>Contract End</th><th>Usage</th><th>Cost</th><th>CRM Line</th></tr></thead>
+      <tbody><% lines.forEach(line=>{ %><tr>
+        <td><%= line.phone_original %></td><td><%= line.package_name %></td>
+        <td><%= line.upgrade_date_sheet||'—' %></td><td><%= line.end_date_sheet||'—' %></td>
+        <td><%= line.usage_text||'—' %></td><td><%= line.current_cost==null?'—':'R '+Number(line.current_cost).toFixed(2) %></td>
+        <td><% if(line.matched_client_id){ %><a href="<%= basePath %>/customers/<%= line.matched_client_id %>/360">CRM line #<%= line.matched_client_id %></a><% } else { %><%= line.match_status==='ambiguous'?'Check duplicate matches':'Not matched' %><% } %></td>
+      </tr><% }) %></tbody></table>
+    </div>
+    <% if(pageCount>1){ %><nav class="bs-pagination" aria-label="Account sheet pages">
+      <% if(page>1){ %><a class="btn" href="<%= basePath %>/customers/<%= client.id %>/business-sheet?page=<%= page-1 %>">Previous</a><% } %>
+      <span>Page <%= page %> of <%= pageCount %></span>
+      <% if(page<pageCount){ %><a class="btn" href="<%= basePath %>/customers/<%= client.id %>/business-sheet?page=<%= page+1 %>">Next</a><% } %>
+    </nav><% } %>
+  <% } %>
+</section>
+<section class="panel">
+  <h2>Quarterly Sheet History</h2>
+  <p>Previous sheets are archived, not deleted. Managers can restore an earlier version without overwriting the historical audit trail.</p>
+  <% if(!versions.length){ %><div class="empty-state">History will appear after the first upload.</div><% } else { %>
+  <div class="bs-history">
+    <% versions.forEach(version=>{ %><div class="bs-history-item">
+      <div><strong>Version <%= version.version_no %> <%= version.is_current?'— Current':'' %></strong>
+        <small><%= version.filename %> · <%= version.line_count %> lines · <%= new Date(version.uploaded_at).toLocaleString('en-ZA') %> · by <%= version.uploaded_by_name||'Staff member' %></small>
+        <% if(version.restored_from_id){ %><small>Restored from earlier sheet #<%= version.restored_from_id %></small><% } %>
+      </div>
+      <div class="bs-history-actions">
+        <a href="<%= basePath %>/customers/<%= client.id %>/business-sheet/download/<%= version.id %>" class="btn">Download Original</a>
+        <% if(canRestore&&!version.is_current){ %>
+        <form method="post" action="<%= basePath %>/customers/<%= client.id %>/business-sheet/restore/<%= version.id %>" onsubmit="return confirm('Restore this earlier workbook as a new current version?')">
+          <input type="hidden" name="sheet_csrf" value="<%= csrfToken %>"><button type="submit" class="btn">Restore</button>
+        </form>
+        <% } %>
+      </div>
+    </div><% }) %>
+  </div><% } %>
+</section>
+<p class="bs-footer">Only the selected business account's sheet is replaced. Existing customer identities, upgrades, ownership, inquiries and tasks are not automatically changed. Contact a manager to reconcile unmatched lines.</p>
