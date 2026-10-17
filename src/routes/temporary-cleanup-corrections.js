@@ -5,6 +5,8 @@ const db=require('../config/db');
 const {requireAuth}=require('../middleware/auth');
 const {canUseTemporaryCleanup}=require('../services/temporary-cleanup-access');
 const {snapshot,rowHash,csrfValid,formValues}=require('../services/temporary-cleanup-correction');
+const {nextUrl}=require('../services/temporary-cleanup-queue');
+const {queryCases}=require('../services/temporary-cleanup-cases');
 const router=express.Router();
 const TYPES=new Set(['same_account_phone','cross_account_phone']);
 const one=Number.isSafeInteger;
@@ -62,7 +64,9 @@ router.post('/temporary-cleanup/correct/:type/:key/:id',requireAuth,permitted,as
     // A previously approved case needs fresh review after editing a line.
     await conn.execute("UPDATE temporary_cleanup_decisions SET decision='needs_correction',notes='Underlying customer details were corrected; re-approve after checking.',reviewed_by=:staff,reviewed_at=NOW() WHERE case_type=:type AND case_key=:key",{staff:Number(req.session.user.id),type,key});
     await conn.commit();
-    return res.redirect(res.locals.basePath+'/temporary-cleanup?type='+type+'&view=all&corrected=1');
+    const [remaining]=await db.query('SELECT x.case_key FROM ('+queryCases[type]+') x WHERE x.case_key=? LIMIT 1',[key]);
+    if(remaining.length) return res.redirect(res.locals.basePath+'/temporary-cleanup/review/'+encodeURIComponent(type)+'/'+encodeURIComponent(key)+'?corrected=1');
+    return res.redirect(nextUrl(res.locals.basePath,type,'corrected'));
   }catch(e){try{await conn.rollback();}catch(_){}next(e);}
   finally{conn.release();}
 });

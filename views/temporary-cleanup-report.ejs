@@ -1,0 +1,81 @@
+<style>
+.cleanup-report{max-width:1290px;margin:auto;color:#17314b}
+.cleanup-report .report-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.cleanup-report h1{font-size:1.65rem;margin:6px 0 10px}
+.cleanup-report a{color:#155989}
+.cleanup-report .stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin:18px 0}
+.cleanup-report .stat{padding:17px;border:1px solid #cfdae6;border-radius:10px;background:#fff}
+.cleanup-report .stat b{font-size:1.7rem;display:block}.cleanup-report .stat span{font-size:.85rem}
+.cleanup-report .filterbox{padding:18px;border:1px solid #cfdae6;border-radius:12px;background:#fff;margin-bottom:15px}
+.cleanup-report .filters{display:flex;align-items:flex-end;flex-wrap:wrap;gap:10px}
+.cleanup-report label{display:block;font-size:.85rem;font-weight:600}
+.cleanup-report select,.cleanup-report input{min-height:37px;border:1px solid #b4c6d7;border-radius:7px;padding:5px 9px;min-width:160px;color:#17314b}
+.cleanup-report button{padding:10px 17px;border:0;border-radius:8px;background:#176d61;color:#fff;font-weight:650;cursor:pointer}
+.cleanup-report .list{overflow:auto;border:1px solid #ccd9e6;border-radius:10px;background:#fff}
+.cleanup-report table{border-collapse:collapse;width:100%;min-width:790px}
+.cleanup-report th,.cleanup-report td{padding:12px;border-bottom:1px solid #edf0f6;text-align:left;vertical-align:top}
+.cleanup-report .pill{font-size:.79rem;padding:4px 9px;border-radius:15px;background:#ecf1f7;white-space:nowrap}
+.cleanup-report small{display:block;color:#566b7f;margin:4px 0}
+.cleanup-report .pager{margin:15px 0;display:flex;gap:16px}
+</style>
+<section class="cleanup-report">
+  <div class="report-head">
+    <div><small>Talk2Me / Temporary UAT database cleanup / Historical approval log</small>
+    <h1>Reviewed and Approved Cases</h1>
+    <p>The latest recorded decision per case, including cases that no longer appear in the outstanding queue.</p></div>
+    <a class="btn" href="<%= basePath %>/temporary-cleanup">← Back to Cleanup Centre</a>
+  </div>
+  <div class="stat-grid">
+    <div class="stat"><b><%= Number(stats.approved_grouping||0) %></b><span>Approved groupings</span></div>
+    <div class="stat"><b><%= Number(stats.keep_separate||0) %></b><span>Confirmed separate</span></div>
+    <div class="stat"><b><%= Number(stats.flagged||0) %></b><span>Flagged for investigation</span></div>
+    <div class="stat"><b><%= Number(stats.needs_correction||0) %></b><span>Needs correction</span></div>
+  </div>
+  <div class="filterbox">
+    <form method="get" action="<%= basePath %>/temporary-cleanup/report" class="filters">
+      <label>Decision
+        <select name="status">
+          <% [['all','All decisions'],['approved_grouping','Approved groupings'],['keep_separate','Keep separate'],['flagged','Flagged'],['needs_correction','Needs correction']].forEach(([value,label])=>{ %>
+          <option value="<%= value %>" <%= selection.status===value?'selected':'' %>><%= label %></option>
+          <% }) %>
+        </select>
+      </label>
+      <label>Category
+        <select name="type">
+          <option value="all">All categories</option>
+          <% types.forEach(t=>{ %><option value="<%= t %>" <%= selection.type===t?'selected':'' %>><%= t.replace(/_/g,' ') %></option><% }) %>
+        </select>
+      </label>
+      <label>Reviewed by
+        <select name="staff_id"><option value="">Everyone</option>
+          <% staff.forEach(s=>{ %><option value="<%= s.id %>" <%= Number(selection.staff_id)===Number(s.id)?'selected':'' %>><%= s.full_name %></option><% }) %>
+        </select>
+      </label>
+      <label>Review date <input type="date" name="day" value="<%= selection.day||'' %>"></label>
+      <button type="submit">Show reviewed cases</button>
+    </form>
+    <% const reportQuery=new URLSearchParams(); if(selection.status!=='all')reportQuery.set('status',selection.status);if(selection.type!=='all')reportQuery.set('type',selection.type);if(selection.staff_id)reportQuery.set('staff_id',String(selection.staff_id));if(selection.day)reportQuery.set('day',selection.day); %>
+    <p><strong><%= total %> matching cases</strong> · <a href="<%= basePath %>/temporary-cleanup/report.csv?<%= reportQuery.toString() %>">Download CSV report (Excel compatible)</a></p>
+  </div>
+  <div class="list">
+    <table>
+      <thead><tr><th>Reviewed</th><th>Customer / identifier</th><th>Category</th><th>Decision</th><th>Reviewed by</th><th>Reason</th></tr></thead>
+      <tbody>
+      <% rows.forEach(r=>{ %><tr>
+        <td><%= r.reviewed_at instanceof Date?r.reviewed_at.toLocaleString('en-ZA',{timeZone:'Africa/Johannesburg',hour12:false}):r.reviewed_at %></td>
+        <td><strong><%= r.customer_name||r.case_key %></strong><small><%= r.case_key %></small>
+        <a href="<%= basePath %>/temporary-cleanup/review/<%= encodeURIComponent(r.case_type) %>/<%= encodeURIComponent(r.case_key) %>">View case history</a></td>
+        <td><%= r.case_type.replace(/_/g,' ') %></td>
+        <td><span class="pill"><%= r.decision.replace(/_/g,' ') %></span></td>
+        <td><%= r.reviewer||'Unknown' %></td>
+        <td><%= r.notes %></td>
+      </tr><% }) %>
+      <% if(!rows.length){ %><tr><td colspan="6">No decisions match these filters.</td></tr><% } %>
+      </tbody>
+    </table>
+  </div>
+  <nav class="pager" aria-label="Report pages">
+    <% if(page>1){ %><a href="<%= basePath %>/temporary-cleanup/report?<%= reportQuery.toString() %>&page=<%= page-1 %>">← Previous page</a><% } %>
+    <% if(page*limit<total){ %><a href="<%= basePath %>/temporary-cleanup/report?<%= reportQuery.toString() %>&page=<%= page+1 %>">Next page →</a><% } %>
+  </nav>
+</section>

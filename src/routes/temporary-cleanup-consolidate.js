@@ -7,6 +7,7 @@ const db=require('../config/db');
 const {requireAuth}=require('../middleware/auth');
 const {canUseTemporaryCleanup}=require('../services/temporary-cleanup-access');
 const {csrfValid}=require('../services/temporary-cleanup-correction');
+const {nextUrl}=require('../services/temporary-cleanup-queue');
 const router=express.Router();
 function fail(res,code,message){return res.status(code).render('error',{title:'Consolidation not applied',message});}
 class UnsafeConsolidation extends Error {}
@@ -69,7 +70,7 @@ router.post('/temporary-cleanup/consolidate/:key',requireAuth,async(req,res,next
       ip:String(req.ip||'').slice(0,64),ua:String(req.get('user-agent')||'').slice(0,255)
     });
     await connection.commit();
-    return res.redirect(res.locals.basePath+'/temporary-cleanup/review/same_account_phone/'+encodeURIComponent(key)+'?saved=1');
+    return res.redirect(nextUrl(res.locals.basePath,'same_account_phone','consolidated'));
   }catch(e){
     try{await connection.rollback();}catch(_){}
     if(e instanceof UnsafeConsolidation)return fail(res,409,e.message);

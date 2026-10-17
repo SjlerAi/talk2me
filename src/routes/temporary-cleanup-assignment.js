@@ -6,6 +6,7 @@ const db=require('../config/db');
 const {requireAuth}=require('../middleware/auth');
 const {canUseTemporaryCleanup}=require('../services/temporary-cleanup-access');
 const {csrfValid}=require('../services/temporary-cleanup-correction');
+const {nextUrl}=require('../services/temporary-cleanup-queue');
 const router=express.Router();
 function hash(row){return crypto.createHash('sha256').update(JSON.stringify({
   id:row.id,client_id:row.client_id,account_number:row.account_number,assigned_staff_id:row.assigned_staff_id,is_active:row.is_active,updated_at:row.updated_at
@@ -38,7 +39,7 @@ router.post('/temporary-cleanup/staff/:key/:id',requireAuth,async(req,res,next)=
       actor:Number(req.session.user.id),id,notes:reason.slice(0,490),before:JSON.stringify(old),after:JSON.stringify(changed),ip:String(req.ip||'').slice(0,64),ua:String(req.get('user-agent')||'').slice(0,255)
     });
     await conn.commit();
-    return res.redirect(res.locals.basePath+'/temporary-cleanup?type=staff_conflict&view=all&corrected=1');
+    return res.redirect(nextUrl(res.locals.basePath,'staff_conflict','corrected'));
   }catch(e){try{await conn.rollback();}catch(_){}next(e);}finally{conn.release();}
 });
 module.exports={router,hash};

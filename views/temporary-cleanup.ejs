@@ -27,21 +27,60 @@
 .cleanup-search{display:flex;gap:9px;flex-wrap:wrap;align-items:center}.cleanup-search input,.cleanup-search select{padding:9px;border:1px solid #a7b9ce;border-radius:7px}
 .cleanup-radio{display:block;margin:10px 0}.cleanup-radio input{margin-right:8px}.cleanup-small{font-size:.86rem;color:#4e6175}
 .cleanup-label{font-weight:600}.cleanup-toggle{margin:12px 0 0}.cleanup-toggle summary{cursor:pointer;font-weight:700;color:#14527e}
+.cleanup-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 0}
+.cleanup-start{background:#106d5e!important;color:#fff!important;padding:12px 18px!important;border-radius:8px;text-decoration:none;font-weight:700}
+.cleanup-report-link{padding:10px 15px;border-radius:8px;background:#edf3fa;text-decoration:none;font-weight:650}
+.cleanup-progress{display:grid;grid-template-columns:repeat(auto-fit,minmax(115px,1fr));gap:8px;margin:12px 0}
+.cleanup-progress-item{padding:12px 15px;border:1px solid #cfdde8;background:#fff;border-radius:9px}
+.cleanup-progress-item strong{font-size:1.5rem;display:block;color:#244763}
+.cleanup-done{border:1px solid #77b79a;border-radius:11px;background:#ecf9f1;padding:18px;color:#1b5740}
+.cleanup-form .cleanup-radio{display:flex;align-items:flex-start;gap:10px;font-weight:600}
+.cleanup-card label.cleanup-radio{display:flex;gap:9px;align-items:center;font-weight:600}
+.cleanup-card label.cleanup-radio input[type=radio]{flex:0 0 auto;position:static;margin:0}
+.cleanup-form .cleanup-radio input{flex:0 0 auto;align-self:center}
+
 </style>
 <section class="cleanup-wrap">
   <div class="cleanup-header">
     <div><small>Talk2Me / Isolated UAT / Temporary until 31 October 2026</small><h1>Customer Cleanup & Approval Centre</h1>
       <p>Johnny processes the queue; Stephan and Gerda can review the same work.</p></div>
-    <a class="btn" href="<%= basePath %>/backoffice/clients">Return to Customers</a>
+    <div class="cleanup-actions">
+      <a class="cleanup-start" href="<%= basePath %>/temporary-cleanup/next?type=<%= type %>">Next unreviewed customer →</a>
+      <a class="cleanup-report-link" href="<%= basePath %>/temporary-cleanup/report">Reviewed &amp; approved report</a>
+      <a class="btn" href="<%= basePath %>/backoffice/clients">Customers</a>
+    </div>
   </div>
   <div class="cleanup-warning"><strong>UAT database only.</strong> Line and staff corrections take effect in UAT immediately and are audit-logged. A review approval does not delete any record. Consolidation archives only the specifically confirmed historical records; it never deletes them. Production is untouched.</div>
+  <% if(done){ %><div class="cleanup-note-box"><strong>Previous case saved and closed.</strong>
+  <%= done==='approved'?'Approved':done==='consolidated'?'Consolidated':done==='flagged'?'Flagged for follow-up':done==='corrected'?'Correction saved; finish the review if this case is still pending':'Reviewed' %>.
+  The next outstanding customer is displayed below. Completed cases remain in the review report.</div><% } %>
+  <% if(finished){ %><div class="cleanup-done"><strong>All currently identified cases have been reviewed or flagged.</strong>
+  Check the Follow-up queue for unresolved cases, or open the Reviewed &amp; approved report.</div><% } %>
+  <% if(progress){ %><div class="cleanup-progress">
+    <div class="cleanup-progress-item"><strong><%= progress.pending %></strong>Unreviewed</div>
+    <div class="cleanup-progress-item"><strong><%= progress.completed %></strong>Reviewed / approved</div>
+    <div class="cleanup-progress-item"><strong><%= progress.followup %></strong>Flagged / follow-up</div>
+    <div class="cleanup-progress-item"><strong><%= progress.total %></strong>Current category total</div>
+  </div><% } %>
   <% if(saved){ %><div class="cleanup-note-box">Review saved with reviewer name and audit history. No customer values changed by this approval.</div><% } %>
-  <% if(corrected){ %><div class="cleanup-note-box">Correction saved in UAT with an original-value snapshot and audit trail. Reload cases if the corrected phone or account changed its category.</div><% } %>
+  <% if(corrected){ %><div class="cleanup-note-box">Correction saved in UAT, with an original-value snapshot and audit trail. Confirm the final decision below to close this case, or continue to the next outstanding customer.</div><% } %>
   <% const tabs=[['same_account_phone','Same cellphone / account'],['cross_account_phone','Different accounts'],['account_alias','Account aliases'],['staff_conflict','Staff conflicts'],['base_unlinked','Supplier lines without CRM link']]; %>
   <nav class="cleanup-nav" aria-label="Discrepancy categories">
     <% tabs.forEach(([k,label])=>{ %><a class="<%= type===k?'active':'' %>" href="<%= basePath %>/temporary-cleanup?type=<%= k %>"><%= label %></a><% }) %>
   </nav>
   <% if(selected){ %>
+    <% if(readOnly){ %>
+    <div class="cleanup-done">
+      <strong><%= selected.decision==='approved_grouping'?'Approved':selected.decision==='keep_separate'?'Confirmed separate':'Case no longer in active discrepancy queue' %></strong>
+      <p>This case is recorded in the database history and is not waiting for another approval.
+      <% if(selected.reviewer){ %>Last reviewed by <%= selected.reviewer %>.<% } %></p>
+      <div class="cleanup-actions">
+        <a class="cleanup-start" href="<%= basePath %>/temporary-cleanup/next?type=<%= type %>">Continue to next unreviewed customer →</a>
+        <a class="cleanup-report-link" href="<%= basePath %>/temporary-cleanup/report">View approved history</a>
+        <% if(selected.record_count>0){ %><a href="<%= basePath %>/temporary-cleanup/review/<%= encodeURIComponent(type) %>/<%= encodeURIComponent(selected.key) %>?edit=1">Reopen this case for correction</a><% } %>
+      </div>
+    </div>
+    <% } %>
     <section class="cleanup-card">
       <h2><%= selected.display_name||'Customer record' %></h2>
       <p><strong>Account:</strong> <%= selected.display_account||'Unknown' %> &nbsp; <strong>Identifier:</strong> <%= selected.key %> &nbsp; <span class="cleanup-pill"><%= selected.record_count %> records</span></p>
@@ -58,7 +97,7 @@
               <div><dt><%= k.replace(/_/g,' ') %></dt><dd><%= v==null?'—':v instanceof Date?v.toISOString().slice(0,19):String(v) %></dd></div>
             <% }) %>
           </dl>
-          <% if(selected.type==='staff_conflict'){ %>
+          <% if(!readOnly && selected.type==='staff_conflict'){ %>
           <details class="cleanup-toggle">
             <summary>Correct staff member assigned to this record</summary>
             <form class="cleanup-form" method="post" action="<%= basePath %>/temporary-cleanup/staff/<%= encodeURIComponent(selected.key) %>/<%= r.id %>">
@@ -72,7 +111,7 @@
             </form>
           </details>
           <% } %>
-          <% if(selected.type==='same_account_phone'||selected.type==='cross_account_phone'){ %>
+          <% if(!readOnly && (selected.type==='same_account_phone'||selected.type==='cross_account_phone')){ %>
             <a href="<%= basePath %>/customers/<%= r.id %>/details" target="_blank" rel="noopener">Open existing CRM details</a>
             <details class="cleanup-toggle">
               <summary>Correct this line's details</summary>
@@ -103,7 +142,7 @@
         <% }) %>
       </div>
     </section>
-    <% if(selected.type==='same_account_phone'){ %>
+    <% if(!readOnly && selected.type==='same_account_phone' && rows.filter(r=>Number(r.is_active)===1).length>1){ %>
     <section class="cleanup-card">
       <h3>Consolidate the current line (optional)</h3>
       <p>This is a separate, explicit operation. Select the one customer-line record that should remain current. Other active duplicate records will be <strong>archived, not deleted</strong>. Past contracts, tasks, messages and notes remain in their original records and audit history. The system will refuse consolidation if assignments or open tasks are unsafe.</p>
@@ -122,29 +161,39 @@
       </form>
     </section>
     <% } %>
+    <% if(!readOnly && selected.type==='same_account_phone' && rows.length>1 && rows.filter(r=>Number(r.is_active)===1).length<=1){ %>
+    <div class="cleanup-note-box">Historical records are already archived; only one active/current line remains.
+      <strong>No additional consolidation is needed.</strong> Verify the details, then approve below to close the case.</div>
+    <% } %>
+    <% if(!readOnly){ %>
     <section class="cleanup-card">
-      <h3>Record a review / approval</h3>
+      <h3>Final decision — save and move to next customer</h3>
       <form method="post" action="<%= basePath %>/temporary-cleanup/review/<%= encodeURIComponent(selected.type) %>/<%= encodeURIComponent(selected.key) %>">
-        <input type="hidden" name="csrf" value="<%= csrf %>"><input type="hidden" name="snapshot" value="<%= selected.hash %>">
+        <input type="hidden" name="csrf" value="<%= csrf %>"><input type="hidden" name="snapshot" value="<%= selected.hash %>"><input type="hidden" name="review_revision" value="<%= reviewRevision %>">
         <% const choices=[['approved_grouping','Approved account grouping (no customer records archived by this decision)'],['keep_separate','Keep records separate'],['needs_correction','Needs further correction'],['flagged','Flag for investigation']]; %>
         <% choices.forEach(([k,label])=>{if(k==='approved_grouping'&&selected.type!=='same_account_phone')return;%>
           <label class="cleanup-radio"><input type="radio" name="decision" value="<%= k %>" required <%= selected.decision===k?'checked':'' %>> <%= label %></label>
         <% }) %>
         <label class="cleanup-label">Reason and instructions<textarea class="cleanup-note" name="notes" minlength="8" maxlength="2000" required placeholder="Evidence reviewed, supplier information confirmed, decision explained"><%= selected.notes||'' %></textarea></label>
-        <p><button type="submit" class="cleanup-btn secondary">Save approval / review</button> &nbsp;
+        <p><button type="submit" class="cleanup-btn secondary">Save decision &amp; open next customer →</button> &nbsp;
           <a href="<%= basePath %>/temporary-cleanup?type=<%= type %>">Back to review queue</a></p>
       </form>
     </section>
+    <% } %>
   <% }else{ %>
   <section class="cleanup-card">
     <form class="cleanup-search" method="get" action="<%= basePath %>/temporary-cleanup">
       <input type="hidden" name="type" value="<%= type %>">
       <input name="q" value="<%= q %>" placeholder="Phone, customer or account" aria-label="Search cases">
-      <select name="view"><option value="open" <%= view==='open'?'selected':'' %>>Outstanding / flagged</option>
-        <option value="all" <%= view==='all'?'selected':'' %>>All, including approved</option></select>
+      <select name="view">
+        <option value="pending" <%= view==='pending'?'selected':'' %>>Unreviewed / pending</option>
+        <option value="followup" <%= view==='followup'?'selected':'' %>>Flagged / needs correction</option>
+        <option value="reviewed" <%= view==='reviewed'?'selected':'' %>>Reviewed / approved</option>
+        <option value="all" <%= view==='all'?'selected':'' %>>All active discrepancies</option></select>
       <button type="submit" class="cleanup-btn">Filter cases</button>
     </form>
-    <p><strong><%= total %> cases</strong> in this view. Page <%= page %>.</p>
+    <p><strong><%= total %> cases</strong> in this view. Page <%= page %>.
+      <% if(view==='pending'){ %>As soon as a decision is saved, the case leaves this queue automatically.<% } %></p>
     <div class="cleanup-scroll">
       <table class="cleanup-table"><thead><tr><th>Customer</th><th>Account</th><th>Phone / key</th><th>Records</th><th>Differences</th><th>Review</th><th>Action</th></tr></thead>
         <tbody><% cases.forEach(c=>{ %><tr>
@@ -154,7 +203,7 @@
           <td><a href="<%= basePath %>/temporary-cleanup/review/<%= type %>/<%= encodeURIComponent(c.case_key) %>">Review & correct</a></td>
         </tr><% }) %></tbody>
       </table>
-      <% if(!cases.length){ %><p>No cases match this filter.</p><% } %>
+      <% if(!cases.length){ %><p>No cases match this filter. Choose another category, or open the reviewed-history report.</p><% } %>
     </div>
     <nav class="cleanup-pager" aria-label="Pagination">
       <% if(page>1){ %><a href="<%= basePath %>/temporary-cleanup?type=<%= type %>&view=<%= view %>&q=<%= encodeURIComponent(q) %>&page=<%= page-1 %>">← Previous</a><% } %>
