@@ -817,6 +817,12 @@ router.post('/backoffice/clients/:id/assign', requireAuth, requireRole('owner','
     if(back)query.set('q',back);
     if(returnScope)query.set('scope',returnScope);
     if(returnScope==='staff'&&returnStaffId)query.set('staff_id',String(returnStaffId));
+    // Keep the active read-only customer filters after an approved assignment change.
+    const preserved=new URLSearchParams(String(req.body.return_filters||'').slice(0,1000));
+    for(const key of ['upgrade_month','date','from','to','work','status','sort','page']){
+      const value=preserved.get(key);
+      if(value!==null&&value.length<=30)query.set(key,value);
+    }
     res.redirect(`${res.locals.basePath}/backoffice/clients?${query.toString()}`);
   } catch(e){ next(e); }
 });
