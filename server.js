@@ -359,6 +359,15 @@ if (UAT_MODE) {
   app.use('/', uatClientVisibility);
   if (BASE_PATH) app.use(BASE_PATH, uatClientVisibility);
 
+  const temporaryCleanup = require('./src/routes/temporary-cleanup');
+  const temporaryCleanupCorrections = require('./src/routes/temporary-cleanup-corrections');
+  const temporaryCleanupConsolidate = require('./src/routes/temporary-cleanup-consolidate');
+  const temporaryCleanupAssignment = require('./src/routes/temporary-cleanup-assignment').router;
+  for (const route of [temporaryCleanup, temporaryCleanupCorrections, temporaryCleanupConsolidate, temporaryCleanupAssignment]) {
+    app.use('/', route);
+    if (BASE_PATH) app.use(BASE_PATH, route);
+  }
+
   // Isolated signed CRM endpoint for Zippy, available only in UAT.
   // No browser session or generic staff access is granted by this integration.
   const zippyIntegration = require('./src/routes/zippy-integration');

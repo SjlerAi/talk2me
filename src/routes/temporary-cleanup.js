@@ -4,6 +4,8 @@ const crypto = require('crypto');
 const db = require('../config/db');
 const { requireAuth } = require('../middleware/auth');
 const { canUseTemporaryCleanup } = require('../services/temporary-cleanup-access');
+const {rowHash} = require('../services/temporary-cleanup-correction');
+const {hash:assignmentHash} = require('./temporary-cleanup-assignment');
 const router = express.Router();
 const TAKE = 30;
 const KINDS = new Set(['same_account_phone','cross_account_phone','account_alias','staff_conflict','base_unlinked']);
@@ -36,14 +38,14 @@ const queryCases = {
     MAX(c.client_name) display_name,MAX(a.account_number) display_account FROM client_assignments a LEFT JOIN clients c ON c.id=a.client_id
     WHERE a.is_active=1 AND TRIM(COALESCE(a.account_number,''))<>'' GROUP BY case_key
     HAVING COUNT(DISTINCT a.assigned_staff_id)>1`,
-  base_unlinked: `SELECT CAST(b.id AS CHAR) case_key,1 record_count,0 upgrade_variants,0 name_variants,b.account_name display_name,b.account_code display_account
+  base_unlinked: `SELECT (CONVERT(CAST(b.id AS CHAR) USING utf8mb4) COLLATE utf8mb4_unicode_ci) case_key,1 record_count,0 upgrade_variants,0 name_variants,b.account_name display_name,b.account_code display_account
     FROM mobile_base_current b WHERE b.client_id IS NULL`
 };
 async function reviewRows(type,key) {
   if(type==='same_account_phone'||type==='cross_account_phone') {
-    const [rows]=await db.execute(`SELECT id,account_id,account_number,client_name,cell_number,email,
+    const [rows]=await db.execute(`SELECT id,account_id,account_number,client_name,cell_number,cell_number_normalised,email,
       DATE_FORMAT(previous_upgrade_date,'%Y-%m-%d') previous_upgrade_date,
-      DATE_FORMAT(next_upgrade_date,'%Y-%m-%d') next_upgrade_date,package_name,line_status,is_active,updated_at
+      DATE_FORMAT(next_upgrade_date,'%Y-%m-%d') next_upgrade_date,DATE_FORMAT(upgrade_date,'%Y-%m-%d') upgrade_date,package_name,line_status,is_active,updated_at
       FROM clients WHERE cell_number_normalised=:key ORDER BY account_id,id LIMIT 80`,{key});
     return rows;
   }
@@ -83,7 +85,7 @@ router.get('/temporary-cleanup',requireAuth,guard,async(req,res,next)=>{
     const [[count]]=await db.query('SELECT COUNT(*) total FROM ('+sql+filter+') listing',params);
     const [cases]=await db.query(sql+filter+' ORDER BY x.record_count DESC,x.case_key LIMIT ? OFFSET ?',[...params,TAKE,(page-1)*TAKE]);
     res.set('Cache-Control','no-store');
-    return res.render('temporary-cleanup',{title:'Temporary Customer Cleanup',type,page,total:Number(count.total),cases,q,view,csrf:csrf(req),selected:null,rows:[],saved:req.query.saved==='1'});
+    return res.render('temporary-cleanup',{title:'Temporary Customer Cleanup',type,page,total:Number(count.total),cases,q,view,csrf:csrf(req),selected:null,rows:[],staffOptions:[],saved:req.query.saved==='1',corrected:req.query.corrected==='1'});
   }catch(e){next(e);}
 });
 router.get('/temporary-cleanup/review/:type/:key',requireAuth,guard,async(req,res,next)=>{
@@ -93,10 +95,11 @@ router.get('/temporary-cleanup/review/:type/:key',requireAuth,guard,async(req,re
     const selected=await getCase(type,key);
     if(!selected)return res.status(404).render('error',{title:'Case not found',message:'This discrepancy no longer exists.'});
     const rows=await reviewRows(type,key);
+    const [staffOptions]=type==='staff_conflict'?await db.query('SELECT id,full_name FROM staff_users WHERE is_active=1 AND deleted_at IS NULL ORDER BY full_name'):[[]];
     const [decisions]=await db.execute('SELECT d.*,s.full_name reviewer FROM temporary_cleanup_decisions d LEFT JOIN staff_users s ON s.id=d.reviewed_by WHERE d.case_type=:type AND d.case_key=:key LIMIT 1',{type,key});
     const decision=decisions[0]||{};
     res.set('Cache-Control','no-store');
-    return res.render('temporary-cleanup',{title:'Review Cleanup Case',type,page:1,total:1,cases:[],q:'',view:'all',csrf:csrf(req),selected:{...selected,...decision,type,key,hash:snapshot(rows)},rows,saved:req.query.saved==='1'});
+    return res.render('temporary-cleanup',{title:'Review Cleanup Case',type,page:1,total:1,cases:[],q:'',view:'all',csrf:csrf(req),selected:{...selected,...decision,type,key,hash:snapshot(rows)},rows:rows.map(r=>({...r,_checkHash:(type==='same_account_phone'||type==='cross_account_phone')?rowHash(r):null,_assignmentHash:type==='staff_conflict'?assignmentHash(r):null})),staffOptions,saved:req.query.saved==='1',corrected:req.query.corrected==='1'});
   }catch(e){next(e);}
 });
 router.post('/temporary-cleanup/review/:type/:key',requireAuth,guard,async(req,res,next)=>{
@@ -110,12 +113,18 @@ router.post('/temporary-cleanup/review/:type/:key',requireAuth,guard,async(req,r
     if(!selected)return res.status(409).render('error',{title:'Case changed',message:'The discrepancy no longer exists. Reload the review.'});
     const current=await reviewRows(type,key);
     if(String(req.body.snapshot||'')!==snapshot(current))return res.status(409).render('error',{title:'Records changed',message:'The customer data has changed since opening this case. Reload and review the latest values.'});
-    await db.execute(`INSERT INTO temporary_cleanup_decisions (case_type,case_key,decision,notes,source_snapshot_hash,reviewed_by,reviewed_at)
-      VALUES (:type,:key,:decision,:notes,:hash,:userId,NOW())
-      ON DUPLICATE KEY UPDATE decision=VALUES(decision),notes=VALUES(notes),
-      source_snapshot_hash=VALUES(source_snapshot_hash),reviewed_by=VALUES(reviewed_by),reviewed_at=VALUES(reviewed_at)`,
-    {type,key,decision,notes,hash:snapshot(current),userId:Number(req.session.user.id)});
-    // This screen records controlled decisions only; it never changes clients, lines or assignments.
+    const userId=Number(req.session.user.id);
+    const conn=await db.getConnection();
+    try {
+      await conn.beginTransaction();
+      await conn.execute("INSERT INTO temporary_cleanup_decisions (case_type,case_key,decision,notes,source_snapshot_hash,reviewed_by,reviewed_at) VALUES (:type,:key,:decision,:notes,:hash,:userId,NOW()) ON DUPLICATE KEY UPDATE decision=VALUES(decision),notes=VALUES(notes),source_snapshot_hash=VALUES(source_snapshot_hash),reviewed_by=VALUES(reviewed_by),reviewed_at=VALUES(reviewed_at)",{type,key,decision,notes,hash:snapshot(current),userId});
+      await conn.execute("INSERT INTO temporary_cleanup_review_history (case_type,case_key,decision,notes,source_snapshot_hash,reviewed_by) VALUES (:type,:key,:decision,:notes,:hash,:userId)",{type,key,decision,notes,hash:snapshot(current),userId});
+      await conn.execute("INSERT INTO audit_log (staff_id,action_type,entity_type,description,after_json,ip_address,user_agent) VALUES (:userId,'temporary_cleanup_case_review','temporary_cleanup',:description,:after,:ip,:ua)",{
+        userId,description:'One-off cleanup '+type+' review: '+decision,after:JSON.stringify({type,key,decision,notes}),
+        ip:String(req.ip||'').slice(0,64),ua:String(req.get('user-agent')||'').slice(0,255)});
+      await conn.commit();
+    } catch(error) { await conn.rollback(); throw error; }
+    finally { conn.release(); }
     return res.redirect(res.locals.basePath+'/temporary-cleanup/review/'+encodeURIComponent(type)+'/'+encodeURIComponent(key)+'?saved=1');
   }catch(e){next(e);}
 });
