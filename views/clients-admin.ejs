@@ -44,6 +44,30 @@ const staffFormValues=new URLSearchParams(queryStringFor({scope:'staff',staff_id
   <a class="<%= view==='unassigned'?'active':'' %>" href="<%= basePath %>/backoffice/clients?<%= queryStringFor({view:'unassigned',page:1}) %>">Unassigned <span><%= counts.unassigned_count||0 %></span></a>
   <a class="<%= view==='archived'?'active':'' %>" href="<%= basePath %>/backoffice/clients?<%= queryStringFor({view:'archived',page:1}) %>">Archived <span><%= counts.archived_count||0 %></span></a>
 </nav>
+<section class="customer-attention-launcher" aria-label="Daily customer attention">
+  <div class="customer-attention-intro">
+    <strong>My day — customers to action</strong>
+    <small>One click to see the customers who need a call, birthday follow-up, upgrade or allocation.</small>
+  </div>
+  <div class="customer-attention-actions">
+    <a class="customer-attention-action <%= attention.focus==='needs_attention'&&staffScope==='mine'?'active':'' %>"
+       href="<%= basePath %>/backoffice/clients?<%= queryStringFor({view:'all',scope:'mine',staff_id:null,focus:'needs_attention',q:null,upgrade_month:null,work:'all',date:'any',from:null,to:null,status:'all',sort:'recent',birthday:null,contact:null,unallocated:null,page:1}) %>">
+      <strong>My Customers Needing Attention</strong><small>Overdue work and customer care</small>
+    </a>
+    <a class="customer-attention-action <%= attention.focus==='birthdays'?'active':'' %>"
+       href="<%= basePath %>/backoffice/clients?<%= queryStringFor({view:'all',focus:'birthdays',birthday:'today',q:null,upgrade_month:null,work:'all',date:'any',from:null,to:null,status:'all',sort:'recent',contact:null,unallocated:null,page:1}) %>">
+      <strong>Birthdays</strong><small>Today, this week and missed</small>
+    </a>
+    <a class="customer-attention-action <%= attention.focus==='contact'?'active':'' %>"
+       href="<%= basePath %>/backoffice/clients?<%= queryStringFor({view:'all',focus:'contact',contact:'overdue',q:null,upgrade_month:null,work:'all',date:'any',from:null,to:null,status:'all',sort:'recent',birthday:null,unallocated:null,page:1}) %>">
+      <strong>Follow-up Attention</strong><small>No recorded contact or overdue</small>
+    </a>
+    <a class="customer-attention-action <%= attention.focus==='unallocated'?'active':'' %>"
+       href="<%= basePath %>/backoffice/clients?<%= queryStringFor({view:'all',scope:'all',staff_id:null,focus:'unallocated',unallocated:'customers',q:null,upgrade_month:null,work:'all',date:'any',from:null,to:null,status:'all',sort:'recent',birthday:null,contact:null,page:1}) %>">
+      <strong>Unallocated</strong><small>Customers without an owner</small>
+    </a>
+  </div>
+</section>
 <section class="card customer-advanced-filter" id="customer-list-filter" aria-label="Customer list filters">
   <div class="customer-filter-heading">
     <div><strong>Find the customers and work you need</strong><small>Combine staff, upgrade month, work dates and status. Results update from the CRM.</small></div>
@@ -55,6 +79,37 @@ const staffFormValues=new URLSearchParams(queryStringFor({scope:'staff',staff_id
     <input type="hidden" name="scope" value="<%= staffScope %>">
     <% if(staffScope==='staff' && staffScopeSelectedId){ %><input type="hidden" name="staff_id" value="<%= staffScopeSelectedId %>"><% } %>
     <div class="customer-filter-grid">
+      <label>Customer attention
+        <select name="focus" aria-label="Customer attention view">
+          <option value="all" <%= selected(attention.focus,'all') %>>All customers / normal filters</option>
+          <option value="needs_attention" <%= selected(attention.focus,'needs_attention') %>>Customers Needing Attention</option>
+          <option value="birthdays" <%= selected(attention.focus,'birthdays') %>>Birthdays</option>
+          <option value="contact" <%= selected(attention.focus,'contact') %>>Follow-up Attention</option>
+          <option value="unallocated" <%= selected(attention.focus,'unallocated') %>>Unallocated Customers / Work</option>
+        </select>
+      </label>
+      <label class="customer-attention-field" data-attention-when="birthdays" <%= attention.focus==='birthdays'?'':'hidden' %>>Birthday period
+        <select name="birthday" aria-label="Birthday period">
+          <option value="today" <%= selected(attention.birthday,'today') %>>Today</option>
+          <option value="tomorrow" <%= selected(attention.birthday,'tomorrow') %>>Tomorrow</option>
+          <option value="this_week" <%= selected(attention.birthday,'this_week') %>>This Week</option>
+          <option value="this_month" <%= selected(attention.birthday,'this_month') %>>This Month</option>
+          <option value="missed" <%= selected(attention.birthday,'missed') %>>Past 7 Days — Not Followed Up</option>
+        </select>
+      </label>
+      <label class="customer-attention-field" data-attention-when="contact" <%= attention.focus==='contact'?'':'hidden' %>>Contact attention
+        <select name="contact" aria-label="Contact attention">
+          <option value="overdue" <%= selected(attention.contact,'overdue') %>>Overdue Follow-ups / Callbacks</option>
+          <option value="no_record" <%= selected(attention.contact,'no_record') %>>No CRM Contact Recorded</option>
+          <option value="no_recent" <%= selected(attention.contact,'no_recent') %>>No Follow-up Recorded in 30 Days</option>
+        </select>
+      </label>
+      <label class="customer-attention-field" data-attention-when="unallocated" <%= attention.focus==='unallocated'?'':'hidden' %>>Unallocated view
+        <select name="unallocated" aria-label="Unallocated customer or linked work">
+          <option value="customers" <%= selected(attention.unallocated,'customers') %>>Customers Without an Owner</option>
+          <option value="customer_work" <%= selected(attention.unallocated,'customer_work') %>>Unassigned Customers With Open Work</option>
+        </select>
+      </label>
       <label>Work type
         <select name="work" aria-label="Work type">
           <option value="all" <%= selected(filters.work,'all') %>>All Work / Customers</option>
@@ -110,6 +165,15 @@ const staffFormValues=new URLSearchParams(queryStringFor({scope:'staff',staff_id
       </div>
       <small class="customer-list-filter-help">Only the Next Upgrade field determines upgrade eligibility. Status applies to Tasks and Follow-ups.</small>
     </div>
+    <% if(attention.focus==='unallocated'&&staffScope!=='all'){ %>
+      <div class="customer-filter-warning">Unallocated customers have no assigned staff member. Select All Staff (or All for ordinary staff) to see them.</div>
+    <% } %>
+    <% if(attention.focus!=='all'){ %><div class="customer-attention-explanation">
+      <% if(attention.focus==='contact'){ %>Contact evidence is based on completed CRM follow-ups, callbacks and documented inquiry actions. Desktop WhatsApp or calls not recorded in CRM cannot be detected.<% } %>
+      <% if(attention.focus==='birthdays'){ %>Missed birthdays are from the previous 7 days with no completed CRM contact or Gerda birthday check recorded after the birthday.<% } %>
+      <% if(attention.focus==='unallocated'){ %>The customer has no owner. Tasks and follow-ups themselves require a named assignee; linked work is shown separately and is not labelled unassigned.<% } %>
+      <% if(attention.focus==='needs_attention'){ %>Includes overdue upgrades, overdue tasks, callbacks, follow-ups, open inquiries, recent birthdays with no recorded follow-up and customers without an owner.<% } %>
+    </div><% } %>
   </form>
 </section>
 <div class="customer-results-summary" role="status" aria-live="polite">
@@ -118,9 +182,9 @@ const staffFormValues=new URLSearchParams(queryStringFor({scope:'staff',staff_id
 </div>
 <div class="card table-card customer-results-card">
   <table class="data-table customer-admin-table">
-    <thead><tr><th>Client and account</th><th>Type</th><th>Contact</th><th>Latest inquiry</th><th>Town</th><th>Next Upgrade</th><th>Assigned staff</th><th aria-label="Edit"></th></tr></thead>
+    <thead><tr><th>Client and account</th><th>Type</th><th>Contact</th><th>Latest inquiry</th><th>Town</th><th>Next Upgrade</th><% if(attention.focus==='birthdays'){ %><th>Birthday</th><% } %><% if(attention.focus!=='all'){ %><th>Attention needed</th><% } %><th>Assigned staff</th><th aria-label="Edit"></th></tr></thead>
     <tbody>
-    <% if(!clients.length){ %><tr class="customer-empty-row"><td colspan="8">No customers match the selected filters.</td></tr><% } %>
+    <% if(!clients.length){ %><tr class="customer-empty-row"><td colspan="<%= 8+(attention.focus==='birthdays'?1:0)+(attention.focus!=='all'?1:0) %>">No customers match the selected filters.</td></tr><% } %>
     <% clients.forEach(c=>{ %><tr>
       <td data-label="Customer"><a class="customer-name-link" href="<%= basePath %>/customers/<%= c.id %>/360"><strong><%= c.client_name %></strong><% if(c.account_number){ %><small>Account: <%= c.account_number %></small><% } %><% if(c.email){ %><small><%= c.email %></small><% } %></a></td>
       <td data-label="Type"><span class="client-status <%= c.lifecycle_status||'client' %>"><%= c.lifecycle_status||'client' %></span><% if(c.lead_status){ %><br><small><%= c.lead_status.replace('_',' ') %></small><% } %></td>
@@ -128,6 +192,8 @@ const staffFormValues=new URLSearchParams(queryStringFor({scope:'staff',staff_id
       <td data-label="Latest inquiry"><%= c.last_inquiry||'—' %><% if(c.last_action){ %><br><small><strong>Action:</strong> <%= c.last_action %></small><% } %></td>
       <td data-label="Town"><%= c.city_town||'—' %></td>
       <td data-label="Next Upgrade"><strong><%= c.next_upgrade_date?new Date(c.next_upgrade_date).toLocaleDateString('en-ZA'):'—' %></strong><% if(c.previous_upgrade_date){ %><br><small>Previous: <%= new Date(c.previous_upgrade_date).toLocaleDateString('en-ZA') %></small><% } %></td>
+      <% if(attention.focus==='birthdays'){ %><td data-label="Birthday"><strong><%= c.birthday?new Date(c.birthday).toLocaleDateString('en-ZA',{day:'2-digit',month:'short',timeZone:'Africa/Johannesburg'}):'—' %></strong></td><% } %>
+      <% if(attention.focus!=='all'){ %><td data-label="Attention needed"><div class="customer-attention-badges"><% (c.attentionReasons||[]).forEach(reason=>{ %><span class="customer-attention-badge"><%= reason %></span><% }) %></div></td><% } %>
       <td data-label="Assigned staff">
         <% if(['owner','manager'].includes(currentUser.role)){ %>
           <form method="post" action="<%= basePath %>/backoffice/clients/<%= c.id %>/assign" class="assignment-form compact-assignment-form" data-assignment-form>
@@ -162,6 +228,7 @@ const staffFormValues=new URLSearchParams(queryStringFor({scope:'staff',staff_id
   const input=document.getElementById('customer-list-filter-input');
   const dateSelect=form?.querySelector('[name="date"]');
   const workSelect=form?.querySelector('[name="work"]');
+  const focusSelect=form?.querySelector('[name="focus"]');
   const statusSelect=form?.querySelector('[name="status"]');
   const from=form?.querySelector('[name="from"]');
   const to=form?.querySelector('[name="to"]');
@@ -169,6 +236,7 @@ const staffFormValues=new URLSearchParams(queryStringFor({scope:'staff',staff_id
     const sync=()=>{
       const custom=dateSelect?.value==='custom';
       form.querySelectorAll('.customer-date-custom').forEach(node=>node.hidden=!custom);
+      form.querySelectorAll('.customer-attention-field').forEach(node=>node.hidden=node.dataset.attentionWhen!==focusSelect?.value);
       if(from)from.required=custom;
       if(to)to.required=custom;
       if(statusSelect){

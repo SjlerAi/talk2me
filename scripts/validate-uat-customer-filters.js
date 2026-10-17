@@ -4,6 +4,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
 const Module=require('node:module');
+const {parseAttention}=require('../src/services/uat-customer-attention');
 const {
   normaliseFilters,buildWorkConditions,monthBounds,todayInSouthAfrica,plusDays
 }=require('../src/services/uat-customer-filters');
@@ -145,7 +146,7 @@ async function routeCase(user,query) {
     staff:[{id:7,full_name:'Jonathan Olivier'}],
     counts:{active_count:1,prospect_count:0,incomplete_count:0,unassigned_count:0,archived_count:0},
     staffVisibilityScope:'staff',staffVisibilitySelectedId:7,staffVisibilityManagement:true,
-    filters:normal({upgrade_month:'2026-10',work:'upgrades'}),total:1,
+    filters:normal({upgrade_month:'2026-10',work:'upgrades'}),attention:parseAttention({},ANCHOR),total:1,
     page:1,pageCount:1,pageSize:50,firstRecord:1,lastRecord:1,
     queryStringFor:extra=>new URLSearchParams({view:'all',scope:'staff',staff_id:'7',upgrade_month:'2026-10',...extra}).toString()
   });
