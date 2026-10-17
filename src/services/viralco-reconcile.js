@@ -1,19 +1,22 @@
 'use strict';
 
-const fs=require('fs');
 const crypto=require('crypto');
-const path=require('path');
 const {normaliseSouthAfricanMobile}=require('./sa-phone-normalisation');
 const {normaliseAccountNumber,companyKey}=require('./viralco-report');
 const {todayInSouthAfrica}=require('./uat-customer-filters');
 
+// The shared UAT deployer packages JS services but not the sql/ migrations folder.
+// Keep these additive CREATE TABLE statements embedded so first-run previews work.
+const VIRALCO_CREATE_STATEMENTS=Object.freeze([
+  "CREATE TABLE IF NOT EXISTS viralco_import_previews (\n  id CHAR(36) PRIMARY KEY,\n  account_id BIGINT UNSIGNED NOT NULL,\n  client_id BIGINT UNSIGNED NOT NULL,\n  uploaded_by BIGINT UNSIGNED NOT NULL,\n  filename VARCHAR(255) NOT NULL,\n  file_hash CHAR(64) NOT NULL,\n  file_data MEDIUMBLOB NOT NULL,\n  expected_version_id BIGINT UNSIGNED NULL,\n  expected_crm_digest CHAR(64) NOT NULL,\n  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  expires_at DATETIME NOT NULL,\n  KEY idx_viralco_preview_account (account_id,uploaded_by,expires_at)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+  "CREATE TABLE IF NOT EXISTS viralco_import_versions (\n  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,\n  account_id BIGINT UNSIGNED NOT NULL,\n  version_no INT UNSIGNED NOT NULL,\n  provider_account_number VARCHAR(80) NOT NULL,\n  provider_company_name VARCHAR(180) NOT NULL,\n  previous_account_name VARCHAR(180) NULL,\n  filename VARCHAR(255) NOT NULL,\n  file_hash CHAR(64) NOT NULL,\n  file_data MEDIUMBLOB NOT NULL,\n  line_count INT UNSIGNED NOT NULL,\n  matched_count INT UNSIGNED NOT NULL DEFAULT 0,\n  updated_count INT UNSIGNED NOT NULL DEFAULT 0,\n  created_count INT UNSIGNED NOT NULL DEFAULT 0,\n  review_count INT UNSIGNED NOT NULL DEFAULT 0,\n  omitted_count INT UNSIGNED NOT NULL DEFAULT 0,\n  published_by BIGINT UNSIGNED NOT NULL,\n  published_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  is_current TINYINT(1) NOT NULL DEFAULT 1,\n  name_approved_by BIGINT UNSIGNED NULL,\n  UNIQUE KEY uq_viralco_account_version (account_id,version_no),\n  KEY idx_viralco_active (account_id,is_current,published_at)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+  "CREATE TABLE IF NOT EXISTS viralco_import_lines (\n  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,\n  version_id BIGINT UNSIGNED NOT NULL,\n  source_row INT UNSIGNED NOT NULL,\n  msisdn_original VARCHAR(40) NOT NULL,\n  phone_normalised VARCHAR(20) NOT NULL,\n  subscriber_name VARCHAR(160) NULL,\n  invoice_name VARCHAR(160) NULL,\n  sponsored_account VARCHAR(120) NULL,\n  activation_date DATE NULL,\n  term_date DATE NULL,\n  upgradable CHAR(1) NOT NULL,\n  earliest_upgrade_date DATE NULL,\n  last_upgrade_date DATE NULL,\n  pack_code VARCHAR(80) NULL,\n  pack_desc VARCHAR(180) NULL,\n  avg_spend DECIMAL(14,2) NULL,\n  loyalty_status VARCHAR(120) NULL,\n  sim_number VARCHAR(80) NULL,\n  dealer_id VARCHAR(80) NULL,\n  line_status_code VARCHAR(30) NULL,\n  matched_client_id BIGINT UNSIGNED NULL,\n  sync_action ENUM('updated','unchanged','created','pending_new','conflict','ambiguous') NOT NULL,\n  old_crm_json TEXT NULL,\n  new_crm_json TEXT NULL,\n  UNIQUE KEY uq_viralco_version_row (version_id,source_row),\n  KEY idx_viralco_version (version_id),\n  KEY idx_viralco_phone (phone_normalised),\n  KEY idx_viralco_matched_client (matched_client_id),\n  CONSTRAINT fk_viralco_import_version\n    FOREIGN KEY (version_id) REFERENCES viralco_import_versions (id)\n    ON DELETE RESTRICT\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+]);
 let initialized=null;
 async function ensureSchema(db){
   if(initialized)return initialized;
   initialized=(async()=>{
-    const sql=fs.readFileSync(path.join(__dirname,'../../sql/20261017_viralco_direct_import.sql'),'utf8')
-      .split(';').map(s=>s.trim()).filter(Boolean);
-    for(const statement of sql)await db.query(statement);
+    for(const sql of VIRALCO_CREATE_STATEMENTS)await db.query(sql);
   })().catch(error=>{initialized=null;throw error;});
   return initialized;
 }
