@@ -183,6 +183,9 @@ router.post('/customers/:id/business-sheet/preview',requireAuth,(req,res,next)=>
       if(!req.file)return fail(res,400,'Select an .xlsx spreadsheet before uploading.');
       const parsed=parseQuarterlySheet(req.file.buffer,req.file.originalname);
       await ensureQuarterlySheetSchema(db);
+      // Remove only expired previews for this uploader/account; never touch saved versions.
+      await db.execute('DELETE FROM business_account_sheet_previews WHERE account_id=:accountId AND uploaded_by=:userId AND expires_at<NOW()',
+        {accountId:ctx.account.id,userId:req.session.user.id});
       const id=crypto.randomUUID();
       await db.execute(
         'INSERT INTO business_account_sheet_previews '+
