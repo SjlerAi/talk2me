@@ -68,6 +68,7 @@ const db={
       {id:99,full_name:'Test Staff',email:'staff@example.org',role:'staff'}]];
   },
   async execute(sql,params) {
+    if(sql.includes('information_schema.TABLES'))return [[{present:0}]];
     sqlCalls.push({sql,params:{...params}});
     if(sql.startsWith('SELECT COUNT(*) total FROM clients'))return [[{total:123}]];
     if(sql.includes('SUM(c.is_active=1)'))return [[{active_count:2134,prospect_count:0,incomplete_count:0,archived_count:0}]];

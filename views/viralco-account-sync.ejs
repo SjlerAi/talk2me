@@ -1,0 +1,125 @@
+<link rel="stylesheet" href="<%= basePath %>/public/css/viralco-sync.css?v=<%= encodeURIComponent(assetVersion||appVersion) %>">
+<section class="page-head viralco-page-head">
+  <div>
+    <a class="vc-back" href="<%= basePath %>/customers/<%= client.id %>/360">← Return to Customer 360</a>
+    <h1>Update Business Account from ViralCo</h1>
+    <p><strong><%= account.display_name||client.client_name %></strong> · Official CRM account <strong><%= account.account_number %></strong></p>
+    <p>Import the original Subscriber Detailed Report. Do not manually rebuild the spreadsheet.</p>
+  </div>
+</section>
+<% if(message){ %><div class="success-box" role="status"><%= message %></div><% } %>
+<% if(error){ %><div class="warning-box" role="alert"><%= error %></div><% } %>
+<div class="vc-summary">
+  <article><small>Last ViralCo update</small><strong><%= current?new Date(current.published_at).toLocaleDateString('en-ZA'):'Not yet imported' %></strong><span><%= current?(Date.now()-new Date(current.published_at).getTime()>90*86400000?'Update due (over 90 days)':'Up to date — version '+current.version_no):'Update due — first import required' %></span></article>
+  <article><small>Current provider lines</small><strong><%= current?current.line_count:0 %></strong><span>Structured and searchable by line</span></article>
+  <article><small>Pending manual review</small><strong><%= current?current.review_count:0 %></strong><span>Only safe matches update automatically</span></article>
+</div>
+<section class="panel vc-panel">
+  <div class="vc-panel-top"><div>
+    <h2>Step 1 — Upload the original ViralCo report</h2>
+    <p>In ViralCo, open this business account and export <strong>Subscriber Detailed Report</strong> with both <strong>Eligible for Upgrade = All</strong> and <strong>Dealer ID = All</strong>.</p>
+  </div></div>
+  <form method="post" action="<%= basePath %>/customers/<%= client.id %>/viralco-sync/upload" enctype="multipart/form-data" class="vc-upload-form">
+    <input type="hidden" name="viralco_csrf" value="<%= csrfToken %>">
+    <label for="viralco-report-file">Original ViralCo Excel (.xlsx)</label>
+    <input id="viralco-report-file" type="file" name="report" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required>
+    <button type="submit" class="btn primary">Upload & Preview Changes</button>
+  </form>
+  <small class="vc-hint">The importer identifies the account using ViralCo's Account Number and matches lines by normalised MSISDN. Previous customer notes, ownership, invoices, upgrades and activity history are protected.</small>
+</section>
+<% if(preview){ %>
+<section class="panel vc-preview" id="viralco-preview">
+  <span class="vc-eyebrow">Review before publishing</span>
+  <h2>Step 2 — Confirm the account and changes</h2>
+  <div class="vc-identity">
+    <div><small>CRM account number</small><strong><%= account.account_number %></strong><small><%= account.display_name||'Account name unavailable' %></small></div>
+    <div><small>ViralCo account number</small><strong><%= preview.report.accountNumber %></strong><small><%= preview.report.customerName %></small></div>
+  </div>
+  <% if(!preview.accountMatches){ %><div class="warning-box">The account numbers do not match. The system will not import this file here.</div><% } %>
+  <% if(preview.nameMismatch){ %>
+  <div class="warning-box"><strong>Company name conflict.</strong> The CRM account name differs from ViralCo's business name. This does not necessarily mean the account number is wrong. Management must verify the company identity before any update is published.</div>
+  <% if(!preview.canConfirmName){ %><p><strong>Ask Gerda or a manager to confirm this report for the correct business account.</strong> You can inspect the results but cannot publish a mismatched company name.</p><% } %>
+  <% } %>
+  <% if(preview.baselineChanged||preview.versionChanged){ %><div class="warning-box">The CRM changed since this workbook was uploaded. Re-upload to see an up-to-date comparison before publishing.</div><% } %>
+  <div class="vc-stat-grid">
+    <div><strong><%= preview.total %></strong><small>ViralCo subscriber lines</small></div>
+    <div><strong><%= preview.matched %></strong><small>Matched to this CRM account</small></div>
+    <div><strong><%= preview.changed %></strong><small>Existing lines with changed details</small></div>
+    <div><strong><%= preview.unchanged %></strong><small>Existing lines unchanged</small></div>
+    <div><strong><%= preview.safeNew %></strong><small>New numbers without existing CRM records</small></div>
+    <div><strong><%= preview.conflicts %></strong><small>Ownership / duplicate conflicts</small></div>
+    <div><strong><%= preview.missingCount %></strong><small>CRM lines absent from this report</small></div>
+    <div><strong><%= preview.eligible %></strong><small>ViralCo lines marked Upgradable = Y</small></div>
+  </div>
+  <% if(preview.missingCount){ %><div class="vc-review-note"><strong><%= preview.missingCount %> CRM lines are not listed in the new report.</strong> They will NOT be archived, deleted, cancelled or unassigned automatically.</div><% } %>
+  <% if(preview.mismatchEligibility){ %><div class="vc-review-note"><%= preview.mismatchEligibility %> ViralCo lines are marked N even though their Earliest Update Date is in the past. The importer preserves both fields separately instead of assuming that the date alone proves eligibility.</div><% } %>
+  <div class="vc-table-scroll">
+    <table class="data-table vc-table">
+      <thead><tr><th>MSISDN</th><th>Subscriber</th><th>Package</th><th>Earliest eligible date</th><th>ViralCo eligible?</th><th>Avg spend</th><th>CRM action</th></tr></thead>
+      <tbody><% preview.rows.slice(0,60).forEach(line=>{ %>
+        <tr><td><%= '0'+line.phone.slice(2) %></td><td><%= line.subscriberName||'—' %></td><td><%= line.packDesc %></td><td><%= line.earliestUpgradeDate||'—' %></td>
+          <td><span class="vc-chip <%= line.upgradable==='Y'?'vc-chip-yes':'' %>"><%= line.upgradable==='Y'?'Yes':'No' %></span></td>
+          <td><%= line.avgSpend===null?'—':'R '+Number(line.avgSpend).toFixed(2) %></td>
+          <td><span class="vc-chip"><%= ({update:'Update line',unchanged:'Unchanged',new:'New — review',conflict:'Ownership conflict',ambiguous:'Duplicate CRM identity'})[line.action]||line.action %></span>
+            <% if(line.reason){ %><small class="vc-row-warning"><%= line.reason %></small><% } %>
+          </td>
+        </tr>
+      <% }) %></tbody>
+    </table>
+  </div>
+  <% if(preview.rows.length>60){ %><small>Showing 60 of <%= preview.rows.length %> rows. All rows are processed on confirmation.</small><% } %>
+  <form class="vc-confirm-form" method="post" action="<%= basePath %>/customers/<%= client.id %>/viralco-sync/publish">
+    <input type="hidden" name="viralco_csrf" value="<%= csrfToken %>">
+    <input type="hidden" name="preview_id" value="<%= preview.id %>">
+    <% if(preview.nameMismatch&&manager){ %>
+      <label><input type="checkbox" name="verify_company" value="yes" required> I have verified that this ViralCo business belongs to CRM account <%= account.account_number %> despite the different names.</label>
+      <% if(ownerManager){ %><label><input type="checkbox" name="update_company" value="yes"> Correct the CRM account's display name to <strong><%= preview.report.customerName %></strong> (optional manager action).</label><% } %>
+    <% } %>
+    <% if(ownerManager&&preview.safeNew>0){ %>
+      <label><input type="checkbox" name="create_new" value="yes"> Also create <%= preview.safeNew %> brand-new, globally unique mobile lines under this verified account. Leave unchecked to queue them for review.</label>
+    <% } %>
+    <label class="vc-check"><input type="checkbox" name="confirm_updates" value="yes" required>
+      <strong>I confirm that account <%= account.account_number %> is correct. Apply the safe existing-line updates and archive this original report.</strong>
+    </label>
+    <div class="vc-actions">
+      <button type="submit" class="btn primary" <%= (!preview.accountMatches||preview.baselineChanged||preview.versionChanged||(preview.nameMismatch&&!preview.canConfirmName))?'disabled':'' %>>Confirm & Update CRM</button>
+      <a class="btn" href="<%= basePath %>/customers/<%= client.id %>/viralco-sync">Cancel</a>
+    </div>
+  </form>
+  <p class="vc-hint">Updates to existing CRM lines: Package, Previous Upgrade/Activation Date, and Next Upgrade/Eligibility Date. All other ViralCo fields are saved as a linked source record, including SIM, term date, subscriber, invoice name, Upgradable Y/N, average spend and status code. Invoice amounts, tasks, notes, birthdays and staff ownership are not overwritten.</p>
+</section>
+<% } %>
+<section class="panel vc-panel">
+  <h2>Current ViralCo details</h2>
+  <% if(!current){ %><div class="empty-state">No original ViralCo Subscriber Detailed Report has been confirmed for this account.</div><% } else { %>
+  <p><%= current.line_count %> subscriber lines · <%= current.updated_count %> existing clients updated · <%= current.created_count %> created with manager approval · <%= current.review_count %> to review.</p>
+  <div class="vc-table-scroll">
+    <table class="data-table vc-table">
+      <thead><tr><th>Mobile</th><th>Subscriber</th><th>Package</th><th>Eligibility date</th><th>Upgradable?</th><th>Average spend</th><th>CRM result</th></tr></thead>
+      <tbody><% lines.forEach(line=>{ %><tr>
+        <td><%= line.msisdn_original %></td><td><%= line.subscriber_name||'—' %></td><td><%= line.pack_desc %></td>
+        <td><%= line.earliest_upgrade_date||'—' %></td><td><%= line.upgradable==='Y'?'Yes':'No' %></td>
+        <td><%= line.avg_spend===null?'—':'R '+Number(line.avg_spend).toFixed(2) %></td>
+        <td><%= line.sync_action.replace('_',' ') %><% if(line.matched_client_id){ %> — <a href="<%= basePath %>/customers/<%= line.matched_client_id %>/360">CRM line</a><% } %></td>
+      </tr><% }) %></tbody>
+    </table>
+  </div>
+  <% if(pageCount>1){ %><nav class="vc-pagination"><% if(page>1){ %><a class="btn" href="<%= basePath %>/customers/<%= client.id %>/viralco-sync?page=<%= page-1 %>">Previous</a><% } %>
+    <span>Page <%= page %> of <%= pageCount %></span>
+    <% if(page<pageCount){ %><a class="btn" href="<%= basePath %>/customers/<%= client.id %>/viralco-sync?page=<%= page+1 %>">Next</a><% } %>
+  </nav><% } %>
+  <% } %>
+</section>
+<section class="panel vc-panel">
+  <h2>Import history</h2>
+  <p>Every original report is archived by account and staff member. To revisit an earlier version, download that report and run a new reviewed upload. No automatic rollback can silently overwrite subsequent CRM changes.</p>
+  <% if(!versions.length){ %><div class="empty-state">The history starts after the first confirmed upload.</div><% } else { %>
+  <div class="vc-history">
+    <% versions.forEach(v=>{ %><div class="vc-history-item">
+      <div><strong>Version <%= v.version_no %> <%= v.is_current?'— Current':'' %></strong><small><%= v.filename %> · <%= v.provider_company_name %> · <%= new Date(v.published_at).toLocaleString('en-ZA') %></small>
+        <small><%= v.line_count %> rows · <%= v.review_count %> pending review</small></div>
+      <a class="btn" href="<%= basePath %>/customers/<%= client.id %>/viralco-sync/download/<%= v.id %>">Download Original</a>
+    </div><% }) %>
+  </div><% } %>
+</section>
+<p class="vc-footnote">UAT test environment. Each employee may update only assigned accounts; owner/manager can resolve company name and new-line decisions. Other live systems are unaffected.</p>

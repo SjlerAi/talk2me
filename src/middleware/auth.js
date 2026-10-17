@@ -1,4 +1,5 @@
 const db = require('../config/db');
+const { cleanupLoginUrl } = require('../services/cleanup-login-return');
 
 const BUSINESS_TIMEZONE = 'Africa/Johannesburg';
 
@@ -16,7 +17,7 @@ function businessDate(date = new Date()) {
 }
 
 function expireDailySession(req, res) {
-  const basePath = res.locals.basePath || '';
+  const loginUrl = cleanupLoginUrl(req,res,'daily');
   const loginSessionId = Number(req.session.loginSessionId || 0);
   const staffId = Number(req.session.user?.id || 0);
 
@@ -32,19 +33,19 @@ function expireDailySession(req, res) {
     } catch (error) {
       console.error('Could not expire previous-day login session:', error.message);
     } finally {
-      req.session.destroy(() => res.redirect(`${basePath}/login?reason=daily`));
+      req.session.destroy(() => res.redirect(loginUrl));
     }
   })();
 }
 
 function requireAuth(req, res, next) {
-  if (!req.session.user) return res.redirect(`${res.locals.basePath}/login`);
+  if (!req.session.user) return res.redirect(cleanupLoginUrl(req,res));
   if (!req.session.loginDate || req.session.loginDate !== businessDate()) return expireDailySession(req, res);
   next();
 }
 
 function requireOwner(req, res, next) {
-  if (!req.session.user) return res.redirect(`${res.locals.basePath}/login`);
+  if (!req.session.user) return res.redirect(cleanupLoginUrl(req,res));
   if (!req.session.loginDate || req.session.loginDate !== businessDate()) return expireDailySession(req, res);
   if (!['owner','manager'].includes(req.session.user.role)) return res.status(403).render('error', { title: 'Forbidden', message: 'Owner or manager access required.' });
   next();

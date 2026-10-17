@@ -1,0 +1,227 @@
+<style>
+.cleanup-wrap{max-width:1350px;margin:auto;color:var(--text-primary,#1d2c3d)}
+.cleanup-header{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;align-items:center;margin-bottom:15px}
+.cleanup-header h1{font-size:1.6rem;margin:3px 0}.cleanup-header p{margin:0}
+.cleanup-warning{padding:14px 16px;background:#fff3cf;color:#5d450e;border-left:5px solid #d7a41b;border-radius:8px;margin:10px 0 18px}
+.cleanup-note-box{background:#e9f7ef;color:#1e5946;border-radius:8px;padding:12px;margin:12px 0}
+.cleanup-nav{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 22px}
+.cleanup-nav a{display:inline-flex;padding:10px 13px;border-radius:8px;background:#edf2f8;border:1px solid #b4c7da;color:#14304a;text-decoration:none;font-weight:600}
+.cleanup-nav a.active{background:#133b65;color:#fff}
+.cleanup-card{border:1px solid #bccbdc;border-radius:12px;padding:18px;margin:12px 0;background:#fff;color:#1a2836}
+.cleanup-card a{color:#075999}.cleanup-card h3{margin:3px 0 12px}
+.cleanup-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:15px}
+.cleanup-line{background:#f5f8fb;border:1px solid #dce6f0;border-radius:10px;padding:14px;overflow-wrap:anywhere}
+.cleanup-line header{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center}
+.cleanup-line dl{display:grid;grid-template-columns:1fr 1fr;gap:5px 8px;margin:10px 0 0}
+.cleanup-line dt{font-weight:650;font-size:.82rem;color:#506479}.cleanup-line dd{margin:0 0 8px}
+.cleanup-form{border-top:1px solid #d2dfea;margin-top:15px;padding-top:15px}
+.cleanup-form .fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:9px}
+.cleanup-form label{font-weight:600;font-size:.86rem;display:block}.cleanup-form input:not([type=checkbox]),.cleanup-form select,.cleanup-form textarea{width:100%;border:1px solid #a8bad0;border-radius:7px;padding:8px;box-sizing:border-box;background:#fff;color:#1c2a39}
+.cleanup-form textarea{min-height:70px;margin:5px 0 10px}.cleanup-form .confirm label{display:flex;align-items:flex-start;gap:8px;margin:8px 0}
+.cleanup-form input[type=checkbox],.cleanup-form input[type=radio]{width:auto!important;margin:4px}
+.cleanup-btn{border:0;background:#126655;color:#fff;padding:10px 16px;border-radius:8px;cursor:pointer;font-weight:650}
+.cleanup-btn.secondary{background:#26476b}.cleanup-btn.danger{background:#8c3b29}
+.cleanup-table{width:100%;border-collapse:collapse}.cleanup-table th,.cleanup-table td{padding:11px 9px;text-align:left;border-bottom:1px solid #d9e3ed;vertical-align:top}
+.cleanup-scroll{overflow-x:auto}.cleanup-pager{display:flex;gap:16px;margin:18px 0}
+.cleanup-pill{display:inline-block;border-radius:20px;background:#e6edf5;padding:4px 10px;font-size:.82rem;color:#294766}
+.cleanup-search{display:flex;gap:9px;flex-wrap:wrap;align-items:center}.cleanup-search input,.cleanup-search select{padding:9px;border:1px solid #a7b9ce;border-radius:7px}
+.cleanup-radio{display:block;margin:10px 0}.cleanup-radio input{margin-right:8px}.cleanup-small{font-size:.86rem;color:#4e6175}
+.cleanup-label{font-weight:600}.cleanup-toggle{margin:12px 0 0}.cleanup-toggle summary{cursor:pointer;font-weight:700;color:#14527e}
+.cleanup-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 0}
+.cleanup-start{background:#106d5e!important;color:#fff!important;padding:12px 18px!important;border-radius:8px;text-decoration:none;font-weight:700}
+.cleanup-report-link{padding:10px 15px;border-radius:8px;background:#edf3fa;text-decoration:none;font-weight:650}
+.cleanup-progress{display:grid;grid-template-columns:repeat(auto-fit,minmax(115px,1fr));gap:8px;margin:12px 0}
+.cleanup-progress-item{padding:12px 15px;border:1px solid #cfdde8;background:#fff;border-radius:9px}
+.cleanup-progress-item strong{font-size:1.5rem;display:block;color:#244763}
+.cleanup-done{border:1px solid #77b79a;border-radius:11px;background:#ecf9f1;padding:18px;color:#1b5740}
+.cleanup-form .cleanup-radio{display:flex;align-items:flex-start;gap:10px;font-weight:600}
+.cleanup-card label.cleanup-radio{display:flex;gap:9px;align-items:center;font-weight:600}
+.cleanup-card label.cleanup-radio input[type=radio]{flex:0 0 auto;position:static;margin:0}
+.cleanup-inline-alert{background:#fff2d8;border:1px solid #d6a43a;border-left:5px solid #bd7d13;padding:15px;border-radius:9px;color:#66430c;margin:14px 0}
+.cleanup-staff-tag{font-size:.83rem;color:#31516d;margin:8px 0 0}
+.cleanup-note-box{line-height:1.45}
+.cleanup-form .cleanup-radio input{flex:0 0 auto;align-self:center}
+
+</style>
+<section class="cleanup-wrap">
+  <div class="cleanup-header">
+    <div><small>Talk2Me / Isolated UAT / Temporary until 31 October 2026</small><h1>Customer Cleanup & Approval Centre</h1>
+      <p>Johnny processes the queue; Stephan and Gerda can review the same work.</p></div>
+    <div class="cleanup-actions">
+      <a class="cleanup-start" href="<%= basePath %>/temporary-cleanup/next?type=<%= type %>">Next unreviewed customer →</a>
+      <a class="cleanup-report-link" href="<%= basePath %>/temporary-cleanup/report">Reviewed &amp; approved report</a>
+      <a class="btn" href="<%= basePath %>/backoffice/clients">Customers</a>
+    </div>
+  </div>
+  <div class="cleanup-warning"><strong>UAT database only.</strong> Line and staff corrections take effect in UAT immediately and are audit-logged. A review approval does not delete any record. Consolidation archives only the specifically confirmed historical records; it never deletes them. Production is untouched.</div>
+  <% if(done){ %><div class="cleanup-note-box"><strong>Previous case saved and closed.</strong>
+  <%= done==='approved'?'Approved':done==='consolidated'?'Consolidated':done==='flagged'?'Flagged for follow-up':done==='corrected'?'Correction saved; finish the review if this case is still pending':'Reviewed' %>.
+  The next outstanding customer is displayed below. Completed cases remain in the review report.</div><% } %>
+  <% if(finished){ %><div class="cleanup-done"><strong>All currently identified cases have been reviewed or flagged.</strong>
+  Check the Follow-up queue for unresolved cases, or open the Reviewed &amp; approved report.</div><% } %>
+  <% if(progress){ %><div class="cleanup-progress">
+    <div class="cleanup-progress-item"><strong><%= progress.pending %></strong>Unreviewed</div>
+    <div class="cleanup-progress-item"><strong><%= progress.completed %></strong>Reviewed / approved</div>
+    <div class="cleanup-progress-item"><strong><%= progress.followup %></strong>Flagged / follow-up</div>
+    <div class="cleanup-progress-item"><strong><%= progress.total %></strong>Current category total</div>
+  </div><% } %>
+  <% if(saved){ %><div class="cleanup-note-box">Review saved with reviewer name and audit history. No customer values changed by this approval.</div><% } %>
+  <% if(blockedMessage){ %><div class="cleanup-inline-alert"><strong>Consolidation paused — nothing was changed.</strong><p><%= blockedMessage %></p><p>You are still on the same customer review. Check the staff allocations below, then try again or flag this case for manual review.</p></div><% } %>
+  <% if(corrected){ %><div class="cleanup-note-box">Correction saved in UAT, with an original-value snapshot and audit trail. Confirm the final decision below to close this case, or continue to the next outstanding customer.</div><% } %>
+  <% const tabs=[['same_account_phone','Same cellphone / account'],['cross_account_phone','Different accounts'],['account_alias','Account aliases'],['staff_conflict','Staff conflicts'],['base_unlinked','Supplier lines without CRM link']]; %>
+  <nav class="cleanup-nav" aria-label="Discrepancy categories">
+    <% tabs.forEach(([k,label])=>{ %><a class="<%= type===k?'active':'' %>" href="<%= basePath %>/temporary-cleanup?type=<%= k %>"><%= label %></a><% }) %>
+  </nav>
+  <% if(selected){ %>
+    <% if(readOnly){ %>
+    <div class="cleanup-done">
+      <strong><%= selected.decision==='approved_grouping'?'Approved':selected.decision==='keep_separate'?'Confirmed separate':'Case no longer in active discrepancy queue' %></strong>
+      <p>This case is recorded in the database history and is not waiting for another approval.
+      <% if(selected.reviewer){ %>Last reviewed by <%= selected.reviewer %>.<% } %></p>
+      <div class="cleanup-actions">
+        <a class="cleanup-start" href="<%= basePath %>/temporary-cleanup/next?type=<%= type %>">Continue to next unreviewed customer →</a>
+        <a class="cleanup-report-link" href="<%= basePath %>/temporary-cleanup/report">View approved history</a>
+        <% if(selected.record_count>0){ %><a href="<%= basePath %>/temporary-cleanup/review/<%= encodeURIComponent(type) %>/<%= encodeURIComponent(selected.key) %>?edit=1">Reopen this case for correction</a><% } %>
+      </div>
+    </div>
+    <% } %>
+    <section class="cleanup-card">
+      <h2><%= selected.display_name||'Customer record' %></h2>
+      <p><strong>Account:</strong> <%= selected.display_account||'Unknown' %> &nbsp; <strong>Identifier:</strong> <%= selected.key %> &nbsp; <span class="cleanup-pill"><%= selected.record_count %> records</span></p>
+      <p>Review status: <strong><%= selected.decision||'Not reviewed' %></strong><% if(selected.reviewer){ %> — last reviewed by <%= selected.reviewer %><% } %></p>
+      <p class="cleanup-small">Compare each source record carefully. Different upgrade dates may reflect genuine previous contracts and must not be erased without evidence.</p>
+      <div class="cleanup-grid">
+        <% rows.forEach((r,i)=>{ %>
+        <article class="cleanup-line">
+          <header><strong>Record <%= i+1 %> / #<%= r.id %></strong>
+            <% if(Object.prototype.hasOwnProperty.call(r,'is_active')){ %><span class="cleanup-pill"><%= r.is_active?'Active':'Archived/inactive' %></span><% } %>
+          </header>
+          <% if(selected.type==='same_account_phone'){ %>
+            <p class="cleanup-staff-tag"><strong>Assigned staff:</strong>
+              <%= r._staff?(r._staff.staff_name||'Staff #'+r._staff.assigned_staff_id)+(Number(r._staff.is_active)===1?' (active)':' (historical/inactive)'):'None on this line' %>
+            </p>
+          <% } %>
+          <dl>
+            <% Object.entries(r).filter(([k])=>!k.startsWith('_')).forEach(([k,v])=>{ %>
+              <div><dt><%= k.replace(/_/g,' ') %></dt><dd><%= v==null?'—':v instanceof Date?v.toISOString().slice(0,19):String(v) %></dd></div>
+            <% }) %>
+          </dl>
+          <% if(!readOnly && selected.type==='staff_conflict'){ %>
+          <details class="cleanup-toggle">
+            <summary>Correct staff member assigned to this record</summary>
+            <form class="cleanup-form" method="post" action="<%= basePath %>/temporary-cleanup/staff/<%= encodeURIComponent(selected.key) %>/<%= r.id %>">
+              <input type="hidden" name="csrf" value="<%= csrf %>"><input type="hidden" name="assignment_hash" value="<%= r._assignmentHash %>">
+              <label>Assign to verified staff member<select name="staff_id" required>
+                <% staffOptions.forEach(st=>{ %><option value="<%= st.id %>" <%= Number(r.assigned_staff_id)===Number(st.id)?'selected':'' %>><%= st.full_name %></option><% }) %>
+              </select></label>
+              <label>Evidence / reason<textarea name="reason" minlength="12" maxlength="2000" required></textarea></label>
+              <label class="cleanup-radio"><input type="checkbox" name="confirm_staff" value="1" required>I confirm this account's assigned staff member is correct.</label>
+              <button type="submit" class="cleanup-btn">Save verified allocation in UAT</button>
+            </form>
+          </details>
+          <% } %>
+          <% if(!readOnly && (selected.type==='same_account_phone'||selected.type==='cross_account_phone')){ %>
+            <a href="<%= basePath %>/customers/<%= r.id %>/details" target="_blank" rel="noopener">Open existing CRM details</a>
+            <details class="cleanup-toggle">
+              <summary>Correct this line's details</summary>
+              <form class="cleanup-form" method="post" action="<%= basePath %>/temporary-cleanup/correct/<%= encodeURIComponent(selected.type) %>/<%= encodeURIComponent(selected.key) %>/<%= r.id %>">
+                <input type="hidden" name="csrf" value="<%= csrf %>">
+                <input type="hidden" name="row_hash" value="<%= r._checkHash %>">
+                <div class="fields">
+                  <label>Customer name<input name="client_name" value="<%= r.client_name||'' %>" maxlength="255" required></label>
+                  <label>Account number<input name="account_number" value="<%= r.account_number||'' %>" maxlength="80" required></label>
+                  <label>Cellphone number<input name="cell_number" value="<%= r.cell_number||'' %>" maxlength="30" required></label>
+                  <label>Email<input name="email" type="email" value="<%= r.email||'' %>" maxlength="180"></label>
+                  <label>Previous upgrade date<input name="previous_upgrade_date" type="date" value="<%= r.previous_upgrade_date||'' %>"></label>
+                  <label>Next upgrade date<input name="next_upgrade_date" type="date" value="<%= r.next_upgrade_date||'' %>"></label>
+                  <label>Package<input name="package_name" value="<%= r.package_name||'' %>" maxlength="255"></label>
+                  <label>Line status<select name="line_status"><% ['active','inactive','cancelled','suspended','unknown'].forEach(s=>{ %><option value="<%= s %>" <%= s===r.line_status?'selected':'' %>><%= s %></option><% }) %></select></label>
+                </div>
+                <div class="confirm">
+                  <label><input type="checkbox" name="confirm_account_change" value="1">I confirm any account reassignment is correct and the destination account exists.</label>
+                  <label><input type="checkbox" name="confirm_phone_change" value="1">I confirm any cellphone-number correction is verified.</label>
+                  <label><input type="checkbox" name="confirm_change" value="1" required>I have checked the evidence; save these corrections to the UAT CRM.</label>
+                </div>
+                <label>Correction reason / supplier evidence<textarea name="reason" minlength="12" maxlength="2000" required placeholder="Explain the authoritative value, source and why it is correct."></textarea></label>
+                <button class="cleanup-btn" type="submit">Save this line's corrections</button>
+              </form>
+            </details>
+          <% } %>
+        </article>
+        <% }) %>
+      </div>
+    </section>
+    <% if(!readOnly && selected.type==='same_account_phone' && rows.filter(r=>Number(r.is_active)===1).length>1){ %>
+    <section class="cleanup-card">
+      <h3>Consolidate the current line (optional)</h3>
+      <p>Select the one customer-line record that should remain current. The older active records are archived, never deleted. All line history, source references and approval evidence are retained.</p>
+      <div class="cleanup-note-box">
+        <strong>Staff allocation is preserved automatically.</strong> If the selected current record has no staff member but an older duplicate has one verified, active assignment, the same staff member will be assigned to the current record. Previous allocations remain in the audit trail. If different staff members are recorded, this operation will stop for review.
+        <% if(accountOwnerName){ %><p>Account-level staff owner: <strong><%= accountOwnerName %></strong></p><% } %>
+      </div>
+      <form class="cleanup-form" method="post" action="<%= basePath %>/temporary-cleanup/consolidate/<%= encodeURIComponent(selected.key) %>">
+        <input type="hidden" name="csrf" value="<%= csrf %>"><input type="hidden" name="snapshot" value="<%= selected.hash %>">
+        <fieldset><legend><strong>Select the current record</strong></legend>
+          <% rows.filter(r=>r.is_active).forEach(r=>{ %><label class="cleanup-radio">
+            <input type="radio" name="primary_id" value="<%= r.id %>" required>
+            #<%= r.id %> — <%= r.client_name||'No name' %>, next upgrade <%= r.next_upgrade_date||'not recorded' %>, package <%= r.package_name||'—' %>
+          </label><% }) %>
+        </fieldset>
+        <label>Evidence and reason for archiving other duplicate records<textarea class="cleanup-note" name="reason" minlength="15" maxlength="2000" required placeholder="Explain why the selected line is the current active record, including source evidence."></textarea></label>
+        <label class="cleanup-radio"><input type="checkbox" name="confirm_consolidate" value="1" required>
+          I have checked the customer and history. Preserve the verified staff allocation, and archive older active duplicates in UAT without deleting them.</label>
+        <button type="submit" class="cleanup-btn danger">Confirm & apply safe consolidation in UAT</button>
+      </form>
+    </section>
+    <% } %>
+    <% if(!readOnly && selected.type==='same_account_phone' && rows.length>1 && rows.filter(r=>Number(r.is_active)===1).length<=1){ %>
+    <div class="cleanup-note-box">Historical records are already archived; only one active/current line remains.
+      <strong>No additional consolidation is needed.</strong> Verify the details, then approve below to close the case.</div>
+    <% } %>
+    <% if(!readOnly){ %>
+    <section class="cleanup-card">
+      <h3>Final decision — save and move to next customer</h3>
+      <form method="post" action="<%= basePath %>/temporary-cleanup/review/<%= encodeURIComponent(selected.type) %>/<%= encodeURIComponent(selected.key) %>">
+        <input type="hidden" name="csrf" value="<%= csrf %>"><input type="hidden" name="snapshot" value="<%= selected.hash %>"><input type="hidden" name="review_revision" value="<%= reviewRevision %>">
+        <% const choices=[['approved_grouping','Approved account grouping (no customer records archived by this decision)'],['keep_separate','Keep records separate'],['needs_correction','Needs further correction'],['flagged','Flag for investigation']]; %>
+        <% choices.forEach(([k,label])=>{if(k==='approved_grouping'&&selected.type!=='same_account_phone')return;%>
+          <label class="cleanup-radio"><input type="radio" name="decision" value="<%= k %>" required <%= selected.decision===k?'checked':'' %>> <%= label %></label>
+        <% }) %>
+        <label class="cleanup-label">Reason and instructions<textarea class="cleanup-note" name="notes" minlength="8" maxlength="2000" required placeholder="Evidence reviewed, supplier information confirmed, decision explained"><%= selected.notes||'' %></textarea></label>
+        <p><button type="submit" class="cleanup-btn secondary">Save decision &amp; open next customer →</button> &nbsp;
+          <a href="<%= basePath %>/temporary-cleanup?type=<%= type %>">Back to review queue</a></p>
+      </form>
+    </section>
+    <% } %>
+  <% }else{ %>
+  <section class="cleanup-card">
+    <form class="cleanup-search" method="get" action="<%= basePath %>/temporary-cleanup">
+      <input type="hidden" name="type" value="<%= type %>">
+      <input name="q" value="<%= q %>" placeholder="Phone, customer or account" aria-label="Search cases">
+      <select name="view">
+        <option value="pending" <%= view==='pending'?'selected':'' %>>Unreviewed / pending</option>
+        <option value="followup" <%= view==='followup'?'selected':'' %>>Flagged / needs correction</option>
+        <option value="reviewed" <%= view==='reviewed'?'selected':'' %>>Reviewed / approved</option>
+        <option value="all" <%= view==='all'?'selected':'' %>>All active discrepancies</option></select>
+      <button type="submit" class="cleanup-btn">Filter cases</button>
+    </form>
+    <p><strong><%= total %> cases</strong> in this view. Page <%= page %>.
+      <% if(view==='pending'){ %>As soon as a decision is saved, the case leaves this queue automatically.<% } %></p>
+    <div class="cleanup-scroll">
+      <table class="cleanup-table"><thead><tr><th>Customer</th><th>Account</th><th>Phone / key</th><th>Records</th><th>Differences</th><th>Review</th><th>Action</th></tr></thead>
+        <tbody><% cases.forEach(c=>{ %><tr>
+          <td><%= c.display_name||'Unknown' %></td><td><%= c.display_account||'—' %></td><td><%= c.case_key %></td><td><%= c.record_count %></td>
+          <td><%= c.upgrade_variants>1?'Upgrade dates; ':'' %><%= c.name_variants>1?'Customer names; ':'' %></td>
+          <td><span class="cleanup-pill"><%= c.decision||'Awaiting review' %></span><% if(c.reviewer){ %><div class="cleanup-small"><%= c.reviewer %></div><% } %></td>
+          <td><a href="<%= basePath %>/temporary-cleanup/review/<%= type %>/<%= encodeURIComponent(c.case_key) %>">Review & correct</a></td>
+        </tr><% }) %></tbody>
+      </table>
+      <% if(!cases.length){ %><p>No cases match this filter. Choose another category, or open the reviewed-history report.</p><% } %>
+    </div>
+    <nav class="cleanup-pager" aria-label="Pagination">
+      <% if(page>1){ %><a href="<%= basePath %>/temporary-cleanup?type=<%= type %>&view=<%= view %>&q=<%= encodeURIComponent(q) %>&page=<%= page-1 %>">← Previous</a><% } %>
+      <% if(page*30<total){ %><a href="<%= basePath %>/temporary-cleanup?type=<%= type %>&view=<%= view %>&q=<%= encodeURIComponent(q) %>&page=<%= page+1 %>">Next →</a><% } %>
+    </nav>
+  </section>
+  <% } %>
+</section>

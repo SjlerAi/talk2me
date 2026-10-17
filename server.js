@@ -359,9 +359,20 @@ if (UAT_MODE) {
   app.use('/', uatClientVisibility);
   if (BASE_PATH) app.use(BASE_PATH, uatClientVisibility);
 
-  const uatBusinessAccountSheets = require('./src/routes/uat-business-account-sheets');
-  app.use('/', uatBusinessAccountSheets);
-  if (BASE_PATH) app.use(BASE_PATH, uatBusinessAccountSheets);
+  // Direct ViralCo source report replaces the old manually transcribed account sheet route.
+  const uatViralcoSync = require('./src/routes/uat-viralco-sync');
+  app.use('/', uatViralcoSync);
+  if (BASE_PATH) app.use(BASE_PATH, uatViralcoSync);
+
+  const temporaryCleanupFlow = require('./src/routes/temporary-cleanup-flow');
+  const temporaryCleanup = require('./src/routes/temporary-cleanup');
+  const temporaryCleanupCorrections = require('./src/routes/temporary-cleanup-corrections');
+  const temporaryCleanupConsolidate = require('./src/routes/temporary-cleanup-consolidate');
+  const temporaryCleanupAssignment = require('./src/routes/temporary-cleanup-assignment').router;
+  for (const route of [temporaryCleanupFlow, temporaryCleanup, temporaryCleanupCorrections, temporaryCleanupConsolidate, temporaryCleanupAssignment]) {
+    app.use('/', route);
+    if (BASE_PATH) app.use(BASE_PATH, route);
+  }
 
   // Isolated signed CRM endpoint for Zippy, available only in UAT.
   // No browser session or generic staff access is granted by this integration.

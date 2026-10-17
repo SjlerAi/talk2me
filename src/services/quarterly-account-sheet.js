@@ -191,4 +191,4 @@ async function ensureQuarterlySheetSchema(db){
   return schemaPromise;
 }
 
-module.exports={parseQuarterlySheet,compareQuarterlyRows,ensureQuarterlySheetSchema,monetary,iso,FILE_LIMIT,MAX_LINES};
+module.exports={parseQuarterlySheet,compareQuarterlyRows,ensureQuarterlySheetSchema,inspectZip,monetary,iso,FILE_LIMIT,MAX_LINES};

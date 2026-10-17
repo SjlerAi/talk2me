@@ -6,6 +6,8 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { requireAuth, businessDate } = require('../middleware/auth');
+const { safeCleanupReturn } = require('../services/cleanup-login-return');
+const { canUseTemporaryCleanup } = require('../services/temporary-cleanup-access');
 const { trackEvent } = require('../services/usage-telemetry');
 const { sendTaskEmail } = require('../services/mailer');
 const { hasPermission, requirePermission, requireRole } = require('../middleware/permissions');
@@ -196,11 +198,13 @@ router.get('/login', (req, res) => {
   const error = reason === 'daily'
     ? 'Please sign in for today. Talk2Me starts a fresh staff session each working day.'
     : null;
-  res.render('login', { title: 'Login', error });
+  const returnTo = safeCleanupReturn(req.query.return_to, res.locals.basePath);
+  res.render('login', { title: 'Login', error, returnTo });
 });
 
 router.post('/login', async (req, res, next) => {
   try {
+    const returnTo = safeCleanupReturn(req.body.return_to, res.locals.basePath);
     const login = String(req.body.email || '').trim();
     const password = req.body.password;
     const loginKey = login.toLowerCase();
@@ -211,7 +215,7 @@ router.post('/login', async (req, res, next) => {
     let ok = false;
     if (user && user.password_hash) ok = await bcrypt.compare(password, user.password_hash);
     if (user && !user.password_hash && testPasswords[loginKey] === password) ok = true;
-    if (!user || !ok) return res.status(401).render('login', { title: 'Login', error: 'Invalid login details.' });
+    if (!user || !ok) return res.status(401).render('login', { title: 'Login', error: 'Invalid login details.', returnTo });
     const sessionUser = { id: user.id, full_name: user.full_name, email: user.email, role: user.role, username: user.username || user.full_name };
     req.session.regenerate(async error => {
       if (error) return next(error);
@@ -242,7 +246,8 @@ router.post('/login', async (req, res, next) => {
           httpStatus:302,
           metadata:{ loginDate:req.session.loginDate }
         });
-        req.session.save(saveError => saveError ? next(saveError) : res.redirect(`${res.locals.basePath}${defaultLanding(sessionUser)}`));
+        const landing = returnTo && canUseTemporaryCleanup(sessionUser) ? returnTo : res.locals.basePath + defaultLanding(sessionUser);
+        req.session.save(saveError => saveError ? next(saveError) : res.redirect(landing));
       } catch(e){ next(e); }
     });
   } catch (e) { next(e); }

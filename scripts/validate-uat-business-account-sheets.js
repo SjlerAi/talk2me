@@ -101,9 +101,9 @@ assert.deepEqual(compareQuarterlyRows(previous,[{...parsed.rows[0],packageName:'
   assert.ok(!/\bUPDATE\s+clients\b/i.test(source),'Never automatically mutate core clients');
   assert.match(source,/uploaded_by=:userId/);
   const server=fs.readFileSync('server.js','utf8');
-  assert.match(server,/if \(UAT_MODE\)[\s\S]*uatBusinessAccountSheets/);
+  assert.match(server,/if \(UAT_MODE\)[\s\S]*uatViralcoSync/);
   const view=fs.readFileSync('views/customer-360.ejs','utf8');
-  assert.match(view,/Quarterly Account Sheet/);
-  assert.match(view,/business-sheet/);
+  assert.match(view,/ViralCo Business Account Update/);
+  assert.match(view,/viralco-sync/);
   console.log('UAT business quarterly sheet parser, safety limits, change detection, account UI and routes validated.');
 })().catch(err=>{console.error(err);process.exitCode=1;});

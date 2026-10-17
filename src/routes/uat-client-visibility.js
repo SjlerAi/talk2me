@@ -89,8 +89,15 @@ router.get('/backoffice/clients',requireAuth,async(req,res,next)=>{
     const work=buildWorkConditions(filters,{management,scope,staffId:selectedStaffId||userId});
     Object.assign(params,work.params);
     where.push(...work.clauses);
+    // Month-based upgrade planning uses the provider's earliest date even when its
+    // current eligibility flag is N. Only the urgent/overdue attention view requires Y.
+    let hasViralco=false;
+    if(attention.focus==='needs_attention'){
+      const [[providerTable]]=await db.execute("SELECT COUNT(*) present FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='viralco_import_lines'");
+      hasViralco=Number(providerTable?.present)>0;
+    }
     const attentionSql=buildAttentionConditions(attention,{
-      management,scope,staffId:selectedStaffId||userId,unassignedClause
+      management,scope,staffId:selectedStaffId||userId,unassignedClause,hasViralco
     });
     Object.assign(params,attentionSql.params);
     where.push(...attentionSql.clauses);
