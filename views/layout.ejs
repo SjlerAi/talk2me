@@ -47,6 +47,9 @@
     <a href="<%= basePath %>/approvals" data-command-panel><b>◆</b><span data-approval-label><%= safeApprovalCentreCount?'Approvals Needed':'Approvals' %></span><em data-approval-count <%= safeApprovalCentreCount?'':'hidden' %>><%= safeApprovalCentreCount %></em></a>
     <a href="<%= basePath %>/upgrade-centre" data-command-panel><b>↗</b><span>Upgrades</span></a>
     <a href="<%= basePath %>/reports?type=birthdays" data-command-panel><b>★</b><span>Reports</span></a>
+    <% if(isUat && currentUser && (String(currentUser.role||'').toLowerCase()==='owner' || ['jonathan@talk-online.co.za','gerda@talk-online.co.za'].includes(String(currentUser.email||'').toLowerCase()))){ %>
+    <a href="<%= basePath %>/temporary-cleanup"><b>⚑</b><span>Cleanup Centre (Temporary)</span></a>
+    <% } %>
     <a href="<%= basePath %>/backoffice" data-command-panel><b>⚙</b><span>Administration</span></a>
     <% } %>
   </nav>
