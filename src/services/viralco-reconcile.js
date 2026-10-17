@@ -78,7 +78,9 @@ function matchReport(report,account,own,global){
     else if(found){
       action=equalState(crmState(found),intendedState(line,found))?'unchanged':'update';
     }
-    return {...line,action,reason,clientId:found?Number(found.id):null,
+    return {...line,action,reason,
+      crmMatches:anywhere.map(record=>({id:Number(record.id),clientName:record.client_name||null,accountId:record.account_id||null,accountNumber:record.account_number||null})),
+      clientId:found?Number(found.id):null,
       previous:found?crmState(found):null,proposed:found?intendedState(line,found):intendedState(line,null),
       previousUpdatedAt:found?.updated_at?new Date(found.updated_at).toISOString():null};
   });
@@ -90,7 +92,11 @@ function matchReport(report,account,own,global){
   const count=action=>rows.filter(row=>row.action===action).length;
   const nameMismatch=companyKey(report.customerName)!==companyKey(account.display_name);
   const mismatchEligibility=rows.filter(row=>row.upgradable==='N'&&row.earliestUpgradeDate&&row.earliestUpgradeDate<=todayInSouthAfrica()).length;
-  return {rows,missingCount:missing.length,nameMismatch,reportCompanyName:report.customerName,
+  return {rows,missingCount:missing.length,missingLines:missing.map(record=>({
+    clientId:Number(record.id),clientName:record.client_name||null,
+    phone:normaliseSouthAfricanMobile(record.cell_number_normalised)||normaliseSouthAfricanMobile(record.cell_number)||'',
+    accountNumber:record.account_number||account.account_number,packageName:record.package_name||null
+  })),nameMismatch,reportCompanyName:report.customerName,
     total:rows.length,matched:count('update')+count('unchanged'),changed:count('update'),
     unchanged:count('unchanged'),safeNew:count('new'),
     conflicts:count('conflict')+count('ambiguous'),eligible:rows.filter(x=>x.upgradable==='Y').length,
@@ -116,14 +122,14 @@ async function loadGlobalPhoneMatches(conn,report,lock=false){
   for(let i=0;i<phones.length;i+=160){
     const chunk=phones.slice(i,i+160);
     const raws=chunk.map(n=>'0'+n.slice(2));
-    const sql='SELECT id,account_id,account_number,cell_number,cell_number_normalised FROM clients '+
+    const sql='SELECT id,client_name,account_id,account_number,cell_number,cell_number_normalised FROM clients '+
       'WHERE cell_number_normalised IN ('+chunk.map(()=>'?').join(',')+') '+
       'OR cell_number IN ('+raws.map(()=>'?').join(',')+')'+(lock?' FOR UPDATE':'');
     const [rows]=await conn.query(sql,[...chunk,...raws]);
     found.push(...rows.filter(r=>chunk.includes(normaliseSouthAfricanMobile(r.cell_number_normalised)||normaliseSouthAfricanMobile(r.cell_number))));
   }
   // Legacy rows without a normalised number are checked read-only, avoiding broad locking.
-  const [unindexed]=await conn.query("SELECT id,account_id,account_number,cell_number,cell_number_normalised FROM clients WHERE (cell_number_normalised IS NULL OR cell_number_normalised='') AND cell_number IS NOT NULL");
+  const [unindexed]=await conn.query("SELECT id,client_name,account_id,account_number,cell_number,cell_number_normalised FROM clients WHERE (cell_number_normalised IS NULL OR cell_number_normalised='') AND cell_number IS NOT NULL");
   for(const r of unindexed){if(phones.includes(normaliseSouthAfricanMobile(r.cell_number)))found.push(r);}
   return [...new Map(found.map(r=>[Number(r.id),r])).values()];
 }
