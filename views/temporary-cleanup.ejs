@@ -1,0 +1,65 @@
+<style>
+.cleanup-wrap{max-width:1250px;margin:auto}.cleanup-head{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap;align-items:flex-start;margin:0 0 1rem}.cleanup-head h1{margin:.2rem 0}.cleanup-warning{padding:12px 16px;background:#fff6db;color:#634600;border-radius:12px;border:1px solid #eccb67;margin-bottom:18px}.cleanup-types{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 22px}.cleanup-types a{padding:10px 14px;border-radius:8px;border:1px solid #aab9ca;text-decoration:none;color:inherit}.cleanup-types a.active{background:#173758;color:white}.cleanup-card{border:1px solid #b6c3d0;border-radius:12px;padding:20px;margin:12px 0;background:#fff;color:#202c39}.cleanup-card a{color:#005ab8}.cleanup-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}.cleanup-detail{background:#f4f7fa;border:1px solid #e3e8ee;border-radius:8px;padding:12px;overflow-wrap:anywhere}.cleanup-detail dt{font-weight:bold}.cleanup-detail dd{margin:4px 0 10px}.cleanup-options{display:grid;gap:12px;margin:18px 0}.cleanup-options label{display:flex;gap:8px;align-items:center}.cleanup-note{width:100%;min-height:105px;padding:10px}.cleanup-btn{border:0;background:#176d5c;color:#fff;padding:12px 18px;border-radius:8px;cursor:pointer}.cleanup-table{width:100%;border-collapse:collapse}.cleanup-table th,.cleanup-table td{padding:10px;text-align:left;border-bottom:1px solid #dce3ea}.cleanup-scroll{overflow-x:auto}.cleanup-pager{display:flex;gap:16px;margin:18px 0}.cleanup-pill{display:inline-block;border-radius:20px;background:#e8eef6;padding:4px 10px;font-size:.85rem}.cleanup-filter{display:flex;gap:8px;flex-wrap:wrap}.cleanup-filter input,.cleanup-filter select{padding:10px;border-radius:8px;border:1px solid #aaa}.cleanup-summary{margin:10px 0}
+</style>
+<section class="cleanup-wrap">
+ <header class="cleanup-head">
+  <div><small>Talk2Me CRM / UAT only / temporary until 31 October 2026</small><h1>Customer Cleanup & Approval Centre</h1>
+   <p>Johnny can work through discrepancies. Owner and Gerda can inspect the same decisions.</p></div>
+  <a class="btn" href="<%= basePath %>/backoffice/clients">Back to Customers</a>
+ </header>
+ <div class="cleanup-warning"><strong>Review-only safety mode.</strong> Approvals are recorded for later controlled application. This screen does not yet rewrite, delete or combine any underlying customer or cellphone-line record. Never treat a saved review as a completed merge.</div>
+ <% if(saved){ %><div class="success-box">Review decision saved. Original CRM data remains unchanged.</div><% } %>
+ <nav class="cleanup-types" aria-label="Discrepancy types">
+  <% const types=[['same_account_phone','Same phone / same account'],['cross_account_phone','Same phone / other account'],['account_alias','Account aliases'],['staff_conflict','Conflicting staff'],['base_unlinked','Unlinked supplier lines']]; %>
+  <% types.forEach(([key,label])=>{ %><a class="<%= type===key?'active':'' %>" href="<%= basePath %>/temporary-cleanup?type=<%= key %>"><%= label %></a><% }) %>
+ </nav>
+ <% if(selected){ %>
+ <div class="cleanup-card">
+  <h2><%= selected.display_name||'Customer' %></h2>
+  <p><strong>Account:</strong> <%= selected.display_account||'Unspecified' %> &nbsp; <strong>Key:</strong> <%= selected.key %> &nbsp; <span class="cleanup-pill"><%= selected.record_count %> records</span></p>
+  <p>Current decision: <strong><%= selected.decision||'Not reviewed' %></strong> <% if(selected.reviewer){ %> by <%= selected.reviewer %><% } %></p>
+  <h3>All source records for this case</h3>
+  <div class="cleanup-grid">
+   <% rows.forEach((r,i)=>{ %><article class="cleanup-detail"><strong>Record <%= i+1 %></strong><dl>
+    <% Object.entries(r).forEach(([k,v])=>{ %><dt><%= k.replace(/_/g,' ') %></dt><dd><%= v===null?'—':v instanceof Date?v.toISOString():String(v) %></dd><% }) %>
+   </dl></article><% }) %>
+  </div>
+  <form method="post" action="<%= basePath %>/temporary-cleanup/review/<%= encodeURIComponent(selected.type) %>/<%= encodeURIComponent(selected.key) %>">
+   <input type="hidden" name="csrf" value="<%= csrf %>"><input type="hidden" name="snapshot" value="<%= selected.hash %>">
+   <fieldset class="cleanup-options"><legend><strong>Decision</strong></legend>
+    <% const actions=[['approved_grouping','Approve showing same-account lines together'],['keep_separate','Keep separate / no grouping'],['needs_correction','Needs correction before approval'],['flagged','Flag for investigation']]; %>
+    <% actions.forEach(([key,label])=>{ if(key==='approved_grouping'&&selected.type!=='same_account_phone')return; %>
+     <label><input type="radio" name="decision" value="<%= key %>" required <%= selected.decision===key?'checked':'' %>> <%= label %></label>
+    <% }) %>
+   </fieldset>
+   <label for="cleanup-notes"><strong>Reason, correction details, or instructions (required)</strong></label>
+   <textarea id="cleanup-notes" name="notes" class="cleanup-note" minlength="8" maxlength="2000" required placeholder="Record the source of truth and the values Johnny wants to retain."><%= selected.notes||'' %></textarea>
+   <p><button class="cleanup-btn" type="submit">Save review decision</button> &nbsp; <a href="<%= basePath %>/temporary-cleanup?type=<%= type %>">Return to queue</a></p>
+  </form>
+ </div>
+ <% }else{ %>
+ <form class="cleanup-filter" method="get" action="<%= basePath %>/temporary-cleanup">
+  <input type="hidden" name="type" value="<%= type %>">
+  <input name="q" value="<%= q %>" placeholder="Search phone, name or account" aria-label="Search cases">
+  <select name="view"><option value="open" <%= view==='open'?'selected':'' %>>To review / flagged</option><option value="all" <%= view==='all'?'selected':'' %>>All cases</option></select>
+  <button class="cleanup-btn" type="submit">Filter</button>
+ </form>
+ <div class="cleanup-summary"><strong><%= total %></strong> matching cases in this category; page <%= page %>. Counts change as Johnny records decisions.</div>
+ <section class="cleanup-card cleanup-scroll">
+  <table class="cleanup-table"><thead><tr><th>Customer</th><th>Account</th><th>Phone / identity</th><th>Records</th><th>Data differences</th><th>Review state</th><th></th></tr></thead>
+   <tbody><% cases.forEach(c=>{ %><tr>
+    <td><%= c.display_name||'No name' %></td><td><%= c.display_account||'—' %></td>
+    <td><%= c.case_key %></td><td><%= c.record_count %></td>
+    <td><%= c.upgrade_variants>1?'Different upgrade dates; ':'' %><%= c.name_variants>1?'Different names; ':'' %></td>
+    <td><span class="cleanup-pill"><%= c.decision||'To review' %></span></td>
+    <td><a href="<%= basePath %>/temporary-cleanup/review/<%= type %>/<%= encodeURIComponent(c.case_key) %>">Open & decide</a></td>
+   </tr><% }) %></tbody>
+  </table>
+  <% if(!cases.length){ %><p>No cases found in this view.</p><% } %>
+ </section>
+ <div class="cleanup-pager">
+  <% if(page>1){ %><a href="<%= basePath %>/temporary-cleanup?type=<%= type %>&view=<%= view %>&q=<%= encodeURIComponent(q) %>&page=<%= page-1 %>">← Previous</a><% } %>
+  <% if(page*30<total){ %><a href="<%= basePath %>/temporary-cleanup?type=<%= type %>&view=<%= view %>&q=<%= encodeURIComponent(q) %>&page=<%= page+1 %>">Next →</a><% } %>
+ </div>
+ <% } %>
+</section>
