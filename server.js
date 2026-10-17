@@ -359,6 +359,11 @@ if (UAT_MODE) {
   app.use('/', uatClientVisibility);
   if (BASE_PATH) app.use(BASE_PATH, uatClientVisibility);
 
+  // Expiring, restricted one-off reconciliation queue. Disabled in production.
+  const temporaryCleanup = require('./src/routes/temporary-cleanup');
+  app.use('/', temporaryCleanup);
+  if (BASE_PATH) app.use(BASE_PATH, temporaryCleanup);
+
   const uatBusinessAccountSheets = require('./src/routes/uat-business-account-sheets');
   app.use('/', uatBusinessAccountSheets);
   if (BASE_PATH) app.use(BASE_PATH, uatBusinessAccountSheets);
