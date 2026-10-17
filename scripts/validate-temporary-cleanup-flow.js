@@ -89,6 +89,15 @@ async function main(){
   const afterSave=await fetch(base+'/temporary-cleanup/next?type=same_account_phone&done=approved',{redirect:'manual'});
   assert(afterSave.headers.get('location').includes('done=approved'),'Next-customer confirmation not forwarded');
   console.log('AUTO_NEXT_REVIEW_APPROVAL_FLOW_OK');
+  const blocked=await fetch(base+'/temporary-cleanup/review/same_account_phone/'+phone+'?blocked=staff_conflict',{redirect:'manual'});
+  const blockedHtml=await blocked.text();
+  assert.equal(blocked.status,200,blockedHtml.slice(0,300));
+  assert(blockedHtml.includes('Consolidation paused'));
+  assert(blockedHtml.includes('Assigned staff:'));
+  assert(blockedHtml.includes('Staff allocation is preserved automatically'));
+  assert(blockedHtml.includes('Next unreviewed customer'));
+  console.log('INLINE_STAFF_CONFLICT_AND_SAFE_TRANSFER_EXPLANATION_OK');
+
 
   const [approved]=await db.query("SELECT case_key FROM temporary_cleanup_decisions WHERE case_type='same_account_phone' AND decision='approved_grouping' ORDER BY reviewed_at DESC LIMIT 1");
   if(approved.length){

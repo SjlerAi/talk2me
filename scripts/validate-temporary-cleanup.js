@@ -69,7 +69,8 @@ async function main(){
     const correction=await fetch(origin+'/temporary-cleanup/correct/same_account_phone/'+phone+'/'+id,{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({csrf:TOKEN,row_hash:'INVALID',confirm_change:'1',reason:'Test invalid optimistic snapshot',client_name:'Test',account_number:'ABC12',cell_number:phone,email:'',line_status:'active'}),redirect:'manual'});
     assert.equal(correction.status,409,'Expected invalid snapshot correction 409');
     const consolidation=await fetch(origin+'/temporary-cleanup/consolidate/'+phone,{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({csrf:TOKEN,snapshot:'INVALID',confirm_consolidate:'1',primary_id:String(id),reason:'Test invalid consolidation hash prevented'}),redirect:'manual'});
-    assert.equal(consolidation.status,409,'Expected invalid consolidation snapshot 409');
+    assert.equal(consolidation.status,303,'Expected stale consolidation to return directly to case with 303');
+    assert((consolidation.headers.get('location')||'').includes('blocked=stale'),'Expected actionable review URL after stale consolidation');
     const blocked=await fetch(origin+'/temporary-cleanup?type=same_account_phone',{headers:{'x-test-user':'sias'},redirect:'manual'});
     assert.equal(blocked.status,404,'Unauthorized manager must be denied');
     console.log('UAT_SAFETY_TESTS_OK',JSON.stringify({bad_csrf:bad.status,bad_correction_snapshot:correction.status,bad_consolidation_snapshot:consolidation.status,unauthorised:blocked.status}));

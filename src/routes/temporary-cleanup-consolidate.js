@@ -8,6 +8,7 @@ const {requireAuth}=require('../middleware/auth');
 const {canUseTemporaryCleanup}=require('../services/temporary-cleanup-access');
 const {csrfValid}=require('../services/temporary-cleanup-correction');
 const {nextUrl}=require('../services/temporary-cleanup-queue');
+const {AssignmentConflict,staffPlan,applyStaffPlan}=require('../services/temporary-cleanup-ownership');
 const router=express.Router();
 function fail(res,code,message){return res.status(code).render('error',{title:'Consolidation not applied',message});}
 class UnsafeConsolidation extends Error {}
@@ -34,31 +35,29 @@ router.post('/temporary-cleanup/consolidate/:key',requireAuth,async(req,res,next
     const accounts=new Set(original.map(r=>Number(r.account_id||0)));
     if(accounts.size!==1||accounts.has(0))throw new UnsafeConsolidation('These records are not linked to one verified customer account.');
     const archiveIds=active.filter(r=>Number(r.id)!==primaryId).map(r=>Number(r.id));
+    const [masters]=await connection.execute('SELECT id,assigned_staff_id FROM customer_accounts WHERE id=:id FOR UPDATE',{id:Number(chosen.account_id)});
+    if(masters.length!==1)throw new UnsafeConsolidation('The account record is missing; do not consolidate.');
     const [assignmentRows]=await connection.query('SELECT id,client_id,assigned_staff_id,is_active,account_number,assigned_by,notes FROM client_assignments WHERE client_id IN (?) FOR UPDATE',[ids]);
-    const assigned=assignmentRows.filter(r=>Number(r.is_active)===1);
-    const owners=[...new Set(assigned.map(r=>Number(r.assigned_staff_id||0)))];
-    if(owners.length>1)throw new UnsafeConsolidation('Conflicting staff allocations exist. Resolve ownership first; no data was changed.');
-    if(assigned.length && !assigned.some(r=>Number(r.client_id)===primaryId && Number(r.is_active)===1))
-      throw new UnsafeConsolidation('The chosen current record has no active staff assignment but a duplicate does. Choose the assigned current record or correct the allocation first.');
+    const plan=staffPlan(assignmentRows,primaryId,masters[0].assigned_staff_id);
     const [tasks]=await connection.query("SELECT id,related_client_id,status FROM staff_tasks WHERE related_client_id IN (?) AND status IN ('unread','seen','in_progress') LIMIT 20",[archiveIds]);
     if(tasks.length)throw new UnsafeConsolidation('An older line still has outstanding tasks. Complete or reassign those tasks before archiving this line.');
     const [baseRows]=await connection.query('SELECT id,client_id,account_id,msisdn_normalised FROM mobile_base_current WHERE client_id IN (?) FOR UPDATE',[archiveIds]);
     if(baseRows.some(r=>String(r.msisdn_normalised)!==key || (r.account_id && Number(r.account_id)!==Number(chosen.account_id))))
       throw new UnsafeConsolidation('The supplier source has a different phone/account linked to a candidate. Manual investigation required.');
     // Snapshot before changes includes full original customer rows and every affected reference.
-    const before={customer_records:original,staff_assignments:assignmentRows,base_links:baseRows,primary_id:primaryId};
+    const before={customer_records:original,staff_assignments:assignmentRows,account_master:masters[0],base_links:baseRows,primary_id:primaryId,staff_plan:{action:plan.action,source_client_id:plan.source?.client_id||null,staff_id:plan.staffId}};
     await connection.query("UPDATE clients SET is_active=0,lifecycle_status='inactive',updated_at=NOW() WHERE id IN (?) AND is_active=1",[archiveIds]);
-    if(archiveIds.length)await connection.query('UPDATE client_assignments SET is_active=0,updated_at=NOW() WHERE client_id IN (?) AND is_active=1',[archiveIds]);
+    const staffEvents=await applyStaffPlan(connection,plan,assignmentRows,primaryId,chosen.account_number,Number(req.session.user.id),reason,archiveIds);
     if(baseRows.length)await connection.query('UPDATE mobile_base_current SET client_id=?,updated_at=NOW() WHERE client_id IN (?) AND msisdn_normalised=?',[primaryId,archiveIds,key]);
     const [afterClients]=await connection.execute(listSql,{key});
     const [afterAssignments]=await connection.query('SELECT id,client_id,assigned_staff_id,is_active,account_number,assigned_by,notes FROM client_assignments WHERE client_id IN (?)',[ids]);
     const [afterBase]=await connection.query('SELECT id,client_id,account_id,msisdn_normalised FROM mobile_base_current WHERE id IN (?)',[baseRows.length?baseRows.map(r=>r.id):[0]]);
-    const after={customer_records:afterClients,staff_assignments:afterAssignments,base_links:afterBase,primary_id:primaryId};
+    const after={customer_records:afterClients,staff_assignments:afterAssignments,account_master:masters[0],base_links:afterBase,primary_id:primaryId,staff_events:staffEvents};
     const userId=Number(req.session.user.id);
     await connection.execute('INSERT INTO temporary_cleanup_changes (action_type,case_type,case_key,client_id,before_json,after_json,reviewed_by,notes) VALUES ("consolidate_phone","same_account_phone",:key,:primary,:before,:after,:staff,:reason)',{
       key,primary:primaryId,before:JSON.stringify(before),after:JSON.stringify(after),staff:userId,reason
     });
-    const approvalNote='Consolidated in UAT. Kept client #'+primaryId+' current; archived historical records: '+archiveIds.join(',')+'. '+reason;
+    const approvalNote='Consolidated in UAT. Kept client #'+primaryId+' current; archived historical records: '+archiveIds.join(',')+'. '+(plan.action==='transfer'?'Preserved staff #'+plan.staffId+' on current record. ':'')+reason;
     await connection.execute('INSERT INTO temporary_cleanup_decisions (case_type,case_key,decision,notes,source_snapshot_hash,reviewed_by,reviewed_at) VALUES ("same_account_phone",:key,"approved_grouping",:notes,:hash,:staff,NOW()) ON DUPLICATE KEY UPDATE decision=VALUES(decision),notes=VALUES(notes),source_snapshot_hash=VALUES(source_snapshot_hash),reviewed_by=VALUES(reviewed_by),reviewed_at=VALUES(reviewed_at)',{
       key,notes:approvalNote,hash:listHash(afterClients),staff:userId
     });
@@ -73,7 +72,14 @@ router.post('/temporary-cleanup/consolidate/:key',requireAuth,async(req,res,next
     return res.redirect(nextUrl(res.locals.basePath,'same_account_phone','consolidated'));
   }catch(e){
     try{await connection.rollback();}catch(_){}
-    if(e instanceof UnsafeConsolidation)return fail(res,409,e.message);
+    if(e instanceof AssignmentConflict || e instanceof UnsafeConsolidation){
+      const codes=new Set(['staff_conflict','account_staff_conflict','inactive_staff']);
+      const code=e instanceof AssignmentConflict && codes.has(e.code) ? e.code :
+        /outstanding tasks/i.test(e.message) ? 'open_tasks' :
+        /source.*different/i.test(e.message) ? 'source_conflict' :
+        /changed|reload/i.test(e.message) ? 'stale' : 'review_required';
+      return res.redirect(303,res.locals.basePath+'/temporary-cleanup/review/same_account_phone/'+encodeURIComponent(key)+'?blocked='+encodeURIComponent(code));
+    }
     return next(e);
   }finally{connection.release();}
 });

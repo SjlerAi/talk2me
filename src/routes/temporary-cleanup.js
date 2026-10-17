@@ -72,7 +72,7 @@ router.get('/temporary-cleanup',requireAuth,guard,async(req,res,next)=>{
     const [cases]=await db.query(sql+filter+' ORDER BY x.record_count DESC,x.case_key LIMIT ? OFFSET ?',[...params,TAKE,(page-1)*TAKE]);
     const progress=await queueProgress(type);
     res.set('Cache-Control','no-store');
-    return res.render('temporary-cleanup',{title:'Temporary Customer Cleanup',type,page,total:Number(count.total),progress,cases,q,view,csrf:csrf(req),selected:null,rows:[],staffOptions:[],saved:req.query.saved==='1',corrected:req.query.corrected==='1',done:req.query.done||'',finished:req.query.finished==='1',readOnly:false,reviewRevision:0});
+    return res.render('temporary-cleanup',{title:'Temporary Customer Cleanup',type,page,total:Number(count.total),progress,cases,q,view,csrf:csrf(req),selected:null,rows:[],staffOptions:[],saved:req.query.saved==='1',corrected:req.query.corrected==='1',done:req.query.done||'',finished:req.query.finished==='1',readOnly:false,reviewRevision:0,accountOwnerName:'',blockedMessage:''});
   }catch(e){next(e);}
 });
 router.get('/temporary-cleanup/review/:type/:key',requireAuth,guard,async(req,res,next)=>{
@@ -84,16 +84,27 @@ router.get('/temporary-cleanup/review/:type/:key',requireAuth,guard,async(req,re
     const decision=decisions[0]||{};
     if(!sourceCase&&!decision.id) return res.status(404).render('error',{title:'Case not found',message:'This discrepancy is no longer in the active database.'});
     const rows=sourceCase?await reviewRows(type,key):[];
+    let lineAssignments=[];
+    let accountOwnerName='';
+    if(type==='same_account_phone' && rows.length){
+      const ids=rows.map(r=>Number(r.id));
+      [lineAssignments]=await db.query('SELECT ca.client_id,ca.assigned_staff_id,ca.is_active,s.full_name staff_name FROM client_assignments ca LEFT JOIN staff_users s ON s.id=ca.assigned_staff_id WHERE ca.client_id IN (?)',[ids]);
+      if(rows[0].account_id){
+        const [master]=await db.execute('SELECT s.full_name name FROM customer_accounts a LEFT JOIN staff_users s ON s.id=a.assigned_staff_id WHERE a.id=:id LIMIT 1',{id:Number(rows[0].account_id)});
+        accountOwnerName=master[0]?.name||'';
+      }
+    }
+
     const [staffOptions]=type==='staff_conflict'&&sourceCase?await db.query('SELECT id,full_name FROM staff_users WHERE is_active=1 AND deleted_at IS NULL ORDER BY full_name'):[[]];
     const [[history]]=await db.execute('SELECT COUNT(*) total FROM temporary_cleanup_review_history WHERE case_type=:type AND case_key=:key',{type,key});
     const selected={...(sourceCase||{display_name:'Resolved historical case',display_account:'',record_count:0,case_key:key}),...decision,type,key,hash:snapshot(rows)};
     const readOnly=Boolean(!sourceCase||(isTerminal(selected.decision)&&String(req.query.edit||'')!=='1'));
     res.set('Cache-Control','no-store');
     return res.render('temporary-cleanup',{title:'Review Cleanup Case',type,page:1,total:1,cases:[],q:'',view:'all',csrf:csrf(req),
-      selected,rows:rows.map(r=>({...r,_checkHash:(type==='same_account_phone'||type==='cross_account_phone')?rowHash(r):null,
+      selected,accountOwnerName,rows:rows.map(r=>({...r,_staff:lineAssignments.find(a=>Number(a.client_id)===Number(r.id))||null,_checkHash:(type==='same_account_phone'||type==='cross_account_phone')?rowHash(r):null,
         _assignmentHash:type==='staff_conflict'?assignmentHash(r):null})),staffOptions,
       saved:req.query.saved==='1',corrected:req.query.corrected==='1',done:req.query.done||'',finished:false,
-      readOnly,reviewRevision:Number(history.total||0),progress:null});
+      readOnly,reviewRevision:Number(history.total||0),progress:null,blockedMessage:({staff_conflict:'Several different staff members are assigned to these duplicate records. No records were changed. Agree on the correct allocation before trying again.',account_staff_conflict:'The customer account is assigned to a different staff member than the duplicate line. No changes were made; resolve the account owner first.',inactive_staff:'The previous assigned staff member is inactive. Select and confirm an active staff owner before consolidating.',open_tasks:'An old duplicate still has outstanding staff tasks. Complete or reassign the work first.',source_conflict:'The supplier base does not agree with the chosen line or account. Check the source record before trying again.',stale:'The customer record was updated while this screen was open. Reload and review the latest information.',review_required:'The case requires an additional manual check. No consolidation changes were made.'})[String(req.query.blocked||'')]||''});
   }catch(e){next(e);}
 });
 router.post('/temporary-cleanup/review/:type/:key',requireAuth,guard,async(req,res,next)=>{

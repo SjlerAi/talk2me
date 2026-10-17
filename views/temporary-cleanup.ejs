@@ -37,6 +37,9 @@
 .cleanup-form .cleanup-radio{display:flex;align-items:flex-start;gap:10px;font-weight:600}
 .cleanup-card label.cleanup-radio{display:flex;gap:9px;align-items:center;font-weight:600}
 .cleanup-card label.cleanup-radio input[type=radio]{flex:0 0 auto;position:static;margin:0}
+.cleanup-inline-alert{background:#fff2d8;border:1px solid #d6a43a;border-left:5px solid #bd7d13;padding:15px;border-radius:9px;color:#66430c;margin:14px 0}
+.cleanup-staff-tag{font-size:.83rem;color:#31516d;margin:8px 0 0}
+.cleanup-note-box{line-height:1.45}
 .cleanup-form .cleanup-radio input{flex:0 0 auto;align-self:center}
 
 </style>
@@ -63,6 +66,7 @@
     <div class="cleanup-progress-item"><strong><%= progress.total %></strong>Current category total</div>
   </div><% } %>
   <% if(saved){ %><div class="cleanup-note-box">Review saved with reviewer name and audit history. No customer values changed by this approval.</div><% } %>
+  <% if(blockedMessage){ %><div class="cleanup-inline-alert"><strong>Consolidation paused — nothing was changed.</strong><p><%= blockedMessage %></p><p>You are still on the same customer review. Check the staff allocations below, then try again or flag this case for manual review.</p></div><% } %>
   <% if(corrected){ %><div class="cleanup-note-box">Correction saved in UAT, with an original-value snapshot and audit trail. Confirm the final decision below to close this case, or continue to the next outstanding customer.</div><% } %>
   <% const tabs=[['same_account_phone','Same cellphone / account'],['cross_account_phone','Different accounts'],['account_alias','Account aliases'],['staff_conflict','Staff conflicts'],['base_unlinked','Supplier lines without CRM link']]; %>
   <nav class="cleanup-nav" aria-label="Discrepancy categories">
@@ -92,6 +96,11 @@
           <header><strong>Record <%= i+1 %> / #<%= r.id %></strong>
             <% if(Object.prototype.hasOwnProperty.call(r,'is_active')){ %><span class="cleanup-pill"><%= r.is_active?'Active':'Archived/inactive' %></span><% } %>
           </header>
+          <% if(selected.type==='same_account_phone'){ %>
+            <p class="cleanup-staff-tag"><strong>Assigned staff:</strong>
+              <%= r._staff?(r._staff.staff_name||'Staff #'+r._staff.assigned_staff_id)+(Number(r._staff.is_active)===1?' (active)':' (historical/inactive)'):'None on this line' %>
+            </p>
+          <% } %>
           <dl>
             <% Object.entries(r).filter(([k])=>!k.startsWith('_')).forEach(([k,v])=>{ %>
               <div><dt><%= k.replace(/_/g,' ') %></dt><dd><%= v==null?'—':v instanceof Date?v.toISOString().slice(0,19):String(v) %></dd></div>
@@ -145,7 +154,11 @@
     <% if(!readOnly && selected.type==='same_account_phone' && rows.filter(r=>Number(r.is_active)===1).length>1){ %>
     <section class="cleanup-card">
       <h3>Consolidate the current line (optional)</h3>
-      <p>This is a separate, explicit operation. Select the one customer-line record that should remain current. Other active duplicate records will be <strong>archived, not deleted</strong>. Past contracts, tasks, messages and notes remain in their original records and audit history. The system will refuse consolidation if assignments or open tasks are unsafe.</p>
+      <p>Select the one customer-line record that should remain current. The older active records are archived, never deleted. All line history, source references and approval evidence are retained.</p>
+      <div class="cleanup-note-box">
+        <strong>Staff allocation is preserved automatically.</strong> If the selected current record has no staff member but an older duplicate has one verified, active assignment, the same staff member will be assigned to the current record. Previous allocations remain in the audit trail. If different staff members are recorded, this operation will stop for review.
+        <% if(accountOwnerName){ %><p>Account-level staff owner: <strong><%= accountOwnerName %></strong></p><% } %>
+      </div>
       <form class="cleanup-form" method="post" action="<%= basePath %>/temporary-cleanup/consolidate/<%= encodeURIComponent(selected.key) %>">
         <input type="hidden" name="csrf" value="<%= csrf %>"><input type="hidden" name="snapshot" value="<%= selected.hash %>">
         <fieldset><legend><strong>Select the current record</strong></legend>
@@ -156,7 +169,7 @@
         </fieldset>
         <label>Evidence and reason for archiving other duplicate records<textarea class="cleanup-note" name="reason" minlength="15" maxlength="2000" required placeholder="Explain why the selected line is the current active record, including source evidence."></textarea></label>
         <label class="cleanup-radio"><input type="checkbox" name="confirm_consolidate" value="1" required>
-          I have checked the account, phone and history. Archive other active duplicates in UAT, not delete them.</label>
+          I have checked the customer and history. Preserve the verified staff allocation, and archive older active duplicates in UAT without deleting them.</label>
         <button type="submit" class="cleanup-btn danger">Confirm & apply safe consolidation in UAT</button>
       </form>
     </section>
