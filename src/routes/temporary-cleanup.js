@@ -93,7 +93,8 @@ router.get('/temporary-cleanup/review/:type/:key',requireAuth,guard,async(req,re
     const selected=await getCase(type,key);
     if(!selected)return res.status(404).render('error',{title:'Case not found',message:'This discrepancy no longer exists.'});
     const rows=await reviewRows(type,key);
-    const [[decision]]=await db.execute('SELECT d.*,s.full_name reviewer FROM temporary_cleanup_decisions d LEFT JOIN staff_users s ON s.id=d.reviewed_by WHERE d.case_type=:type AND d.case_key=:key LIMIT 1',{type,key});
+    const [decisions]=await db.execute('SELECT d.*,s.full_name reviewer FROM temporary_cleanup_decisions d LEFT JOIN staff_users s ON s.id=d.reviewed_by WHERE d.case_type=:type AND d.case_key=:key LIMIT 1',{type,key});
+    const decision=decisions[0]||{};
     res.set('Cache-Control','no-store');
     return res.render('temporary-cleanup',{title:'Review Cleanup Case',type,page:1,total:1,cases:[],q:'',view:'all',csrf:csrf(req),selected:{...selected,...decision,type,key,hash:snapshot(rows)},rows,saved:req.query.saved==='1'});
   }catch(e){next(e);}
