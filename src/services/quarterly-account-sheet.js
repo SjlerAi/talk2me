@@ -92,7 +92,7 @@ function parseQuarterlySheet(buffer,filename) {
     if(!candidate || !candidate['!ref'])continue;
     const range=XLSX.utils.decode_range(candidate['!ref']);
     if(range.e.r>MAX_LINES+30||range.e.c>MAX_COLUMNS-1)throw new Error('Workbook exceeds 2,000 rows or 32 columns.');
-    const matrix=XLSX.utils.sheet_to_json(candidate,{header:1,defval:null,blankrows:false,raw:true});
+    const matrix=XLSX.utils.sheet_to_json(candidate,{header:1,defval:null,blankrows:true,raw:true});
     for(let i=0;i<Math.min(matrix.length,12);i++){
       const row=matrix[i],col={};
       for(const [field,aliases] of Object.entries(mapAliases)) {
@@ -100,7 +100,7 @@ function parseQuarterlySheet(buffer,filename) {
       }
       if(col.number>=0&&col.package>=0){
         if(sheet)throw new Error('More than one worksheet contains a line list. Please upload one business account list.');
-        sheet={name,matrix,original:candidate};headers=row.map((v,j)=>clean(v,100)||'Column '+(j+1));columnMap=col;headerIndex=i;
+        sheet={name,matrix,startRow:range.s.r,original:candidate};headers=row.map((v,j)=>clean(v,100)||'Column '+(j+1));columnMap=col;headerIndex=i;
         break;
       }
     }
@@ -111,10 +111,12 @@ function parseQuarterlySheet(buffer,filename) {
     const raw=sheet.matrix[i];
     if(!raw.some(item=>item!==null&&clean(item)!==''))continue;
     const display=clean(raw[columnMap.number],45);
-    const number=display.replace(/\s+/g,'');
+    let number=display.replace(/\s+/g,'');
+    // Excel General-format numbers can drop the leading zero of an SA mobile.
+    if(/^[6-8]\d{8}$/.test(number))number='0'+number;
     const phone=normaliseSouthAfricanMobile(number);
     const pack=clean(raw[columnMap.package],255);
-    const rowNumber=i+1;
+    const rowNumber=sheet.startRow+i+1;
     if(!phone){errors.push('Row '+rowNumber+': invalid or missing South African cellphone number.');continue;}
     if(!pack){errors.push('Row '+rowNumber+': package is required.');continue;}
     if(seen.has(phone)){errors.push('Row '+rowNumber+': duplicate number in this workbook.');continue;}
@@ -129,7 +131,7 @@ function parseQuarterlySheet(buffer,filename) {
     const rawFields={};
     headers.forEach((h,j)=>{const v=raw[j];rawFields[h]=v instanceof Date?v.toISOString().slice(0,10):v==null?null:String(v).slice(0,1000);});
     rows.push({
-      sourceRow:rowNumber,number:display,phone,packageName:pack,
+      sourceRow:rowNumber,number:(number.startsWith('0')&&display.length===9?number:display),phone,packageName:pack,
       upgradeDate,endDate,usage:clean(get('usage'),500)||null,currentCost:cost??null,
       rawFields
     });
