@@ -359,6 +359,10 @@ if (UAT_MODE) {
   app.use('/', uatClientVisibility);
   if (BASE_PATH) app.use(BASE_PATH, uatClientVisibility);
 
+  const uatBusinessAccountSheets = require('./src/routes/uat-business-account-sheets');
+  app.use('/', uatBusinessAccountSheets);
+  if (BASE_PATH) app.use(BASE_PATH, uatBusinessAccountSheets);
+
   // Isolated signed CRM endpoint for Zippy, available only in UAT.
   // No browser session or generic staff access is granted by this integration.
   const zippyIntegration = require('./src/routes/zippy-integration');
