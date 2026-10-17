@@ -11,6 +11,7 @@ const {
 const {
   matchReport,crmState,intendedState,crmDigest,loadGlobalPhoneMatches,belongsToAccount
 }=require('../src/services/viralco-reconcile');
+const {buildIssues,assessIssues}=require('../src/services/viralco-review');
 
 const columns=[
   'MSISDN','Subscriber Name','Invoice Name','Sponsored Acc','Activation Date','Term Date',
@@ -110,13 +111,15 @@ assert.equal(intendedState({...parsed.rows[0],earliestUpgradeDate:null},own[0]).
   const locals={basePath:'/talk2me',appVersion:'dev',assetVersion:'dev',
     client:{id:1001,client_name:'SAMPLE COMPANY'},
     account,current:null,versions:[],preview:null,manager:false,ownerManager:false,
-    lines:[],totalRows:0,page:1,pageCount:1,csrfToken:'a'.repeat(64),message:'',error:''};
+    outstanding:[],managerRequests:[],lines:[],totalRows:0,page:1,pageCount:1,csrfToken:'a'.repeat(64),message:'',error:''};
   const html=ejs.render(page,locals,{filename:'views/viralco-account-sync.ejs'});
   assert.match(html,/Upload the original ViralCo report/);
   assert.match(html,/enctype="multipart\/form-data"/);
   assert.match(html,/name="viralco_csrf"/);
   assert.match(html,/Eligible for Upgrade = All/);
+  const issueDefinitions=buildIssues(matches,parsed,account);
   const preview={id:'f'.repeat(36),filename:'ViralCo.xlsx',report:parsed,...matches,
+    issues:issueDefinitions.map(x=>({...x,decision:null})),review:assessIssues(issueDefinitions,new Map()),
     baselineChanged:false,versionChanged:false,accountMatches:true,canConfirmName:false};
   const staff=ejs.render(page,{...locals,preview},{filename:'views/viralco-account-sync.ejs'});
   assert.match(staff,/Ask Gerda or a manager/);
@@ -124,9 +127,9 @@ assert.equal(intendedState({...parsed.rows[0],earliestUpgradeDate:null},own[0]).
   assert.match(staff,/disabled/);
   const manager=ejs.render(page,{...locals,preview:{...preview,canConfirmName:true,safeNew:1},manager:true,ownerManager:true},
     {filename:'views/viralco-account-sync.ejs'});
-  assert.match(manager,/verify_company/);
-  assert.match(manager,/create_new/);
-  assert.match(manager,/update_company/);
+  assert.match(manager,/verify_account/);
+  assert.match(manager,/rename_account/);
+  assert.match(manager,/Numbered conflicts and review items/);
   assert.match(manager,/OLD INCORRECT NAME/);
 
   const route=fs.readFileSync('src/routes/uat-viralco-sync.js','utf8');
@@ -136,7 +139,7 @@ assert.equal(intendedState({...parsed.rows[0],earliestUpgradeDate:null},own[0]).
   assert.match(route,/beginTransaction/);
   assert.match(route,/await conn.rollback/);
   assert.match(route,/uploaded_by=:staffId/);
-  assert.match(route,/create_new/);
+  assert.match(route,/create_line/);
   assert.match(route,/next_upgrade_date=COALESCE/);
   assert.doesNotMatch(route,/UPDATE\s+clients\s+SET[^\n]*monthly_invoice_amount/i);
   assert.doesNotMatch(route,/UPDATE\s+clients\s+SET[^\n]*line_status=/i);
