@@ -60,3 +60,23 @@
   .customer-staff-picker{flex-basis:100%}
   .customer-results-card .customer-admin-table tbody td::before{flex-basis:87px}
 }
+
+/* Daily customer action launcher — compact desktop, touch-friendly mobile. */
+.customer-attention-launcher{margin:14px 0 18px}
+.customer-attention-intro{display:grid;gap:3px;margin:0 2px 12px}
+.customer-attention-intro strong{font-size:17px;color:#203545}
+.customer-attention-intro small{font-size:13px;color:#657585}
+.customer-attention-actions{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.customer-attention-action{display:flex;flex-direction:column;justify-content:center;min-height:86px;gap:6px;padding:14px 15px;border:1px solid #cbd9e3;border-left:4px solid #d4e0e8;border-radius:12px;background:#fff;color:#203545;text-decoration:none;transition:box-shadow .12s ease,border-color .12s ease}
+.customer-attention-action strong{font-size:14px;line-height:1.25}
+.customer-attention-action small{font-size:12px;line-height:1.3;color:#667785}
+.customer-attention-action:hover,.customer-attention-action:focus-visible{border-color:#e71d2a;box-shadow:0 3px 14px rgba(18,33,48,.09)}
+.customer-attention-action.active{border-left-color:#e71d2a;border-top-color:#e71d2a;border-bottom-color:#e71d2a;border-right-color:#e71d2a;background:#fff7f8}
+.customer-attention-field[hidden]{display:none!important}
+.customer-attention-explanation:not(:empty){margin-top:12px;color:#586f7e;font-size:12px;line-height:1.5}
+.customer-filter-warning{padding:10px 12px;margin-top:14px;border:1px solid #e2c69b;border-radius:9px;background:#fff8e9;color:#694c18;font-size:13px}
+.customer-attention-badges{display:flex;flex-direction:column;align-items:flex-start;gap:4px;min-width:145px}
+.customer-attention-badge{display:inline-flex;padding:4px 7px;border-radius:7px;border:1px solid #f0c8bd;background:#fff5f2;color:#923d29;line-height:1.25;font-weight:700;font-size:11px}
+@media(max-width:940px){.customer-attention-actions{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:740px){.customer-attention-launcher{margin:12px 0 16px}.customer-attention-action{min-height:80px;padding:12px}.customer-attention-badges{min-width:0;max-width:calc(100vw - 165px);align-items:flex-end}.customer-attention-badge{text-align:right}}
+@media(max-width:390px){.customer-attention-actions{grid-template-columns:1fr}.customer-attention-action{min-height:62px}}

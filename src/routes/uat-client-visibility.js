@@ -4,6 +4,7 @@ const express = require('express');
 const db = require('../config/db');
 const { requireAuth } = require('../middleware/auth');
 const { normaliseFilters,buildWorkConditions } = require('../services/uat-customer-filters');
+const { parseAttention,buildAttentionConditions,reasonLabels } = require('../services/uat-customer-attention');
 
 const router = express.Router();
 const IS_UAT = String(process.env.UAT_MODE || '').trim().toLowerCase() === 'true';
@@ -50,6 +51,7 @@ router.get('/backoffice/clients',requireAuth,async(req,res,next)=>{
     const userId=Number(req.session.user.id);
     const management=isManagement(req.session.user);
     const filters=normaliseFilters(req.query);
+    const attention=parseAttention(req.query);
     const q=filters.q;
     const view=['all','prospects','incomplete','unassigned','archived'].includes(String(req.query.view||''))
       ? String(req.query.view) : 'all';
@@ -87,6 +89,11 @@ router.get('/backoffice/clients',requireAuth,async(req,res,next)=>{
     const work=buildWorkConditions(filters,{management,scope,staffId:selectedStaffId||userId});
     Object.assign(params,work.params);
     where.push(...work.clauses);
+    const attentionSql=buildAttentionConditions(attention,{
+      management,scope,staffId:selectedStaffId||userId,unassignedClause
+    });
+    Object.assign(params,attentionSql.params);
+    where.push(...attentionSql.clauses);
     if (filters.error) where.push('1=0'); // Fail visibly closed for an invalid date/month.
     const sqlWhere='WHERE '+where.join(' AND ');
     const [[matching]] = await db.execute('SELECT COUNT(*) total FROM clients c '+sqlWhere,params);
@@ -108,7 +115,9 @@ router.get('/backoffice/clients',requireAuth,async(req,res,next)=>{
         ORDER BY (a.client_id=c.id) DESC,a.updated_at DESC LIMIT 1) AS assigned_staff_name,
       (SELECT i.query_text FROM inquiries i WHERE i.client_id=c.id ORDER BY i.created_at DESC LIMIT 1) AS last_inquiry,
       (SELECT i.action_taken FROM inquiries i WHERE i.client_id=c.id ORDER BY i.created_at DESC LIMIT 1) AS last_action
-      FROM clients c ${work.join} ${sqlWhere} ORDER BY ${work.sort} LIMIT :limit OFFSET :offset`,params);
+      ${attentionSql.projection?', '+attentionSql.projection:''}
+      FROM clients c ${work.join} ${sqlWhere} ORDER BY ${attention.focus==='needs_attention'&&filters.sort==='recent'?attentionSql.sort:work.sort} LIMIT :limit OFFSET :offset`,params);
+    if(attention.focus!=='all')clients.forEach(client=>{client.attentionReasons=reasonLabels(client,attention);});
 
     // The tab badges describe the selected visibility scope; the separate match count
     // describes the actual combined filters and uses the exact same WHERE as the page.
@@ -132,6 +141,12 @@ router.get('/backoffice/clients',requireAuth,async(req,res,next)=>{
       if(filters.work!=='all')p.set('work',filters.work);
       if(filters.status!=='all')p.set('status',filters.status);
       if(filters.sort!=='recent')p.set('sort',filters.sort);
+      if(attention.focus!=='all'){
+        p.set('focus',attention.focus);
+        if(attention.focus==='birthdays')p.set('birthday',attention.birthday);
+        if(attention.focus==='contact')p.set('contact',attention.contact);
+        if(attention.focus==='unallocated')p.set('unallocated',attention.unallocated);
+      }
       for(const [key,value] of Object.entries(overrides)) {
         if(value===null||value===undefined||value==='')p.delete(key);
         else p.set(key,String(value));
@@ -143,7 +158,7 @@ router.get('/backoffice/clients',requireAuth,async(req,res,next)=>{
       saved:req.query.saved,counts:{...(counts||{}),unassigned_count:unassigned?.total||0},
       staffVisibilityScope:scope,staffVisibilitySelectedId:selectedStaffId,
       staffVisibilityManagement: management,
-      filters,total,page,pageCount,pageSize:PAGE_SIZE,
+      filters,attention,total,page,pageCount,pageSize:PAGE_SIZE,
       firstRecord:total?(page-1)*PAGE_SIZE+1:0,lastRecord:Math.min(total,page*PAGE_SIZE),
       queryStringFor
     });

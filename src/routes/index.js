@@ -819,7 +819,7 @@ router.post('/backoffice/clients/:id/assign', requireAuth, requireRole('owner','
     if(returnScope==='staff'&&returnStaffId)query.set('staff_id',String(returnStaffId));
     // Keep the active read-only customer filters after an approved assignment change.
     const preserved=new URLSearchParams(String(req.body.return_filters||'').slice(0,1000));
-    for(const key of ['upgrade_month','date','from','to','work','status','sort','page']){
+    for(const key of ['upgrade_month','date','from','to','work','status','sort','page','focus','birthday','contact','unallocated']){
       const value=preserved.get(key);
       if(value!==null&&value.length<=30)query.set(key,value);
     }
