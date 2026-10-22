@@ -7,6 +7,7 @@ const {verifySigned}=require('../services/zippy-bridge-security');
 const {prepareNaturalCommand}=require('../services/cudo-natural-plan');
 const {sendNaturalCommand}=require('../services/cudo-natural-send');
 const {ensureSchema:ensureWorkSchema}=require('./uat-work-widgets');
+const {lookupOwnerCrm}=require('../services/zippy-owner-queries');
 const router=express.Router();
 const UAT_ONLY=String(process.env.UAT_MODE||'').toLowerCase()==='true';
 const OWNER_EMAIL='gerda@talk-online.co.za';
@@ -23,7 +24,7 @@ async function ensureBridgeTables(){
 }
 async function requireSignedGerda(req,res,next){
  if(!UAT_ONLY)return fail(res,404,'Not found');
- if(!['preview','confirm','updates'].includes(String(req.params.action||'')))
+ if(!['preview','confirm','updates','lookup'].includes(String(req.params.action||'')))
   return fail(res,404,'Not found');
  let secret='';
  try{secret=fs.readFileSync(SECRET_FILE,'utf8').trim();}catch(_){return fail(res,503,'The Zippy CRM connection has not been configured.');}
@@ -58,6 +59,15 @@ router.post('/api/integrations/zippy/:action',requireSignedGerda,async(req,res)=
  res.set('Cache-Control','no-store');
  const ownerId=req.zippyOwnerId;
  try{
+  if(req.params.action==='lookup'){
+   // This operation cannot send messages or change CRM records.
+   const intent=String(req.body?.intent||'');
+   if(!['birthdays','attendance','upgrades'].includes(intent))return fail(res,400,'Unsupported CRM question.');
+   const data=await lookupOwnerCrm(db,{
+    intent,month:req.body?.month,staff:req.body?.staff,language:req.body?.language
+   });
+   return res.json({ok:true,...data});
+  }
   if(req.params.action==='updates'){
    // Only tasks actually issued by this signed-in owner are visible. Staff chat
    // replies must explicitly reference those tasks; unrelated conversations
