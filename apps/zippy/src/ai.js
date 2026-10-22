@@ -2,7 +2,8 @@
 // Optional opt-in AI interpretation. No CRM writes or personal reminders are
 // executed by model output; server-side policy validates a structured proposal.
 const {normal}=require('./clock');
-function available(){return process.env.ZIPPY_AI_ENABLED==='1'&&Boolean(process.env.ZIPPY_AI_API_KEY&&process.env.ZIPPY_AI_MODEL);}
+function aiKey(){return process.env.ZIPPY_AI_API_KEY||process.env.ZIPPY_STT_API_KEY||process.env.OPENAI_API_KEY||'';}
+function available(){return process.env.ZIPPY_AI_ENABLED==='1'&&Boolean(aiKey()&&process.env.ZIPPY_AI_MODEL);}
 function validate(raw,original){
  if(!raw||typeof raw!=='object')return null;
  const route=String(raw.route||'');if(!['personal','office','agenda','question','conversation'].includes(route))return null;
@@ -39,7 +40,7 @@ async function optionalAICommand(message,{user=null,language='auto'}={}){
  const schema={type:'object',additionalProperties:false,properties:{route:{type:'string',enum:['personal','office','agenda','question','conversation']},title:{type:'string'},dueAt:{type:'string'},recurrence:{type:'string'},entryType:{type:'string',enum:['reminder','appointment']},question:{type:'string'},answer:{type:'string'}},required:['route','title','dueAt','recurrence','entryType','question','answer']};
  try{
   const response=await fetch('https://api.openai.com/v1/responses',{method:'POST',signal:controller.signal,
-   headers:{'Authorization':'Bearer '+process.env.ZIPPY_AI_API_KEY,'Content-Type':'application/json'},
+   headers:{'Authorization':'Bearer '+aiKey(),'Content-Type':'application/json'},
    body:JSON.stringify({model:process.env.ZIPPY_AI_MODEL,instructions:system,input:original,
     store:false,text:{format:{type:'json_schema',name:'zippy_intent',strict:true,schema}}})});
   if(!response.ok)throw Error('AI provider status '+response.status);
