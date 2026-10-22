@@ -3,14 +3,14 @@
   "schema": 1,
   "repository": "SjlerAi/talk2me",
   "environment": "ui-uat",
-  "action": "hold",
-  "status": "HOLD",
-  "requestId": "hold-after-customer-filters-6f7b975e-20261022",
-  "sourceBranch": "release/talk2me-ui-uat-2026-10-22-customer-status-filters",
-  "sourceSha": "6f7b975e19c5be6febc9061648f43e40c29d03a7",
+  "action": "deploy",
+  "status": "DEPLOY",
+  "requestId": "zippy-v2-crm-readonly-20261022-88d71188",
+  "sourceBranch": "release/zippy-v2-crm-readonly-20261022",
+  "sourceSha": "88d7118841d9612bdccfb04355c2c1985a93fb90",
   "commit": null,
   "workflowRunId": null,
   "artifact": null,
   "sha256": null,
-  "requestedAt": "2026-10-22T09:00:00+02:00"
+  "requestedAt": "2026-10-22T10:34:48+02:00"
 }
