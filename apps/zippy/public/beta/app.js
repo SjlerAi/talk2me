@@ -253,19 +253,24 @@ async function submitCommand(event){
   // because of network or language-recognition failure.
   $('#command-input').value='';state.recognitionSource='text';
   state.replyLanguage=response.language||state.replyLanguage;
+  // Normal answers already appear in the persistent conversation feed.
+  // The separate action result is reserved for errors and CRM review panels.
+  const singleReply=text=>{
+   $('#command-result').hidden=true;
+   if(text)say(text);
+  };
   if(response.status==='saved'){
-   result(response.text);await refresh();
+   singleReply(response.text);await refresh();
   }else if(response.status==='question'){
-   result(response.question||response.text,{type:'notice',pending:{original:response.original||message}});
+   singleReply(response.question||response.text);
+   state.pendingInput={original:response.original||message};
    $('#command-input').focus();
   }else if(response.status==='crm_preview'){
    officePreview(response);
   }else if(response.status==='agenda'){
-   view('today');result(response.text);await refresh();
-  }else if(response.status==='chat'||response.status==='crm_report'){
-   result(response.text||'What else can I help with?');
+   view('today');singleReply(response.text);await refresh();
   }else{
-   result(response.text||response.question||'I need one more detail before I can do that.',{type:'notice'});
+   singleReply(response.text||response.question||'I need one more detail before I can do that.');
   }
   await refreshConversation().catch(()=>{});
   setStatus(response.status==='crm_preview'?'Draft ready. Review and approve before sending.':
