@@ -183,7 +183,8 @@ async function sendDraft(byVoice=false){
   }});
   hideDraft();
   result(sent.text||'Sent to Talk2Me CRM. The task is being monitored.');
-  await refresh();
+  setStatus('Confirmed and sent to Talk2Me CRM.');
+  await refresh();await refreshConversation().catch(()=>{});
  }catch(error){
   // Never automatically retry an uncertain send. Only the explicit button/
   // spoken approval can trigger a new submission.
@@ -376,13 +377,19 @@ async function startVoice(){
  }
 }
 async function enableNotifications(){try{if(!('serviceWorker'in navigator)||!('PushManager'in window)||!('Notification'in window)){result('Background notifications are not supported in this browser. You can still view reminders inside Zippy.',{type:'notice'});return;}if(!state.user.pushConfigured){result('The notification service must be configured on the Zippy server first.',{type:'notice'});return;}const permission=await Notification.requestPermission();if(permission!=='granted'){result('Please allow notifications for Zippy in your phone or browser settings.',{type:'notice'});return;}const reg=await navigator.serviceWorker.ready;const key=state.user.vapidPublicKey.replace(/-/g,'+').replace(/_/g,'/');const raw=atob(key+'='.repeat((4-key.length%4)%4));const arr=new Uint8Array([...raw].map(ch=>ch.charCodeAt(0)));const sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:arr});await api('/api/push/subscribe',{method:'POST',body:{subscription:sub.toJSON()}});result('Zippy notifications are enabled on this device.');$('#push-setup').innerText='Alerts on';}catch(e){result('Notification setup: '+e.message,{type:'error'});}}
-async function login(e){e.preventDefault();const el=$('#login-error');el.hidden=true;try{const response=await api('/api/login',{method:'POST',body:{email:$('#login-email').value,password:$('#login-password').value}});$('#login-password').value='';const profile=await api('/api/me');showApp(profile);await refresh();await restorePendingDraft();}catch(e){el.textContent=e.message;el.hidden=false;}}
+async function login(e){e.preventDefault();const el=$('#login-error');el.hidden=true;try{const response=await api('/api/login',{method:'POST',body:{email:$('#login-email').value,password:$('#login-password').value}});$('#login-password').value='';const profile=await api('/api/me');showApp(profile);await refresh();await refreshConversation().catch(()=>{});await restorePendingDraft();}catch(e){el.textContent=e.message;el.hidden=false;}}
 async function remindForm(e){e.preventDefault();const form=$('#new-reminder-form');const fd=new FormData(form);const date=new Date(String(fd.get('dueAt')));try{const recur=String(fd.get('recurrence')||'');let recurrence=recur;if(recur==='weekly')recurrence='weekly:'+date.getDay();const data=await api('/api/reminders',{method:'POST',body:{title:fd.get('title'),dueAt:date.toISOString(),entryType:'reminder',recurrence}});$('#new-reminder-dialog').close();form.reset();result(data.text);await refresh();}catch(e){result(e.message,{type:'error'});}}
 let deferredInstall=null;
 window.addEventListener('beforeinstallprompt',event=>{event.preventDefault();deferredInstall=event;$('#install-button').hidden=false;});
 async function installApp(){if(!deferredInstall){result('On iPhone: tap Share → Add to Home Screen. On desktop: use your browser Install App menu.',{type:'notice'});return;}deferredInstall.prompt();await deferredInstall.userChoice;deferredInstall=null;$('#install-button').hidden=true;}
 function bind(){
- $('#login-form').onsubmit=login;$('#command-form').onsubmit=submitCommand;$('#mic-button').onclick=startVoice;$('#push-setup').onclick=enableNotifications;$('#install-button').onclick=installApp;
+ $('#login-form').onsubmit=login;$('#command-form').onsubmit=submitCommand;$('#mic-button').onclick=startVoice;
+ $('#command-input').addEventListener('keydown',event=>{
+  if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();submitCommand();}
+ });
+ $('#command-input').addEventListener('input',()=>{
+  if(!state.busy&&$('#command-input').value.trim())setStatus('Ready to send. Your words are still here.');
+ });$('#push-setup').onclick=enableNotifications;$('#install-button').onclick=installApp;
  $('#review-read').onclick=speakMessage;
  $('#review-send').onclick=()=>sendDraft(false);
  $('#review-cancel').onclick=cancelDraft;
@@ -410,7 +417,7 @@ function bind(){
  $('#voice-replies').setAttribute('aria-pressed',String(state.speakBack));
  $('#voice-replies').onclick=()=>{state.speakBack=!state.speakBack;$('#voice-replies').setAttribute('aria-pressed',String(state.speakBack));$('#voice-replies').textContent=state.speakBack?'🔊 Replies on':'🔇 Voice replies off';try{localStorage.setItem('zippy-speak-back',state.speakBack?'1':'0');}catch(_){}};
  $('#language').onchange=()=>{try{localStorage.setItem('zippy-voice-language',$('#language').value);}catch(_){}};
- try{const saved=localStorage.getItem('zippy-voice-language');if(['af-ZA','en-ZA'].includes(saved))$('#language').value=saved;}catch(_){}
+ try{const saved=localStorage.getItem('zippy-voice-language');if(['auto','af-ZA','en-ZA'].includes(saved))$('#language').value=saved;}catch(_){}
  $('#change-password').onclick=()=>{$('#password-error').hidden=true;$('#password-form').reset();$('#password-dialog').showModal();};
  $('#cancel-password').onclick=()=>$('#password-dialog').close();
  $('#password-form').onsubmit=async event=>{
@@ -427,7 +434,7 @@ function bind(){
  $('#contact-form').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.currentTarget);try{await api('/api/contacts',{method:'POST',body:Object.fromEntries(f.entries())});e.currentTarget.reset();await refresh();result('Private contact saved.');}catch(err){result(err.message,{type:'error'});}};
  document.addEventListener('click',async e=>{const act=e.target.closest('[data-action]');const contact=e.target.closest('[data-contact-remove]');const read=e.target.closest('[data-alert-read]');try{if(act){await api('/api/reminders/'+act.dataset.id+'/action',{method:'POST',body:{action:act.dataset.action,minutes:10}});await refresh();}if(contact){if(!confirm('Remove this private contact?'))return;await api('/api/contacts/'+contact.dataset.contactRemove,{method:'DELETE',body:{}});await refresh();}if(read){await api('/api/alerts/'+read.dataset.alertRead+'/read',{method:'POST',body:{}});await refresh();}}catch(err){result(err.message,{type:'error'});}});
 }
-async function init(){bind();if('serviceWorker'in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});try{const profile=await api('/api/me');if(profile.authenticated){showApp(profile);await refresh();await restorePendingDraft();}else showLogin();}catch(_){showLogin();}
+async function init(){bind();if('serviceWorker'in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});try{const profile=await api('/api/me');if(profile.authenticated){showApp(profile);await refresh();await refreshConversation().catch(()=>{});await restorePendingDraft();}else showLogin();}catch(_){showLogin();}
  setInterval(()=>{if(state.user&&document.visibilityState!=='hidden')refresh().catch(err=>console.warn('[zippy] Poll failed',err.message));},25000);
  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&state.user)refresh().catch(()=>{});});
  window.addEventListener('focus',()=>{if(state.user)refresh().catch(()=>{});});
