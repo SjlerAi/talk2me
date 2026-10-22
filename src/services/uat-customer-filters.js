@@ -48,7 +48,6 @@ function normaliseFilters(query, now = new Date()) {
     dateWindow:null,
     error:null
   };
-  if (f.work==='upgrades') f.status='all'; // Upgrade eligibility has no task status.
   if (f.month && !monthBounds(f.month)) f.error='Choose a valid upgrade month and year.';
   const today=todayInSouthAfrica(now);
   const dayOfWeek=new Date(today+'T00:00:00Z').getUTCDay();
@@ -115,14 +114,28 @@ function buildWorkConditions(filters, { management, scope, staffId }) {
     }
   }
   if(filters.work!=='all' || filters.dateWindow || requiredStatus!=='all') {
-    const candidates=[];
-    if((filters.work==='all' || filters.work==='upgrades') && requiredStatus==='all') candidates.push(makeUpgrade());
-    if(filters.work==='all' || filters.work==='tasks') candidates.push(makeTask());
-    if(filters.work==='all' || filters.work==='followups') {
-      candidates.push(makeFollowup('customer_followups','f','open'));
-      candidates.push(makeFollowup('customer_callbacks','cb','scheduled'));
+    if(filters.work==='upgrades') {
+      // An upgrade is a dated line opportunity, not a task with a completion status.
+      // When a status is selected, intersect eligible lines with their recorded
+      // task/follow-up status rather than silently discarding the chosen status.
+      clauses.push(makeUpgrade());
+      if(requiredStatus!=='all') {
+        clauses.push('('+[
+          makeTask(),
+          makeFollowup('customer_followups','f','open'),
+          makeFollowup('customer_callbacks','cb','scheduled')
+        ].join(' OR ')+')');
+      }
+    } else {
+      const candidates=[];
+      if(filters.work==='all' && requiredStatus==='all') candidates.push(makeUpgrade());
+      if(filters.work==='all' || filters.work==='tasks') candidates.push(makeTask());
+      if(filters.work==='all' || filters.work==='followups') {
+        candidates.push(makeFollowup('customer_followups','f','open'));
+        candidates.push(makeFollowup('customer_callbacks','cb','scheduled'));
+      }
+      clauses.push('('+candidates.join(' OR ')+')');
     }
-    clauses.push('('+candidates.join(' OR ')+')');
   }
   let join='';
   if(filters.sort==='new_work') {
