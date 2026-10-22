@@ -1,13 +1,13 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#101c35"><meta name="description" content="Zippy, Your personal assistant for reminders, calendar and Talk2Me CRM."><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="Zippy"><link rel="manifest" href="/manifest.webmanifest"><link rel="icon" type="image/svg+xml" href="/icons/zippy.svg"><link rel="apple-touch-icon" href="/icons/icon-192.png"><link rel="stylesheet" href="/style.css"><title>Zippy · Your day, sorted</title></head>
-<body class="zippy-v2">
+<body>
 <section class="login-shell" id="login-view" hidden aria-labelledby="login-title">
  <div class="login-panel">
   <div class="brand big"><span class="zippy-logo">Z<span>↗</span></span><div><strong>Zippy</strong><small>Your personal assistant</small></div></div>
   <p class="eyebrow">YOUR PRIVATE ASSISTANT</p><h1 id="login-title">A little more freedom,<br><em>every day.</em></h1>
   <p class="muted">Personal reminders, appointments and your Talk2Me office — one friendly place.</p>
   <form id="login-form"><label for="login-email">Email</label><input type="email" id="login-email" autocomplete="username" required placeholder="Your email address"><label for="login-password">Password</label><input type="password" id="login-password" autocomplete="current-password" required ><button class="primary full" type="submit">Unlock my Zippy <span aria-hidden="true">→</span></button></form>
-  <div role="alert" id="login-error" class="form-error" hidden></div><p class="muted fine">Private to Gerda and explicitly authorised owners</p>
+  <div role="alert" id="login-error" class="form-error" hidden></div><p class="muted fine">Private to authorised Talk2Me users</p>
  </div>
  <div class="login-art"><div class="orbit orbit-one"></div><div class="orbit orbit-two"></div><div class="hero-bubble"><span class="hero-symbol">✦</span><p>Take care of today.<br><strong>I'll remember the rest.</strong></p></div></div>
 </section>
@@ -26,17 +26,7 @@
   <header class="topbar"><div class="mobile-brand brand"><span class="zippy-logo">Z<span>↗</span></span><strong>Zippy</strong></div><span id="today-date" class="today-date"></span><div class="top-actions"><span class="connection-status" id="connection-state">Private mode</span><button class="notification-toggle" id="voice-replies" aria-pressed="false" title="Toggle spoken replies">🔊 <span>Voice replies</span></button><button class="notification-toggle" id="install-button" type="button" hidden>Install app</button><button class="notification-toggle" id="push-setup" type="button" title="Enable phone notifications">♧ <span>Enable alerts</span></button><button class="avatar" id="account-avatar" title="Your account" aria-label="Your account">Z</button></div></header>
   <main class="page">
    <section class="hero" id="hero"><div class="hero-content"><span class="eyebrow">GOOD TO SEE YOU</span><h1 id="greeting">Good morning <span aria-hidden="true">✳</span></h1><p>What can I take off your mind today?</p><div class="quick-prompt" id="quick-examples"><button data-example="Remind me at 12 to phone my mother">"Phone my mother at twelve"</button><button data-example="Remind me tomorrow at 9 to review the day">"Tomorrow's reminder"</button></div></div><div class="hero-art" aria-hidden="true"><div class="hero-sun">✳</div><span class="hero-curve">〰</span></div></section>
-   <section class="command-section" aria-labelledby="command-title"><div class="command-top"><div><p class="eyebrow">ONE SENTENCE IS ENOUGH</p><h2 id="command-title">Talk to Zippy</h2></div><div class="language"><label for="language">Language</label><select id="language"><option value="auto" selected>Auto · English / Afrikaans</option><option value="en-ZA">English</option><option value="af-ZA">Afrikaans</option></select></div></div><div id="conversation-feed" class="conversation-feed" role="log" aria-label="Your conversation with Zippy" aria-live="polite" aria-relevant="additions">
-  <div class="chat-bubble assistant"><strong>Zippy</strong><p>Hi! I'm ready to help. Speak or type, and I'll show you what I heard before sending.</p></div>
- </div>
- <p id="command-status" class="command-status" role="status" aria-live="polite">Ready when you are.</p>
- <form id="command-form" class="command-bar">
-  <button id="mic-button" type="button" class="mic-btn" title="Tap to speak, tap again to stop" aria-label="Record a voice message" aria-pressed="false"><span aria-hidden="true">🎙</span></button>
-  <textarea id="command-input" rows="1" autocomplete="off" maxlength="2500" aria-label="Your message to Zippy" placeholder="Ask Zippy anything…"></textarea>
-  <button class="send-btn" id="command-send" type="submit" aria-label="Send to Zippy">Send ➜</button>
- </form>
- <p class="command-hint" id="mic-hint">Tap the microphone, speak, review the words, then tap Send. Or simply type.</p>
- <div id="command-result" class="command-result" role="status" aria-live="polite" hidden></div>
+   <section class="command-section" aria-labelledby="command-title"><div class="command-top"><div><p class="eyebrow">ONE SENTENCE IS ENOUGH</p><h2 id="command-title">Just tell Zippy.</h2></div><div class="language"><label for="language">Voice</label><select id="language"><option value="en-ZA">English</option><option value="af-ZA">Afrikaans</option></select></div></div><form id="command-form" class="command-bar"><button id="mic-button" type="button" class="mic-btn" title="Tap to speak" aria-label="Tap to speak"><span aria-hidden="true">🎙</span></button><input id="command-input" autocomplete="off" maxlength="2500" aria-label="Talk to Zippy" placeholder="Zippy, remind me to phone my mother at 12…"><button class="send-btn" id="command-send" type="submit" aria-label="Send to Zippy">➜</button></form><p class="command-hint" id="mic-hint">Speak naturally in English or Afrikaans. Tap the microphone, or type a command.</p><div id="command-result" class="command-result" role="status" aria-live="polite" hidden></div>
     <section id="review-panel" class="review-panel" aria-label="Review your Talk2Me message" hidden>
       <div class="review-heading"><strong>Review before sending</strong><span class="review-unsent">NOT SENT</span></div>
       <p id="review-recipient" class="review-recipient"></p>
