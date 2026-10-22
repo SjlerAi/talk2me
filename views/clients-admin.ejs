@@ -163,7 +163,7 @@ const staffFormValues=new URLSearchParams(queryStringFor({scope:'staff',staff_id
         <input id="customer-list-filter-input" name="q" value="<%= q %>" autocomplete="off" placeholder="Search customers (three or more characters)">
         <button type="submit" class="primary">Show Results</button>
       </div>
-      <small class="customer-list-filter-help">Only the Next Upgrade field determines upgrade eligibility. Status applies to Tasks and Follow-ups.</small>
+      <small class="customer-list-filter-help">Only the Next Upgrade field determines upgrade eligibility. For Upgrades, status filters work recorded on those customers (tasks and follow-ups), not upgrade completion itself.</small>
     </div>
     <% if(attention.focus==='unallocated'&&staffScope!=='all'){ %>
       <div class="customer-filter-warning">Unallocated customers have no assigned staff member. Select All Staff (or All for ordinary staff) to see them.</div>
@@ -239,11 +239,8 @@ const staffFormValues=new URLSearchParams(queryStringFor({scope:'staff',staff_id
       form.querySelectorAll('.customer-attention-field').forEach(node=>node.hidden=node.dataset.attentionWhen!==focusSelect?.value);
       if(from)from.required=custom;
       if(to)to.required=custom;
-      if(statusSelect){
-        const upgrades=workSelect?.value==='upgrades';
-        if(upgrades)statusSelect.value='all';
-        statusSelect.disabled=upgrades;
-      }
+      // Status remains available for tasks and follow-ups linked to upgrade lines.
+      if(statusSelect)statusSelect.disabled=false;
     };
     sync();
     form.querySelectorAll('select').forEach(select=>select.addEventListener('change',()=>{
