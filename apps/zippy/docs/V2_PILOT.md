@@ -71,7 +71,7 @@ to browser recognition with manual English/Afrikaans selection.
 - Run npm --prefix apps/zippy run check in an isolated checkout, not the
   live Passenger app root.
 - Verify both /api/health and the public unauthenticated /api/me response.
-- Verify the voice and chat endpoints refuse unauthenticated access.
+- Verify /api/beta/voice/transcribe and /api/beta/conversation refuse unauthenticated access.
 - Inspect cPanel thread/process headroom without terminating other domains.
 - Verify API key availability by presence only; never display secret values.
 - Back up private MySQL and release files, stage and verify exact release SHA,
