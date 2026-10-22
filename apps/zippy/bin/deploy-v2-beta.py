@@ -27,6 +27,7 @@ FILES = (
     'src/voice-transcribe.js',
     'sql/schema.sql',
     'public/beta/index.html',
+    'public/beta/voice-flow.js',
     'public/beta/app.js',
     'public/beta/style.css',
     'public/beta/sw.js',
