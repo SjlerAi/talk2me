@@ -9,7 +9,7 @@
   },
   "scripts": {
     "start": "node server.js",
-    "check": "node --test tests/*.test.js && node --check server.js && node --check passenger.js && node --check src/internal-tick.js && node --check src/auth.js && node --check src/commands.js && node --check src/ai.js && node --check src/voice-transcribe.js && node --check src/conversation.js && node --check src/language.js && node --check src/crm-intents.js && node --check ../../src/services/zippy-owner-queries.js && node --check src/crm.js && node --check src/tick.js && node --check public/app.js && node --check public/sw.js && node --check ../../src/routes/zippy-bridge.js && node --check src/live-crm-auth.js && node --test tests/multiuser.test.js",
+    "check": "node --test tests/*.test.js && node --check server.js && node --check passenger.js && node --check src/internal-tick.js && node --check src/auth.js && node --check src/commands.js && node --check src/ai.js && node --check src/voice-transcribe.js && node --check src/conversation.js && node --check src/language.js && node --check src/crm-intents.js && node --check ../../src/services/zippy-owner-queries.js && node --check src/crm.js && node --check src/tick.js && node --check public/app.js && node --check public/sw.js && node --check public/beta/app.js && node --check public/beta/sw.js && node --check ../../src/routes/zippy-bridge.js && node --check src/live-crm-auth.js && node --test tests/multiuser.test.js",
     "db:init": "node bin/init-db.js",
     "reminders:tick": "node bin/tick.js",
     "auth:hash": "node bin/hash-password.js"
