@@ -20,6 +20,14 @@ const readNonce=crypto.randomBytes(16).toString('hex');
 const readSignature=signature({timestamp,nonce:readNonce,path:readPath,payload:readPayload},key);
 assert(verifySigned({timestamp,nonce:readNonce,path:readPath,payload:readPayload,signature:readSignature},key,now).ok,
  'Signed read-only status and staff reply updates must be accepted');
+const lookupPath='/api/integrations/zippy/lookup';
+const lookupPayload={actorEmail:'info@b4s.co.za',intent:'birthdays',language:'af-ZA'};
+const lookupNonce=crypto.randomBytes(16).toString('hex');
+const lookupSignature=signature({timestamp,nonce:lookupNonce,path:lookupPath,payload:lookupPayload},key);
+assert(verifySigned({timestamp,nonce:lookupNonce,path:lookupPath,payload:lookupPayload,signature:lookupSignature},key,now).ok,
+ 'Signed owner-only read-only CRM lookup must be accepted');
+assert.equal(verifySigned({timestamp,nonce:lookupNonce,path:lookupPath,payload:{...lookupPayload,intent:'attendance'},signature:lookupSignature},key,now).ok,false,
+ 'Altering a signed CRM lookup intent must be rejected');
 assert.equal(verifySigned({timestamp,nonce:readNonce,path:readPath,payload:{...readPayload,taskIds:[200]},signature:readSignature},key,now).ok,false,
  'Altered task IDs must invalidate signed readback');
 assert.equal(verifySigned({...opts,nonce:'xyz'},key,now).ok,false);
