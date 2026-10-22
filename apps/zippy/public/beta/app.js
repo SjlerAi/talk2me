@@ -282,100 +282,238 @@ async function restorePendingDraft(){
   if(response.draft?.preview)officePreview(response.draft,{resume:true});
  }catch(_){/* Do not block personal reminders if the CRM draft is unavailable. */}
 }
-async function startVoice(){
- if(state.busy)return;
- // A second microphone tap stops the recording; it NEVER sends the message.
- if(state.mediaRecorder?.state==='recording'){
-  state.mediaRecorder.stop();setStatus('Transcribing your recording…');return;
- }
- if(state.recognition){
-  state.recognition.stop();setStatus('Finishing what I heard…');return;
- }
- const input=$('#command-input'),mode=$('#language').value;
- if(state.user?.voiceConfigured&&navigator.mediaDevices?.getUserMedia&&window.MediaRecorder){
-  let stream;
-  try{
-   stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}});
-   const preferred=['audio/mp4','audio/webm;codecs=opus','audio/webm','audio/ogg'];
-   const type=preferred.find(t=>MediaRecorder.isTypeSupported(t));
-   const options=type?{mimeType:type}:{};
-   const recorder=new MediaRecorder(stream,options),chunks=[];
-   state.mediaRecorder=recorder;state.mediaStream=stream;
-   setMic(true,'Recording. Tap the microphone again to stop; then review and send.');
-   setStatus('Listening…');
-   recorder.ondataavailable=e=>{if(e.data?.size)chunks.push(e.data);};
-   recorder.onerror=()=>{setMic(false,'Recording failed. Type your message or try again.');setStatus('Microphone error.',{error:true});};
-   recorder.onstop=async()=>{
-    state.mediaRecorder=null;state.mediaStream=null;stream.getTracks().forEach(t=>t.stop());
-    setMic(false,'Transcribing… your message is not sent.');
-    const mime=recorder.mimeType||type||'audio/webm';
-    const audio=new Blob(chunks,{type:mime});
-    if(audio.size<200){setStatus('I did not hear enough audio. Try speaking again.',{error:true});return;}
-    loading(true);
-    try{
-     const response=await fetch('/api/beta/voice/transcribe',{method:'POST',credentials:'same-origin',
-      headers:{'Content-Type':mime,'X-Zippy-Action':'1','X-Zippy-Language':mode},body:audio});
-     const data=await response.json().catch(()=>({ok:false,error:'Speech service returned no response.'}));
-     if(response.status===401){showLogin();throw Error('Please sign in again.');}
-     if(!response.ok||data.ok===false)throw Error(data.error||'Could not transcribe the recording.');
-     const text=String(data.text||'').trim(),prior=input.value.trim();
-     if(!text)throw Error('No words were recognised. Try again or type.');
-     input.value=prior?prior+' '+text:text;
-     state.replyLanguage=data.language||state.replyLanguage;
-     state.recognitionSource='voice';
-     setStatus('I heard your message. Review or edit the words, then tap Send.');
-     $('#mic-hint').textContent='Recording complete. Your words stay here until you send them.';
-     input.focus();
-    }catch(error){
-     setStatus('Not sent. '+error.message,{error:true});
-     result(error.message,{type:'error'});
-    }finally{loading(false);}
-   };
-   recorder.start(250);
-   setTimeout(()=>{if(recorder.state==='recording')recorder.stop();},30000);
-   return;
-  }catch(error){
-   if(stream)stream.getTracks().forEach(t=>t.stop());
-   state.mediaRecorder=null;state.mediaStream=null;
-   setMic(false,'Microphone access was denied or unavailable. You can still type.');
-   setStatus('Microphone not available. '+(error.name==='NotAllowedError'?'Allow microphone permission.':'Please try typing.'),{error:true});
-   return;
-  }
- }
- // Local fallback: some browsers do not support microphone recording or the
- // optional server transcription is not configured. Do not auto-send results.
- const Speech=window.SpeechRecognition||window.webkitSpeechRecognition;
- if(!Speech){
-  setStatus('Voice transcription is unavailable here. Please type your request.',{error:true});
+function sendRecognisedMessage(){
+ // "Send" submits the visible draft to Zippy. Any actual CRM message
+ // still goes through its separate reviewed staff instruction approval.
+ if(state.activeDraft)return draftSpeech('send');
+ if(!$('#command-input').value.trim()){
+  setStatus('There is no message ready to send.',{error:true});
   return;
  }
- const rec=new Speech(),previous=input.value.trim();
- rec.lang=mode==='auto'?'en-ZA':mode;rec.continuous=false;rec.interimResults=true;
- state.recognition=rec;setMic(true,'Listening… tap the microphone again to stop.');
- setStatus(mode==='auto'?'Browser recognition is using English. Select Afrikaans for Afrikaans speech.':'Listening…');
- let heard='';
- rec.onresult=e=>{
-  const words=[];
-  for(let i=0;i<e.results.length;i++)words.push(String(e.results[i][0]?.transcript||'').trim());
-  heard=words.filter(Boolean).join(' ');
-  input.value=[previous,heard].filter(Boolean).join(' ');
- };
- rec.onerror=e=>{
-  if(e.error!=='aborted')setStatus(e.error==='not-allowed'?'Allow microphone access to use voice.':
-    'Voice was interrupted. Any words shown above are retained.',{error:true});
- };
- rec.onend=()=>{
-  state.recognition=null;
-  setMic(false,'Review your words and tap Send, or type a correction.');
-  if(heard){
-   input.value=[previous,heard].filter(Boolean).join(' ');
+ submitCommand();
+}
+async function startVoice(){
+ if(state.busy)return;
+ if(state.recognition){
+  const active=state.recognition;state.recognition=null;
+  try{active.stop();}catch(_){}
+  setMic(false,'Stopped. Your recognised words remain ready to send.');
+  setStatus('Recording stopped. Review the words, then tap Send.');
+  return;
+ }
+ if(state.mediaRecorder?.state==='recording'){
+  state.mediaRecorder.stop();
+  setStatus('Recording finished. Transcribing your words…');
+  return;
+ }
+ const input=$('#command-input'),mode=$('#language').value;
+ const Speech=window.SpeechRecognition||window.webkitSpeechRecognition;
+ // Browser recognition gives immediate partial text and does not consume
+ // Zippy/OpenAI API tokens. Its language choice is per session.
+ if(Speech){
+  const rec=new Speech(),before=input.value.trim();
+  const session={phase:'dictating',heard:'',held:'',sent:false,cancelled:false,
+   stopTimer:null,limitTimer:null,silence:null};
+  session.silence=ZippyVoice.silenceClock(()=>{
+   if(session.phase!=='dictating'||!session.heard)return;
+   session.phase='await_send';
+   session.held=session.heard;
    state.recognitionSource='voice';
-   setStatus('I heard your message. Review the words, then tap Send.');
-  }else if(!input.value.trim())setStatus('No words recognised. Try again or type.',{error:true});
- };
- try{rec.start();}catch(error){
-  state.recognition=null;setMic(false,'Microphone unavailable.');
-  setStatus('The microphone could not start. Try typing instead.',{error:true});
+   setStatus('Stopped dictating after 2 seconds of silence. Say “Send” now, or tap Send.');
+   setMic(true,'Text ready. Say “Send” within 7 seconds, or tap Send.');
+   session.stopTimer=setTimeout(()=>{
+    if(state.recognition===rec){try{rec.stop();}catch(_){}}
+   },ZippyVoice.SEND_WINDOW_MS);
+  });
+  function clearVoiceTimers(){
+   session.silence.stop();
+   clearTimeout(session.stopTimer);clearTimeout(session.limitTimer);
+  }
+  function endVoice({send=false,cancel=false}={}){
+   session.sent=send;session.cancelled=cancel;
+   clearVoiceTimers();
+   if(state.recognition===rec)state.recognition=null;
+   setMic(false,'Recording complete. Review or edit your message, then tap Send.');
+   try{rec.stop();}catch(_){}
+   if(send)sendRecognisedMessage();
+   else if(cancel)setStatus('Voice sending cancelled. Your message is still here.');
+  }
+  state.recognition=rec;
+  rec.lang=mode==='auto'?'en-ZA':mode;
+  rec.continuous=true;
+  rec.interimResults=true;
+  rec.maxAlternatives=1;
+  setMic(true,'Listening… your words appear as you speak.');
+  setStatus(mode==='auto'
+   ?'Live browser captions are using English. Choose Afrikaans for Afrikaans speech.'
+   :'Listening and writing your words live…');
+  rec.onresult=event=>{
+   if(state.recognition!==rec)return;
+   const all=Array.from(event.results).map(r=>String(r[0]?.transcript||'').trim())
+    .filter(Boolean).join(' ').trim();
+   if(!all)return;
+   const last=event.results[event.results.length-1];
+   if(session.phase==='await_send'){
+    if(!all.startsWith(session.held)){
+     // Recognition revised an earlier interim phrase. Keep the correction.
+     session.phase='dictating';session.heard=all;
+     clearTimeout(session.stopTimer);
+     input.value=[before,all].filter(Boolean).join(' ');
+     session.silence.activity();
+     return;
+    }
+    const extra=ZippyVoice.after(session.held,all);
+    if(!extra)return;
+    const action=ZippyVoice.command(extra);
+    if(action==='send'&&last?.isFinal){endVoice({send:true});return;}
+    if(action==='cancel'&&last?.isFinal){endVoice({cancel:true});return;}
+    if(!action && (last?.isFinal || extra.split(/\s+/).length>1)){
+     // Continue dictation instead of accidentally sending another phrase.
+     session.phase='dictating';session.heard=all;
+     clearTimeout(session.stopTimer);
+     input.value=[before,all].filter(Boolean).join(' ');
+     session.silence.activity();
+     setStatus('I added the next words. I will stop after 2 seconds of silence.');
+    }
+    return;
+   }
+   if(ZippyVoice.command(all)==='send'&&last?.isFinal&&(before||state.activeDraft)){
+    endVoice({send:true});return;
+   }
+   if(all!==session.heard){
+    session.heard=all;
+    input.value=[before,all].filter(Boolean).join(' ');
+    state.recognitionSource='voice';
+    session.silence.activity();
+   }
+  };
+  rec.onerror=event=>{
+   if(['aborted','no-speech'].includes(event.error))return;
+   setStatus(event.error==='not-allowed'
+    ?'Microphone permission denied. You can still type.'
+    :'Voice was interrupted. Any words already recognised remain visible.',{error:true});
+  };
+  rec.onend=()=>{
+   clearVoiceTimers();
+   if(state.recognition===rec)state.recognition=null;
+   setMic(false,'Recording complete. Your text remains available.');
+   if(!session.sent&&!session.cancelled){
+    setStatus(input.value.trim()
+     ?'I heard your message. Review or edit the words, then tap Send.'
+     :'No words recognised. Try the microphone again or type.');
+   }
+  };
+  session.limitTimer=setTimeout(()=>{
+   if(state.recognition===rec){try{rec.stop();}catch(_){}}
+  },ZippyVoice.MAX_RECORD_MS);
+  try{rec.start();}catch(error){
+   state.recognition=null;clearVoiceTimers();
+   setMic(false,'Microphone unavailable.');
+   setStatus('Live recognition could not start. '+(error.message||'Please type instead.'),{error:true});
+  }
+  return;
+ }
+ // Browsers without live recognition record one short utterance and make one
+ // multilingual transcription request, not a permanent streaming API session.
+ if(!state.user?.voiceConfigured||!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder){
+  setStatus('Live captions are not supported on this browser. Please type your request.',{error:true});
+  return;
+ }
+ let stream=null,context=null,monitor=null,limit=null,recorder=null;
+ try{
+  stream=await navigator.mediaDevices.getUserMedia({audio:{
+   echoCancellation:true,noiseSuppression:true,autoGainControl:true
+  }});
+  const available=['audio/mp4','audio/webm;codecs=opus','audio/webm','audio/ogg'];
+  const type=available.find(t=>MediaRecorder.isTypeSupported(t));
+  recorder=new MediaRecorder(stream,type?{mimeType:type}:{});
+  const chunks=[],began=Date.now();
+  let heardSpeech=false,loudFrames=0,lastLoudAt=0;
+  state.mediaRecorder=recorder;state.mediaStream=stream;
+  setMic(true,'Recording. I will stop about 2 seconds after you finish speaking.');
+  setStatus('Listening… this browser will show the text after transcription.');
+  recorder.ondataavailable=event=>{if(event.data?.size)chunks.push(event.data);};
+  function clearAudio(){
+   clearInterval(monitor);clearTimeout(limit);
+   stream?.getTracks().forEach(t=>t.stop());
+   state.mediaRecorder=null;state.mediaStream=null;
+   if(context)context.close().catch(()=>{});
+   setMic(false,'Review your transcribed words; nothing is sent automatically.');
+  }
+  recorder.onerror=()=>{
+   clearAudio();
+   setStatus('Recording failed. Please try again or type your request.',{error:true});
+  };
+  recorder.onstop=async()=>{
+   clearAudio();
+   const mime=(recorder.mimeType||type||'audio/webm').split(';')[0];
+   const audio=new Blob(chunks,{type:mime});
+   if(audio.size<200){
+    setStatus('No audio captured. Try again or type.',{error:true});return;
+   }
+   loading(true);setStatus('Transcribing one short recording…');
+   try{
+    const response=await fetch('/api/beta/voice/transcribe',{
+     method:'POST',credentials:'same-origin',
+     headers:{'Content-Type':mime,'X-Zippy-Action':'1','X-Zippy-Language':mode},body:audio
+    });
+    const data=await response.json().catch(()=>({ok:false,error:'No transcription response.'}));
+    if(response.status===401){showLogin();throw Error('Please sign in again.');}
+    if(!response.ok||data.ok===false)throw Error(data.error||'Speech recognition failed.');
+    const spoken=String(data.text||'').trim();
+    if(!spoken)throw Error('I could not make out the words. Please try again.');
+    if(ZippyVoice.command(spoken)==='send'&&(input.value.trim()||state.activeDraft)){
+     state.recognitionSource='voice';
+     // Unlock first: the voice-send action still requires a user confirmation
+     // for every CRM staff instruction preview.
+     loading(false);sendRecognisedMessage();return;
+    }
+    input.value=[input.value.trim(),spoken].filter(Boolean).join(' ');
+    state.replyLanguage=data.language||state.replyLanguage;
+    state.recognitionSource='voice';
+    setStatus('I heard your message. Review or edit the words, then tap Send.');
+    input.focus();
+   }catch(error){setStatus('Not sent. '+error.message,{error:true});}
+   finally{loading(false);}
+  };
+  recorder.start(250);
+  const AudioEngine=window.AudioContext||window.webkitAudioContext;
+  if(AudioEngine){
+   try{
+    context=new AudioEngine();
+    const source=context.createMediaStreamSource(stream),analyser=context.createAnalyser();
+    analyser.fftSize=512;source.connect(analyser);
+    const samples=new Float32Array(analyser.fftSize);
+    if(context.state==='suspended')await context.resume();
+    monitor=setInterval(()=>{
+     if(recorder.state!=='recording')return;
+     analyser.getFloatTimeDomainData(samples);
+     if(ZippyVoice.rms(samples)>0.014){
+      loudFrames++;
+      if(loudFrames>=2){heardSpeech=true;lastLoudAt=Date.now();}
+     }else loudFrames=0;
+     if(heardSpeech&&Date.now()-lastLoudAt>=ZippyVoice.SILENCE_MS){
+      recorder.stop();
+     }
+    },100);
+   }catch(_){
+    setStatus('Recording. Tap the microphone to stop; automatic silence detection is unavailable here.');
+   }
+  }else{
+   setStatus('Recording. Tap the microphone to stop; this browser cannot detect silence.');
+  }
+  limit=setTimeout(()=>{
+   if(recorder.state==='recording')recorder.stop();
+  },ZippyVoice.MAX_RECORD_MS);
+ }catch(error){
+  clearInterval(monitor);clearTimeout(limit);
+  stream?.getTracks().forEach(t=>t.stop());
+  if(context)context.close().catch(()=>{});
+  state.mediaRecorder=null;state.mediaStream=null;
+  setMic(false,'Microphone unavailable.');
+  setStatus(error.name==='NotAllowedError'
+   ?'Please allow microphone access in your browser settings.'
+   :'Microphone recording could not start. You can still type.',{error:true});
  }
 }
 async function enableNotifications(){try{if(!('serviceWorker'in navigator)||!('PushManager'in window)||!('Notification'in window)){result('Background notifications are not supported in this browser. You can still view reminders inside Zippy.',{type:'notice'});return;}if(!state.user.pushConfigured){result('The notification service must be configured on the Zippy server first.',{type:'notice'});return;}const permission=await Notification.requestPermission();if(permission!=='granted'){result('Please allow notifications for Zippy in your phone or browser settings.',{type:'notice'});return;}const reg=await navigator.serviceWorker.ready;const key=state.user.vapidPublicKey.replace(/-/g,'+').replace(/_/g,'/');const raw=atob(key+'='.repeat((4-key.length%4)%4));const arr=new Uint8Array([...raw].map(ch=>ch.charCodeAt(0)));const sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:arr});await api('/api/push/subscribe',{method:'POST',body:{subscription:sub.toJSON()}});result('Zippy notifications are enabled on this device.');$('#push-setup').innerText='Alerts on';}catch(e){result('Notification setup: '+e.message,{type:'error'});}}
