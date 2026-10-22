@@ -91,9 +91,62 @@ test('Compact PWA keeps transcript editable and requires explicit Send',()=>{
  assert.match(fs.readFileSync(path.join(root,'public/beta/sw.js'),'utf8'),/startsWith\('zippy-beta-'\)/);
  assert.match(app,/I heard your message\. Review or edit the words, then tap Send/);
  const voiceSection=app.slice(app.indexOf('async function startVoice()'),app.indexOf('async function enableNotifications()'));
- assert(!/submitCommand\(\)/.test(voiceSection),'voice must not auto-send on microphone stop');
+ const silenceSection=voiceSection.slice(voiceSection.indexOf('session.silence=ZippyVoice.silenceClock('),voiceSection.indexOf('function clearVoiceTimers()'));
+ assert(!/submitCommand\(\)|sendRecognisedMessage\(\)/.test(silenceSection),
+  'two-second auto stop must never submit the message');
+ assert.match(voiceSection,/ZippyVoice\.command\(extra\)/);
+ assert.match(voiceSection,/if\(action==='send'&&last\?\.isFinal\)/);
+ assert.match(voiceSection,/ZippyVoice\.SILENCE_MS/);
+ assert.match(voiceSection,/getFloatTimeDomainData/);
+ assert.match(voiceSection,/ZippyVoice\.rms/);
+ assert.match(html,/src="\/beta\/voice-flow\.js"/);
+ assert.match(fs.readFileSync(path.join(root,'public/beta/sw.js'),'utf8'),/beta\/voice-flow\.js/);
+ const submit=app.slice(app.indexOf('async function submitCommand('),app.indexOf('async function restorePendingDraft('));
+ assert.match(submit,/const singleReply=text=>/);
+ assert.match(submit,/\$\('#command-result'\)\.hidden=true/);
  assert.match(app,/await refreshConversation/);
  assert.match(server,/app\.post\('\/api\/beta\/voice\/transcribe'/);
  assert.match(server,/app\.get\('\/api\/beta\/conversation'/);
  assert.match(server,/crm\.bridgeCall\('lookup'/);
+});
+
+test('Voice command grammar accepts only a standalone affirmative Send or Stuur',()=>{
+ const Voice=require('../public/beta/voice-flow');
+ for(const word of ['send','Send!','yes send','send it','Stuur','Ja stuur dit']){
+  assert.equal(Voice.command(word),'send',word);
+ }
+ for(const phrase of ['send a message to Johnny','I want to send Johnny a task','ascending',
+  'please send the CRM data','birthday send to clients']){
+  assert.equal(Voice.command(phrase),null,phrase);
+ }
+ assert.equal(Voice.command('kanselleer'),'cancel');
+ assert.equal(Voice.after('John is at work','John is at work send'),'send');
+ assert.equal(Voice.after('John is at work','Mary is at work'),'');
+ assert.equal(Voice.SILENCE_MS,2000);
+ assert.equal(Voice.SEND_WINDOW_MS,7000);
+ assert(Voice.rms([0,0,0])===0);
+ assert(Voice.rms([0.1,-0.1])>0.09);
+});
+test('Voice silence clock resets after each spoken update and never submits by itself',()=>{
+ const Voice=require('../public/beta/voice-flow');
+ let clock=0,id=0,alerts=0;
+ const queue=new Map();
+ const timers={
+  setTimeout(fn,ms){const n=++id;queue.set(n,{fn,due:clock+ms});return n;},
+  clearTimeout(n){queue.delete(n);}
+ };
+ function advance(ms){
+  clock+=ms;
+  for(const [n,item] of [...queue].filter(([,v])=>v.due<=clock)){
+   queue.delete(n);item.fn();
+  }
+ }
+ const silence=Voice.silenceClock(()=>{alerts++;},2000,timers);
+ silence.activity();
+ advance(1900);assert.equal(alerts,0);
+ silence.activity();
+ advance(1999);assert.equal(alerts,0);
+ advance(1);assert.equal(alerts,1);
+ silence.activity();silence.stop();advance(3000);
+ assert.equal(alerts,1,'Cancelled microphone timer may never fire');
 });
