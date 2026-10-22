@@ -78,13 +78,15 @@ test('Read-only owner CRM reports use bounded SELECTs and explain uncertainty',a
 });
 test('Compact PWA keeps transcript editable and requires explicit Send',()=>{
  const root=path.resolve(__dirname,'..');
- const app=fs.readFileSync(path.join(root,'public/app.js'),'utf8');
- const html=fs.readFileSync(path.join(root,'public/index.html'),'utf8');
+ const app=fs.readFileSync(path.join(root,'public/beta/app.js'),'utf8');
+ const html=fs.readFileSync(path.join(root,'public/beta/index.html'),'utf8');
  const server=fs.readFileSync(path.join(root,'server.js'),'utf8');
  for(const id of ['conversation-feed','command-status','command-input','command-send','mic-button'])
   assert(html.includes('id="'+id+'"'));
  assert.match(html,/<textarea id="command-input"/);
  assert.match(html,/option value="auto"/);
+ assert.match(html,/href="\/beta\/manifest.webmanifest"/);
+ assert.match(app,/register\('\/beta\/sw\.js'\)/);
  assert.match(app,/I heard your message\. Review or edit the words, then tap Send/);
  const voiceSection=app.slice(app.indexOf('async function startVoice()'),app.indexOf('async function enableNotifications()'));
  assert(!/submitCommand\(\)/.test(voiceSection),'voice must not auto-send on microphone stop');
