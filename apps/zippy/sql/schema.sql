@@ -97,3 +97,16 @@ CREATE TABLE IF NOT EXISTS zippy_scheduler_status (
  failed INT NOT NULL DEFAULT 0,
  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+-- Zippy 2.0: lightweight, owner-scoped chat history.
+-- Never store raw voice audio; only the text Gerda approved/sent.
+CREATE TABLE IF NOT EXISTS zippy_conversation (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ owner_key VARCHAR(160) NOT NULL,
+ role ENUM('user','assistant') NOT NULL,
+ body TEXT NOT NULL,
+ kind VARCHAR(32) NOT NULL DEFAULT 'chat',
+ created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+ INDEX idx_owner_chat (owner_key,id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
