@@ -87,6 +87,8 @@ test('Compact PWA keeps transcript editable and requires explicit Send',()=>{
  assert.match(html,/option value="auto"/);
  assert.match(html,/href="\/beta\/manifest.webmanifest"/);
  assert.match(app,/register\('\/beta\/sw\.js'\)/);
+ assert(!fs.readFileSync(path.join(root,'public/index.html'),'utf8').includes('conversation-feed'));
+ assert.match(fs.readFileSync(path.join(root,'public/beta/sw.js'),'utf8'),/startsWith\('zippy-beta-'\)/);
  assert.match(app,/I heard your message\. Review or edit the words, then tap Send/);
  const voiceSection=app.slice(app.indexOf('async function startVoice()'),app.indexOf('async function enableNotifications()'));
  assert(!/submitCommand\(\)/.test(voiceSection),'voice must not auto-send on microphone stop');
