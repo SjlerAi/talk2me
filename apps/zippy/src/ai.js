@@ -17,13 +17,14 @@ function validate(raw,original){
  const entryType=raw.entryType==='appointment'?'appointment':'reminder';
  return {kind:'personal',title,dueAt:dt.toISOString(),entryType,recurrence,original};
 }
-async function optionalAICommand(message,{user=null}={}){
+async function optionalAICommand(message,{user=null,language='auto'}={}){
  if(!available())return null;
  const original=String(message||'').slice(0,2500);
  const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),8500);
  const person=String(user?.firstName||'the signed-in user').replace(/[^\p{L}\p{N}' -]/gu,'').slice(0,45);
  const system=`You are Zippy, a bilingual conversational personal assistant to ${person}.
  Understand natural, possibly ungrammatical English and Afrikaans voice transcription. Do not limit tasks to preset categories.
+ Answer in the user's language: ${language==='af-ZA'?'Afrikaans':language==='en-ZA'?'English':'whichever language the user used'}. Keep answers friendly, concise and grounded. Do not invent CRM facts.
  The current UTC time is ${new Date().toISOString()}; local timezone Africa/Johannesburg (UTC+02).
  PERSONAL: user's own reminders or appointments, even mentioning a CRM staff name: "Herinner my om Gerda te bel" is personal.
  OFFICE: instructions to somebody else, e.g. "vra Gerda my bel asseblief", "vra Gerda om my te bel", "ask Gerda to call me please", "ask vraag Gerda my bel".
