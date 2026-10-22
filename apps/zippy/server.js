@@ -5,6 +5,10 @@ const db=require('./src/db');const auth=require('./src/auth');const {interpret}=
 const {optionalAICommand}=require('./src/ai');const {normalizeOfficeSpeech}=require('./src/speech');
 const activity=require('./src/activity');const {resetRetriesForDevice}=require('./src/push-retry');
 const {answerTrackedWork}=require('./src/questions');
+const conversation=require('./src/conversation');
+const speech=require('./src/voice-transcribe');
+const {recognise:recogniseCrm}=require('./src/crm-intents');
+const {detectLanguage}=require('./src/language');
 const publicDir=path.join(__dirname,'public');const app=express();
 app.disable('x-powered-by');app.set('trust proxy',1);
 app.use(helmet({contentSecurityPolicy:{directives:{defaultSrc:["'self'"],scriptSrc:["'self'"],styleSrc:["'self'"],imgSrc:["'self'",'data:'],fontSrc:["'self'"],connectSrc:["'self'"],workerSrc:["'self'"],manifestSrc:["'self'"],objectSrc:["'none'"],frameAncestors:["'none'"]}}}));
@@ -13,7 +17,31 @@ app.use((req,res,next)=>{if(req.path.startsWith('/api/'))res.set('Cache-Control'
 const asyncHandler=fn=>(req,res,next)=>Promise.resolve(fn(req,res,next)).catch(next);
 const isAuth=asyncHandler(async(req,res,next)=>{req.zippyIdentity=await auth.getUser(req);if(!req.zippyIdentity)return res.status(401).json({ok:false,error:'Please sign in to Zippy.'});next();});
 app.post('/api/login',auth.requireMutation,asyncHandler(async(req,res)=>{const result=await auth.logIn({email:req.body?.email,password:req.body?.password,ip:req.ip});if(!result.ok)return res.status(result.unavailable?503:401).json({ok:false,error:result.error});res.setHeader('Set-Cookie',result.cookie);res.json({ok:true,name:result.name});}));
-app.get('/api/me',asyncHandler(async(req,res)=>{const user=await auth.getUser(req);res.json({ok:true,authenticated:Boolean(user),name:user?.firstName||null,email:user?.email||null,role:user?.role||null,authSource:user?.source||null,timezone:'Africa/Johannesburg',crmConnected:crm.configured(),pushConfigured:push.enabled(),vapidPublicKey:push.enabled()?process.env.ZIPPY_VAPID_PUBLIC_KEY:null});}));
+app.get('/api/me',asyncHandler(async(req,res)=>{const user=await auth.getUser(req);res.json({ok:true,authenticated:Boolean(user),name:user?.firstName||null,email:user?.email||null,role:user?.role||null,authSource:user?.source||null,timezone:'Africa/Johannesburg',crmConnected:crm.configured(),pushConfigured:push.enabled(),voiceConfigured:speech.available(),vapidPublicKey:push.enabled()?process.env.ZIPPY_VAPID_PUBLIC_KEY:null});}));
+
+// Zippy 2.0 records short audio only on the user's device. This endpoint
+// transcribes on demand through OpenAI and discards the audio buffer afterward.
+app.post('/api/voice/transcribe',isAuth,auth.requireMutation,
+ express.raw({type:req=>/^audio\/(webm|mp4|ogg|wav|mpeg)(?:;|$)/i.test(String(req.headers['content-type']||'')),limit:'4mb'}),
+ asyncHandler(async(req,res)=>{
+  const length=Buffer.isBuffer(req.body)?req.body.length:0;
+  const check=speech.validateAudio(req.get('content-type'),length);
+  if(!check.ok)return res.status(400).json({ok:false,error:check.error});
+  if(!speech.available())return res.status(503).json({ok:false,error:'Multilingual voice transcription is not configured yet. Please type or choose a browser language.'});
+  if(!speech.allow(req.zippyIdentity.email))return res.status(429).json({ok:false,error:'Too many voice requests. Please try again shortly.'});
+  const mode=['auto','en-ZA','af-ZA'].includes(req.get('x-zippy-language'))?req.get('x-zippy-language'):'auto';
+  try{
+   const result=await speech.transcribe(req.body,req.get('content-type'),{language:mode});
+   return res.json({ok:true,text:result.text,language:detectLanguage(result.text,mode)});
+  }catch(error){
+   return res.status(error.status||503).json({ok:false,error:error.message||'Voice transcription is unavailable.'});
+  }
+ })
+);
+app.get('/api/conversation',isAuth,asyncHandler(async(req,res)=>{
+ res.json({ok:true,messages:await conversation.recent(req.zippyIdentity.email,60)});
+}));
+
 app.post('/api/logout',isAuth,auth.requireMutation,asyncHandler(async(req,res)=>{res.setHeader('Set-Cookie',await auth.logOut(req));res.json({ok:true});}));
 app.post('/api/password/change',isAuth,auth.requireMutation,asyncHandler(async(req,res)=>{const result=await auth.changePassword({currentPassword:req.body?.currentPassword,newPassword:req.body?.newPassword,user:req.zippyIdentity});if(!result.ok)return res.status(400).json(result);res.setHeader('Set-Cookie','zippy.sid=; Path=/; Secure; HttpOnly; SameSite=Strict; Max-Age=0');res.json({ok:true,message:'Password changed. Please sign in again.'});}));
 app.get('/api/reminders',isAuth,asyncHandler(async(req,res)=>{
@@ -102,25 +130,68 @@ app.post('/api/contacts',isAuth,auth.requireMutation,asyncHandler(async(req,res)
 app.delete('/api/contacts/:id',isAuth,auth.requireMutation,asyncHandler(async(req,res)=>{await db.query('DELETE FROM zippy_contacts WHERE id=? AND owner_key=?',[Number(req.params.id),req.zippyIdentity.email]);res.json({ok:true});}));
 app.post('/api/push/subscribe',isAuth,auth.requireMutation,asyncHandler(async(req,res)=>{if(!push.enabled())return res.status(503).json({ok:false,error:'Push notifications are not configured yet.'});await push.saveSubscription(req.body?.subscription,req.zippyIdentity.email);await resetRetriesForDevice(req.zippyIdentity.email);res.json({ok:true});}));
 app.post('/api/interpret',isAuth,auth.requireMutation,asyncHandler(async(req,res)=>{
- const command=String(req.body?.message||'').slice(0,2500);
- const trackedAnswer=await answerTrackedWork(command,req.zippyIdentity.email);
- if(trackedAnswer)return res.json({ok:true,status:'chat',text:trackedAnswer.text});
+ const command=String(req.body?.message||'').trim().slice(0,2500);
+ if(!command)return res.status(400).json({ok:false,error:'Please speak or type a message.'});
+ const owner=req.zippyIdentity.email;
+ const chosen=['auto','af-ZA','en-ZA'].includes(req.body?.language)?req.body.language:'auto';
+ const language=detectLanguage(command,chosen);
+ await conversation.append(owner,'user',command,'message');
+ const reply=async payload=>{
+  const text=String(payload.text||payload.question||'').trim();
+  if(text)await conversation.append(owner,'assistant',text,payload.status||'chat');
+  return res.json({ok:true,language,...payload});
+ };
+ const trackedAnswer=await answerTrackedWork(command,owner);
+ if(trackedAnswer)return reply({status:'chat',text:trackedAnswer.text});
  let plan=interpret(command);
- if(plan.kind==='question'){const ai=await optionalAICommand(command,{user:req.zippyIdentity});if(ai)plan=ai;}
- if(plan.kind==='conversation')return res.json({ok:true,status:'chat',text:plan.text});
- if(plan.kind==='question')return res.json({ok:true,status:'question',question:plan.question,original:command});
- if(plan.kind==='agenda')return res.json({ok:true,status:'agenda',text:'Here is your Zippy agenda.'});
- if(plan.kind==='office'){
-  if(!crm.configured())return res.json({ok:true,status:'connection_pending',text:'This is a Talk2Me office instruction. The secure CRM connection still needs to be activated; nothing has been sent.'});
-  const interpreted=normalizeOfficeSpeech(plan.crmMessage||plan.original);
-  const draft=await crm.bridgeCall('preview',{message:interpreted,source:req.body?.source==='voice'?'voice':'text',actorEmail:req.zippyIdentity.email});
-  if(!draft.pendingToken)return res.json({ok:true,status:'crm_clarification',text:draft.text||'I need one more CRM detail.',choices:draft.choices||[],heard:command,interpreted});
-  const id=crypto.randomUUID();await db.query('INSERT INTO zippy_crm_drafts(id,owner_key,remote_token,preview_json,expires_at) VALUES(?,?,?,?,DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 10 MINUTE))',[id,req.zippyIdentity.email,draft.pendingToken,JSON.stringify(draft.preview||{})]);
-  return res.json({ok:true,status:'crm_preview',draftId:id,text:draft.text,preview:draft.preview,heard:command,interpreted,expiresAt:new Date(Date.now()+10*60*1000).toISOString()});
+ // Only bounded read-only questions may access CRM without confirmation.
+ // Never ask an AI model to invent CRM data or to send staff instructions.
+ if(plan.kind!=='office'&&plan.kind!=='personal'){
+  const intent=recogniseCrm(command);
+  if(intent){
+   if(!crm.configured())return reply({status:'crm_unavailable',
+    text:language==='af-ZA'?'Talk2Me CRM is nie gekoppel nie. Ek kan nog jou persoonlike herinneringe help bestuur.':
+     'Talk2Me CRM is not connected. Your private reminders still work.'});
+   try{
+    const data=await crm.bridgeCall('lookup',{intent:intent.intent,month:intent.month,
+     staff:intent.staff,language,actorEmail:owner});
+    return reply({status:'crm_report',text:data.text,source:data.source,asOf:data.asOf,
+     count:data.count,more:Boolean(data.more)});
+   }catch(error){
+    console.error('[zippy] Read-only CRM lookup failed:',error.code||error.message);
+    return reply({status:'crm_unavailable',
+     text:language==='af-ZA'?'Ek kon nie nou die CRM nagaan nie. Geen data is verander nie.':
+      'I could not check the CRM right now. No data was changed.'});
+   }
+  }
  }
- const [result]=await db.query('INSERT INTO zippy_reminders(owner_key,title,entry_type,due_at,recurrence) VALUES(?,?,?,?,?)',[req.zippyIdentity.email,plan.title,plan.entryType,db.utcSql(plan.dueAt),plan.recurrence]);
- try{await activity.logReminder(req.zippyIdentity.email,Number(result.insertId),plan.title,plan.dueAt);}catch(e){console.error('[zippy] Reminder feed log unavailable',e.code||e.message);}
- return res.status(201).json({ok:true,status:'saved',id:Number(result.insertId),title:plan.title,dueAt:plan.dueAt,recurrence:plan.recurrence,text:'Saved: '+plan.title+'. I will remind you at the scheduled time.'});
+ if(plan.kind==='question'){const ai=await optionalAICommand(command,{user:req.zippyIdentity,language});if(ai)plan=ai;}
+ if(plan.kind==='conversation')return reply({status:'chat',text:plan.text});
+ if(plan.kind==='question')return reply({status:'question',text:plan.question,question:plan.question,original:command});
+ if(plan.kind==='agenda')return reply({status:'agenda',
+  text:language==='af-ZA'?'Hier is jou persoonlike agenda en herinneringe.':'Here are your personal reminders and agenda.'});
+ if(plan.kind==='office'){
+  if(!crm.configured())return reply({status:'connection_pending',text:'The secure Talk2Me connection is not ready. Nothing has been sent.'});
+  const interpreted=normalizeOfficeSpeech(plan.crmMessage||plan.original);
+  const draft=await crm.bridgeCall('preview',{message:interpreted,
+   source:req.body?.source==='voice'?'voice':'text',actorEmail:owner});
+  if(!draft.pendingToken)return reply({status:'crm_clarification',
+   text:draft.text||'I need one more CRM detail.',choices:draft.choices||[],heard:command,interpreted});
+  const id=crypto.randomUUID();
+  await db.query('INSERT INTO zippy_crm_drafts(id,owner_key,remote_token,preview_json,expires_at) VALUES(?,?,?,?,DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 10 MINUTE))',
+   [id,owner,draft.pendingToken,JSON.stringify(draft.preview||{})]);
+  const text=draft.text||'Your CRM instruction is ready for review. Nothing has been sent.';
+  return reply({status:'crm_preview',text,draftId:id,preview:draft.preview,
+   heard:command,interpreted,expiresAt:new Date(Date.now()+10*60*1000).toISOString()});
+ }
+ const [saved]=await db.query(
+  'INSERT INTO zippy_reminders(owner_key,title,entry_type,due_at,recurrence) VALUES(?,?,?,?,?)',
+  [owner,plan.title,plan.entryType,db.utcSql(plan.dueAt),plan.recurrence]);
+ try{await activity.logReminder(owner,Number(saved.insertId),plan.title,plan.dueAt);}
+ catch(error){console.error('[zippy] Reminder history unavailable',error.code||error.message);}
+ return reply({status:'saved',id:Number(saved.insertId),title:plan.title,dueAt:plan.dueAt,
+  recurrence:plan.recurrence,text:language==='af-ZA'?'Herinnering gestoor: '+plan.title:
+   'Saved: '+plan.title+'. I will remind you at the scheduled time.'});
 }));
 app.post('/api/crm/confirm',isAuth,auth.requireMutation,asyncHandler(async(req,res)=>{
  const id=String(req.body?.draftId||'');if(!/^[\da-f-]{36}$/i.test(id))return res.status(400).json({ok:false,error:'Invalid message preview.'});
