@@ -1,0 +1,26 @@
+{
+  "id": "/beta/",
+  "name": "Zippy 2 Beta · Gerda's Assistant",
+  "short_name": "Zippy Beta",
+  "description": "Private reminders, calendar and secure Talk2Me work",
+  "start_url": "/beta/",
+  "scope": "/beta/",
+  "display": "standalone",
+  "background_color": "#f4f7fc",
+  "theme_color": "#101c35",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

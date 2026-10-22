@@ -2,7 +2,8 @@
 // Optional opt-in AI interpretation. No CRM writes or personal reminders are
 // executed by model output; server-side policy validates a structured proposal.
 const {normal}=require('./clock');
-function available(){return process.env.ZIPPY_AI_ENABLED==='1'&&Boolean(process.env.ZIPPY_AI_API_KEY&&process.env.ZIPPY_AI_MODEL);}
+function aiKey(){return process.env.ZIPPY_AI_API_KEY||process.env.ZIPPY_STT_API_KEY||process.env.OPENAI_API_KEY||'';}
+function available(){return process.env.ZIPPY_AI_ENABLED==='1'&&Boolean(aiKey()&&process.env.ZIPPY_AI_MODEL);}
 function validate(raw,original){
  if(!raw||typeof raw!=='object')return null;
  const route=String(raw.route||'');if(!['personal','office','agenda','question','conversation'].includes(route))return null;
@@ -17,13 +18,14 @@ function validate(raw,original){
  const entryType=raw.entryType==='appointment'?'appointment':'reminder';
  return {kind:'personal',title,dueAt:dt.toISOString(),entryType,recurrence,original};
 }
-async function optionalAICommand(message,{user=null}={}){
+async function optionalAICommand(message,{user=null,language='auto'}={}){
  if(!available())return null;
  const original=String(message||'').slice(0,2500);
  const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),8500);
  const person=String(user?.firstName||'the signed-in user').replace(/[^\p{L}\p{N}' -]/gu,'').slice(0,45);
  const system=`You are Zippy, a bilingual conversational personal assistant to ${person}.
  Understand natural, possibly ungrammatical English and Afrikaans voice transcription. Do not limit tasks to preset categories.
+ Answer in the user's language: ${language==='af-ZA'?'Afrikaans':language==='en-ZA'?'English':'whichever language the user used'}. Keep answers friendly, concise and grounded. Do not invent CRM facts.
  The current UTC time is ${new Date().toISOString()}; local timezone Africa/Johannesburg (UTC+02).
  PERSONAL: user's own reminders or appointments, even mentioning a CRM staff name: "Herinner my om Gerda te bel" is personal.
  OFFICE: instructions to somebody else, e.g. "vra Gerda my bel asseblief", "vra Gerda om my te bel", "ask Gerda to call me please", "ask vraag Gerda my bel".
@@ -38,7 +40,7 @@ async function optionalAICommand(message,{user=null}={}){
  const schema={type:'object',additionalProperties:false,properties:{route:{type:'string',enum:['personal','office','agenda','question','conversation']},title:{type:'string'},dueAt:{type:'string'},recurrence:{type:'string'},entryType:{type:'string',enum:['reminder','appointment']},question:{type:'string'},answer:{type:'string'}},required:['route','title','dueAt','recurrence','entryType','question','answer']};
  try{
   const response=await fetch('https://api.openai.com/v1/responses',{method:'POST',signal:controller.signal,
-   headers:{'Authorization':'Bearer '+process.env.ZIPPY_AI_API_KEY,'Content-Type':'application/json'},
+   headers:{'Authorization':'Bearer '+aiKey(),'Content-Type':'application/json'},
    body:JSON.stringify({model:process.env.ZIPPY_AI_MODEL,instructions:system,input:original,
     store:false,text:{format:{type:'json_schema',name:'zippy_intent',strict:true,schema}}})});
   if(!response.ok)throw Error('AI provider status '+response.status);
