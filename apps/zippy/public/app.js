@@ -225,13 +225,14 @@ function draftSpeech(text){
 async function submitCommand(event){
  if(event)event.preventDefault();
  if(state.busy)return;
- let message=$('#command-input').value.trim();if(!message)return;
+ let message=$('#command-input').value.trim();
+ if(!message){setStatus('Speak or type a message before sending.');return;}
  if(state.activeDraft){
-  $('#command-input').value='';
-  draftSpeech(message);return;
+  const done=draftSpeech(message);
+  if(done)$('#command-input').value='';
+  return;
  }
  if(/^(?:send|send it|stuur|ja stuur|yes send)$/i.test(message)){
-  $('#command-input').value='';
   return result('There is no reviewed message ready to send. First tell Zippy the instruction.',{type:'notice'});
  }
  if(state.pendingInput){
@@ -240,28 +241,36 @@ async function submitCommand(event){
   if(!isNew&&raw)message=raw+' '+(/\b(at|om|teen|by)\b/i.test(message)?'':'at ')+message;
   state.pendingInput=null;
  }
- loading(true);
+ loading(true);setStatus('Checking your request…');
  try{
   const response=await api('/api/interpret',{method:'POST',body:{
-   message,source:state.recognitionSource||'text'
+   message,source:state.recognitionSource||'text',language:$('#language').value
   }});
+  // Clear ONLY after the server accepted the request. Never lose a transcript
+  // because of network or language-recognition failure.
   $('#command-input').value='';state.recognitionSource='text';
+  state.replyLanguage=response.language||state.replyLanguage;
   if(response.status==='saved'){
    result(response.text);await refresh();
   }else if(response.status==='question'){
-   result(response.question,{type:'notice',pending:{original:response.original||message}});
+   result(response.question||response.text,{type:'notice',pending:{original:response.original||message}});
    $('#command-input').focus();
   }else if(response.status==='crm_preview'){
    officePreview(response);
   }else if(response.status==='agenda'){
    view('today');result(response.text);await refresh();
-  }else if(response.status==='chat'){
+  }else if(response.status==='chat'||response.status==='crm_report'){
    result(response.text||'What else can I help with?');
   }else{
    result(response.text||response.question||'I need one more detail before I can do that.',{type:'notice'});
   }
- }catch(e){result(e.message,{type:'error'});}
- finally{loading(false);}
+  await refreshConversation().catch(()=>{});
+  setStatus(response.status==='crm_preview'?'Draft ready. Review and approve before sending.':
+   response.status==='crm_unavailable'?'The CRM could not be checked.': 'Answered. You can ask me something else.');
+ }catch(error){
+  setStatus('Not sent. Your words are still here; please try again.',{error:true});
+  result(error.message,{type:'error'});
+ }finally{loading(false);}
 }
 async function restorePendingDraft(){
  if(!state.user||state.activeDraft)return;
@@ -270,11 +279,102 @@ async function restorePendingDraft(){
   if(response.draft?.preview)officePreview(response.draft,{resume:true});
  }catch(_){/* Do not block personal reminders if the CRM draft is unavailable. */}
 }
-function startVoice(){const Speech=window.SpeechRecognition||window.webkitSpeechRecognition;if(!Speech){result('This browser cannot transcribe speech. Please type your instruction, or try current Chrome or Edge.',{type:'notice'});return;}if(state.recognition){state.recognition.stop();return;}const rec=new Speech();rec.lang=$('#language').value;rec.continuous=false;rec.interimResults=true;let final='';let interim='';state.recognition=rec;$('#mic-button').classList.add('listening');$('#mic-hint').textContent='Listening… speak naturally.';
- rec.onresult=e=>{interim='';for(let i=e.resultIndex;i<e.results.length;i++){const txt=String(e.results[i][0]?.transcript||'').trim();if(e.results[i].isFinal)final+=(final?' ':'')+txt;else interim=txt;}$('#command-input').value=[final,interim].filter(Boolean).join(' ');};
- rec.onerror=e=>{if(e.error!=='aborted'){result(e.error==='not-allowed'?'Allow microphone access in your browser to speak to Zippy.':'I could not hear clearly. Please try again.',{type:'error'});}};
- rec.onend=()=>{state.recognition=null;$('#mic-button').classList.remove('listening');$('#mic-hint').textContent='Speak naturally in English or Afrikaans. Tap the microphone, or type a command.';if(final){$('#command-input').value=final;state.recognitionSource='voice';if(state.activeDraft){$('#command-input').value='';draftSpeech(final);}else submitCommand();}};
- try{rec.start();}catch(e){state.recognition=null;$('#mic-button').classList.remove('listening');result('The microphone is unavailable right now.',{type:'error'});}}
+async function startVoice(){
+ if(state.busy)return;
+ // A second microphone tap stops the recording; it NEVER sends the message.
+ if(state.mediaRecorder?.state==='recording'){
+  state.mediaRecorder.stop();setStatus('Transcribing your recording…');return;
+ }
+ if(state.recognition){
+  state.recognition.stop();setStatus('Finishing what I heard…');return;
+ }
+ const input=$('#command-input'),mode=$('#language').value;
+ if(state.user?.voiceConfigured&&navigator.mediaDevices?.getUserMedia&&window.MediaRecorder){
+  let stream;
+  try{
+   stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}});
+   const preferred=['audio/mp4','audio/webm;codecs=opus','audio/webm','audio/ogg'];
+   const type=preferred.find(t=>MediaRecorder.isTypeSupported(t));
+   const options=type?{mimeType:type}:{};
+   const recorder=new MediaRecorder(stream,options),chunks=[];
+   state.mediaRecorder=recorder;state.mediaStream=stream;
+   setMic(true,'Recording. Tap the microphone again to stop; then review and send.');
+   setStatus('Listening…');
+   recorder.ondataavailable=e=>{if(e.data?.size)chunks.push(e.data);};
+   recorder.onerror=()=>{setMic(false,'Recording failed. Type your message or try again.');setStatus('Microphone error.',{error:true});};
+   recorder.onstop=async()=>{
+    state.mediaRecorder=null;state.mediaStream=null;stream.getTracks().forEach(t=>t.stop());
+    setMic(false,'Transcribing… your message is not sent.');
+    const mime=recorder.mimeType||type||'audio/webm';
+    const audio=new Blob(chunks,{type:mime});
+    if(audio.size<200){setStatus('I did not hear enough audio. Try speaking again.',{error:true});return;}
+    loading(true);
+    try{
+     const response=await fetch('/api/voice/transcribe',{method:'POST',credentials:'same-origin',
+      headers:{'Content-Type':mime,'X-Zippy-Action':'1','X-Zippy-Language':mode},body:audio});
+     const data=await response.json().catch(()=>({ok:false,error:'Speech service returned no response.'}));
+     if(response.status===401){showLogin();throw Error('Please sign in again.');}
+     if(!response.ok||data.ok===false)throw Error(data.error||'Could not transcribe the recording.');
+     const text=String(data.text||'').trim(),prior=input.value.trim();
+     if(!text)throw Error('No words were recognised. Try again or type.');
+     input.value=prior?prior+' '+text:text;
+     state.replyLanguage=data.language||state.replyLanguage;
+     state.recognitionSource='voice';
+     setStatus('I heard your message. Review or edit the words, then tap Send.');
+     $('#mic-hint').textContent='Recording complete. Your words stay here until you send them.';
+     input.focus();
+    }catch(error){
+     setStatus('Not sent. '+error.message,{error:true});
+     result(error.message,{type:'error'});
+    }finally{loading(false);}
+   };
+   recorder.start(250);
+   setTimeout(()=>{if(recorder.state==='recording')recorder.stop();},30000);
+   return;
+  }catch(error){
+   if(stream)stream.getTracks().forEach(t=>t.stop());
+   state.mediaRecorder=null;state.mediaStream=null;
+   setMic(false,'Microphone access was denied or unavailable. You can still type.');
+   setStatus('Microphone not available. '+(error.name==='NotAllowedError'?'Allow microphone permission.':'Please try typing.'),{error:true});
+   return;
+  }
+ }
+ // Local fallback: some browsers do not support microphone recording or the
+ // optional server transcription is not configured. Do not auto-send results.
+ const Speech=window.SpeechRecognition||window.webkitSpeechRecognition;
+ if(!Speech){
+  setStatus('Voice transcription is unavailable here. Please type your request.',{error:true});
+  return;
+ }
+ const rec=new Speech(),previous=input.value.trim();
+ rec.lang=mode==='auto'?'en-ZA':mode;rec.continuous=false;rec.interimResults=true;
+ state.recognition=rec;setMic(true,'Listening… tap the microphone again to stop.');
+ setStatus(mode==='auto'?'Browser recognition is using English. Select Afrikaans for Afrikaans speech.':'Listening…');
+ let heard='';
+ rec.onresult=e=>{
+  const words=[];
+  for(let i=0;i<e.results.length;i++)words.push(String(e.results[i][0]?.transcript||'').trim());
+  heard=words.filter(Boolean).join(' ');
+  input.value=[previous,heard].filter(Boolean).join(' ');
+ };
+ rec.onerror=e=>{
+  if(e.error!=='aborted')setStatus(e.error==='not-allowed'?'Allow microphone access to use voice.':
+    'Voice was interrupted. Any words shown above are retained.',{error:true});
+ };
+ rec.onend=()=>{
+  state.recognition=null;
+  setMic(false,'Review your words and tap Send, or type a correction.');
+  if(heard){
+   input.value=[previous,heard].filter(Boolean).join(' ');
+   state.recognitionSource='voice';
+   setStatus('I heard your message. Review the words, then tap Send.');
+  }else if(!input.value.trim())setStatus('No words recognised. Try again or type.',{error:true});
+ };
+ try{rec.start();}catch(error){
+  state.recognition=null;setMic(false,'Microphone unavailable.');
+  setStatus('The microphone could not start. Try typing instead.',{error:true});
+ }
+}
 async function enableNotifications(){try{if(!('serviceWorker'in navigator)||!('PushManager'in window)||!('Notification'in window)){result('Background notifications are not supported in this browser. You can still view reminders inside Zippy.',{type:'notice'});return;}if(!state.user.pushConfigured){result('The notification service must be configured on the Zippy server first.',{type:'notice'});return;}const permission=await Notification.requestPermission();if(permission!=='granted'){result('Please allow notifications for Zippy in your phone or browser settings.',{type:'notice'});return;}const reg=await navigator.serviceWorker.ready;const key=state.user.vapidPublicKey.replace(/-/g,'+').replace(/_/g,'/');const raw=atob(key+'='.repeat((4-key.length%4)%4));const arr=new Uint8Array([...raw].map(ch=>ch.charCodeAt(0)));const sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:arr});await api('/api/push/subscribe',{method:'POST',body:{subscription:sub.toJSON()}});result('Zippy notifications are enabled on this device.');$('#push-setup').innerText='Alerts on';}catch(e){result('Notification setup: '+e.message,{type:'error'});}}
 async function login(e){e.preventDefault();const el=$('#login-error');el.hidden=true;try{const response=await api('/api/login',{method:'POST',body:{email:$('#login-email').value,password:$('#login-password').value}});$('#login-password').value='';const profile=await api('/api/me');showApp(profile);await refresh();await restorePendingDraft();}catch(e){el.textContent=e.message;el.hidden=false;}}
 async function remindForm(e){e.preventDefault();const form=$('#new-reminder-form');const fd=new FormData(form);const date=new Date(String(fd.get('dueAt')));try{const recur=String(fd.get('recurrence')||'');let recurrence=recur;if(recur==='weekly')recurrence='weekly:'+date.getDay();const data=await api('/api/reminders',{method:'POST',body:{title:fd.get('title'),dueAt:date.toISOString(),entryType:'reminder',recurrence}});$('#new-reminder-dialog').close();form.reset();result(data.text);await refresh();}catch(e){result(e.message,{type:'error'});}}
