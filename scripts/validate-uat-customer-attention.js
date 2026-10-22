@@ -123,7 +123,9 @@ async function runRoute(user,query){
   assert.match(r.calls[0].sql,/vis\.assigned_staff_id=:visibilityStaffId/);
   assert.match(r.calls[0].sql,/t\.assigned_to=:attStaffId/);
   r=await runRoute(boss,{focus:'birthdays',birthday:'missed',scope:'all'});
-  assert.equal(r.calls[0].params.attSelectedBd0,'10-10');
+  // Route uses the live Johannesburg date; do not assert the fixed test fixture's date here.
+  const missedStart=birthdayPeriod('missed',r.locals.attention.today).start.slice(5);
+  assert.equal(r.calls[0].params.attSelectedBd0,missedStart);
   assert.equal(r.locals.clients[0].attentionReasons[0],'Birthday follow-up not recorded');
   assert.ok(r.locals.queryStringFor({page:2}).includes('birthday=missed'));
 
