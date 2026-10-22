@@ -21,7 +21,7 @@ app.get('/api/me',asyncHandler(async(req,res)=>{const user=await auth.getUser(re
 
 // Zippy 2.0 records short audio only on the user's device. This endpoint
 // transcribes on demand through OpenAI and discards the audio buffer afterward.
-app.post('/api/voice/transcribe',isAuth,auth.requireMutation,
+app.post('/api/beta/voice/transcribe',isAuth,auth.requireMutation,
  express.raw({type:req=>/^audio\/(webm|mp4|ogg|wav|mpeg)(?:;|$)/i.test(String(req.headers['content-type']||'')),limit:'4mb'}),
  asyncHandler(async(req,res)=>{
   const length=Buffer.isBuffer(req.body)?req.body.length:0;
@@ -38,7 +38,7 @@ app.post('/api/voice/transcribe',isAuth,auth.requireMutation,
   }
  })
 );
-app.get('/api/conversation',isAuth,asyncHandler(async(req,res)=>{
+app.get('/api/beta/conversation',isAuth,asyncHandler(async(req,res)=>{
  res.json({ok:true,messages:await conversation.recent(req.zippyIdentity.email,60)});
 }));
 
@@ -130,6 +130,27 @@ app.post('/api/contacts',isAuth,auth.requireMutation,asyncHandler(async(req,res)
 app.delete('/api/contacts/:id',isAuth,auth.requireMutation,asyncHandler(async(req,res)=>{await db.query('DELETE FROM zippy_contacts WHERE id=? AND owner_key=?',[Number(req.params.id),req.zippyIdentity.email]);res.json({ok:true});}));
 app.post('/api/push/subscribe',isAuth,auth.requireMutation,asyncHandler(async(req,res)=>{if(!push.enabled())return res.status(503).json({ok:false,error:'Push notifications are not configured yet.'});await push.saveSubscription(req.body?.subscription,req.zippyIdentity.email);await resetRetriesForDevice(req.zippyIdentity.email);res.json({ok:true});}));
 app.post('/api/interpret',isAuth,auth.requireMutation,asyncHandler(async(req,res)=>{
+ const command=String(req.body?.message||'').slice(0,2500);
+ const trackedAnswer=await answerTrackedWork(command,req.zippyIdentity.email);
+ if(trackedAnswer)return res.json({ok:true,status:'chat',text:trackedAnswer.text});
+ let plan=interpret(command);
+ if(plan.kind==='question'){const ai=await optionalAICommand(command,{user:req.zippyIdentity});if(ai)plan=ai;}
+ if(plan.kind==='conversation')return res.json({ok:true,status:'chat',text:plan.text});
+ if(plan.kind==='question')return res.json({ok:true,status:'question',question:plan.question,original:command});
+ if(plan.kind==='agenda')return res.json({ok:true,status:'agenda',text:'Here is your Zippy agenda.'});
+ if(plan.kind==='office'){
+  if(!crm.configured())return res.json({ok:true,status:'connection_pending',text:'This is a Talk2Me office instruction. The secure CRM connection still needs to be activated; nothing has been sent.'});
+  const interpreted=normalizeOfficeSpeech(plan.crmMessage||plan.original);
+  const draft=await crm.bridgeCall('preview',{message:interpreted,source:req.body?.source==='voice'?'voice':'text',actorEmail:req.zippyIdentity.email});
+  if(!draft.pendingToken)return res.json({ok:true,status:'crm_clarification',text:draft.text||'I need one more CRM detail.',choices:draft.choices||[],heard:command,interpreted});
+  const id=crypto.randomUUID();await db.query('INSERT INTO zippy_crm_drafts(id,owner_key,remote_token,preview_json,expires_at) VALUES(?,?,?,?,DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 10 MINUTE))',[id,req.zippyIdentity.email,draft.pendingToken,JSON.stringify(draft.preview||{})]);
+  return res.json({ok:true,status:'crm_preview',draftId:id,text:draft.text,preview:draft.preview,heard:command,interpreted,expiresAt:new Date(Date.now()+10*60*1000).toISOString()});
+ }
+ const [result]=await db.query('INSERT INTO zippy_reminders(owner_key,title,entry_type,due_at,recurrence) VALUES(?,?,?,?,?)',[req.zippyIdentity.email,plan.title,plan.entryType,db.utcSql(plan.dueAt),plan.recurrence]);
+ try{await activity.logReminder(req.zippyIdentity.email,Number(result.insertId),plan.title,plan.dueAt);}catch(e){console.error('[zippy] Reminder feed log unavailable',e.code||e.message);}
+ return res.status(201).json({ok:true,status:'saved',id:Number(result.insertId),title:plan.title,dueAt:plan.dueAt,recurrence:plan.recurrence,text:'Saved: '+plan.title+'. I will remind you at the scheduled time.'});
+}));
+app.post('/api/beta/interpret',isAuth,auth.requireMutation,asyncHandler(async(req,res)=>{
  const command=String(req.body?.message||'').trim().slice(0,2500);
  if(!command)return res.status(400).json({ok:false,error:'Please speak or type a message.'});
  const owner=req.zippyIdentity.email;
