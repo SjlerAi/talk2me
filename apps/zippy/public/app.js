@@ -1,7 +1,7 @@
 'use strict';
 const $=sel=>document.querySelector(sel);
 const $$=sel=>[...document.querySelectorAll(sel)];
-const state={user:null,view:'today',reminders:[],contacts:[],alerts:[],activity:[],system:null,activeDraft:null,popupId:null,pendingInput:null,busy:false,recognition:null,speakBack:false,recognitionSource:'text',lastReminderSignal:0};
+const state={user:null,view:'today',reminders:[],contacts:[],alerts:[],activity:[],system:null,activeDraft:null,popupId:null,pendingInput:null,busy:false,recognition:null,mediaRecorder:null,mediaStream:null,conversation:[],replyLanguage:'en-ZA',speakBack:false,recognitionSource:'text',lastReminderSignal:0};
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const zone='Africa/Johannesburg';
 const when=iso=>{if(!iso)return 'Time not set';try{return new Intl.DateTimeFormat('en-ZA',{timeZone:zone,weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}).format(new Date(iso))}catch(_){return 'Invalid time'}};
@@ -14,15 +14,40 @@ async function api(path,{method='GET',body}={}){
  if(response.status===401){if(path!=='/api/login')showLogin();throw Error(data.error||'Please sign in.');}
  if(!response.ok||data.ok===false)throw Error(data.error||'Something went wrong.');return data;
 }
-function showLogin(){state.user=null;state.reminders=[];state.contacts=[];state.alerts=[];state.activity=[];state.activeDraft=null;state.pendingInput=null;$('#review-panel').hidden=true;const popup=$('#reminder-popup');if(popup.open)popup.close();$('#login-view').hidden=false;$('#app-view').hidden=true;render();}
-function showApp(profile){if(state.user?.email!==profile.email){state.reminders=[];state.contacts=[];state.alerts=[];state.activity=[];state.activeDraft=null;$('#review-panel').hidden=true;state.pendingInput=null;render();}state.user=profile;$('#login-view').hidden=true;$('#app-view').hidden=false;$('#account-avatar').textContent=String(profile.name||'Z').slice(0,1).toUpperCase();$('#account-avatar').title=(profile.name||'Your')+' account';$('#change-password').hidden=profile.authSource==='crm';const hour=Number(new Intl.DateTimeFormat('en-GB',{timeZone:zone,hour:'2-digit',hourCycle:'h23'}).format(new Date()));$('#greeting').innerHTML=esc((hour<12?'Good morning, ':hour<17?'Good afternoon, ':'Good evening, ')+(profile.name||'there'))+' <span aria-hidden="true">✳</span>';$('#today-date').textContent=dateString();$('#connection-state').textContent=profile.crmConnected?'CRM connected':'Private mode';$('#connection-state').style.background=profile.crmConnected?'#e8f8f2':'#fff4db';$('#crm-connection-detail').textContent=profile.crmConnected?'Talk2Me is connected. All office messages require your confirmation.':'The Talk2Me secure bridge has not been activated. Personal reminders are fully separate and available now.';
+function showLogin(){state.user=null;state.reminders=[];state.contacts=[];state.alerts=[];state.activity=[];state.activeDraft=null;state.pendingInput=null;state.conversation=[];renderConversation();$('#review-panel').hidden=true;const popup=$('#reminder-popup');if(popup.open)popup.close();$('#login-view').hidden=false;$('#app-view').hidden=true;render();}
+function showApp(profile){if(state.user?.email!==profile.email){state.reminders=[];state.contacts=[];state.alerts=[];state.activity=[];state.activeDraft=null;$('#review-panel').hidden=true;state.pendingInput=null;state.conversation=[];renderConversation();render();}state.user=profile;$('#login-view').hidden=true;$('#app-view').hidden=false;$('#account-avatar').textContent=String(profile.name||'Z').slice(0,1).toUpperCase();$('#account-avatar').title=(profile.name||'Your')+' account';$('#change-password').hidden=profile.authSource==='crm';const hour=Number(new Intl.DateTimeFormat('en-GB',{timeZone:zone,hour:'2-digit',hourCycle:'h23'}).format(new Date()));$('#greeting').innerHTML=esc((hour<12?'Good morning, ':hour<17?'Good afternoon, ':'Good evening, ')+(profile.name||'there'))+' <span aria-hidden="true">✳</span>';$('#today-date').textContent=dateString();$('#connection-state').textContent=profile.crmConnected?'CRM connected':'Private mode';$('#connection-state').style.background=profile.crmConnected?'#e8f8f2':'#fff4db';$('#crm-connection-detail').textContent=profile.crmConnected?'Talk2Me is connected. All office messages require your confirmation.':'The Talk2Me secure bridge has not been activated. Personal reminders are fully separate and available now.';
  $('#push-setup').disabled=!profile.pushConfigured;$('#push-setup').title=profile.pushConfigured?'Allow phone reminders':'Push notifications require server setup';}
 function say(text){
  if(!state.speakBack||!('speechSynthesis'in window)||!('SpeechSynthesisUtterance'in window))return;
- try{speechSynthesis.cancel();const reply=new SpeechSynthesisUtterance(String(text||'').slice(0,280));reply.lang=$('#language').value;reply.rate=.98;speechSynthesis.speak(reply);}catch(_){}
+ try{speechSynthesis.cancel();const reply=new SpeechSynthesisUtterance(String(text||'').slice(0,280));reply.lang=$('#language').value==='auto'?state.replyLanguage:$('#language').value;reply.rate=.98;speechSynthesis.speak(reply);}catch(_){}
+}
+function setStatus(message,{error=false}={}){
+ const el=$('#command-status');if(!el)return;
+ el.textContent=String(message||'');el.classList.toggle('error',error);
+}
+function renderConversation(){
+ const el=$('#conversation-feed');if(!el)return;
+ const items=(state.conversation||[]).slice(-60);
+ el.innerHTML=items.length?items.map(item=>{
+  const who=item.role==='user'?'You':'Zippy',role=item.role==='user'?'user':'assistant';
+  return '<div class="chat-bubble '+role+'"><strong>'+who+'</strong><p>'+
+   esc(String(item.text||''))+'</p></div>';
+ }).join(''):'<div class="chat-bubble assistant"><strong>Zippy</strong><p>Hi! Speak or type — I’m here to help.</p></div>';
+ el.scrollTop=el.scrollHeight;
+}
+async function refreshConversation(){
+ if(!state.user)return;
+ const response=await api('/api/conversation');
+ state.conversation=response.messages||[];
+ renderConversation();
+}
+function setMic(active,message){
+ $('#mic-button').classList.toggle('listening',active);
+ $('#mic-button').setAttribute('aria-pressed',String(active));
+ if(message)$('#mic-hint').textContent=message;
 }
 function result(text,{type='success',html='',pending=null}={}){say(text);const el=$('#command-result');el.hidden=false;el.className='command-result'+(type==='error'?' error':type==='notice'?' notice':'');el.innerHTML='<div>'+esc(text)+'</div>'+html;state.pendingInput=pending;if(!state.activeDraft)el.scrollIntoView({behavior:'smooth',block:'nearest'});}
-function loading(val){state.busy=val;$('#command-send').disabled=val;$('#mic-button').disabled=val;$('#command-send').textContent=val?'…':'➜';}
+function loading(val){state.busy=val;$('#command-send').disabled=val;$('#mic-button').disabled=val;$('#command-send').textContent=val?'…':'Send ➜';}
 function renderReminder(item){const completed=item.state==='done',fired=item.state==='fired';const past=new Date(item.dueAt)<new Date();const emoji=item.entry_type==='appointment'?'▣':'◷';let buttons='';if(!completed){buttons='<button data-action="done" data-id="'+Number(item.id)+'">Done</button>'+(!fired?'<button data-action="snooze" data-id="'+Number(item.id)+'">+10m</button>':'<button data-action="snooze" data-id="'+Number(item.id)+'">Again</button>');}
  let call='';const relation=state.contacts.find(c=>String(c.relationship||'').toLowerCase()==='mother'||String(c.relationship||'').toLowerCase()==='ma');if(relation?.phone&&/\b(mother|mom|mama|ma|mamma)\b/i.test(item.title||'')){call='<a class="call-link" href="tel:'+esc(relation.phone.replace(/[^+0-9]/g,''))+'" title="Call contact">Call</a>'}
  return '<div class="reminder-item'+(completed?' done':'')+'"><span class="item-mark">'+emoji+'</span><div class="item-body"><strong>'+esc(item.title)+'</strong><small>'+esc(when(item.dueAt))+(past&&!completed?' · Due':'')+(item.recurrence?' · Repeats':'')+'</small></div><div class="item-actions">'+call+buttons+'</div></div>';
@@ -136,7 +161,7 @@ function speakMessage(){
  try{
   speechSynthesis.cancel();
   const speech=new SpeechSynthesisUtterance($('#review-message').value);
-  speech.lang=$('#language').value;speech.rate=.88;
+  speech.lang=$('#language').value==='auto'?state.replyLanguage:$('#language').value;speech.rate=.88;
   speechSynthesis.speak(speech);
  }catch(e){result('Your browser could not read this message aloud.',{type:'notice'});}
 }
