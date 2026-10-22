@@ -39,7 +39,7 @@ function renderConversation(){
 }
 async function refreshConversation(){
  if(!state.user)return;
- const response=await api('/api/conversation');
+ const response=await api('/api/beta/conversation');
  state.conversation=response.messages||[];
  renderConversation();
 }
@@ -246,7 +246,7 @@ async function submitCommand(event){
  }
  loading(true);setStatus('Checking your request…');
  try{
-  const response=await api('/api/interpret',{method:'POST',body:{
+  const response=await api('/api/beta/interpret',{method:'POST',body:{
    message,source:state.recognitionSource||'text',language:$('#language').value
   }});
   // Clear ONLY after the server accepted the request. Never lose a transcript
@@ -313,7 +313,7 @@ async function startVoice(){
     if(audio.size<200){setStatus('I did not hear enough audio. Try speaking again.',{error:true});return;}
     loading(true);
     try{
-     const response=await fetch('/api/voice/transcribe',{method:'POST',credentials:'same-origin',
+     const response=await fetch('/api/beta/voice/transcribe',{method:'POST',credentials:'same-origin',
       headers:{'Content-Type':mime,'X-Zippy-Action':'1','X-Zippy-Language':mode},body:audio});
      const data=await response.json().catch(()=>({ok:false,error:'Speech service returned no response.'}));
      if(response.status===401){showLogin();throw Error('Please sign in again.');}
