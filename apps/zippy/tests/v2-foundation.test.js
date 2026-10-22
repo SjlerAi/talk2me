@@ -93,7 +93,7 @@ test('Compact PWA keeps transcript editable and requires explicit Send',()=>{
  const voiceSection=app.slice(app.indexOf('async function startVoice()'),app.indexOf('async function enableNotifications()'));
  assert(!/submitCommand\(\)/.test(voiceSection),'voice must not auto-send on microphone stop');
  assert.match(app,/await refreshConversation/);
- assert.match(server,/app\.post\('\/api\/voice\/transcribe'/);
- assert.match(server,/app\.get\('\/api\/conversation'/);
+ assert.match(server,/app\.post\('\/api\/beta\/voice\/transcribe'/);
+ assert.match(server,/app\.get\('\/api\/beta\/conversation'/);
  assert.match(server,/crm\.bridgeCall\('lookup'/);
 });
