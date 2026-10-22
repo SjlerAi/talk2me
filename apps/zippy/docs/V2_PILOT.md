@@ -1,6 +1,7 @@
 # Zippy 2.0 — lightweight Android/iPhone pilot
 
-**Status:** Feature branch only. Never copy files to live Passenger until CI,
+**Status:** Feature branch only. Beta preview URL after controlled deployment:
+https://zippy.uent.co.za/beta/ (not live yet). Current root Zippy remains unchanged. Never copy files to live Passenger until CI,
 safe deployment and rollback are verified. Back up the private database first.
 
 ## Platform decision
@@ -50,7 +51,7 @@ to browser recognition with manual English/Afrikaans selection.
 ## Device acceptance
 
 ### Android (Gerda)
-1. Open https://zippy.uent.co.za and sign in as an authorised owner.
+1. Open https://zippy.uent.co.za/beta/ and sign in as an authorised owner.
 2. Install the PWA from Chrome and enable notifications.
 3. Say: "Watter kliënte verjaar vandag?" Stop recording, inspect words, Send.
 4. Verify a genuine CRM report or an explicit unavailable error.
@@ -60,7 +61,7 @@ to browser recognition with manual English/Afrikaans selection.
    an explicit confirmation. Do not send real work during smoke tests.
 
 ### iPhone (authorised owner tester)
-1. Open with Safari and Add to Home Screen; launch the installed icon.
+1. Open https://zippy.uent.co.za/beta/ in Safari and Add to Home Screen; launch the installed icon.
 2. Check microphone permissions and WebM/MP4 capability automatically.
 3. Test Afrikaans and English, review transcription, correct and Send.
 4. Verify separate owner history and notifications in the installed PWA.
