@@ -3,7 +3,7 @@ const crypto=require('crypto');
 function configured(){return Boolean(process.env.ZIPPY_CRM_BASE_URL&&process.env.ZIPPY_CRM_BRIDGE_SECRET&&process.env.ZIPPY_CRM_BRIDGE_SECRET.length>=32);}
 async function bridgeCall(action,payload){
  if(!configured())throw new Error('CRM connection is not configured yet. Your personal Zippy reminders still work.');
- if(!['preview','confirm','updates'].includes(action))throw Error('Unsupported CRM operation');
+ if(!['preview','confirm','updates','lookup'].includes(action))throw Error('Unsupported CRM operation');
  const path='/api/integrations/zippy/'+action;
  const base=String(process.env.ZIPPY_CRM_BASE_URL).replace(/\/+$/,'');
  const url=new URL(base+path);
