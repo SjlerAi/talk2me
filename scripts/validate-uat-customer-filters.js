@@ -35,7 +35,16 @@ assert.deepEqual(normal({date:'custom',from:'2026-10-08',to:'2026-10-31'}).dateW
 assert.ok(normal({date:'custom',from:'2026-11-02',to:'2026-10-01'}).error);
 assert.ok(normal({date:'custom',from:'2026-02-30',to:'2026-03-02'}).error);
 assert.ok(normal({upgrade_month:'not-a-month'}).error);
-assert.equal(normal({work:'upgrades',status:'overdue'}).status,'all');
+assert.equal(normal({work:'upgrades',status:'overdue'}).status,'overdue');
+for (const status of ['outstanding','overdue','completed']) {
+  const combined=makeWork({work:'upgrades',upgrade_month:'2026-10',status,sort:'name_asc'});
+  assert.match(combined.clauses.join(' '),/c\.next_upgrade_date/);
+  assert.match(combined.clauses.join(' '),/staff_tasks t/);
+  assert.match(combined.clauses.join(' '),/customer_followups f/);
+  assert.match(combined.clauses.join(' '),/customer_callbacks cb/);
+  assert.equal(combined.params.monthFrom,'2026-10-01');
+  assert.equal(combined.params.workStaffId,7);
+}
 
 const overdue=makeWork({work:'tasks',status:'overdue',date:'this_week'});
 assert.match(overdue.clauses.join(' '),/t\.due_at<NOW\(\)/);
@@ -116,6 +125,13 @@ async function routeCase(user,query) {
   assert.match(result.sqlCalls[1].sql,/ORDER BY \(c\.next_upgrade_date IS NULL\)/);
   assert.match(result.rendered.locals.queryStringFor({page:3}),/upgrade_month=2026-10/);
   assert.match(result.rendered.locals.queryStringFor({page:3}),/staff_id=7/);
+
+  result=await routeCase(owner,{scope:'staff',staff_id:'7',work:'upgrades',upgrade_month:'2026-10',status:'outstanding',sort:'name_asc'});
+  assert.equal(result.rendered.locals.filters.status,'outstanding');
+  assert.match(result.sqlCalls[0].sql,/c\.next_upgrade_date >= :monthFrom/);
+  assert.match(result.sqlCalls[0].sql,/t\.status IN \('unread','seen','in_progress'\)/);
+  assert.match(result.sqlCalls[1].sql,/ORDER BY c\.client_name ASC/);
+  assert.match(result.rendered.locals.queryStringFor({page:2}),/status=outstanding/);
 
   result=await routeCase({id:99,role:'staff'},{scope:'staff',staff_id:'7',work:'tasks',status:'overdue',date:'this_week'});
   assert.equal(result.rendered.locals.staffVisibilityScope,'all');
