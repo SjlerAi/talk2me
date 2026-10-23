@@ -34,6 +34,17 @@ router.post('/temporary-cleanup/consolidate/:key',requireAuth,async(req,res,next
     if(!chosen||active.length<2)throw new UnsafeConsolidation('Choose one active record from a group with multiple active duplicates.');
     const accounts=new Set(original.map(r=>Number(r.account_id||0)));
     if(accounts.size!==1||accounts.has(0))throw new UnsafeConsolidation('These records are not linked to one verified customer account.');
+    // Prevent physical archival of a differently named/identified customer. The
+    // non-destructive grouping ledger is NEVER authority to archive a line.
+    const names=new Set(active.map(r=>String(r.client_name||'').toUpperCase().replace(/[^A-Z0-9]/g,'')));
+    if(names.size!==1||names.has(''))throw new UnsafeConsolidation('Different customer names. Correct and verify the identity before consolidation.');
+    const [identityRows]=await connection.query('SELECT id,id_number FROM clients WHERE id IN (?) FOR UPDATE',[ids]);
+    const identityNumbers=new Set(identityRows.map(r=>String(r.id_number||'').replace(/\\D/g,'')).filter(Boolean));
+    if(identityNumbers.size>1)throw new UnsafeConsolidation('Different identity numbers. Do not archive either line.');
+    const emails=new Set(active.map(r=>String(r.email||'').trim().toLowerCase()).filter(Boolean));
+    if(emails.size>1)throw new UnsafeConsolidation('Different customer email addresses. Verify ownership before consolidation.');
+    const [logicalOnly]=await connection.execute('SELECT id FROM temporary_duplicate_triage WHERE case_type="safe_line_group" AND status="auto_grouped" AND account_id=:account AND phone_normalised=:key LIMIT 1',{account:Number(chosen.account_id),key});
+    if(logicalOnly.length)throw new UnsafeConsolidation('This group is display-only. A physical archive requires separate verified approval and restore testing.');
     const archiveIds=active.filter(r=>Number(r.id)!==primaryId).map(r=>Number(r.id));
     const [masters]=await connection.execute('SELECT id,assigned_staff_id FROM customer_accounts WHERE id=:id FOR UPDATE',{id:Number(chosen.account_id)});
     if(masters.length!==1)throw new UnsafeConsolidation('The account record is missing; do not consolidate.');

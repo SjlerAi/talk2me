@@ -49,6 +49,8 @@
       <p>Johnny processes the queue; Stephan and Gerda can review the same work.</p></div>
     <div class="cleanup-actions">
       <a class="cleanup-start" href="<%= basePath %>/temporary-cleanup/next?type=<%= type %>">Next unreviewed customer →</a>
+      <a class="cleanup-report-link" href="<%= basePath %>/temporary-cleanup/triage?type=manual_identity&amp;status=pending">Manual identity cases</a>
+      <a class="cleanup-report-link" href="<%= basePath %>/temporary-cleanup/triage?type=safe_line_group">Verified line groups</a>
       <a class="cleanup-report-link" href="<%= basePath %>/temporary-cleanup/report">Reviewed &amp; approved report</a>
       <a class="btn" href="<%= basePath %>/backoffice/clients">Customers</a>
     </div>

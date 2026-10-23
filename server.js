@@ -369,7 +369,8 @@ if (UAT_MODE) {
   const temporaryCleanupCorrections = require('./src/routes/temporary-cleanup-corrections');
   const temporaryCleanupConsolidate = require('./src/routes/temporary-cleanup-consolidate');
   const temporaryCleanupAssignment = require('./src/routes/temporary-cleanup-assignment').router;
-  for (const route of [temporaryCleanupFlow, temporaryCleanup, temporaryCleanupCorrections, temporaryCleanupConsolidate, temporaryCleanupAssignment]) {
+  const temporaryDuplicateTriage = require('./src/routes/temporary-duplicate-triage');
+  for (const route of [temporaryCleanupFlow, temporaryCleanup, temporaryCleanupCorrections, temporaryCleanupConsolidate, temporaryCleanupAssignment, temporaryDuplicateTriage]) {
     app.use('/', route);
     if (BASE_PATH) app.use(BASE_PATH, route);
   }
