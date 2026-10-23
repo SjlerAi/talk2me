@@ -3,11 +3,14 @@
 const queryCases = {
   same_account_phone: `SELECT c.cell_number_normalised case_key,COUNT(*) record_count,COUNT(DISTINCT COALESCE(c.next_upgrade_date,c.upgrade_date)) upgrade_variants,COUNT(DISTINCT NULLIF(TRIM(c.client_name),'')) name_variants,
     MAX(c.client_name) display_name,MAX(c.account_number) display_account
-    FROM clients c WHERE c.account_id IS NOT NULL AND c.cell_number_normalised REGEXP '^27[0-9]{9}$'
+    FROM clients c WHERE c.is_active=1 AND c.account_id IS NOT NULL AND c.cell_number_normalised REGEXP '^27[0-9]{9}$'
+      AND NOT EXISTS (SELECT 1 FROM temporary_duplicate_triage g
+        WHERE g.case_type='safe_line_group' AND g.status='auto_grouped'
+          AND g.account_id=c.account_id AND g.phone_normalised=c.cell_number_normalised)
     GROUP BY c.cell_number_normalised HAVING COUNT(*)>1 AND COUNT(DISTINCT c.account_id)=1`,
   cross_account_phone: `SELECT c.cell_number_normalised case_key,COUNT(*) record_count,COUNT(DISTINCT COALESCE(c.next_upgrade_date,c.upgrade_date)) upgrade_variants,COUNT(DISTINCT NULLIF(TRIM(c.client_name),'')) name_variants,
     MAX(c.client_name) display_name,MAX(c.account_number) display_account
-    FROM clients c WHERE c.cell_number_normalised REGEXP '^27[0-9]{9}$'
+    FROM clients c WHERE c.is_active=1 AND c.cell_number_normalised REGEXP '^27[0-9]{9}$'
     GROUP BY c.cell_number_normalised HAVING COUNT(*)>1 AND COUNT(DISTINCT c.account_id)>1`,
   account_alias: `SELECT UPPER(REGEXP_REPLACE(REGEXP_REPLACE(TRIM(a.account_number),'[-/][0-9][[:space:]]*$',''),'[^A-Z0-9]','')) case_key,
     COUNT(*) record_count,0 upgrade_variants,0 name_variants,MAX(a.display_name) display_name,MAX(a.account_number) display_account

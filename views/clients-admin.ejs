@@ -7,6 +7,12 @@
     <a class="btn primary" href="<%= basePath %>/queries/new">Quick Add / New Inquiry</a>
   <% } %>
 </section>
+<% if(['owner','manager'].includes(currentUser.role) || ['jonathan@talk-online.co.za','gerda@talk-online.co.za'].includes(String(currentUser.email||'').trim().toLowerCase())){ %>
+  <div class="customer-duplicate-links" style="display:flex;flex-wrap:wrap;gap:9px;margin:10px 0 16px">
+    <a class="btn small" href="<%= basePath %>/temporary-cleanup/triage?type=safe_line_group">Verified grouped lines</a>
+    <a class="btn small" href="<%= basePath %>/temporary-cleanup/triage?type=manual_identity&amp;status=pending">Manual duplicate review</a>
+  </div>
+<% } %>
 <% if(saved){ %><div class="success-box">Client assignment saved.</div><% } %>
 <%
 const staffScope=typeof staffVisibilityScope==='string'?staffVisibilityScope:'all';

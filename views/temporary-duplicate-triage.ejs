@@ -1,0 +1,168 @@
+<style>
+.dt-wrap{max-width:1250px;margin:0 auto;color:var(--text-primary,#19334b)}
+.dt-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin:5px 0 18px}
+.dt-head h1{font-size:1.65rem;margin:0 0 5px}.dt-head p{margin:0;color:#58718b}
+.dt-actions,.dt-nav{display:flex;flex-wrap:wrap;gap:9px;margin:12px 0}
+.dt-btn{display:inline-block;text-decoration:none;border:1px solid #93adc6;background:#fff;color:#174a75;border-radius:8px;padding:9px 14px;cursor:pointer;font-weight:650}
+.dt-btn.primary{background:#176b62;color:white;border-color:#176b62}
+.dt-btn.warning{background:#916017;color:white;border-color:#916017}
+.dt-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin:14px 0 23px}
+.dt-stat{border:1px solid #d1dce8;border-radius:10px;background:#fff;padding:15px}
+.dt-stat strong{font-size:1.7rem;display:block;color:#123e5e}
+.dt-stat span{color:#536b7e;font-size:.86rem}
+.dt-nav a{padding:10px 14px;border:1px solid #b4c5d6;border-radius:8px;text-decoration:none;color:#17405b;font-weight:650}
+.dt-nav a.selected{background:#154c72;color:#fff}
+.dt-panel{padding:19px;margin:15px 0;border:1px solid #cad8e6;background:#fff;border-radius:12px}
+.dt-filter{display:flex;flex-wrap:wrap;align-items:end;gap:12px}
+.dt-filter label{display:grid;gap:6px;font-weight:600}
+.dt-filter input,.dt-filter select,.dt-form textarea{box-sizing:border-box;background:white;border:1px solid #9eb3c8;border-radius:7px;padding:9px;color:#19334b}
+.dt-filter input{min-width:220px}.dt-form textarea{width:100%;min-height:90px;margin:6px 0 12px}
+.dt-list{display:grid;gap:12px}
+.dt-case{border:1px solid #d0dfeb;border-radius:10px;background:#f9fbfd;padding:15px}
+.dt-case h3{margin:6px 0}.dt-case p{margin:5px 0;color:#52677b}
+.dt-pills{display:flex;gap:7px;flex-wrap:wrap}
+.dt-tag{display:inline-block;padding:4px 9px;background:#e6eef6;color:#25506b;border-radius:16px;font-size:.8rem}
+.dt-tag.ok{background:#dcf5eb;color:#135b45}
+.dt-tag.alert{background:#ffe9cf;color:#744511}
+.dt-lines{display:grid;grid-template-columns:repeat(auto-fit,minmax(275px,1fr));gap:12px;margin-top:17px}
+.dt-line{border:1px solid #cdd9e4;border-radius:9px;padding:15px;background:#f8fafc}
+.dt-line h3{margin:0 0 9px}.dt-line dl{display:grid;grid-template-columns:minmax(96px,1fr) 2fr;gap:7px;margin:0}
+.dt-line dt{font-size:.83rem;color:#52677d}.dt-line dd{margin:0;overflow-wrap:anywhere}
+.dt-callout{background:#fff3d8;color:#66471b;border-left:4px solid #ce8f31;padding:13px;margin:14px 0;border-radius:7px}
+.dt-good{background:#e8f7ee;color:#235d45;border-left:4px solid #39865b;padding:12px;border-radius:7px;margin:14px 0}
+.dt-form label.dt-choice{display:flex;align-items:center;gap:7px;font-weight:650;margin:10px 0}
+.dt-pager{display:flex;gap:10px;align-items:center;margin:18px 0;flex-wrap:wrap}
+.dt-subtle{color:#627589;font-size:.86rem}
+.dt-form button{font-size:.96rem}
+@media(max-width:580px){.dt-panel{padding:12px}.dt-head h1{font-size:1.35rem}.dt-filter input{min-width:0;width:100%}}
+</style>
+<section class="dt-wrap">
+  <div class="dt-head">
+    <div><small>Talk2Me CRM / UAT / Private duplicate audit</small>
+      <h1>Verified Line Groups &amp; Manual Duplicate Review</h1>
+      <p>A full database backup exists. Source lines, upgrade history and tasks are preserved.</p></div>
+    <div class="dt-actions">
+      <a class="dt-btn" href="<%= basePath %>/temporary-cleanup">Original Cleanup Centre</a>
+      <a class="dt-btn" href="<%= basePath %>/temporary-cleanup/report">Previous approval report</a>
+    </div>
+  </div>
+  <div class="dt-grid">
+    <div class="dt-stat"><strong>176</strong><span>Previous consolidations</span></div>
+    <div class="dt-stat"><strong><%= summary.grouped %></strong><span>Automatically grouped line histories</span></div>
+    <div class="dt-stat"><strong><%= summary.pending %></strong><span>Manual decisions outstanding</span></div>
+    <div class="dt-stat"><strong><%= summary.completed %></strong><span>Confirmed kept separate</span></div>
+    <div class="dt-stat"><strong><%= summary.followup %></strong><span>Flagged / correction needed</span></div>
+  </div>
+  <% if(saved){ %><div class="dt-good">Your decision was saved with the reviewer and audit history. The case left the pending queue.</div><% } %>
+  <nav class="dt-nav" aria-label="Review categories">
+    <a class="<%= type==='safe_line_group'?'selected':'' %>" href="<%= basePath %>/temporary-cleanup/triage?type=safe_line_group">Automatically grouped (<%= summary.grouped %>)</a>
+    <a class="<%= type==='manual_identity'?'selected':'' %>" href="<%= basePath %>/temporary-cleanup/triage?type=manual_identity&status=pending">Manual identity review (<%= summary.manual %>)</a>
+  </nav>
+  <% if(item){ %>
+    <section class="dt-panel">
+      <div class="dt-pills">
+        <span class="dt-tag"><%= item.case_type==='safe_line_group'?'Verified display grouping':'Manual customer review' %></span>
+        <span class="dt-tag"><%= item.status.replace(/_/g,' ') %></span>
+        <% if(item.state){ %><span class="dt-tag <%= item.state.safe?'ok':'alert' %>"><%= item.state.safe?'Still meets the safe grouping rules':'Needs a fresh safety check' %></span><% } %>
+      </div>
+      <h2><%= item.rows[0]?.client_name||'Customer record' %></h2>
+      <p>Case #<%= item.id %> contains <strong><%= item.clientIds.length %></strong> original customer records.</p>
+      <% if(item.case_type==='safe_line_group'){ %>
+        <div class="<%= item.state?.safe?'dt-good':'dt-callout' %>">
+          <strong><%= item.state?.safe?'Non-destructive grouping verified':'This grouping may be stale' %>.</strong>
+          <% if(item.state?.safe){ %>The same verified account and cellphone are presented as one group; every original client record, tariff and upgrade date remains accessible.<% }
+             else{ %>An original record or supporting data changed. Do not treat this group as approved for physical consolidation.<% } %>
+        </div>
+      <% }else{ %>
+        <div class="dt-callout"><strong>Human identity review required.</strong>
+          <%= item.reasons.map(prettyReason).join(' · ') %>.
+          Correct source information through the original customer records; do not archive unrelated lines.</div>
+      <% } %>
+      <div class="dt-lines">
+        <% item.rows.forEach(row=>{ %>
+        <article class="dt-line">
+          <h3>Original record #<%= row.id %> <span class="dt-tag"><%= row.is_active?'Active':'Inactive/archived' %></span></h3>
+          <dl>
+            <dt>Customer</dt><dd><%= row.client_name||'—' %></dd>
+            <dt>Account</dt><dd><%= row.account_number||'—' %></dd>
+            <dt>Cellphone</dt><dd><%= row.cell_number||'—' %></dd>
+            <dt>Email</dt><dd><%= row.email||'—' %></dd>
+            <dt>ID captured</dt><dd><%= row.id_number?'Yes':'No' %></dd>
+            <dt>Package</dt><dd><%= row.package_name||'—' %></dd>
+            <dt>Previous upgrade</dt><dd><%= row.previous_upgrade_date?new Date(row.previous_upgrade_date).toLocaleDateString('en-ZA'):'—' %></dd>
+            <dt>Next upgrade</dt><dd><%= row.next_upgrade_date?new Date(row.next_upgrade_date).toLocaleDateString('en-ZA'):'—' %></dd>
+            <dt>Line status</dt><dd><%= row.line_status||'—' %></dd>
+            <dt>Account owner</dt><dd><%= row._allocations.filter(a=>Number(a.is_active)===1).map(a=>a.staff_name||'Staff #'+a.assigned_staff_id).join(', ')||'No direct line allocation' %></dd>
+          </dl>
+          <div class="dt-actions">
+            <a class="dt-btn" href="<%= basePath %>/customers/<%= row.id %>/360">Open customer history</a>
+            <% if(['owner','manager'].includes(currentUser.role)){ %>
+              <a class="dt-btn" href="<%= basePath %>/backoffice/clients/<%= row.id %>/edit">Correct this record</a>
+            <% }else{ %>
+              <a class="dt-btn" href="<%= basePath %>/customers/<%= row.id %>/propose-change">Propose a correction</a>
+            <% } %>
+          </div>
+        </article>
+        <% }) %>
+      </div>
+      <% if(item.case_type==='manual_identity'){ %>
+      <section class="dt-panel">
+        <h3>Save decision and remove from pending</h3>
+        <p>Saving the review never merges, archives or overwrites customer records. Corrections must be made separately with evidence.</p>
+        <% if(item.reviewer_name){ %><p class="dt-subtle">Last reviewed by <%= item.reviewer_name %></p><% } %>
+        <form method="post" class="dt-form" action="<%= basePath %>/temporary-cleanup/triage/case/<%= item.id %>/review">
+          <input type="hidden" name="csrf" value="<%= csrf %>">
+          <input type="hidden" name="snapshot" value="<%= item.snapshot %>">
+          <input type="hidden" name="revision" value="<%= item.revision %>">
+          <label class="dt-choice"><input type="radio" name="status" value="needs_correction" required> Needs correction — record the discrepancy for follow-up</label>
+          <label class="dt-choice"><input type="radio" name="status" value="flagged"> Flag for the owner / investigation</label>
+          <label class="dt-choice"><input type="radio" name="status" value="keep_separate"> Verified different customers or legitimate separate records — keep separate</label>
+          <label for="triage-note">Evidence checked and next action</label>
+          <textarea id="triage-note" name="notes" minlength="12" maxlength="2000" required placeholder="Explain the reason and indicate which source or staff member verified it"><%= item.review_notes||'' %></textarea>
+          <button type="submit" class="dt-btn primary">Save review and return to pending queue</button>
+        </form>
+      </section>
+      <% } %>
+      <p><a class="dt-btn" href="<%= basePath %>/temporary-cleanup/triage?type=<%= item.case_type %><%= item.case_type==='manual_identity'?'&status=pending':'' %>">Back to queue</a></p>
+    </section>
+  <% }else{ %>
+    <section class="dt-panel">
+      <form class="dt-filter" method="get" action="<%= basePath %>/temporary-cleanup/triage">
+        <input type="hidden" name="type" value="<%= type %>">
+        <label>Search a name, number, ID or account<input name="q" value="<%= q %>" placeholder="Search customer or account"></label>
+        <% if(type==='manual_identity'){ %>
+        <label>Review status<select name="status">
+          <% [['pending','Pending'],['needs_correction','Needs correction'],['flagged','Flagged'],['keep_separate','Keep separate'],['all','All cases']].forEach(([value,label])=>{ %>
+            <option value="<%= value %>" <%= status===value?'selected':'' %>><%= label %></option>
+          <% }) %>
+        </select></label>
+        <% } %>
+        <button type="submit" class="dt-btn primary">Filter</button>
+      </form>
+      <p class="dt-subtle"><strong><%= total %></strong> matching cases. A case leaves the pending queue once a reviewer records a decision.</p>
+    </section>
+    <div class="dt-list">
+    <% if(!cases.length){ %><div class="dt-good">No cases match this filter.</div><% } %>
+    <% cases.forEach(c=>{ %>
+      <article class="dt-case">
+        <div class="dt-pills">
+          <span class="dt-tag"><%= c.clientIds.length %> original records</span>
+          <% if(c.state){ %><span class="dt-tag <%= c.state.safe?'ok':'alert' %>"><%= c.state.safe?'Verified grouping':'Recheck evidence' %></span><% } %>
+          <span class="dt-tag"><%= c.status.replace(/_/g,' ') %></span>
+        </div>
+        <h3><%= c.display.client_name||'Unnamed customer' %></h3>
+        <p><strong>Account:</strong> <%= c.display.account_number||'Not linked' %>
+          &nbsp; <strong>Cellphone:</strong> <%= c.display.cell_number||c.phone_normalised||'—' %></p>
+        <% if(type==='manual_identity'){ %><p><strong>Reason:</strong> <%= c.reasons.map(prettyReason).join(' · ') %></p><% }
+           else{ %><p>All historical upgrade dates and packages are retained under one reviewable line group.</p><% } %>
+        <a class="dt-btn primary" href="<%= basePath %>/temporary-cleanup/triage/case/<%= c.id %>"><%= type==='manual_identity'?'Open manual review':'Open line history' %> →</a>
+      </article>
+    <% }) %>
+    </div>
+    <% if(pageCount>1){ %><nav class="dt-pager" aria-label="Review pages">
+      <% if(page>1){ %><a class="dt-btn" href="<%= basePath %>/temporary-cleanup/triage?type=<%= type %>&status=<%= status %>&q=<%= encodeURIComponent(q) %>&page=<%= page-1 %>">← Previous</a><% } %>
+      <span>Page <%= page %> of <%= pageCount %></span>
+      <% if(page<pageCount){ %><a class="dt-btn" href="<%= basePath %>/temporary-cleanup/triage?type=<%= type %>&status=<%= status %>&q=<%= encodeURIComponent(q) %>&page=<%= page+1 %>">Next →</a><% } %>
+    </nav><% } %>
+  <% } %>
+</section>
