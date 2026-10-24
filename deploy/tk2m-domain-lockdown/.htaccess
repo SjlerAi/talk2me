@@ -1,0 +1,14 @@
+# TK2M pre-launch quarantine. PLACE IN THE ACTUAL tk2m.co.za WEB ROOT.
+# All application/file paths are forbidden until SSL + controlled CRM cutover.
+# Does not authenticate staff; this is an all-access DENY gate.
+# Keep ACME and cPanel validation paths accessible for certificate issuance.
+Options -Indexes
+RewriteEngine On
+RewriteRule ^\.well-known/(acme-challenge|pki-validation)/ - [L,NC]
+RewriteRule ^ - [F,L]
+<IfModule mod_headers.c>
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set Referrer-Policy "no-referrer"
+  Header always set X-Robots-Tag "noindex, nofollow, noarchive"
+  Header always set Cache-Control "no-store"
+</IfModule>
