@@ -16,19 +16,6 @@ const { claimClient } = require('../services/client-claim');
 
 const router = express.Router();
 
-const testPasswords = {
-  'owner@talk2me.local': 'Talk2Me@2026',
-  'jonathan@talk-online.co.za': 'test1',
-  'sias@talk-online.co.za': 'test2',
-  'annazel@talk-online.co.za': 'test3',
-  'sales3@talk-online.co.za': 'test4',
-  'sales4@talk-online.co.za': 'test5',
-  'johnny': 'test1',
-  'sias': 'test2',
-  'annazel': 'test3',
-  'brabant': 'test4',
-  'vanzyl': 'test5'
-};
 
 function isOwnerRole(user) {
   return user && ['owner','admin','manager'].includes(user.role);
@@ -214,7 +201,7 @@ router.post('/login', async (req, res, next) => {
     const user = rows[0];
     let ok = false;
     if (user && user.password_hash) ok = await bcrypt.compare(password, user.password_hash);
-    if (user && !user.password_hash && testPasswords[loginKey] === password) ok = true;
+    // Legacy accounts without a password hash require a secure administrator-led reset.
     if (!user || !ok) return res.status(401).render('login', { title: 'Login', error: 'Invalid login details.', returnTo });
     const sessionUser = { id: user.id, full_name: user.full_name, email: user.email, role: user.role, username: user.username || user.full_name };
     req.session.regenerate(async error => {
