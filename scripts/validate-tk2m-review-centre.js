@@ -103,6 +103,8 @@ function conn(rows){
  assert.ok(page.includes('Record your decision'));
  assert.ok(page.includes('QA Customer 1'));
  assert.ok(page.includes('QA Staff 5'));
+ assert.ok(page.includes('Identity / Email'));
+ assert.ok(routes.includes('m.account_number,m.id_number,m.email'))
  assert.ok(page.includes('source_hash'));
  assert.ok(page.includes('No customer records'));
  const queue=ejs.render(view,{...shared,selected:null,history:null,listing:all});
