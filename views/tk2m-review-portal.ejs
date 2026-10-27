@@ -44,7 +44,9 @@
         </div>
         <% if(selected.state==='stale'){ %><div class="review-warning">The underlying customer or import record changed after the last decision. The previous decision is retained in history but must be reviewed again.</div><% } %>
         <% if(typeof quickMerge!=='undefined' && quickMerge){ 
-          const inlineOptions = quickMerge.candidates;
+          const caseRecordIds=new Set(selected.members.map(m=>Number(m.id)));
+          const inlineOptions = quickMerge.candidates.slice().sort((a,b)=>
+            Number(caseRecordIds.has(Number(b.id)))-Number(caseRecordIds.has(Number(a.id)))||Number(a.id)-Number(b.id));
           const inlineIds=new Set(inlineOptions.map(c=>Number(c.id)));
           const defaultIds= selected.members.length===2 ? selected.members.map(m=>Number(m.id)).filter(id=>inlineIds.has(id)) : (inlineOptions.length===2?inlineOptions.map(m=>Number(m.id)):[]);
           const defaultSet=new Set(defaultIds.length===2?defaultIds:[]);
@@ -75,6 +77,7 @@
                     <% inlineOptions.forEach(m=>{ %>
                       <th scope="col" class="review-pick-customer-header">
                         <strong>#<%= m.id %> · <%= m.client_name||'Unnamed customer' %></strong>
+                        <small><%= caseRecordIds.has(Number(m.id))?'In this review':'Additional related record' %></small>
                         <small><%= Number(m.is_active)?'Active':'Inactive' %> · <%= m.account_number||m.account_id||'No account' %></small>
                         <small>Last updated: <%= m.updated_at instanceof Date?m.updated_at.toISOString().replace('T',' ').slice(0,16):(m.updated_at||'Unknown') %></small>
                         <label class="review-pick-include"><input type="checkbox" name="selected" value="<%= m.id %>"
