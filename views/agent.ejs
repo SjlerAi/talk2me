@@ -75,7 +75,7 @@
 
     <% if(report.operatingModel){ const om=report.operatingModel; const imp=(om.importSummary&&om.importSummary.totals)||{}; const dw=om.delegatedWork||{}; %>
       <section class="section" id="shared-operating-model">
-        <div class="detail-head"><div><h2>CRM work summary</h2><p>The same live figures used by My Work and Cudo.</p></div></div>
+        <div class="detail-head"><div><h2>CRM work summary</h2><p>The same live figures used by My Work<%= isStaging ? '.' : ' and Cudo.' %></p></div></div>
         <div class="staff-overview">
           <div class="mini"><span>Delegated work</span><strong><%= Number(dw.active||0) %></strong></div>
           <div class="mini"><span>Urgent delegated</span><strong><%= Number(dw.urgent||0) %></strong></div>
