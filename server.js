@@ -285,6 +285,18 @@ self.addEventListener('fetch', event => {
 `);
 });
 
+// Retired Cudu assets must not revive the widget from stale shell HTML.
+if (CUDO_DISABLED) {
+  app.get('/public/js/cudo-widget.js', (req, res) => {
+    res.set('Cache-Control', 'no-store, max-age=0');
+    res.type('application/javascript').send(
+      "document.querySelectorAll('.cudo-root').forEach(function(node){node.remove();});");
+  });
+  app.get('/public/css/cudo-widget.css', (req, res) => {
+    res.set('Cache-Control', 'no-store, max-age=0');
+    res.type('text/css').send('.cudo-root{display:none!important}');
+  });
+}
 app.use('/public', express.static(path.join(__dirname, 'public')));
 if (BASE_PATH) app.use(`${BASE_PATH}/public`, express.static(path.join(__dirname, 'public')));
 
