@@ -422,9 +422,17 @@ app.use((err, req, res, next) => {
 });
 if (!CRM_STAGE_MODE) startAgentDeadlineScheduler();
 
-// In staging, listen only on the machine's loopback interface. The public
-// crm.tk2m.co.za vhost stays quarantined until an approved access gate is installed.
-app.listen(PORT, CRM_STAGE_MODE ? '127.0.0.1' : '0.0.0.0', () => {
-  console.log(`Talk2Me CRM running on port ${PORT} with base path ${BASE_PATH} (${APP_ENVIRONMENT})`);
+// Numeric private development ports bind to loopback in staging. Passenger
+// can supply a non-numeric listener (a Unix socket or its managed handle),
+// which must be passed to listen() verbatim without a TCP host argument.
+// The public staging vhost must stay behind cPanel Directory Privacy.
+const stageListener = /^\d+$/.test(String(PORT)) ? Number(PORT) : String(PORT);
+function onListening() {
+  console.log(`Talk2Me CRM running on listener ${CRM_STAGE_MODE ? '[protected staging]' : PORT} with base path ${BASE_PATH} (${APP_ENVIRONMENT})`);
   if (!CRM_STAGE_MODE) startNightlyLogoutWorker();
-});
+}
+if (CRM_STAGE_MODE && typeof stageListener === 'number') {
+  app.listen(stageListener, '127.0.0.1', onListening);
+} else {
+  app.listen(stageListener, onListening);
+}

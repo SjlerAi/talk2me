@@ -81,7 +81,13 @@ const originalUat = {
 assert.equal(evaluate(originalUat).database, 'uent_Crm', 'Existing UAT contract must still work');
 assert.match(server, /if \(!CRM_STAGE_MODE\) startAgentDeadlineScheduler\(\);/);
 assert.match(server, /if \(!CRM_STAGE_MODE\) startNightlyLogoutWorker\(\);/);
-assert.match(server, /CRM_STAGE_MODE \? '127\.0\.0\.1'/);
+assert.match(server, /if \(CRM_STAGE_MODE && typeof stageListener === 'number'\)/);
+assert.match(server, /app\.listen\(stageListener, '127\.0\.0\.1', onListening\)/);
+assert.match(server, /app\.listen\(stageListener, onListening\)/);
+const passenger = fs.readFileSync(path.join(root, 'passenger-staging.js'), 'utf8');
+assert.match(passenger, /CRM_RUNTIME_ENV_FILE/);
+assert.match(passenger, /path\.dirname\(path\.resolve\(runtime\)\) !== protectedParent/);
+assert.match(passenger, /require\('\.\/server'\)/);
 assert.match(server, /if \(!CRM_STAGE_MODE\) \{\s+const zippyIntegration = require/);
 assert.match(server, /CRM_STAGE_MODE \? 'staging'/);
 
