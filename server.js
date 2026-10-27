@@ -303,8 +303,10 @@ if (BASE_PATH) app.use(`${BASE_PATH}/public`, express.static(path.join(__dirname
 // Protected TK2M-only review portal. UENT live never loads the new routes.
 if (CRM_STAGE_MODE) {
   const dataReview = require('./src/routes/tk2m-data-review');
+  const mergePlans = require('./src/routes/tk2m-merge-plans');
+  app.use('/', mergePlans);
   app.use('/', dataReview);
-  if (BASE_PATH) app.use(BASE_PATH, dataReview);
+  if (BASE_PATH) { app.use(BASE_PATH, mergePlans); app.use(BASE_PATH, dataReview); }
 }
 
 const usageTelemetry = require('./src/routes/usage-telemetry');
