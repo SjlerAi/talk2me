@@ -2,6 +2,7 @@
   <div class="login-card">
     <img class="login-logo" src="<%= basePath %>/public/images/talk2me-logo.png" alt="Talk2Me">
     <h1>Staff Login</h1>
+    <% if(isStaging){ %><p class="tk2m-stage-identity" style="text-align:center;margin:0 0 14px;font-size:11px;font-weight:850;letter-spacing:.09em;color:#a9252b">TK2M TEST CRM · NOT LIVE</p><% } %>
     <% if (error) { %><div class="alert"><%= error %></div><% } %>
     <div id="default-logout-notice" class="alert" hidden><strong>Automatic logout completed.</strong><br>Talk2Me closed the previous session at the configured daily logout time. Please log in again.</div>
     <form id="login-form" method="post" action="<%= basePath %>/login" autocomplete="off">

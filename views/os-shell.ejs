@@ -25,41 +25,41 @@
   <style id="tk2m-myday-focus-critical">
     /* Inline with My Day to keep calendar controls and priority cards aligned
        even if a separate staging stylesheet is stale or not applied. */
-    #talk2me-os.t2m-tk2m-test-shell .t2m-home-calendar {
+    #talk2me-os .t2m-home-calendar {
       grid-template-rows:auto auto auto auto minmax(0,1fr)!important;
       gap:8px!important;overflow:auto;
     }
-    #talk2me-os.t2m-tk2m-test-shell .t2m-home-focus {
+    #talk2me-os .t2m-home-focus {
       display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;
       align-items:stretch;gap:7px!important;min-width:0;margin:0;
     }
-    #talk2me-os.t2m-tk2m-test-shell .t2m-home-focus>button {
+    #talk2me-os .t2m-home-focus>button {
       display:grid!important;grid-template-columns:minmax(0,1fr) auto!important;
       grid-template-rows:auto auto;align-items:center;gap:3px 7px!important;
       min-width:0;min-height:61px;padding:9px 10px!important;
       border:1px solid #d6e0ea!important;border-radius:11px!important;
       background:#fff!important;color:#202832!important;text-align:left!important;
     }
-    #talk2me-os.t2m-tk2m-test-shell .t2m-home-focus>button>span {
+    #talk2me-os .t2m-home-focus>button>span {
       display:block;min-width:0;font-size:11px!important;font-weight:850;
       line-height:1.25;white-space:normal;
     }
-    #talk2me-os.t2m-tk2m-test-shell .t2m-home-focus>button>strong {
+    #talk2me-os .t2m-home-focus>button>strong {
       display:block;font-size:22px!important;line-height:1;color:#263544!important;
     }
-    #talk2me-os.t2m-tk2m-test-shell .t2m-home-focus>button.has-attention>strong {
+    #talk2me-os .t2m-home-focus>button.has-attention>strong {
       color:#bd2130!important;
     }
-    #talk2me-os.t2m-tk2m-test-shell .t2m-home-focus>button>small {
+    #talk2me-os .t2m-home-focus>button>small {
       display:block;grid-column:1/-1;min-width:0;
       color:#657383;font-size:10px!important;
       white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
     }
-    #talk2me-os.t2m-tk2m-test-shell .t2m-home-team-filter {
+    #talk2me-os .t2m-home-team-filter {
       position:relative;z-index:1;
     }
     @media(max-width:760px){
-      #talk2me-os.t2m-tk2m-test-shell .t2m-home-focus{
+      #talk2me-os .t2m-home-focus{
         grid-template-columns:repeat(2,minmax(0,1fr))!important;
       }
     }
@@ -82,11 +82,11 @@
   <% const firstName = String(currentUser.full_name || currentUser.username || 'Staff').trim().split(/\s+/)[0]; %>
   <% const unassignedCount = typeof unassignedClientCount === 'undefined' ? 0 : Number(unassignedClientCount || 0); %>
   <% const approvalCount = typeof approvalCentreCount === 'undefined' ? 0 : Number(approvalCentreCount || 0); %>
-  <div class="t2m-os-shell" id="talk2me-os">
+  <div class="t2m-os-shell<%= isStaging?' t2m-tk2m-test-shell t2m-calendar-home-shell':'' %>" id="talk2me-os" <% if(isStaging){ %>data-tk2m-preview="1"<% } %>>
     <header class="t2m-os-topbar">
       <a class="t2m-os-brand" href="<%= basePath %>/workspace" aria-label="Talk2Me OS home">
         <img src="<%= basePath %>/public/images/talk2me-logo.png" alt="Talk2Me">
-        <span><strong>Talk2Me</strong><small>OS v<%= appVersion %></small></span>
+        <span><strong>Talk2Me</strong><small><%= isStaging?'TK2M TEST · ':'' %>OS v<%= appVersion %></small></span>
       </a>
       <div class="t2m-os-search" role="search">
         <span aria-hidden="true">⌕</span>
