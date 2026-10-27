@@ -574,7 +574,7 @@
         </select>
       </div>`;
 
-    const quickCommandPanel=taskState.management?quickCommandHtml():'';
+    const quickCommandPanel=taskState.management&&!retireCudoInTk2m?quickCommandHtml():'';
 
     const cards=taskState.tasks.length?taskState.tasks.map(task=>{
       const badge=taskInboxBadge(task);
