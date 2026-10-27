@@ -62,7 +62,7 @@ router.get('/data-review',protectedPage,reviewSession,authorize,async(req,res,ne
     const term=String(req.query.q||'').trim().slice(0,70).toLowerCase();
     let listing=all.filter(x=>(kind==='all'||x.kind===kind) &&
       (view==='all'||(view==='open'?['pending','stale','needs_update','hold'].includes(x.state):x.state===view)) &&
-      (!term||[x.label,x.description,x.kindLabel].some(s=>String(s).toLowerCase().includes(term))));
+      (!term||[x.label,x.description,x.kindLabel,...x.members.flatMap(m=>[m.client_name,m.account_number,m.id_number,m.email,m.cell_number_normalised,m.cell_number])].some(s=>String(s||'').toLowerCase().includes(term))));
     listing.sort(caseSort);
     const page=Math.max(1,Math.min(999,Number.parseInt(req.query.page,10)||1));
     const limit=25;
