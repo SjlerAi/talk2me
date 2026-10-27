@@ -300,6 +300,13 @@ if (CUDO_DISABLED) {
 app.use('/public', express.static(path.join(__dirname, 'public')));
 if (BASE_PATH) app.use(`${BASE_PATH}/public`, express.static(path.join(__dirname, 'public')));
 
+// Protected TK2M-only review portal. UENT live never loads the new routes.
+if (CRM_STAGE_MODE) {
+  const dataReview = require('./src/routes/tk2m-data-review');
+  app.use('/', dataReview);
+  if (BASE_PATH) app.use(BASE_PATH, dataReview);
+}
+
 const usageTelemetry = require('./src/routes/usage-telemetry');
 app.use('/', usageTelemetry);
 if (BASE_PATH) app.use(BASE_PATH, usageTelemetry);

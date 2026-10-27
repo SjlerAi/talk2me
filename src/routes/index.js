@@ -6,7 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { requireAuth, businessDate } = require('../middleware/auth');
-const { safeCleanupReturn } = require('../services/cleanup-login-return');
+const { safeLoginReturn } = require('../services/cleanup-login-return');
 const { canUseTemporaryCleanup } = require('../services/temporary-cleanup-access');
 const { trackEvent } = require('../services/usage-telemetry');
 const { sendTaskEmail } = require('../services/mailer');
@@ -184,13 +184,14 @@ router.get('/login', (req, res) => {
   // A valid logged-in session must not render Staff Login underneath
   // the authenticated toolbar. Return to the normal role landing page.
   if (req.session.user) {
-    return res.redirect(`${res.locals.basePath}${defaultLanding(req.session.user)}`);
+    const reviewTarget=safeLoginReturn(req.query.return_to,res.locals.basePath,res.locals.isStaging);
+    return res.redirect(reviewTarget === res.locals.basePath+'/data-review' ? reviewTarget : `${res.locals.basePath}${defaultLanding(req.session.user)}`);
   }
   const reason = String(req.query.reason || '');
   const error = reason === 'daily'
     ? 'Please sign in for today. Talk2Me starts a fresh staff session each working day.'
     : null;
-  const returnTo = safeCleanupReturn(req.query.return_to, res.locals.basePath);
+  const returnTo = safeLoginReturn(req.query.return_to, res.locals.basePath, res.locals.isStaging);
   res.render('login', { title: 'Login', error, returnTo,
     // TK2M preview has its own tiny auth shell. UENT retains its original layout.
     layout: res.locals.isStaging ? 'tk2m-login-layout' : 'layout' });
@@ -198,7 +199,7 @@ router.get('/login', (req, res) => {
 
 router.post('/login', async (req, res, next) => {
   try {
-    const returnTo = safeCleanupReturn(req.body.return_to, res.locals.basePath);
+    const returnTo = safeLoginReturn(req.body.return_to, res.locals.basePath, res.locals.isStaging);
     const login = String(req.body.email || '').trim();
     const password = req.body.password;
     const loginKey = login.toLowerCase();
@@ -241,7 +242,8 @@ router.post('/login', async (req, res, next) => {
           httpStatus:302,
           metadata:{ loginDate:req.session.loginDate }
         });
-        const landing = returnTo && canUseTemporaryCleanup(sessionUser) ? returnTo : res.locals.basePath + defaultLanding(sessionUser);
+        const reviewAllowed=res.locals.isStaging && returnTo===res.locals.basePath+'/data-review';
+        const landing = returnTo && (canUseTemporaryCleanup(sessionUser)||reviewAllowed) ? returnTo : res.locals.basePath + defaultLanding(sessionUser);
         req.session.save(saveError => saveError ? next(saveError) : res.redirect(landing));
       } catch(e){ next(e); }
     });

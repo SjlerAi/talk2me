@@ -26,4 +26,15 @@ function cleanupLoginUrl(req, res, reason = '') {
   return base + '/login' + (qs.toString() ? '?' + qs.toString() : '');
 }
 
-module.exports = { safeCleanupReturn, cleanupLoginUrl };
+// Only the protected TK2M staging site is allowed to return directly to
+// the new review centre. Keep UENT's existing cleanup-login allow-list intact.
+function safeReviewReturn(value, basePath = '/talk2me', isStaging = false) {
+  if(!isStaging)return null;
+  const base=String(basePath||'').replace(/\/+$/,'');
+  const exact=base+'/data-review';
+  return typeof value==='string' && value===exact ? exact : null;
+}
+function safeLoginReturn(value,basePath,isStaging=false){
+  return safeCleanupReturn(value,basePath)||safeReviewReturn(value,basePath,isStaging);
+}
+module.exports = { safeCleanupReturn, safeReviewReturn, safeLoginReturn, cleanupLoginUrl };
