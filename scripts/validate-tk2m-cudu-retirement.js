@@ -17,6 +17,11 @@ for (const template of ['views/os-shell.ejs', 'views/layout.ejs']) {
   }
 }
 
+const staticCudu = read('public/js/cudo-widget.js');
+const staticGuard = "if (window.location.hostname === 'crm.tk2m.co.za')";
+assert.ok(staticCudu.includes(staticGuard), 'Static asset must guard the permanent TK2M domain');
+assert.ok(staticCudu.indexOf(staticGuard) < staticCudu.indexOf("root.className='cudo-root'"), 'Guard must execute before legacy launcher creation');
+assert.match(read('public/css/cudo-widget.css'), /data-cudo-disabled/);
 const server = read('server.js');
 assert.match(server, /https:\/\/crm\.tk2m\.co\.za/);
 assert.match(server, /if \(!CUDO_DISABLED\) \{\s*const cudoAi = require\('\.\/src\/routes\/cudo-ai'\)/);
