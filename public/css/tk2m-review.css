@@ -94,3 +94,9 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 @media(max-width:1150px){.review-kinds{grid-template-columns:repeat(3,minmax(0,1fr))}.review-detail-grid{grid-template-columns:1fr}}
 @media(max-width:760px){.review-header{align-items:flex-start;flex-direction:column}.review-nav{gap:6px}.review-intro{align-items:flex-start;flex-direction:column}.review-user{width:100%}.review-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.review-kinds{grid-template-columns:repeat(2,minmax(0,1fr))}.review-card{padding:15px}.review-case-title{align-items:flex-start;flex-direction:column}.review-compare{grid-template-columns:1fr}.review-case-row small{white-space:normal;overflow-wrap:anywhere}.review-filters select,.review-filters input{max-width:none;flex:1 1 130px}}
 @media(max-width:420px){.review-kinds{grid-template-columns:1fr}.review-nav a,.review-nav button{padding:7px 9px}.review-brand img{width:86px}.review-case-row{align-items:flex-start;flex-direction:column}}
+
+.merge-candidate-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.merge-candidate{display:flex;gap:12px;padding:14px;border:1px solid #d6e3ed;border-radius:12px;cursor:pointer}
+.merge-candidate.is-selected{background:#eef8ff;border-color:#2c83b9}
+.merge-candidate-info{display:grid;gap:5px;font-size:12px}
+@media(max-width:900px){.merge-candidate-list{grid-template-columns:1fr}}
