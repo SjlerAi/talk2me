@@ -54,7 +54,7 @@
         <section class="review-subsection">
           <h3>Related customer records (<%= selected.members.length %>)</h3>
           <div class="review-table-wrap"><table>
-            <thead><tr><th>Client record</th><th>Account</th><th>Primary phone</th><th>Next upgrade</th><th>Previous upgrade</th><th>Line / package</th><th>Assigned staff ID</th></tr></thead>
+            <thead><tr><th>Client record</th><th>Account</th><th>Primary phone</th><th>Next upgrade</th><th>Previous upgrade</th><th>Line / package</th><th>Assigned staff</th></tr></thead>
             <tbody>
               <% selected.members.forEach(m=>{ %>
               <tr><td><strong><%= m.client_name||'Unnamed' %></strong><small>ID <%= m.id %> · <%= Number(m.is_active)?'Active':'Inactive' %></small></td>
@@ -63,7 +63,7 @@
                 <td><%= m.next_upgrade_date instanceof Date?m.next_upgrade_date.toISOString().slice(0,10):(m.next_upgrade_date||'—') %></td>
                 <td><%= m.previous_upgrade_date instanceof Date?m.previous_upgrade_date.toISOString().slice(0,10):(m.previous_upgrade_date||'—') %></td>
                 <td><%= m.line_status||'—' %> · <%= m.package_name||'—' %></td>
-                <td><%= m.assigned_staff_id||'Unassigned' %></td>
+                <td><%= m.assigned_staff_name||'Unassigned' %></td>
               </tr>
               <% }) %>
             </tbody>
