@@ -7,6 +7,19 @@
   if (!configNode) return;
   const config = JSON.parse(configNode.textContent || '{}');
   const basePath = String(config.basePath || '');
+  // A stale browser tab can retain a previously injected Cudu launcher.
+  // TK2M permanently removes it; this does not affect the live UENT CRM.
+  if (window.location.hostname === 'crm.tk2m.co.za') {
+    document.documentElement.dataset.cudoDisabled = 'true';
+    const removeRetiredWidget = () => {
+      document.querySelectorAll('.cudo-root').forEach(node => node.remove());
+    };
+    removeRetiredWidget();
+    if (document.body && typeof MutationObserver !== 'undefined') {
+      const guard = new MutationObserver(removeRetiredWidget);
+      guard.observe(document.body, {childList: true});
+    }
+  }
   const retireCudoInTk2m = window.location.hostname === 'crm.tk2m.co.za';
   const user = config.user || {};
   const palette = ['#7c3aed','#2563eb','#059669','#ea580c','#db2777','#0891b2','#9333ea','#16a34a','#c2410c','#0284c7'];
