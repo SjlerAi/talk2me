@@ -20,7 +20,14 @@ for (const template of ['views/os-shell.ejs', 'views/layout.ejs']) {
 const server = read('server.js');
 assert.match(server, /https:\/\/crm\.tk2m\.co\.za/);
 assert.match(server, /if \(!CUDO_DISABLED\) \{\s*const cudoAi = require\('\.\/src\/routes\/cudo-ai'\)/);
+assert.match(server, /app\.get\('\/public\/js\/cudo-widget\.js'/);
+assert.match(server, /app\.get\('\/public\/css\/cudo-widget\.css'/);
+for (const template of ['views/os-shell.ejs', 'views/layout.ejs']) {
+  assert.match(read(template), /tk2m-retired-cudu/);
+}
 const work = read('public/js/uat-work-widgets.js');
+assert.match(work, /document\.querySelectorAll\('\.cudo-root'\)/);
+assert.match(work, /new MutationObserver\(removeRetiredWidget\)/);
 assert.match(work, /retireCudoInTk2m\s*=\s*window\.location\.hostname === 'crm\.tk2m\.co\.za'/);
 assert.match(work, /taskState\.management\s*&&\s*!retireCudoInTk2m\s*\?\s*quickCommandHtml\(\)/);
 assert.match(work, /taskState\.management\s*&&\s*!prefill\.advanced\s*&&\s*!retireCudoInTk2m/);
