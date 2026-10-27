@@ -20,6 +20,10 @@ const sessionSecure = String(process.env.SESSION_SECURE || 'false').toLowerCase(
 const UAT_MODE = String(process.env.UAT_MODE || '').trim().toLowerCase() === 'true';
 const CRM_STAGE_MODE = String(process.env.CRM_STAGE_MODE || '').trim().toLowerCase() === 'true';
 const APP_ENVIRONMENT = CRM_STAGE_MODE ? 'staging' : (UAT_MODE ? 'uat' : 'production');
+// Retire Cudu on the permanent TK2M CRM, including after production cutover.
+// UENT keeps its existing Cudu behavior until that system is decommissioned.
+const CUDO_DISABLED = CRM_STAGE_MODE ||
+  String(process.env.APP_URL || '').trim().replace(/\/$/, '').toLowerCase() === 'https://crm.tk2m.co.za';
 const EIGHT_HOURS_MS = 8 * 60 * 60 * 1000;
 
 function assetVersionForRelease() {
