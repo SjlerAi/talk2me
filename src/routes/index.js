@@ -191,7 +191,9 @@ router.get('/login', (req, res) => {
     ? 'Please sign in for today. Talk2Me starts a fresh staff session each working day.'
     : null;
   const returnTo = safeCleanupReturn(req.query.return_to, res.locals.basePath);
-  res.render('login', { title: 'Login', error, returnTo });
+  res.render('login', { title: 'Login', error, returnTo,
+    // TK2M preview has its own tiny auth shell. UENT retains its original layout.
+    layout: res.locals.isStaging ? 'tk2m-login-layout' : 'layout' });
 });
 
 router.post('/login', async (req, res, next) => {
@@ -207,7 +209,8 @@ router.post('/login', async (req, res, next) => {
     let ok = false;
     if (user && user.password_hash) ok = await bcrypt.compare(password, user.password_hash);
     // Legacy accounts without a password hash require a secure administrator-led reset.
-    if (!user || !ok) return res.status(401).render('login', { title: 'Login', error: 'Invalid login details.', returnTo });
+    if (!user || !ok) return res.status(401).render('login', { title: 'Login', error: 'Invalid login details.', returnTo,
+      layout: res.locals.isStaging ? 'tk2m-login-layout' : 'layout' });
     const sessionUser = { id: user.id, full_name: user.full_name, email: user.email, role: user.role, username: user.username || user.full_name };
     req.session.regenerate(async error => {
       if (error) return next(error);

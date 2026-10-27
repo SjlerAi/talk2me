@@ -1,0 +1,55 @@
+/* TK2M isolated login -- no command/administration CSS or JS on sign-in. */
+:root{color-scheme:light}
+*,*::before,*::after{box-sizing:border-box}
+html,body{min-width:320px;min-height:100%;margin:0}
+body.tk2m-login-body{
+  font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif;
+  background:radial-gradient(ellipse at 14% 13%,rgba(196,221,248,.7),transparent 47%),
+    radial-gradient(ellipse at 88% 85%,rgba(223,238,252,.85),transparent 45%),
+    linear-gradient(145deg,#e9f3ff,#f7fbff);
+  color:#1f3449;-webkit-font-smoothing:antialiased
+}
+.tk2m-auth-main{min-height:100vh;min-height:100svh;display:grid;place-items:center;padding:30px 18px}
+.login-shell{width:100%;display:grid;place-items:center}
+.login-card{
+  width:min(438px,100%);padding:34px 35px 30px;
+  background:#fff;border:1px solid #d4e3f1;border-radius:22px;
+  box-shadow:0 20px 65px rgba(33,74,117,.11),0 2px 10px rgba(33,74,117,.035)
+}
+.login-logo{display:block;width:210px;max-width:100%;height:auto;object-fit:contain;margin:0 auto 19px}
+.login-card h1{font-size:26px;line-height:1.2;letter-spacing:-.025em;text-align:center;color:#25394b;margin:0 0 8px}
+.login-card .tk2m-stage-identity{
+  font-size:11px!important;letter-spacing:.1em!important;color:#718298!important;
+  font-weight:800!important;text-align:center;margin:0 0 24px!important
+}
+.login-card form{display:grid;gap:0}
+.login-card label{display:block;margin:13px 0 7px;font-size:13px;font-weight:750;color:#33485e}
+.login-card input:not([type=hidden]){
+  display:block;width:100%;height:48px;padding:0 14px;
+  background:#fbfdff;border:1px solid #cfdce9;border-radius:11px;
+  color:#172c41;font:inherit;font-size:15px;outline:none
+}
+.login-card input::placeholder{color:#8997a8}
+.login-card input:focus{border-color:#2787d3;box-shadow:0 0 0 3px rgba(39,135,211,.13)}
+.login-card button.primary{
+  display:block;width:100%;min-height:49px;margin:25px 0 0;
+  padding:12px 14px;border:0;border-radius:11px;background:#ed1c24;
+  color:#fff;font:inherit;font-size:15px;font-weight:850;cursor:pointer;
+  transition:background .15s ease,transform .15s ease
+}
+.login-card button.primary:hover{background:#c91624}
+.login-card button.primary:active{transform:translateY(1px)}
+.login-card button.primary:focus-visible{outline:3px solid #8fc5f0;outline-offset:3px}
+.login-card .alert{
+  padding:12px 14px;border:1px solid #f2bec4;border-radius:10px;
+  background:#fff2f3;color:#a62832;font-size:13px;line-height:1.45
+}
+.login-card .alert[hidden]{display:none!important}
+.login-return-notice{margin:4px 0 8px;font-size:12px;color:#667c92}
+.version-stamp{margin-top:19px;padding-top:13px;border-top:1px solid #edf2f7;text-align:center;color:#7f8ea0;font-size:11px}
+@media(max-width:520px){
+ .tk2m-auth-main{padding:18px 13px}
+ .login-card{padding:26px 22px;border-radius:18px}
+ .login-logo{width:190px}
+}
+@media(prefers-reduced-motion:reduce){.login-card button.primary{transition:none}}
