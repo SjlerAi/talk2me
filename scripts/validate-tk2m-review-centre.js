@@ -104,7 +104,7 @@ function conn(rows){
  assert.ok(page.includes('QA Staff 5'));
  assert.ok(page.includes('source_hash'));
  assert.ok(page.includes('No customer records'));
- const queue=ejs.render(view,{...shared,selected:null,listing:all});
+ const queue=ejs.render(view,{...shared,selected:null,history:null,listing:all});
  assert.ok(queue.includes('Review queue')&&queue.includes('Source vs test'));
  const staffPage=ejs.render(view,{...shared,currentUser:staff,canManage:false,selected:{...sample,lines:[]}});
  assert.ok(!staffPage.includes('value="verified"')&&!staffPage.includes('value="keep_separate"'));
