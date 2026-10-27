@@ -181,6 +181,11 @@ router.get('/', (req, res) => {
 });
 
 router.get('/login', (req, res) => {
+  // A valid logged-in session must not render Staff Login underneath
+  // the authenticated toolbar. Return to the normal role landing page.
+  if (req.session.user) {
+    return res.redirect(`${res.locals.basePath}${defaultLanding(req.session.user)}`);
+  }
   const reason = String(req.query.reason || '');
   const error = reason === 'daily'
     ? 'Please sign in for today. Talk2Me starts a fresh staff session each working day.'
