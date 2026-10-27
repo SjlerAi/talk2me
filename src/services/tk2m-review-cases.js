@@ -51,7 +51,7 @@ async function loadCases(user,conn=db) {
   for(const [phone,people] of grouped) {
     if(people.length<2)continue;
     const versions=people.map(x=>[x.id,x.is_active,x.account_id,x.account_number,
-      date(x.next_upgrade_date),date(x.previous_upgrade_date),x.line_status,date(x.updated_at)]);
+      date(x.next_upgrade_date),date(x.previous_upgrade_date),x.line_status,text(x.updated_at)]);
     const accounts=new Set(people.map(x=>text(x.account_id||x.account_number)).filter(Boolean));
     const dates=new Set(people.map(x=>date(x.next_upgrade_date)).filter(Boolean));
     cases.push(make('duplicate_phone',phone,people.slice(0,2).map(x=>text(x.client_name||'Customer')).join(' / '),
@@ -66,7 +66,7 @@ async function loadCases(user,conn=db) {
       'Identity case #'+t.id+' · '+members.length+' related customer records',members,
       {caseId:Number(t.id),phone:normPhone(t.phone_normalised),reason:text(t.reason_codes_json).slice(0,800),
         priorNotes:text(t.review_notes).slice(0,1200),
-        version:[t.id,t.status,t.source_hash,date(t.updated_at),members.map(x=>[x.id,x.is_active,x.account_id,date(x.next_upgrade_date)])]}));
+        version:[t.id,t.status,t.source_hash,text(t.updated_at),members.map(x=>[x.id,x.is_active,x.account_id,date(x.next_upgrade_date)])]}));
   }
   const [imports]=await conn.query("SELECT m.id match_id,m.classification,m.review_status,m.match_domain,m.match_reason,m.proposed_client_id,m.proposed_account_id,m.updated_at,r.id row_id,r.row_fingerprint,r.source_row_number,r.batch_id,r.customer_name,r.phone_normalised,r.phone_original,r.account_number,r.warning_text FROM monthly_import_matches m INNER JOIN monthly_import_rows r ON r.id=m.import_row_id WHERE m.review_status='pending' AND m.classification IN ('conflict','possible_match') ORDER BY m.classification,m.id");
   for(const m of imports) {
@@ -82,9 +82,9 @@ async function loadCases(user,conn=db) {
         warning:text(m.warning_text).slice(0,900),proposedClientId:Number(m.proposed_client_id||0),
         proposedAccountId:Number(m.proposed_account_id||0),
         version:[m.row_fingerprint,m.source_row_number,m.classification,m.review_status,m.match_domain,
-          m.match_reason,m.proposed_client_id,m.proposed_account_id,date(m.updated_at),m.warning_text]}));
+          m.match_reason,m.proposed_client_id,m.proposed_account_id,text(m.updated_at),m.warning_text]}));
   }
-  const [deltas]=await conn.query('SELECT entity_type,entity_id,field_key,source_value,stage_value,source_hash,checked_at FROM tk2m_review_source_deltas ORDER BY entity_type,entity_id,field_key');
+  const [deltas]=await conn.query('SELECT entity_type,entity_id,field_key,source_value,stage_value,source_hash,checked_at FROM tk2m_review_source_deltas WHERE is_current=1 ORDER BY entity_type,entity_id,field_key');
   for(const d of deltas) {
     const related=d.entity_type==='client'?byId.get(Number(d.entity_id)):null;
     const members=related?[related]:[];
