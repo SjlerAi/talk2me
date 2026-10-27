@@ -107,3 +107,12 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .merge-step-number{flex:none;width:32px;height:32px;border-radius:10px;display:grid;place-items:center;background:#eaf4ff;color:#1269a5;font-weight:850}
 .merge-candidate input{width:18px;height:18px;accent-color:#1476b8}
 .merge-candidate-top{display:flex;gap:9px;align-items:center;flex-wrap:wrap;color:#21394d;font-size:14px}
+
+.merge-field-table{min-width:720px}
+.merge-field-table td{vertical-align:middle}
+.merge-field-table td:nth-child(2){min-width:260px}
+.merge-field-table td:nth-child(3){min-width:220px}
+.merge-field-table select,.merge-form-step select{padding:10px;min-height:42px;border:1px solid #cadae7;border-radius:9px;background:#fff;color:#24394e;width:100%}
+.merge-field-choices{display:grid;gap:5px}
+.merge-field-choice{font-size:11px;overflow-wrap:anywhere;color:#546b7b}
+.merge-field-choice strong{display:inline}
