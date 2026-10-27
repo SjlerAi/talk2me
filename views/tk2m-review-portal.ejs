@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <meta name="theme-color" content="#eaf3fc">
+  <title><%= title %> | Talk2Me CRM</title>
+  <link rel="icon" href="<%= basePath %>/public/images/favicon.ico">
+  <link rel="stylesheet" href="<%= basePath %>/public/css/tk2m-review.css?v=<%= encodeURIComponent(assetVersion||'1') %>">
+</head>
+<body>
+  <header class="review-header">
+    <div class="review-brand">
+      <img src="<%= basePath %>/public/images/talk2me-logo.png" alt="Talk2Me">
+      <div><strong>Data Review Centre</strong><small>TK2M private CRM · Review before migration</small></div>
+    </div>
+    <nav class="review-nav" aria-label="Review navigation">
+      <a href="<%= basePath %>/data-review">Review queue</a>
+      <a href="<%= basePath %>/data-review/history">Decision history</a>
+      <a href="<%= basePath %>/workspace">My Day</a>
+      <form method="post" action="<%= basePath %>/logout"><button>Log out</button></form>
+    </nav>
+  </header>
+  <main class="review-main">
+    <div class="review-intro">
+      <div>
+        <p class="eyebrow">CUSTOMER DATA QUALITY</p>
+        <h1><%= title %></h1>
+        <p class="review-lead">Confirm the facts, add a note and record a decision. No customer records or mobile contracts are merged or changed here.</p>
+      </div>
+      <div class="review-user"><span>Signed in as</span><strong><%= currentUser.full_name %></strong><small><%= currentUser.role %> · <%= canManage?'Full review':'Assigned customers only' %></small></div>
+    </div>
+
+    <% if(notice){ %><div class="review-notice" role="status"><%= notice %></div><% } %>
+
+    <% if(selected){ %>
+      <div class="review-breadcrumb"><a href="<%= basePath %>/data-review">All outstanding cases</a><span>/</span><%= selected.kindLabel %></div>
+      <div class="review-card review-case">
+        <div class="review-case-title">
+          <div><span class="type-pill"><%= selected.kindLabel %></span><h2><%= selected.label %></h2>
+            <p><%= selected.description %></p></div>
+          <span class="state-pill state-<%= selected.state %>"><%= selected.state==='stale'?'Changed — check again':selected.state.replace('_',' ') %></span>
+        </div>
+        <% if(selected.state==='stale'){ %><div class="review-warning">The underlying customer or import record changed after the last decision. The previous decision is retained in history but must be reviewed again.</div><% } %>
+        <% if(selected.kind==='migration'){ %>
+        <section class="review-subsection"><h3>Live UENT compared with TK2M</h3>
+          <div class="review-compare"><div><small>Currently live (UENT)</small><strong><%= selected.details.sourceValue %></strong></div>
+          <div><small>TK2M test data</small><strong><%= selected.details.stageValue %></strong></div></div>
+          <p class="review-muted">Source comparison captured: <%= selected.details.checkedAt %>. This comparison must be refreshed before Friday's transfer.</p>
+        </section>
+        <% } %>
+        <% if(selected.members.length){ %>
+        <section class="review-subsection">
+          <h3>Related customer records (<%= selected.members.length %>)</h3>
+          <div class="review-table-wrap"><table>
+            <thead><tr><th>Client record</th><th>Account</th><th>Primary phone</th><th>Next upgrade</th><th>Previous upgrade</th><th>Line / package</th><th>Assigned staff ID</th></tr></thead>
+            <tbody>
+              <% selected.members.forEach(m=>{ %>
+              <tr><td><strong><%= m.client_name||'Unnamed' %></strong><small>ID <%= m.id %> · <%= Number(m.is_active)?'Active':'Inactive' %></small></td>
+                <td><%= m.account_number||m.account_id||'—' %></td>
+                <td><%= m.cell_number_normalised||m.cell_number||'—' %></td>
+                <td><%= m.next_upgrade_date instanceof Date?m.next_upgrade_date.toISOString().slice(0,10):(m.next_upgrade_date||'—') %></td>
+                <td><%= m.previous_upgrade_date instanceof Date?m.previous_upgrade_date.toISOString().slice(0,10):(m.previous_upgrade_date||'—') %></td>
+                <td><%= m.line_status||'—' %> · <%= m.package_name||'—' %></td>
+                <td><%= m.assigned_staff_id||'Unassigned' %></td>
+              </tr>
+              <% }) %>
+            </tbody>
+          </table></div>
+          <p class="review-muted">Customer records may legitimately represent separate contracts. Compare account ownership and upgrade dates before deciding.</p>
+        </section>
+        <% } %>
+        <% if(selected.lines && selected.lines.length){ %>
+        <section class="review-subsection"><h3>Current mobile-line evidence (<%= selected.lines.length %>)</h3><div class="review-table-wrap"><table>
+          <thead><tr><th>Mobile line</th><th>Account</th><th>Linked customer ID</th><th>Last upgrade</th><th>Eligible upgrade</th><th>Device</th></tr></thead>
+          <tbody><% selected.lines.forEach(line=>{ %><tr><td><%= line.msisdn_normalised||'—' %></td><td><%= line.account_code||'—' %></td><td><%= line.client_id||'Not linked' %></td><td><%= line.last_upgrade_date instanceof Date?line.last_upgrade_date.toISOString().slice(0,10):(line.last_upgrade_date||'—') %></td><td><%= line.eligible_upgrade_date instanceof Date?line.eligible_upgrade_date.toISOString().slice(0,10):(line.eligible_upgrade_date||'—') %></td><td><%= line.device_name||'—' %></td></tr><% }) %></tbody>
+        </table></div></section>
+        <% } %>
+        <% if(selected.kind==='identity'){ %>
+        <section class="review-subsection"><h3>Existing identity review evidence</h3><p>Case #<%= selected.details.caseId %></p>
+          <p><strong>Reason codes:</strong> <%= selected.details.reason||'Not supplied' %></p>
+          <p><strong>Earlier reviewer notes:</strong> <%= selected.details.priorNotes||'No notes yet' %></p></section>
+        <% } %>
+        <% if(selected.kind==='import_conflict'||selected.kind==='import_possible'){ %>
+        <section class="review-subsection"><h3>Import row and proposed match</h3>
+          <div class="review-compare"><div><small>Batch / source row</small><strong>#<%= selected.details.batchId %> / <%= selected.details.rowNumber %></strong></div><div><small>Proposed CRM target</small><strong>Client #<%= selected.details.proposedClientId||'none' %> · Account #<%= selected.details.proposedAccountId||'none' %></strong></div></div>
+          <p><strong>Account:</strong> <%= selected.details.account||'—' %> · <strong>Phone:</strong> <%= selected.details.phone||'—' %></p>
+          <p><strong>Matching explanation:</strong> <%= selected.details.matchReason||'—' %></p>
+          <p><strong>Import warning:</strong> <%= selected.details.warning||'—' %></p>
+          <% if(canManage){ %><p><a class="review-link" href="<%= basePath %>/backoffice/monthly-import-management">Open original import management</a></p><% } %>
+          <p class="review-muted">This records a review only. To apply import corrections, use the existing controlled import-management process.</p>
+        </section>
+        <% } %>
+      </div>
+      <div class="review-detail-grid">
+        <section class="review-card review-decision">
+          <h2>Record your decision</h2>
+          <p>Write down what was checked. Your review survives a later data refresh while the underlying facts remain unchanged.</p>
+          <form method="post" action="<%= basePath %>/data-review/case/<%= selected.id %>/decision">
+            <input type="hidden" name="csrf" value="<%= csrf %>">
+            <input type="hidden" name="source_hash" value="<%= selected.fingerprint %>">
+            <input type="hidden" name="revision" value="<%= selected.review?selected.review.revision:0 %>">
+            <fieldset><legend>Outcome</legend>
+              <% if(canManage){ %>
+              <label><input type="radio" name="decision" value="verified" required> Verified — facts checked; no automatic change</label>
+              <label><input type="radio" name="decision" value="keep_separate"> Keep separate — valid distinct customers or contracts</label>
+              <% } %>
+              <label><input type="radio" name="decision" value="needs_update" required> Needs correction — send for action</label>
+              <label><input type="radio" name="decision" value="hold"> Put on hold — more evidence needed</label>
+            </fieldset>
+            <label for="review-note" class="review-note-label">What did you check? (required)</label>
+            <textarea id="review-note" name="note" rows="4" minlength="12" maxlength="2000" required placeholder="Explain the record comparison and the next action, if any."></textarea>
+            <button class="review-primary" type="submit">Save review and return to queue</button>
+            <p class="review-muted">Saving never merges clients, alters upgrade dates, imports records or sends messages.</p>
+          </form>
+        </section>
+        <section class="review-card">
+          <h2>Review history</h2>
+          <% if(!history.length){ %><p class="review-muted">No decision has been recorded for this case.</p><% } %>
+          <% history.forEach(h=>{ %><div class="review-history-line"><strong><%= h.status.replace('_',' ') %></strong><span><%= h.reviewer||'Staff' %> · <%= h.reviewed_at instanceof Date?h.reviewed_at.toISOString().slice(0,16).replace('T',' '):h.reviewed_at %></span><p><%= h.note %></p></div><% }) %>
+        </section>
+      </div>
+    <% } else if(history){ %>
+      <div class="review-card"><h2>Recorded decisions</h2><p class="review-muted">Every review remains in the audit history, including decisions that need to be reconsidered after a Friday refresh.</p>
+        <% if(!history.length){ %><p>Nothing has been reviewed yet.</p><% } %>
+        <div class="review-table-wrap"><table><thead><tr><th>When</th><th>Reviewer</th><th>Case type</th><th>Decision</th><th>Explanation</th></tr></thead><tbody>
+        <% history.forEach(h=>{ %><tr><td><%= h.reviewed_at instanceof Date?h.reviewed_at.toISOString().slice(0,16).replace('T',' '):h.reviewed_at %></td><td><%= h.reviewer||'Staff' %></td><td><%= kinds[h.kind]||h.kind %></td><td><%= h.status.replace('_',' ') %></td><td><%= h.note %></td></tr><% }) %>
+        </tbody></table></div>
+      </div>
+    <% } else { %>
+      <section class="review-stats" aria-label="Review progress">
+        <div><small>Total cases accessible</small><strong><%= totals.total %></strong></div>
+        <div><small>Unreviewed</small><strong><%= totals.pending %></strong></div>
+        <div><small>Changed since review</small><strong class="review-attention"><%= totals.stale %></strong></div>
+        <div><small>Decisions recorded</small><strong><%= totals.done %></strong></div>
+      </section>
+      <div class="review-kinds">
+        <% Object.entries(kinds).forEach(([key,label])=>{ %>
+          <a href="<%= basePath %>/data-review?kind=<%= key %>&view=open" class="<%= kind===key?'active':'' %>"><strong><%= label %></strong><span><%= totals.kinds[key].total %> cases · <%= totals.kinds[key].pending+totals.kinds[key].stale %> new or changed</span></a>
+        <% }) %>
+      </div>
+      <section class="review-card">
+        <div class="review-list-head"><div><h2>Review queue</h2><p><%= listTotal %> matching cases · open one to see the full record comparison</p></div>
+          <form method="get" action="<%= basePath %>/data-review" class="review-filters">
+            <select name="kind" aria-label="Case type"><option value="all">All case types</option><% Object.entries(kinds).forEach(([key,label])=>{ %><option value="<%= key %>" <%= kind===key?'selected':'' %>><%= label %></option><% }) %></select>
+            <select name="view" aria-label="Review status"><% [['open','Needs attention'],['pending','Unreviewed'],['stale','Changed'],['needs_update','Needs correction'],['hold','On hold'],['verified','Verified'],['keep_separate','Keep separate'],['all','All statuses']].forEach(([key,label])=>{ %><option value="<%= key %>" <%= view===key?'selected':'' %>><%= label %></option><% }) %></select>
+            <input type="search" name="q" value="<%= q %>" placeholder="Search name, account, phone" aria-label="Search cases">
+            <button>Apply</button>
+          </form>
+        </div>
+        <% if(!listing.length){ %><div class="review-empty">No cases match this filter. Try another category or view the decision history.</div><% } %>
+        <div class="review-case-list">
+          <% listing.forEach(c=>{ %>
+          <a class="review-case-row" href="<%= basePath %>/data-review/case/<%= c.id %>">
+            <div><span class="type-pill"><%= c.kindLabel %></span><strong><%= c.label %></strong><small><%= c.description %></small></div>
+            <span class="state-pill state-<%= c.state %>"><%= c.state==='stale'?'Changed':c.state.replace('_',' ') %></span>
+          </a>
+          <% }) %>
+        </div>
+        <div class="review-pagination">
+          <span>Page <%= page %> of <%= pages %></span>
+          <div>
+          <% if(page>1){ %><a href="<%= basePath %>/data-review?kind=<%= kind %>&view=<%= view %>&q=<%= encodeURIComponent(q) %>&page=<%= page-1 %>">Previous</a><% } %>
+          <% if(page<pages){ %><a href="<%= basePath %>/data-review?kind=<%= kind %>&view=<%= view %>&q=<%= encodeURIComponent(q) %>&page=<%= page+1 %>">Next</a><% } %>
+          </div>
+        </div>
+      </section>
+    <% } %>
+    <footer class="review-footer">
+      <strong>Friday data refresh:</strong> The latest live changes will need a new reconciliation and controlled import. Review decisions are kept separately; changed source records must be checked again. This page does not automatically synchronise UENT and TK2M.
+    </footer>
+  </main>
+</body>
+</html>
