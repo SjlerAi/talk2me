@@ -88,29 +88,23 @@
 
       <section class="review-card merge-form-step">
         <div class="merge-heading"><span class="merge-step-number">3</span><div><h2>Pick the best value for each field</h2>
-          <p>For each field choose which <strong>selected</strong> customer record supplies its value. You can use a birthday from one record and an updated email from another.</p></div></div>
+          <p>Tick the correct value directly beside each field. Choose one value per field: the birthday can come from one record and the latest accurate contact details from another.</p></div></div>
         <div class="review-table-wrap"><table class="merge-field-table">
-          <thead><tr><th>Customer information</th><th>Values found on the candidate records</th><th>Use the value from</th></tr></thead>
+          <thead><tr><th>Customer information</th><th>Tick the correct value to retain</th></tr></thead>
           <tbody>
             <% data.fields.forEach(field=>{ %>
               <tr>
-                <td><strong><%= field.label %></strong><small>Profile field, not a mobile-line contract value</small></td>
-                <td><div class="merge-field-choices">
-                  <% data.candidates.forEach(r=>{ %>
-                    <div class="merge-field-choice"><strong>#<%= r.id %></strong>:
-                      <%= r[field.key] == null || formatted(r[field.key]).trim()===''?'—':(formatted(r[field.key]).length>100?formatted(r[field.key]).slice(0,100)+'…':formatted(r[field.key])) %>
-                    </div>
+                <th scope="row"><strong><%= field.label %></strong><small>Choose one record's value</small></th>
+                <td><div class="merge-field-choices merge-field-ticks" role="radiogroup" aria-label="Correct value for <%= field.label %>">
+                  <% data.candidates.forEach(r=>{ const filled=formatted(r[field.key]).trim()!==''; %>
+                    <label class="merge-field-tick <%= Number(selectedDonors[field.key])===Number(r.id)?'is-chosen':'' %>">
+                      <input type="radio" name="donor[<%= field.key %>]" value="<%= r.id %>" data-merge-donor data-field="<%= field.key %>"
+                        data-record-id="<%= r.id %>" data-filled="<%= filled?'1':'0' %>"
+                        <%= Number(selectedDonors[field.key])===Number(r.id)?'checked':'' %>>
+                      <span><strong>Record #<%= r.id %></strong><span class="merge-field-value"><%= filled?(formatted(r[field.key]).length>140?formatted(r[field.key]).slice(0,140)+'…':formatted(r[field.key])):'— Not recorded' %></span></span>
+                    </label>
                   <% }) %>
                 </div></td>
-                <td><select name="donor[<%= field.key %>]" data-merge-donor data-field="<%= field.key %>" required aria-label="Source for <%= field.label %>">
-                  <option value="">Select the source</option>
-                  <% data.candidates.forEach(r=>{ %>
-                    <option value="<%= r.id %>" data-record-id="<%= r.id %>" data-filled="<%= formatted(r[field.key]).trim()?1:0 %>"
-                      <%= Number(selectedDonors[field.key])===Number(r.id)?'selected':'' %>>
-                      Record #<%= r.id %> · <%= r.client_name||'Unnamed' %>
-                    </option>
-                  <% }) %>
-                </select></td>
               </tr>
             <% }) %>
           </tbody>
