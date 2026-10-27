@@ -20,6 +20,7 @@
   <link rel="stylesheet" href="<%= basePath %>/public/css/os-sidebar-collapse.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>">
   <link rel="stylesheet" href="<%= basePath %>/public/css/os-window-geometry.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>">
   <link rel="stylesheet" data-calendar-home-uat href="<%= basePath %>/public/css/calendar-home-uat.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>">
+  <% if(isStaging){ %><link rel="stylesheet" href="<%= basePath %>/public/css/tk2m-workspace-preview.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>"><% } %>
   <% if (isUat) { %>
   <style id="t2m-uat-myday-first-paint">
     #talk2me-os:not([data-calendar-home-ready="1"]) #os-desk-widgets { display: none !important; }
@@ -104,7 +105,7 @@
     <footer class="t2m-os-taskbar" id="os-taskbar" aria-label="Open windows"><span class="t2m-os-taskbar-label">Open windows</span><div class="t2m-os-taskbar-items" id="os-taskbar-items"></div></footer>
   </div>
   <div class="t2m-os-toast-region" id="os-toast-region" aria-live="polite" aria-atomic="true"></div>
-  <script id="talk2me-os-config" type="application/json"><%- JSON.stringify({basePath,appVersion,assetVersion,user:{id:currentUser.id,name:currentUser.full_name,role:currentUser.role},isManagement,status,launchers}).replace(/</g, '\u003c') %></script>
+  <script id="talk2me-os-config" type="application/json"><%- JSON.stringify({basePath,appVersion,assetVersion,isStaging:Boolean(isStaging),user:{id:currentUser.id,name:currentUser.full_name,role:currentUser.role},isManagement,status,launchers}).replace(/</g, '\u003c') %></script>
   <script defer src="<%= basePath %>/public/js/os-sidebar-state.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>"></script>
   <script defer src="<%= basePath %>/public/js/os-window-geometry.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>"></script>
   <script defer src="<%= basePath %>/public/js/os-v6.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>"></script>
