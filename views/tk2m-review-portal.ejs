@@ -76,6 +76,7 @@
                       <th scope="col" class="review-pick-customer-header">
                         <strong>#<%= m.id %> · <%= m.client_name||'Unnamed customer' %></strong>
                         <small><%= Number(m.is_active)?'Active':'Inactive' %> · <%= m.account_number||m.account_id||'No account' %></small>
+                        <small>Last updated: <%= m.updated_at instanceof Date?m.updated_at.toISOString().replace('T',' ').slice(0,16):(m.updated_at||'Unknown') %></small>
                         <label class="review-pick-include"><input type="checkbox" name="selected" value="<%= m.id %>"
                           data-pick-selected <%= defaultSet.has(Number(m.id))?'checked':'' %>>
                           Include in merge</label>
