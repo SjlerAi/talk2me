@@ -43,7 +43,7 @@
           <span class="state-pill state-<%= selected.state %>"><%= selected.state==='stale'?'Changed — check again':selected.state.replace('_',' ') %></span>
         </div>
         <% if(selected.state==='stale'){ %><div class="review-warning">The underlying customer or import record changed after the last decision. The previous decision is retained in history but must be reviewed again.</div><% } %>
-        <% if(quickMerge){ 
+        <% if(typeof quickMerge!=='undefined' && quickMerge){ 
           const inlineOptions = quickMerge.candidates;
           const inlineIds=new Set(inlineOptions.map(c=>Number(c.id)));
           const defaultIds= selected.members.length===2 ? selected.members.map(m=>Number(m.id)).filter(id=>inlineIds.has(id)) : (inlineOptions.length===2?inlineOptions.map(m=>Number(m.id)):[]);
@@ -68,7 +68,7 @@
             <input type="hidden" name="csrf" value="<%= csrf %>">
             <input type="hidden" name="source_hash" value="<%= quickMerge.sourceHash %>">
             <div class="review-table-wrap review-pick-scroll">
-              <table class="review-pick-table">
+              <table class="review-pick-table" style="min-width:<%= 215+inlineOptions.length*265 %>px">
                 <thead>
                   <tr>
                     <th scope="col" class="review-pick-field-header">Information to compare</th>
@@ -154,7 +154,7 @@
         <% } else if(['duplicate_phone','identity','migration'].includes(selected.kind) && selected.members.length){ %>
         <section class="review-subsection">
           <h3>Compare or combine these records</h3>
-          <p><%= quickMergeWarning||'This case does not currently have at least two eligible related records.' %></p>
+          <p><%= typeof quickMergeWarning==='string'&&quickMergeWarning?quickMergeWarning:'This case does not currently have at least two eligible related records.' %></p>
           <a class="review-link" href="<%= basePath %>/data-review/case/<%= selected.id %>/merge">Open full comparison</a>
         </section>
         <% } %>
@@ -286,7 +286,7 @@
       <strong>Friday data refresh:</strong> The latest live changes will need a new reconciliation and controlled import. Review decisions are kept separately; changed source records must be checked again. This page does not automatically synchronise UENT and TK2M.
     </footer>
   </main>
-  <% if(selected && quickMerge){ %>
+  <% if(selected && typeof quickMerge!=='undefined' && quickMerge){ %>
   <script defer src="<%= basePath %>/public/js/tk2m-review-quickpick.js?v=<%= encodeURIComponent(assetVersion||'1') %>"></script>
   <% } %>
 </body>
