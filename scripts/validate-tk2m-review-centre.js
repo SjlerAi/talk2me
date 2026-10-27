@@ -14,6 +14,7 @@ const loginRoute=read('src/routes/index.js');
 const loginView=read('views/login.ejs');
 const view=read('views/tk2m-review-portal.ejs');
 const browserCss=read('public/css/tk2m-review.css');
+assert.match(read('src/services/tk2m-review-cases.js'),/SELECT case_id,source_hash,status,note,reviewer_staff_id,revision,reviewed_at FROM tk2m_review_decisions/);
 const calendar=read('public/js/calendar-home-uat.js');
 
 assert.equal(safeReviewReturn('/data-review','',true),'/data-review');
