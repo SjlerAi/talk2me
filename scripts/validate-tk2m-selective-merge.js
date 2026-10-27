@@ -37,7 +37,7 @@ const lines=[
 function mockConn(){
  return {query:async(sql)=>{
   if(sql.includes('FROM clients c LEFT JOIN'))return [four.slice()];
-  if(sql.includes('FROM mobile_base_current WHERE client_id IN'))return [lines.slice()];
+  if(sql.includes('FROM mobile_base_current WHERE ('))return [lines.slice()];
   throw Error('Unexpected SQL '+sql.slice(0,80));
  }};
 }
@@ -62,6 +62,39 @@ async function run(){
  assert.equal(plan.actualMergeExecuted,false);
  assert.equal(plan.reviewOnly,true);
  assert.ok(plan.preservedLineFields.includes('eligible_upgrade_date'));
+ assert.deepEqual(plan.selectedContractRecords.map(x=>x.clientId),[1,3]);
+ assert.deepEqual(plan.excludedContractRecords.map(x=>x.clientId),[2,4]);
+ assert.equal(plan.selectedContractRecords[0].nextUpgrade,'2026-10-21');
+ assert.equal(plan.lineDataPolicy,'preserve_every_valid_line_and_each_individual_upgrade_date');
+ assert.equal(plan.lineRecordsCaptured,2);
+
+ // One customer can legitimately own 10 separate service lines with different
+ // upgrade dates. Choosing a profile contact number must NEVER reduce them.
+ const tenLines=Array.from({length:10},(_,i)=>({
+  id:200+i,client_id:i%2?3:1,account_id:20,
+  msisdn_normalised:'278200001'+String(i).padStart(2,'0'),
+  last_upgrade_date:'2025-03-'+String(i+1).padStart(2,'0'),
+  eligible_upgrade_date:'2027-03-'+String(i+1).padStart(2,'0'),
+  contract_status:'active',updated_at:'2026-10-27 11:00:00'
+ }));
+ const previewData={...data,lines:tenLines,sourceHash:svc.signature(data.candidates,tenLines,item.fingerprint)};
+ const tenLinePlan=svc.makePlan(previewData,wanted);
+ assert.equal(tenLinePlan.linkedLines.length,10);
+ assert.equal(new Set(tenLinePlan.linkedLines.map(x=>x.id)).size,10);
+ assert.equal(new Set(tenLinePlan.linkedLines.map(x=>x.number)).size,10);
+ assert.equal(new Set(tenLinePlan.linkedLines.map(x=>x.nextEligible)).size,10);
+ assert.equal(tenLinePlan.selectedContractRecords.length,2);
+ assert.equal(tenLinePlan.excludedContractRecords.length,2);
+ assert.equal(tenLinePlan.actualMergeExecuted,false);
+ const changedLines=tenLines.map(x=>({...x}));
+ changedLines[5].eligible_upgrade_date='2031-12-15';
+ assert.notEqual(svc.signature(data.candidates,changedLines,item.fingerprint),previewData.sourceHash,
+   'One changed line upgrade date must invalidate the existing merge preview');
+ const unassignedAccountLine={...tenLines[0],id:399,client_id:null};
+ const planWithUnassigned=svc.makePlan({...previewData,lines:[...tenLines,unassignedAccountLine]},wanted);
+ assert.equal(planWithUnassigned.linkedLines.length,10);
+ assert.equal(planWithUnassigned.unassignedAccountLines.length,1);
+ assert.equal(planWithUnassigned.unassignedAccountLines[0].requiresManualLinkVerification,true);
  const seal=svc.previewSeal(plan,'csrf-test-key');
  assert.ok(svc.compareSeal(seal,seal));
  assert.ok(!svc.compareSeal(seal,'e'.repeat(64)));
@@ -102,6 +135,10 @@ async function run(){
  assert.ok(html.includes('type="radio" name="donor[birthday]"'));
  assert.ok(html.includes('data-merge-donor'));
  assert.ok(html.includes('Tick the correct value'));
+ assert.ok(html.includes('All lines and dates stay separate'));
+ assert.ok(html.includes('Retained customer-record contracts'));
+ assert.ok(html.includes('Protected mobile-line database entries'));
+ assert.ok(html.includes('Individual') || html.includes('individual'));
  assert.ok(!html.includes('<select name="donor[birthday]"'));
  assert.ok(load('public/css/tk2m-review.css').includes('.merge-field-tick.is-chosen'));
  const routes=load('src/routes/tk2m-merge-plans.js');
