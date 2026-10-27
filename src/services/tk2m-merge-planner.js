@@ -101,7 +101,11 @@ async function candidatesForCase(item,user,conn=db){
  if(foundLines.length>MAX_LINKED_LINES)
   throw Error('More than 500 associated mobile-line records. Full line inventory could not be verified. Ask management to review the account before approving any combination.');
  const available=new Set(candidateIds.map(Number));
- const lines=foundLines.map(line=>({
+ const allowedAccounts=new Set(accountIds.map(Number));
+ const lines=foundLines.filter(line=>
+  available.has(Number(line.client_id)) ||
+  (manager && (!line.client_id || Number(line.client_id)===0) && allowedAccounts.has(Number(line.account_id)))
+ ).map(line=>({
   ...line,relation:available.has(Number(line.client_id))?'linked_customer':'unassigned_account'
  }));
  return {
