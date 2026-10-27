@@ -38,7 +38,7 @@ const canManage = user => ['owner','manager'].includes(String(user?.role||'').to
 const canSee = (item,user) => Boolean(user && (canManage(user) ||
   (user.role==='staff' && item.kind!=='migration' && item.staffIds.length===1 && item.staffIds[0]===Number(user.id))));
 async function loadCases(user,conn=db) {
-  const [clients]=await conn.query('SELECT c.id,c.client_name,c.account_id,c.account_number,c.cell_number,c.cell_number_normalised,c.email,c.id_number,c.next_upgrade_date,c.previous_upgrade_date,c.upgrade_date,c.package_name,c.line_status,c.is_active,c.updated_at,a.assigned_staff_id FROM clients c LEFT JOIN client_assignments a ON a.client_id=c.id AND a.is_active=1 ORDER BY c.id');
+  const [clients]=await conn.query('SELECT c.id,c.client_name,c.account_id,c.account_number,c.cell_number,c.cell_number_normalised,c.email,c.id_number,c.next_upgrade_date,c.previous_upgrade_date,c.upgrade_date,c.package_name,c.line_status,c.is_active,c.updated_at,a.assigned_staff_id,u.full_name assigned_staff_name FROM clients c LEFT JOIN client_assignments a ON a.client_id=c.id AND a.is_active=1 LEFT JOIN staff_users u ON u.id=a.assigned_staff_id ORDER BY c.id');
   const byId=new Map(clients.map(x=>[Number(x.id),x]));
   const grouped=new Map(),cases=[];
   for(const c of clients) {
