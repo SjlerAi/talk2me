@@ -635,7 +635,7 @@
     renderWorkHeader('new');
     clearInterval(chatPoll);
     fitWidgetMode(taskWidget,taskWidgetKey,{width:840,height:700,minWidth:560,minHeight:420});
-    if(taskState.management&&!prefill.advanced){
+    if(taskState.management&&!prefill.advanced&&!retireCudoInTk2m){
       // +Task opens Gerda's one-command screen. The detailed form is still available.
       taskBody.innerHTML='<section class="t2m-simple-new-task">'+quickCommandHtml()+
         '<button type="button" class="t2m-quick-task-more" data-task-more-options>More options · files, recipients and task details</button></section>';
