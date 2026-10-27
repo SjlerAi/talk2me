@@ -426,7 +426,7 @@ if (!CRM_STAGE_MODE) startAgentDeadlineScheduler();
 // can supply a non-numeric listener (a Unix socket or its managed handle),
 // which must be passed to listen() verbatim without a TCP host argument.
 // The public staging vhost must stay behind cPanel Directory Privacy.
-const stageListener = /^\\d+$/.test(String(PORT)) ? Number(PORT) : String(PORT);
+const stageListener = /^\d+$/.test(String(PORT)) ? Number(PORT) : String(PORT);
 function onListening() {
   console.log(`Talk2Me CRM running on listener ${CRM_STAGE_MODE ? '[protected staging]' : PORT} with base path ${BASE_PATH} (${APP_ENVIRONMENT})`);
   if (!CRM_STAGE_MODE) startNightlyLogoutWorker();
