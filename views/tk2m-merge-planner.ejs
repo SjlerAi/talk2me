@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <meta name="theme-color" content="#eaf3fc">
+  <title>Selective Merge Planner | Talk2Me</title>
+  <link rel="stylesheet" href="<%= basePath %>/public/css/tk2m-review.css?v=<%= encodeURIComponent(assetVersion||'1') %>">
+</head>
+<body>
+  <header class="review-header">
+    <div class="review-brand">
+      <img src="<%= basePath %>/public/images/talk2me-logo.png" alt="Talk2Me">
+      <div><strong>Selective Merge Planner</strong><small>TK2M private test CRM · No records are merged here</small></div>
+    </div>
+    <nav class="review-nav" aria-label="Review navigation">
+      <a href="<%= basePath %>/data-review/case/<%= caseId %>">Back to case</a>
+      <a href="<%= basePath %>/data-review">Review queue</a>
+      <a href="<%= basePath %>/data-review/history">Decision history</a>
+      <a href="<%= basePath %>/workspace">My Day</a>
+    </nav>
+  </header>
+  <main class="review-main merge-planner">
+    <div class="review-intro">
+      <div><p class="eyebrow">SELECT ONLY THE RECORDS THAT BELONG TOGETHER</p>
+        <h1>Build a customer merge proposal</h1>
+        <p class="review-lead"><%= item.label %> · <%= data.candidates.length %> possible related records. You may combine two records without touching the others.</p>
+      </div>
+      <div class="review-user"><span>Reviewer</span><strong><%= currentUser.full_name %></strong><small><%= isManager?'Manager / owner permissions':'Assigned customers only' %></small></div>
+    </div>
+    <% if(error){ %><div class="review-warning" role="alert"><%= error %></div><% } %>
+    <% if(notice){ %><div class="review-notice" role="status"><%= notice %></div><% } %>
+
+    <div class="review-warning">
+      <strong>Proposal only — no database merge.</strong>
+      Keep distinct customer records and contracts separate unless the evidence supports combining them.
+      Every mobile line keeps its own upgrade dates. The system's <em>last updated</em> timestamp is evidence, not a field to copy.
+    </div>
+
+    <%
+      const chosen = Array.isArray(posted.selected) ? posted.selected.map(Number) :
+        (posted.selected ? [Number(posted.selected)] : []);
+      const selectedPrimary=Number(posted.primary||0);
+      const selectedDonors=posted.donor||{};
+    %>
+    <form method="post" action="<%= basePath %>/data-review/case/<%= caseId %>/merge/preview" id="merge-builder-form">
+      <input type="hidden" name="csrf" value="<%= csrf %>">
+      <input type="hidden" name="source_hash" value="<%= data.sourceHash %>">
+
+      <section class="review-card">
+        <div class="merge-heading"><span class="merge-step-number">1</span><div><h2>Choose the records to combine</h2>
+          <p>Tick any two or more. Unticked records will stay separate. This can be two out of four, three out of four, or another combination.</p></div></div>
+        <div class="merge-candidate-list" id="merge-candidate-list">
+          <% data.candidates.forEach((r,i)=>{ %>
+            <label class="merge-candidate <%= chosen.includes(Number(r.id))?'is-selected':'' %>">
+              <span class="merge-candidate-check">
+                <input type="checkbox" name="selected" value="<%= r.id %>" data-merge-selected
+                  <%= chosen.includes(Number(r.id))?'checked':'' %>>
+              </span>
+              <span class="merge-candidate-info">
+                <span class="merge-candidate-top"><strong>Record #<%= r.id %>: <%= r.client_name||r.first_name||'Unnamed customer' %></strong>
+                  <span class="state-pill <%= Number(r.is_active)?'state-verified':'state-hold' %>"><%= Number(r.is_active)?'Active':'Inactive' %></span></span>
+                <span><strong>Account:</strong> <%= r.account_number||r.account_id||'—' %> · <strong>Phone:</strong> <%= r.cell_number_normalised||r.cell_number||'—' %></span>
+                <span><strong>Birthday:</strong> <%= formatted(r.birthday)||'Missing' %> · <strong>Email:</strong> <%= r.email||'Missing' %></span>
+                <span><strong>Next upgrade:</strong> <%= formatted(r.next_upgrade_date)||'Not recorded' %> · <strong>Last changed:</strong>
+                  <%= r.updated_at instanceof Date?r.updated_at.toISOString().replace('T',' ').slice(0,16):r.updated_at||'Unknown' %></span>
+                <span class="merge-candidate-muted">Staff: <%= r.assigned_staff_name||'Unassigned' %> · Package: <%= r.package_name||'—' %></span>
+              </span>
+            </label>
+          <% }) %>
+        </div>
+        <p class="review-muted"><strong id="merge-selected-count"><%= chosen.length %> selected</strong> — The records not selected here are excluded from this proposal.</p>
+      </section>
+
+      <section class="review-card merge-form-step">
+        <div class="merge-heading"><span class="merge-step-number">2</span><div><h2>Choose the primary customer</h2>
+          <p>This will be the customer record to retain if the proposed merge is approved and later safely executed.</p></div></div>
+        <label for="merge-primary"><strong>Record to keep</strong></label>
+        <select name="primary" id="merge-primary" required data-merge-primary>
+          <option value="">Choose the main record</option>
+          <% data.candidates.forEach(r=>{ %>
+            <option value="<%= r.id %>" <%= selectedPrimary===Number(r.id)?'selected':'' %>>
+              #<%= r.id %> · <%= r.client_name||'Unnamed' %> <%= Number(r.is_active)?'(Active)':'(Inactive)' %>
+            </option>
+          <% }) %>
+        </select>
+      </section>
+
+      <section class="review-card merge-form-step">
+        <div class="merge-heading"><span class="merge-step-number">3</span><div><h2>Pick the best value for each field</h2>
+          <p>For each field choose which <strong>selected</strong> customer record supplies its value. You can use a birthday from one record and an updated email from another.</p></div></div>
+        <div class="review-table-wrap"><table class="merge-field-table">
+          <thead><tr><th>Customer information</th><th>Values found on the candidate records</th><th>Use the value from</th></tr></thead>
+          <tbody>
+            <% data.fields.forEach(field=>{ %>
+              <tr>
+                <td><strong><%= field.label %></strong><small>Profile field, not a mobile-line contract value</small></td>
+                <td><div class="merge-field-choices">
+                  <% data.candidates.forEach(r=>{ %>
+                    <div class="merge-field-choice"><strong>#<%= r.id %></strong>:
+                      <%= r[field.key] == null || formatted(r[field.key]).trim()===''?'—':(formatted(r[field.key]).length>100?formatted(r[field.key]).slice(0,100)+'…':formatted(r[field.key])) %>
+                    </div>
+                  <% }) %>
+                </div></td>
+                <td><select name="donor[<%= field.key %>]" data-merge-donor data-field="<%= field.key %>" required aria-label="Source for <%= field.label %>">
+                  <option value="">Select the source</option>
+                  <% data.candidates.forEach(r=>{ %>
+                    <option value="<%= r.id %>" data-record-id="<%= r.id %>" data-filled="<%= formatted(r[field.key]).trim()?1:0 %>"
+                      <%= Number(selectedDonors[field.key])===Number(r.id)?'selected':'' %>>
+                      Record #<%= r.id %> · <%= r.client_name||'Unnamed' %>
+                    </option>
+                  <% }) %>
+                </select></td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table></div>
+        <p class="review-muted">Empty fields cannot replace information that another selected record contains. Account IDs, contracts, upgrade dates and status information are not combined at this step.</p>
+      </section>
+
+      <section class="review-card merge-form-step">
+        <div class="merge-heading"><span class="merge-step-number">4</span><div><h2>Preview before saving</h2>
+          <p>Preview the selected primary record, all donor-field choices, the unselected records, and each linked mobile line.</p></div></div>
+        <button class="review-primary" id="merge-preview-button" type="submit">Preview the proposed combination</button>
+        <p class="review-muted">Review the preview carefully. Saving a proposal does not perform a merge.</p>
+      </section>
+    </form>
+
+    <% if(preview){ const p=preview.plan; %>
+    <section class="review-card merge-preview-card" id="merge-proposal-preview">
+      <div class="merge-heading"><span class="merge-step-number">✓</span><div><h2>Preview: what will be combined</h2><p>The following values are proposed, not yet written to any customer record.</p></div></div>
+      <div class="merge-preview-summary">
+        <div><small>Primary customer to keep</small><strong>#<%= p.primaryId %></strong></div>
+        <div><small>Selected records</small><strong><%= p.selectedIds.map(id=>'#'+id).join(', ') %></strong></div>
+        <div><small>Remain separate</small><strong><%= p.excludedIds.length?p.excludedIds.map(id=>'#'+id).join(', '):'None in this group' %></strong></div>
+        <div><small>Mobile lines protected</small><strong><%= p.linkedLines.length %></strong></div>
+      </div>
+      <div class="review-table-wrap"><table class="merge-preview-values"><thead><tr><th>Field</th><th>Current primary value</th><th>Proposed value</th><th>Source</th></tr></thead>
+        <tbody>
+        <% p.fields.forEach(f=>{ %>
+          <tr class="<%= f.changed?'merge-change':'' %>"><td><strong><%= f.label %></strong></td><td><%= f.primaryValue||'—' %></td>
+          <td><%= f.value||'—' %></td><td><strong>#<%= f.fromId %></strong> <%= f.changed?'(different)':'(same)' %></td></tr>
+        <% }) %>
+        </tbody>
+      </table></div>
+      <h3>Protected mobile-line information</h3>
+      <% if(!p.linkedLines.length){ %><p class="review-muted">No linked lines found for the selected customer IDs. This must be investigated before any future execution.</p><% } %>
+      <% if(p.linkedLines.length){ %>
+        <div class="review-table-wrap"><table><thead><tr><th>Line</th><th>Current customer</th><th>Last upgrade</th><th>Next eligible</th><th>Contract status</th></tr></thead>
+          <tbody><% p.linkedLines.forEach(line=>{ %><tr><td><%= line.number||'Unknown line' %></td><td>#<%= line.clientId %></td><td><%= line.lastUpgrade||'—' %></td><td><%= line.nextEligible||'—' %></td><td><%= line.contractStatus||'—' %></td></tr><% }) %></tbody>
+        </table></div>
+      <% } %>
+      <div class="review-warning">
+        <strong>Nothing is merged by saving this plan.</strong> A different manager or owner must approve it.
+        Even after approval, an execution procedure must separately verify every linked table and preserve contract dates.
+      </div>
+      <form method="post" action="<%= basePath %>/data-review/case/<%= caseId %>/merge/submit" class="merge-save-form">
+        <input type="hidden" name="csrf" value="<%= csrf %>">
+        <input type="hidden" name="source_hash" value="<%= data.sourceHash %>">
+        <input type="hidden" name="preview_seal" value="<%= preview.seal %>">
+        <input type="hidden" name="primary" value="<%= p.primaryId %>">
+        <% p.selectedIds.forEach(id=>{ %><input type="hidden" name="selected" value="<%= id %>"><% }) %>
+        <% p.fields.forEach(f=>{ %><input type="hidden" name="donor[<%= f.key %>]" value="<%= f.fromId %>"><% }) %>
+        <label for="merge-note"><strong>Why should these particular records be combined?</strong></label>
+        <textarea id="merge-note" name="note" rows="4" minlength="12" maxlength="2000" required placeholder="Explain identity checks, source of birthday/contact values and why other records must stay separate."><%= posted.note||'' %></textarea>
+        <button class="review-primary" type="submit">Save merge proposal for approval</button>
+        <p class="review-muted">Saving records a proposal only. It does not change the customer, deactivate a record or transfer a line.</p>
+      </form>
+    </section>
+    <% } %>
+
+    <section class="review-card merge-existing-plans">
+      <h2>Saved proposals for this review case</h2>
+      <% if(!proposals.length){ %><p class="review-muted">No merge proposals have been saved yet. You can propose different non-overlapping subsets, such as records 1+3 and 2+4.</p><% } %>
+      <% proposals.forEach(p=>{const state=p.source_hash===data.sourceHash?p.status:'stale';%>
+        <div class="merge-existing-row">
+          <div>
+            <strong>Proposal #<%= p.id %> — <%= state==='stale'?'Changed since proposal':state.replace('_',' ') %></strong>
+            <small>Primary #<%= p.plan.primaryId||'?' %> · Combine <%= (p.plan.selectedIds||[]).map(x=>'#'+x).join(' + ') %> · Saved <%= p.proposed_at instanceof Date?p.proposed_at.toISOString().slice(0,16).replace('T',' '):p.proposed_at %></small>
+            <p><%= p.note %></p>
+          </div>
+          <a href="<%= basePath %>/data-review/case/<%= caseId %>/merge?proposal=<%= p.id %>#saved-proposal" class="merge-saved-link">Details / approval</a>
+        </div>
+      <% }) %>
+    </section>
+
+    <% if(selectedProposal){ const p=selectedProposal; const state=p.source_hash===data.sourceHash?p.status:'stale'; %>
+    <section class="review-card" id="saved-proposal">
+      <h2>Proposal #<%= p.id %> — <%= state.replace('_',' ') %></h2>
+      <p>Primary #<%= p.plan.primaryId %>; selected records <%= (p.plan.selectedIds||[]).map(x=>'#'+x).join(', ') %>.</p>
+      <div class="review-table-wrap"><table><thead><tr><th>Field</th><th>Selected source</th><th>Proposed value</th></tr></thead>
+        <tbody><% (p.plan.fields||[]).forEach(f=>{ %><tr><td><%= f.label %></td><td>#<%= f.fromId %></td><td><%= f.value||'—' %></td></tr><% }) %></tbody>
+      </table></div>
+      <p class="review-muted">This is a saved review proposal, not a completed merge. The retained and excluded records are still unchanged in the CRM.</p>
+      <% if(state==='stale'){ %><div class="review-warning">The source records changed. A fresh review is required before approval.</div><% } %>
+      <% if(isManager&&state==='submitted'&&Number(p.proposed_by)!==Number(currentUser.id)){ %>
+      <form method="post" action="<%= basePath %>/data-review/case/<%= caseId %>/merge/<%= p.id %>/approve" class="merge-save-form">
+        <input type="hidden" name="csrf" value="<%= csrf %>"><input type="hidden" name="revision" value="<%= p.revision %>">
+        <label for="merge-approval-note"><strong>Approval explanation</strong></label>
+        <textarea name="note" id="merge-approval-note" rows="3" minlength="12" maxlength="2000" required placeholder="Confirm identity evidence and that all lines and upgrade dates must be preserved."></textarea>
+        <button class="review-primary" type="submit">Approve this plan (no data merge)</button>
+      </form>
+      <% }else if(isManager&&state==='submitted'&&Number(p.proposed_by)===Number(currentUser.id)){ %>
+        <p class="review-warning">A second manager or owner must approve this proposal; you cannot approve your own.</p>
+      <% } %>
+      <% if(isManager&&['submitted','approved'].includes(p.status)){ %>
+      <form method="post" action="<%= basePath %>/data-review/case/<%= caseId %>/merge/<%= p.id %>/reopen" class="merge-save-form">
+        <input type="hidden" name="csrf" value="<%= csrf %>"><input type="hidden" name="revision" value="<%= p.revision %>">
+        <label for="merge-reopen-note"><strong>Reopen to revise this group</strong></label>
+        <textarea id="merge-reopen-note" name="note" rows="2" minlength="12" maxlength="2000" required placeholder="Explain why this proposed subset needs revision."></textarea>
+        <button class="review-filters-button" type="submit">Return proposal for revision</button>
+      </form>
+      <% } %>
+    </section>
+    <% } %>
+    <footer class="review-footer">
+      <strong>Friday refresh safeguard:</strong> Submitted and approved merge plans are retained in separate review tables.
+      Plans with changed customer or line data are flagged as stale. No automated merge execution is enabled.
+    </footer>
+  </main>
+  <script defer src="<%= basePath %>/public/js/tk2m-merge-planner.js?v=<%= encodeURIComponent(assetVersion||'1') %>"></script>
+</body></html>

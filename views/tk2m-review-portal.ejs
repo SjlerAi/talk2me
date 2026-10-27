@@ -43,6 +43,14 @@
           <span class="state-pill state-<%= selected.state %>"><%= selected.state==='stale'?'Changed — check again':selected.state.replace('_',' ') %></span>
         </div>
         <% if(selected.state==='stale'){ %><div class="review-warning">The underlying customer or import record changed after the last decision. The previous decision is retained in history but must be reviewed again.</div><% } %>
+        <% if(['duplicate_phone','identity','migration'].includes(selected.kind) && selected.members.length){ %>
+        <section class="review-subsection">
+          <h3>Want to combine only some records?</h3>
+          <p>Compare all related customer records on one page. Choose any subset of two or more, select the primary record, and choose the birthday, latest contact details and other fields individually. Other records stay separate.</p>
+          <a class="review-link" href="<%= basePath %>/data-review/case/<%= selected.id %>/merge">Open selective merge planner</a>
+          <p class="review-muted">This prepares a proposal for independent approval. No customer data is merged or deleted.</p>
+        </section>
+        <% } %>
         <% if(selected.kind==='migration'){ %>
         <section class="review-subsection"><h3>Live UENT compared with TK2M</h3>
           <div class="review-compare"><div><small>Currently live (UENT)</small><strong><%= selected.details.sourceValue %></strong></div>
@@ -54,12 +62,12 @@
         <section class="review-subsection">
           <h3>Related customer records (<%= selected.members.length %>)</h3>
           <div class="review-table-wrap"><table>
-            <thead><tr><th>Client record</th><th>Account</th><th>Primary phone</th><th>Identity / Email</th><th>Next upgrade</th><th>Previous upgrade</th><th>Line / package</th><th>Assigned staff</th></tr></thead>
+            <thead><tr><th>Client record</th><th>Account</th><th>Primary phone</th><th>Identity / Email</th><th>Birthday</th><th>Last updated</th><th>Next upgrade</th><th>Previous upgrade</th><th>Line / package</th><th>Assigned staff</th></tr></thead>
             <tbody>
               <% selected.members.forEach(m=>{ %>
               <tr><td><strong><%= m.client_name||'Unnamed' %></strong><small>ID <%= m.id %> · <%= Number(m.is_active)?'Active':'Inactive' %></small></td>
                 <td><%= m.account_number||m.account_id||'—' %></td>
-                <td><%= m.cell_number_normalised||m.cell_number||'—' %></td><td><%= m.id_number||'—' %><small><%= m.email||'—' %></small></td>
+                <td><%= m.cell_number_normalised||m.cell_number||'—' %></td><td><%= m.id_number||'—' %><small><%= m.email||'—' %></small></td><td><%= m.birthday instanceof Date?m.birthday.toISOString().slice(0,10):(m.birthday||'—') %></td><td><%= m.updated_at instanceof Date?m.updated_at.toISOString().replace('T',' ').slice(0,16):m.updated_at||'—' %></td>
                 <td><%= m.next_upgrade_date instanceof Date?m.next_upgrade_date.toISOString().slice(0,10):(m.next_upgrade_date||'—') %></td>
                 <td><%= m.previous_upgrade_date instanceof Date?m.previous_upgrade_date.toISOString().slice(0,10):(m.previous_upgrade_date||'—') %></td>
                 <td><%= m.line_status||'—' %> · <%= m.package_name||'—' %></td>
