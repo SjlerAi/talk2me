@@ -18,6 +18,8 @@ const BASE_PATH = configuredBasePath === '/' ? '' : '/' + configuredBasePath.spl
 const PORT = process.env.PORT || 3000;
 const sessionSecure = String(process.env.SESSION_SECURE || 'false').toLowerCase() === 'true';
 const UAT_MODE = String(process.env.UAT_MODE || '').trim().toLowerCase() === 'true';
+const CRM_STAGE_MODE = String(process.env.CRM_STAGE_MODE || '').trim().toLowerCase() === 'true';
+const APP_ENVIRONMENT = CRM_STAGE_MODE ? 'staging' : (UAT_MODE ? 'uat' : 'production');
 const EIGHT_HOURS_MS = 8 * 60 * 60 * 1000;
 
 function assetVersionForRelease() {
@@ -80,10 +82,10 @@ registerPublicGet('/api/health', async (req, res) => {
   res.set('Cache-Control', 'no-store');
   try {
     await db.execute('SELECT 1 AS ok');
-    res.json({ status: 'ok', service: 'talk2me-crm', database: 'connected', environment: UAT_MODE ? 'uat' : 'production' });
+    res.json({ status: 'ok', service: 'talk2me-crm', database: 'connected', environment: APP_ENVIRONMENT });
   } catch (error) {
     console.error('Public health check failed:', error.message);
-    res.status(503).json({ status: 'error', service: 'talk2me-crm', database: 'unavailable', environment: UAT_MODE ? 'uat' : 'production' });
+    res.status(503).json({ status: 'error', service: 'talk2me-crm', database: 'unavailable', environment: APP_ENVIRONMENT });
   }
 });
 
@@ -92,13 +94,13 @@ registerPublicGet('/api/release', (req, res) => {
   const releasePath = path.join(__dirname, '.talk2me-release.json');
   try {
     const release = JSON.parse(fs.readFileSync(releasePath, 'utf8'));
-    res.json({ ...release, environment: UAT_MODE ? 'uat' : 'production' });
+    res.json({ ...release, environment: APP_ENVIRONMENT });
   } catch (error) {
     res.status(503).json({
       service: 'talk2me-crm',
       status: 'release-metadata-unavailable',
       version: packageInfo.version || 'unknown',
-      environment: UAT_MODE ? 'uat' : 'production'
+      environment: APP_ENVIRONMENT
     });
   }
 });
@@ -115,7 +117,9 @@ if (UAT_MODE) {
       const chat = names.has('staff_chat_messages') && names.has('staff_chat_reads');
       const tasks = names.has('staff_tasks') && names.has('staff_task_workflow');
       const taskAttachments = names.has('staff_task_attachments');
-      const voiceDirectory = String(process.env.PRIVATE_UPLOAD_DIR || '').trim() === '/home/uent/talk2me_uat_private_uploads';
+      const voiceDirectory = String(process.env.PRIVATE_UPLOAD_DIR || '').trim() === (CRM_STAGE_MODE
+        ? '/home/talk/crm-migration/staging-uploads/talk2me_uat_private_uploads'
+        : '/home/uent/talk2me_uat_private_uploads');
       const healthy = chat && tasks && taskAttachments && voiceDirectory;
       res.status(healthy ? 200 : 503).json({
         status: healthy ? 'ok' : 'error',
@@ -162,7 +166,7 @@ if (UAT_MODE) {
 }
 
 app.use(session({
-  name: UAT_MODE ? 'talk2me.uat.sid' : 'talk2me.sid',
+  name: CRM_STAGE_MODE ? 'talk2me.tk2m.stage.sid' : (UAT_MODE ? 'talk2me.uat.sid' : 'talk2me.sid'),
   secret: process.env.SESSION_SECRET,
   store: new MySqlSessionStore(),
   resave: false,
@@ -182,6 +186,7 @@ app.use((req, res, next) => {
   res.locals.voipUrlTemplate = process.env.VOIP_URL_TEMPLATE || '';
   res.locals.unreadTaskCount = 0;
   res.locals.isUat = UAT_MODE;
+  res.locals.isStaging = CRM_STAGE_MODE;
   next();
 });
 
@@ -376,9 +381,12 @@ if (UAT_MODE) {
 
   // Isolated signed CRM endpoint for Zippy, available only in UAT.
   // No browser session or generic staff access is granted by this integration.
-  const zippyIntegration = require('./src/routes/zippy-integration');
-  app.use('/', zippyIntegration);
-  if (BASE_PATH) app.use(BASE_PATH, zippyIntegration);
+  // A live Zippy instance must never issue instructions to a test database.
+  if (!CRM_STAGE_MODE) {
+    const zippyIntegration = require('./src/routes/zippy-integration');
+    app.use('/', zippyIntegration);
+    if (BASE_PATH) app.use(BASE_PATH, zippyIntegration);
+  }
 
   const cudoAi = require('./src/routes/cudo-ai');
   app.use('/', cudoAi);
@@ -412,9 +420,11 @@ app.use((err, req, res, next) => {
   console.error(err);
   res.status(500).render('error', { title: 'Server error', message: 'Something went wrong. Check server logs.' });
 });
-startAgentDeadlineScheduler();
+if (!CRM_STAGE_MODE) startAgentDeadlineScheduler();
 
-app.listen(PORT, () => {
-  console.log(`Talk2Me CRM running on port ${PORT} with base path ${BASE_PATH}`);
-  startNightlyLogoutWorker();
+// In staging, listen only on the machine's loopback interface. The public
+// crm.tk2m.co.za vhost stays quarantined until an approved access gate is installed.
+app.listen(PORT, CRM_STAGE_MODE ? '127.0.0.1' : '0.0.0.0', () => {
+  console.log(`Talk2Me CRM running on port ${PORT} with base path ${BASE_PATH} (${APP_ENVIRONMENT})`);
+  if (!CRM_STAGE_MODE) startNightlyLogoutWorker();
 });
