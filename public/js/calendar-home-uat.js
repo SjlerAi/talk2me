@@ -675,6 +675,7 @@
     shell.dataset.calendarHomeReady = '1';
   } catch (error) {
     console.error('Talk2Me My Day mount failed:', error);
+    if (tk2mPreview) window.Talk2MeBoot?.fail();
     return;
   }
 
@@ -682,5 +683,16 @@
     simplifyShell();
   } catch (error) {
     console.error('Talk2Me My Day shell enhancement failed:', error);
+    // For TK2M, do not reveal a partially initialised older navigation layer.
+    if (tk2mPreview) { window.Talk2MeBoot?.fail(); return; }
+  }
+
+  // The TK2M login-to-calendar transition is atomic: the old OS is not
+  // exposed while the new calendar/sidebar are being constructed.
+  if (tk2mPreview && window.Talk2MeBoot) {
+    const calendarReady = Boolean(workspace.querySelector('.t2m-home-calendar'));
+    const navigationReady = Boolean(sidebar.querySelector('.t2m-simple-nav'));
+    if (calendarReady && navigationReady) window.Talk2MeBoot.ready();
+    else window.Talk2MeBoot.fail();
   }
 })();
