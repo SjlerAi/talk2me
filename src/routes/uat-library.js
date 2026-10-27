@@ -482,7 +482,10 @@ router.get('/api/uat/library/health',async(req,res)=>{
     const [tables]=await db.execute(`SELECT TABLE_NAME FROM information_schema.TABLES
       WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN ('library_documents','library_versions','library_favourites','library_snapshots')`);
     const names=new Set(tables.map(row=>row.TABLE_NAME));
-    const storage=privateRoot==='/home/uent/talk2me_uat_private_uploads' &&
+    const approvedPrivateRoot=privateRoot==='/home/uent/talk2me_uat_private_uploads' ||
+      (String(process.env.CRM_STAGE_MODE || '').toLowerCase()==='true' &&
+       privateRoot==='/home/talk/crm-migration/staging-uploads/talk2me_uat_private_uploads');
+    const storage=approvedPrivateRoot &&
       fs.existsSync(libraryFileDir) && fs.existsSync(librarySnapshotDir);
     const healthy=names.size===4&&storage;
     res.status(healthy?200:503).json({
