@@ -49,7 +49,7 @@ function ctx(candidates,members){
      description:'Case with several customer records',details:{caseId:14,reason:'different names',priorNotes:''},
      state:'pending',review:null,members,lines:[]
    },
-   quickMerge:{candidates,fields,sourceHash:'c'.repeat(64)},
+   quickMerge:{candidates,lines:[],fields,sourceHash:'c'.repeat(64)},
    quickMergeWarning:'',formatMergeValue:merge.formatted
  };
 }
@@ -70,6 +70,10 @@ assert.match(page2,/value="765"[\s\S]{0,110}data-pick-selected checked/);
 assert.match(page2,/Last updated: 2026-10-27 11:08/);
 assert.match(page2,/Next upgrade date/);
 assert.match(page2,/Preserved for this contract/);
+assert.match(page2,/Line number on customer record/);
+assert.match(page2,/All mobile lines and their individual upgrade dates/);
+assert.match(page2,/Choosing the main contact cellphone never deletes or replaces other mobile lines/);
+assert.match(page2,/Mobile-line database entries \(0\)/);
 assert.doesNotMatch(page2,/name="donor\[next_upgrade_date\]"/);
 assert.doesNotMatch(page2,/name="donor\[previous_upgrade_date\]"/);
 assert.doesNotMatch(page2,/name="donor\[account_id\]"/);
@@ -94,6 +98,24 @@ const page4=ejs.render(pageTemplate,ctx(rows,rows));
 assert.equal((page4.match(/data-pick-selected/g)||[]).length,4);
 assert.equal((page4.match(/data-pick-primary required/g)||[]).length,4);
 assert.match(page4,/Customer A/);assert.match(page4,/Another possible customer/);
+const tenLines=Array.from({length:10},(_,i)=>({
+  id:300+i,client_id:i%2?765:702,account_id:10,
+  msisdn_normalised:'278200008'+String(i).padStart(2,'0'),
+  last_upgrade_date:'2024-01-'+String(i+1).padStart(2,'0'),
+  eligible_upgrade_date:'2027-09-'+String(i+1).padStart(2,'0'),
+  contract_status:'active',relation:'linked_customer'
+}));
+const tenLinePage=ejs.render(pageTemplate,{
+  ...ctx(rows,rows),
+  quickMerge:{...ctx(rows,rows).quickMerge,lines:tenLines}
+});
+assert.match(tenLinePage,/Mobile-line database entries \(10\)/);
+for(const line of tenLines){
+  assert.ok(tenLinePage.includes(line.msisdn_normalised),'Missing mobile number '+line.id);
+  assert.ok(tenLinePage.includes(line.eligible_upgrade_date),'Missing unique upgrade date '+line.id);
+}
+assert.doesNotMatch(tenLinePage,/name="donor\[eligible_upgrade_date\]"/);
+assert.ok(tenLinePage.includes('Record #702 — keep line/contract data separately'));
 const single=ejs.render(pageTemplate,{...ctx(rows.slice(0,2),[rows[0]]),quickMerge:null});
 assert.doesNotMatch(single,/id="review-quick-merge-form"/);
 assert.match(single,/This case does not currently have at least two eligible related records/);
@@ -104,4 +126,6 @@ assert.match(script,/selected\.size>=2&&primary&&undecided===0/);
 assert.match(script,/preview\.disabled=!ready/);
 assert.match(css,/review-pick-choice\.is-picked/);
 assert.match(css,/review-pick-contract-row/);
+assert.match(css,/review-line-inventory/);
+assert.match(css,/review-line-table/);
 console.log('TK2M_INLINE_TICK_CHOICES=PASS two and four records, birthday/email, contract dates protected, preview-only');
