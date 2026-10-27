@@ -393,9 +393,9 @@ if (UAT_MODE) {
     if (BASE_PATH) app.use(BASE_PATH, zippyIntegration);
   }
 
-  // Cudu is retired from TK2M staging; Zippy is its separate successor.
-  // Preserve existing UENT operation until the separately approved cutover.
-  if (!CRM_STAGE_MODE) {
+  // Cudu is permanently retired on crm.tk2m.co.za. Keep UENT unchanged.
+  // The separate Zippy bridge is enabled only at an approved CRM cutover.
+  if (!CUDO_DISABLED) {
     const cudoAi = require('./src/routes/cudo-ai');
     app.use('/', cudoAi);
     if (BASE_PATH) app.use(BASE_PATH, cudoAi);
