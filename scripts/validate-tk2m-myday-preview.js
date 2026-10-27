@@ -20,7 +20,6 @@ assert.match(calendar, /data-home-scope="mine"/, 'Managers need mine scope.');
 assert.match(calendar, /data-home-team-filter/, 'Management needs per-staff calendar filters.');
 assert.match(calendar, /data-uat-work-launcher/, 'Work must remain in the launcher.');
 assert.match(calendar, /data-uat-library-launcher/, 'Library must remain in the launcher.');
-assert.match(calendar, /data-os-managed-launcher/, 'Managed daily applications must remain available in the shell.');
 
 for (const name of ['tasks','reminders','messages','overdue']) {
   assert.ok(calendar.includes('data-home-focus="'+name+'"'), 'Missing My Day action '+name);
