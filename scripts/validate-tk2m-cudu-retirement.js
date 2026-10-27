@@ -13,7 +13,7 @@ for (const template of ['views/os-shell.ejs', 'views/layout.ejs']) {
   assert.equal(css.length, 1, template + ' loads stylesheet once');
   assert.equal(script.length, 1, template + ' loads widget once');
   for (const line of [...css, ...script]) {
-    assert.match(line, /isUat\s*&&\s*!isStaging\s*&&/);
+    assert.match(line, /isUat\s*&&\s*!cudoDisabled\s*&&/);
   }
 }
 
