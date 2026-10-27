@@ -74,8 +74,51 @@
   </style>
   <% } %>
   <% if(isUat && !cudoDisabled && currentUser && String(currentUser.role||'').toLowerCase()==='owner'){ %><link rel="stylesheet" href="<%= basePath %>/public/css/cudo-widget.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>"><% } %>
+  <% if(isStaging){ %>
+  <style id="tk2m-boot-critical">
+    /* Hide the legacy shell entirely until calendar and navigation are ready. */
+    body.tk2m-booting #talk2me-os,
+    body.tk2m-booting #os-toast-region { visibility:hidden!important }
+    .tk2m-start-screen {
+      position:fixed;z-index:25000;inset:0;display:grid;place-items:center;
+      padding:22px;background:radial-gradient(circle at 12% 12%,#d4e7f9,transparent 48%),
+        linear-gradient(145deg,#eaf3fc,#f7fbff);
+      color:#233c52;font:inherit;
+    }
+    .tk2m-start-screen[hidden]{display:none!important}
+    .tk2m-start-inner {max-width:360px;text-align:center}
+    .tk2m-start-inner img {display:block;width:130px;height:auto;margin:0 auto 20px}
+    .tk2m-start-inner h1 {font-size:23px;letter-spacing:-.02em;margin:0 0 8px}
+    .tk2m-start-inner p {color:#61788e;font-size:13px;line-height:1.5;margin:0}
+    .tk2m-start-spinner {
+      width:28px;height:28px;border-radius:50%;margin:23px auto 0;
+      border:3px solid #b9d7f0;border-top-color:#e11d2a;
+      animation:tk2m-start-spin .85s linear infinite;
+    }
+    .tk2m-start-screen.is-error .tk2m-start-spinner {display:none}
+    .tk2m-start-retry {
+      margin-top:20px;padding:12px 20px;border:0;border-radius:10px;
+      background:#e11d2a;color:#fff;font:inherit;font-weight:800;cursor:pointer
+    }
+    .tk2m-start-retry[hidden]{display:none!important}
+    @keyframes tk2m-start-spin{to{transform:rotate(360deg)}}
+    @media(prefers-reduced-motion:reduce){.tk2m-start-spinner{animation:none}}
+  </style>
+  <% } %>
 </head>
-<body class="t2m-os-body">
+<body class="t2m-os-body<%= isStaging?' tk2m-booting':'' %>">
+  <% if(isStaging){ %>
+  <div id="tk2m-start-screen" class="tk2m-start-screen" role="status" aria-live="polite" aria-label="Preparing My Day">
+    <div class="tk2m-start-inner">
+      <img src="<%= basePath %>/public/images/talk2me-logo.png" alt="Talk2Me">
+      <h1>Opening My Day</h1>
+      <p id="tk2m-start-message">Preparing your calendar and daily applications…</p>
+      <div class="tk2m-start-spinner" aria-hidden="true"></div>
+      <button type="button" class="tk2m-start-retry" id="tk2m-start-retry" hidden>Try again</button>
+      <noscript><p>Enable JavaScript to open the CRM calendar.</p></noscript>
+    </div>
+  </div>
+  <% } %>
   <% if(cudoDisabled){ %><style id="tk2m-retired-cudu">.cudo-root{display:none!important}</style><% } %>
   <% const launchers = (typeof osLaunchers !== 'undefined' && Array.isArray(osLaunchers) ? osLaunchers : []).filter(item => item.is_enabled); %>
   <% const attendance = typeof attendanceState !== 'undefined' ? attendanceState : null; %>
@@ -128,6 +171,7 @@
         <p>Opening your work calendar… If it does not appear, refresh the page.</p>
       </section>
       <% } %>
+      <% if(!isStaging){ %>
       <section class="t2m-os-desk-widgets" id="os-desk-widgets" aria-label="Today overview">
         <article class="t2m-os-desk-widget" data-widget="work"><header><div><span>My desk</span><strong>Today’s Work</strong></div><button type="button" data-widget-collapse aria-label="Collapse Today’s Work">−</button></header><div class="t2m-os-widget-body">
           <% if(isManagement){ %><div class="t2m-os-widget-row is-view-only"><button class="t2m-os-widget-view" type="button" data-os-route="<%= basePath %>/approvals" data-route-title="Approval Centre" data-route-icon="◆" aria-label="Open approvals needed"><span data-approval-label><%= approvalCount?'Approvals needed':'Approvals' %></span><strong data-status="approvalCount" data-positive="<%= approvalCount > 0 %>"><%= approvalCount %></strong></button></div><% } %>
@@ -144,6 +188,7 @@
           <div class="t2m-os-widget-row"><button class="t2m-os-widget-view" type="button" data-os-route="<%= basePath %>/os/my-work/prospects" data-route-title="New Prospects" data-route-icon="+" aria-label="Open new prospects"><span>New prospects</span><strong data-status="newProspectsCount" data-positive="<%= status.newProspectsCount > 0 %>"><%= status.newProspectsCount %></strong></button><button class="t2m-os-widget-add" type="button" data-widget-add="prospect" data-add-title="Add Prospect" data-add-icon="+" aria-label="Add a prospect" title="Add a prospect">+</button></div>
         </div></article>
       </section>
+      <% } %>
     </main>
     <div class="t2m-os-window-layer" id="os-window-layer" aria-label="Floating application windows"></div>
     <footer class="t2m-os-taskbar" id="os-taskbar" aria-label="Open windows"><span class="t2m-os-taskbar-label">Open windows</span><div class="t2m-os-taskbar-items" id="os-taskbar-items"></div></footer>
@@ -163,5 +208,35 @@
   <% if(isManagement){ %><script defer src="<%= basePath %>/public/js/approval-badges.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>" data-base-path="<%= basePath %>"></script><% } %>
   <% if(isUat && !cudoDisabled && currentUser && String(currentUser.role||'').toLowerCase()==='owner'){ %><script defer src="<%= basePath %>/public/js/cudo-widget.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>" data-base-path="<%= basePath %>"></script><% } %>
   <script defer src="<%= basePath %>/public/js/pwa-install.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>" data-base-path="<%= basePath %>"></script>
+  <% if(isStaging){ %>
+  <script id="tk2m-boot-controller">
+    (() => {
+      const screen = document.getElementById('tk2m-start-screen');
+      const message = document.getElementById('tk2m-start-message');
+      const retry = document.getElementById('tk2m-start-retry');
+      let completed = false;
+      let expired = false;
+      retry?.addEventListener('click', () => window.location.reload());
+      const fail = () => {
+        if (completed || expired) return;
+        expired = true;
+        if (message) message.textContent = 'My Day could not finish opening. Please try again.';
+        if (screen) screen.classList.add('is-error');
+        if (retry) retry.hidden = false;
+      };
+      const ready = () => {
+        if (completed || expired) return;
+        completed = true;
+        window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
+          document.body.classList.remove('tk2m-booting');
+          document.getElementById('talk2me-os')?.setAttribute('aria-busy','false');
+          if (screen) screen.hidden = true;
+        }));
+      };
+      window.Talk2MeBoot = { ready, fail };
+      window.setTimeout(() => { if (!completed) fail(); }, 11000);
+    })();
+  </script>
+  <% } %>
 </body>
 </html>
