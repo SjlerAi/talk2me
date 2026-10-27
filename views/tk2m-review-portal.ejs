@@ -43,12 +43,123 @@
           <span class="state-pill state-<%= selected.state %>"><%= selected.state==='stale'?'Changed — check again':selected.state.replace('_',' ') %></span>
         </div>
         <% if(selected.state==='stale'){ %><div class="review-warning">The underlying customer or import record changed after the last decision. The previous decision is retained in history but must be reviewed again.</div><% } %>
-        <% if(['duplicate_phone','identity','migration'].includes(selected.kind) && selected.members.length){ %>
+        <% if(typeof quickMerge!=='undefined' && quickMerge){ 
+          const caseRecordIds=new Set(selected.members.map(m=>Number(m.id)));
+          const inlineOptions = quickMerge.candidates.slice().sort((a,b)=>
+            Number(caseRecordIds.has(Number(b.id)))-Number(caseRecordIds.has(Number(a.id)))||Number(a.id)-Number(b.id));
+          const inlineIds=new Set(inlineOptions.map(c=>Number(c.id)));
+          const defaultIds= selected.members.length===2 ? selected.members.map(m=>Number(m.id)).filter(id=>inlineIds.has(id)) : (inlineOptions.length===2?inlineOptions.map(m=>Number(m.id)):[]);
+          const defaultSet=new Set(defaultIds.length===2?defaultIds:[]);
+        %>
+        <section class="review-subsection review-quick-pick" id="review-quick-pick">
+          <div class="review-quick-heading">
+            <div>
+              <span class="type-pill">FAST SIDE-BY-SIDE COMPARISON</span>
+              <h2>Tick the correct information to keep</h2>
+              <p>Select two or more records to combine, then <strong>tick the correct value next to each field</strong>.
+                The circle means “use this value.” Only one value can be selected for each field.</p>
+            </div>
+            <a class="review-link" href="<%= basePath %>/data-review/case/<%= selected.id %>/merge">Full merge planner</a>
+          </div>
+          <div class="review-pick-alert">
+            <strong>Check they are actually the same customer.</strong> Matching names, phone numbers or account numbers do not prove identity.
+            If they are separate people or contracts, use <strong>Keep separate</strong> in the decision section instead.
+          </div>
+          <form method="post" action="<%= basePath %>/data-review/case/<%= selected.id %>/merge/preview"
+                id="review-quick-merge-form">
+            <input type="hidden" name="csrf" value="<%= csrf %>">
+            <input type="hidden" name="source_hash" value="<%= quickMerge.sourceHash %>">
+            <div class="review-table-wrap review-pick-scroll">
+              <table class="review-pick-table" style="min-width:<%= 215+inlineOptions.length*265 %>px">
+                <thead>
+                  <tr>
+                    <th scope="col" class="review-pick-field-header">Information to compare</th>
+                    <% inlineOptions.forEach(m=>{ %>
+                      <th scope="col" class="review-pick-customer-header">
+                        <strong>#<%= m.id %> · <%= m.client_name||'Unnamed customer' %></strong>
+                        <small><%= caseRecordIds.has(Number(m.id))?'In this review':'Additional related record' %></small>
+                        <small><%= Number(m.is_active)?'Active':'Inactive' %> · <%= m.account_number||m.account_id||'No account' %></small>
+                        <small>Last updated: <%= m.updated_at instanceof Date?m.updated_at.toISOString().replace('T',' ').slice(0,16):(m.updated_at||'Unknown') %></small>
+                        <label class="review-pick-include"><input type="checkbox" name="selected" value="<%= m.id %>"
+                          data-pick-selected <%= defaultSet.has(Number(m.id))?'checked':'' %>>
+                          Include in merge</label>
+                        <label class="review-pick-primary"><input type="radio" name="primary" value="<%= m.id %>"
+                          data-pick-primary required> Keep as main record</label>
+                      </th>
+                    <% }) %>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% quickMerge.fields.forEach(field=>{
+                      const available=inlineOptions.filter(m=>defaultSet.has(Number(m.id)) && formatMergeValue(m[field.key]).trim());
+                      const distinct=new Set(available.map(m=>formatMergeValue(m[field.key])));
+                      const suggested=distinct.size===1 ? Number(available[0].id) : 0;
+                      const fieldValues=new Set(inlineOptions.map(m=>formatMergeValue(m[field.key])));
+                  %>
+                  <tr class="review-pick-data-row <%= fieldValues.size>1?'review-pick-different':'' %>" data-pick-field-row>
+                    <th scope="row"><strong><%= field.label %></strong>
+                      <% if(fieldValues.size>1){ %><span class="review-pick-diff-label">Different values</span><% } %>
+                    </th>
+                    <% inlineOptions.forEach(m=>{
+                         const current=formatMergeValue(m[field.key]);
+                         const hasValue=current.trim().length>0;
+                         const valueForCell=current.length>240?current.slice(0,240)+'…':current;
+                    %>
+                    <td>
+                      <label class="review-pick-choice" data-pick-choice>
+                        <input type="radio" name="donor[<%= field.key %>]" value="<%= m.id %>"
+                          data-pick-donor data-pick-source="<%= m.id %>"
+                          data-pick-value="<%= current %>"
+                          <%= suggested===Number(m.id)?'checked':'' %>>
+                        <span class="review-pick-value">
+                          <span class="review-pick-value-main"><%= hasValue?valueForCell:'— No value' %></span>
+                          <small><%= hasValue?'Use this value':'Blank on this record' %></small>
+                        </span>
+                      </label>
+                    </td>
+                    <% }) %>
+                  </tr>
+                  <% }) %>
+                  <tr class="review-pick-contract-row">
+                    <th scope="row">Account / contract</th>
+                    <% inlineOptions.forEach(m=>{ %>
+                      <td><strong><%= m.account_number||m.account_id||'—' %></strong>
+                        <small><%= m.package_name||'No package listed' %></small></td>
+                    <% }) %>
+                  </tr>
+                  <tr class="review-pick-contract-row">
+                    <th scope="row">Next upgrade date</th>
+                    <% inlineOptions.forEach(m=>{ %>
+                      <td><strong><%= formatMergeValue(m.next_upgrade_date)||'—' %></strong>
+                        <small>Preserved for this contract</small></td>
+                    <% }) %>
+                  </tr>
+                  <tr class="review-pick-contract-row">
+                    <th scope="row">Previous upgrade date</th>
+                    <% inlineOptions.forEach(m=>{ %>
+                      <td><strong><%= formatMergeValue(m.previous_upgrade_date)||'—' %></strong>
+                        <small>Preserved for this contract</small></td>
+                    <% }) %>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="review-pick-actions">
+              <div class="review-pick-status" role="status" aria-live="polite">
+                <strong id="review-pick-selected-count"><%= defaultSet.size %> records selected</strong>
+                <span id="review-pick-progress">Tick the source for each different field, and choose which record to keep.</span>
+              </div>
+              <button type="submit" class="review-primary" id="review-pick-preview" disabled>Preview the chosen information</button>
+            </div>
+            <p class="review-muted">Matching or single-filled values can be selected automatically to save time.
+              Different values need your choice. <strong>No customer, mobile line, account or upgrade date is changed by this preview.</strong></p>
+          </form>
+        </section>
+        <% } else if(['duplicate_phone','identity','migration'].includes(selected.kind) && selected.members.length){ %>
         <section class="review-subsection">
-          <h3>Want to combine only some records?</h3>
-          <p>Compare all related customer records on one page. Choose any subset of two or more, select the primary record, and choose the birthday, latest contact details and other fields individually. Other records stay separate.</p>
-          <a class="review-link" href="<%= basePath %>/data-review/case/<%= selected.id %>/merge">Open selective merge planner</a>
-          <p class="review-muted">This prepares a proposal for independent approval. No customer data is merged or deleted.</p>
+          <h3>Compare or combine these records</h3>
+          <p><%= typeof quickMergeWarning==='string'&&quickMergeWarning?quickMergeWarning:'This case does not currently have at least two eligible related records.' %></p>
+          <a class="review-link" href="<%= basePath %>/data-review/case/<%= selected.id %>/merge">Open full comparison</a>
         </section>
         <% } %>
         <% if(selected.kind==='migration'){ %>
@@ -179,5 +290,8 @@
       <strong>Friday data refresh:</strong> The latest live changes will need a new reconciliation and controlled import. Review decisions are kept separately; changed source records must be checked again. This page does not automatically synchronise UENT and TK2M.
     </footer>
   </main>
+  <% if(selected && typeof quickMerge!=='undefined' && quickMerge){ %>
+  <script defer src="<%= basePath %>/public/js/tk2m-review-quickpick.js?v=<%= encodeURIComponent(assetVersion||'1') %>"></script>
+  <% } %>
 </body>
 </html>

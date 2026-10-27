@@ -4,6 +4,7 @@ const crypto=require('crypto');
 const db=require('../config/db');
 const {requireAuth}=require('../middleware/auth');
 const {loadCases,TYPES,canManage,summarize}=require('../services/tk2m-review-cases');
+const {candidatesForCase,formatted:formatMergeValue}=require('../services/tk2m-merge-planner');
 const router=express.Router();
 const ALLOWED=new Set(['verified','keep_separate','needs_update','hold']);
 const STAFF_ALLOWED=new Set(['needs_update','hold']);
@@ -102,10 +103,22 @@ router.get('/data-review/case/:id',protectedPage,reviewSession,authorize,async(r
       const [found]=await db.query('SELECT id,client_id,account_code,msisdn_normalised,last_upgrade_date,eligible_upgrade_date,device_name FROM mobile_base_current WHERE msisdn_normalised=? OR client_id IN (?) ORDER BY id LIMIT 70',[selected.details.phone,ids.length?ids:[0]]);
       lines=found;
     }
+    let quickMerge=null,quickMergeWarning='';
+    if(['duplicate_phone','identity','migration'].includes(selected.kind)) {
+      try {
+        quickMerge=await candidatesForCase(selected,req.session.user);
+      } catch(error) {
+        if(error.message.startsWith('More than 40 related records')) {
+          quickMergeWarning='More than 40 related records found. Ask management to split this review group.';
+        } else {
+          throw error;
+        }
+      }
+    }
     res.render('tk2m-review-portal',{layout:false,title:'Review Case',currentUser:req.session.user,
       basePath:res.locals.basePath||'',assetVersion:res.locals.assetVersion,
       listing:[],totals:summarize(all),kinds:TYPES,kind:'all',view:'open',q:'',page:1,pages:1,listTotal:0,
-      csrf:csrf(req),selected:{...selected,lines},history,notice:'',
+      csrf:csrf(req),selected:{...selected,lines},quickMerge,quickMergeWarning,formatMergeValue,history,notice:'',
       canManage:canManage(req.session.user)});
   }catch(error){next(error);}
 });
