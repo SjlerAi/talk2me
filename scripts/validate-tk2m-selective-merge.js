@@ -102,7 +102,7 @@ async function run(){
  assert.ok(html.includes('type="radio" name="donor[birthday]"'));
  assert.ok(html.includes('data-merge-donor'));
  assert.ok(html.includes('Tick the correct value'));
- assert.ok(!html.includes('data-merge-donor data-field='));
+ assert.ok(!html.includes('<select name="donor[birthday]"'));
  assert.ok(load('public/css/tk2m-review.css').includes('.merge-field-tick.is-chosen'));
  const routes=load('src/routes/tk2m-merge-plans.js');
  assert.ok(routes.includes('crypto.timingSafeEqual'));
