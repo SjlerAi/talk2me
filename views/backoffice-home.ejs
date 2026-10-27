@@ -17,6 +17,7 @@
   <details class="t2m-admin-group" open>
     <summary><span><strong>Customers &amp; CRM Data</strong><small>Customer management, upgrades, imports and reconciliation</small></span><b>Data controls</b></summary>
     <div class="module-grid">
+      <a class="module-card" href="<%= basePath %>/data-review"><span class="module-icon">✓</span><h2>Data Review Centre</h2><p>Review customer duplicates, import conflicts and migration differences, with full decision history.</p></a>
       <a class="module-card" href="<%= basePath %>/backoffice/clients"><span class="module-icon">🧾</span><h2>Client Administration</h2><p>Contact details, ownership, authority and line records.</p></a>
       <a class="module-card" href="<%= basePath %>/upgrade-centre"><span class="module-icon">📈</span><h2>Upgrade Centre</h2><p>Upcoming and historical line upgrades.</p></a>
       <% if(['owner','manager','admin'].includes(currentUser.role)){ %>
