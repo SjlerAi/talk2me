@@ -212,3 +212,17 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .merge-field-table th[scope=row] small{display:block;font-weight:400;color:#657a8b;margin-top:4px}
 .merge-field-table td{width:100%}
 @media(max-width:580px){.merge-field-ticks{grid-template-columns:1fr}.merge-field-table th[scope=row]{min-width:120px}}
+
+
+/* Do not confuse one preferred contact number with many independently retained lines. */
+.review-line-inventory{margin:17px 0 13px;padding:16px;border:1px solid #c9deef;border-radius:12px;background:#f6fbff}
+.review-line-inventory h3{font-size:15px;margin:8px 0}
+.review-line-inventory h4{font-size:13px;margin:17px 0 8px;color:#335370}
+.review-line-inventory p{line-height:1.55}
+.review-line-table{width:100%;border-collapse:collapse;font-size:12px;min-width:710px}
+.review-line-table th{background:#e6f1fc;text-align:left;padding:10px 12px;white-space:nowrap}
+.review-line-table td{padding:10px 12px;border-bottom:1px solid #dce9f4;vertical-align:top}
+.review-line-table td strong{color:#17476b}
+.review-line-table td small{display:block;color:#687f94;margin-top:3px}
+.review-pick-contract-row th small{display:block;font-weight:normal;color:#6b8095;margin-top:4px}
+@media(max-width:720px){.review-line-inventory{padding:12px}.review-line-table th,.review-line-table td{padding:8px}}

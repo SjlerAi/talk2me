@@ -18,7 +18,8 @@ const FIELDS=Object.freeze([
  {key:'main_contact_number',label:'Business contact number'},
  {key:'notes',label:'Customer notes'}
 ]);
-const MAX_CANDIDATES=40,MAX_SELECTED=12;
+// A customer can have many contract lines. Never silently truncate the line list.
+const MAX_CANDIDATES=40,MAX_SELECTED=12,MAX_LINKED_LINES=500;
 const fieldLabel=key=>FIELDS.find(x=>x.key===key)?.label||String(key);
 const formatted=x=>x==null?'':x instanceof Date?x.toISOString().slice(0,10):String(x);
 const populated=x=>formatted(x).trim()!=='';
@@ -80,10 +81,33 @@ async function candidatesForCase(item,user,conn=db){
   Number(r.assigned_staff_id)===Number(user.id)&&Number(r.assignment_count)===1);
  if(!manager&&seedIds.some(id=>!candidates.some(r=>r.id===id)))return null;
  if(candidates.length<2)return null;
- const [lines]=await conn.query(
+ // First collect every line explicitly linked to the reviewable customer records.
+ // Management also sees UNASSIGNED lines on matching customer account IDs;
+ // these are flagged as requiring confirmation and are NEVER automatically
+ // assumed to belong to the customer being merged. Staff see linked lines only.
+ const candidateIds=candidates.map(x=>x.id);
+ const accountIds=manager?[...new Set(candidates.map(x=>validId(x.account_id)).filter(Boolean))]:[];
+ const includeUnassigned=accountIds.length>0;
+ const scope=includeUnassigned
+  ? 'client_id IN (?) OR (account_id IN (?) AND (client_id IS NULL OR client_id=0))'
+  : 'client_id IN (?)';
+ const lineArgs=includeUnassigned
+  ? [candidateIds,accountIds,MAX_LINKED_LINES+1]
+  : [candidateIds,MAX_LINKED_LINES+1];
+ const [foundLines]=await conn.query(
   'SELECT id,client_id,account_id,msisdn_normalised,last_upgrade_date,eligible_upgrade_date,'+
-  'contract_status,updated_at FROM mobile_base_current WHERE client_id IN (?) ORDER BY id LIMIT 250',
-  [candidates.map(x=>x.id)]);
+  'contract_status,updated_at FROM mobile_base_current WHERE ('+scope+') ORDER BY id LIMIT ?',
+  lineArgs);
+ if(foundLines.length>MAX_LINKED_LINES)
+  throw Error('More than 500 associated mobile-line records. Full line inventory could not be verified. Ask management to review the account before approving any combination.');
+ const available=new Set(candidateIds.map(Number));
+ const allowedAccounts=new Set(accountIds.map(Number));
+ const lines=foundLines.filter(line=>
+  available.has(Number(line.client_id)) ||
+  (manager && (!line.client_id || Number(line.client_id)===0) && allowedAccounts.has(Number(line.account_id)))
+ ).map(line=>({
+  ...line,relation:available.has(Number(line.client_id))?'linked_customer':'unassigned_account'
+ }));
  return {
   candidates,lines,sourceHash:signature(candidates,lines,item.fingerprint),
   fields:FIELDS.filter(f=>candidates.some(r=>populated(r[f.key]))),
@@ -115,15 +139,38 @@ function makePlan(data,request){
    changed:formatted(donor[f.key])!==formatted(master[f.key])});
  }
  const links=data.lines.filter(r=>selected.has(Number(r.client_id))).map(r=>({
-  id:r.id,clientId:r.client_id,number:r.msisdn_normalised,
+  id:r.id,clientId:r.client_id,number:r.msisdn_normalised,accountId:r.account_id,
   lastUpgrade:formatted(r.last_upgrade_date),nextEligible:formatted(r.eligible_upgrade_date),
   contractStatus:r.contract_status
+ }));
+ // "Contact cellphone" is a profile field. It is NEVER an instruction to
+ // delete or deduplicate other mobile lines associated with the customer.
+ // Keep separate customer-record contract dates even when a mobile-base line
+ // duplicates the contact number. Do not collapse line data based on MSISDN.
+ const recordLine=person=>({
+  clientId:person.id,contactNumber:person.cell_number_normalised||person.cell_number||'',
+  accountId:person.account_id,accountNumber:person.account_number,
+  packageName:person.package_name,lineStatus:person.line_status,
+  previousUpgrade:formatted(person.previous_upgrade_date),
+  nextUpgrade:formatted(person.next_upgrade_date),
+  upgradeDate:formatted(person.upgrade_date)
+ });
+ const selectedContractRecords=chosen.map(recordLine);
+ const excludedContractRecords=data.candidates.filter(r=>!selected.has(r.id)).map(recordLine);
+ const unassignedAccountLines=data.lines.filter(r=>!r.client_id||Number(r.client_id)===0).map(r=>({
+  id:r.id,accountId:r.account_id,number:r.msisdn_normalised,
+  lastUpgrade:formatted(r.last_upgrade_date),nextEligible:formatted(r.eligible_upgrade_date),
+  contractStatus:r.contract_status,requiresManualLinkVerification:true
  }));
  return {
   caseId:data.linkedCaseId,kind:data.caseKind,sourceHash:data.sourceHash,
   primaryId:primary,selectedIds:ids,
   excludedIds:data.candidates.map(r=>r.id).filter(id=>!selected.has(id)),
-  fields,linkedLines:links,reviewOnly:true,actualMergeExecuted:false,
+  fields,linkedLines:links,selectedContractRecords,excludedContractRecords,
+  unassignedAccountLines,
+  lineDataPolicy:'preserve_every_valid_line_and_each_individual_upgrade_date',
+  lineRecordsCaptured:links.length,accountOnlyLinesRequiringReview:unassignedAccountLines.length,
+  reviewOnly:true,actualMergeExecuted:false,
   preservedContractFields:['account_id','account_number','package_name','line_status','previous_upgrade_date','next_upgrade_date','upgrade_date'],
   preservedLineFields:['last_upgrade_date','eligible_upgrade_date','contract_status']
  };
@@ -145,6 +192,6 @@ async function existingPlans(caseId,conn=db){
   return {...row,plan};
  });
 }
-module.exports={FIELDS,CASE_TYPES,MAX_SELECTED,makePlan,candidatesForCase,
+module.exports={FIELDS,CASE_TYPES,MAX_SELECTED,MAX_LINKED_LINES,makePlan,candidatesForCase,
  previewSeal,compareSeal,statusOf,existingPlans,canManage,formatted,validId,parseIds,
  signature,signatureForPlan,hash,fieldLabel};
