@@ -100,3 +100,10 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .merge-candidate.is-selected{background:#eef8ff;border-color:#2c83b9}
 .merge-candidate-info{display:grid;gap:5px;font-size:12px}
 @media(max-width:900px){.merge-candidate-list{grid-template-columns:1fr}}
+
+.merge-planner .review-card{margin-bottom:15px}
+.merge-heading{display:flex;align-items:flex-start;gap:12px;margin-bottom:15px}
+.merge-heading p{margin:4px 0;color:#60758b;font-size:12px}
+.merge-step-number{flex:none;width:32px;height:32px;border-radius:10px;display:grid;place-items:center;background:#eaf4ff;color:#1269a5;font-weight:850}
+.merge-candidate input{width:18px;height:18px;accent-color:#1476b8}
+.merge-candidate-top{display:flex;gap:9px;align-items:center;flex-wrap:wrap;color:#21394d;font-size:14px}
