@@ -57,7 +57,7 @@
               <span class="type-pill">FAST SIDE-BY-SIDE COMPARISON</span>
               <h2>Tick the correct information to keep</h2>
               <p>Select two or more records to combine, then <strong>tick the correct value next to each field</strong>.
-                The circle means “use this value.” Only one value can be selected for each field.</p>
+                The circle means “use this value for the customer's profile.” <strong>Choosing the main contact cellphone never deletes or replaces other mobile lines.</strong> Each contract keeps its own upgrade dates.</p>
             </div>
             <a class="review-link" href="<%= basePath %>/data-review/case/<%= selected.id %>/merge">Full merge planner</a>
           </div>
@@ -121,6 +121,13 @@
                   </tr>
                   <% }) %>
                   <tr class="review-pick-contract-row">
+                    <th scope="row">Line number on customer record <small>Not a field to discard</small></th>
+                    <% inlineOptions.forEach(m=>{ %>
+                      <td><strong><%= m.cell_number_normalised||m.cell_number||'—' %></strong>
+                        <small>Record #<%= m.id %> — keep line/contract data separately</small></td>
+                    <% }) %>
+                  </tr>
+                  <tr class="review-pick-contract-row">
                     <th scope="row">Account / contract</th>
                     <% inlineOptions.forEach(m=>{ %>
                       <td><strong><%= m.account_number||m.account_id||'—' %></strong>
@@ -144,6 +151,41 @@
                 </tbody>
               </table>
             </div>
+            <section class="review-line-inventory" aria-label="Mobile lines and contract dates retained separately">
+              <h3>All mobile lines and their individual upgrade dates</h3>
+              <p class="review-muted"><strong>Very important:</strong> A customer may have 10 or more numbers. Tick a preferred contact number above, but do not use those ticks to remove a line. Account, package, previous and next upgrade dates remain attached to each separate record.</p>
+              <h4>Contract information on each related customer record</h4>
+              <div class="review-table-wrap"><table class="review-line-table">
+                <thead><tr><th>Record</th><th>Recorded phone</th><th>Account</th><th>Package</th><th>Previous upgrade</th><th>Next upgrade</th></tr></thead>
+                <tbody><% inlineOptions.forEach(m=>{ %>
+                  <tr><td><strong>#<%= m.id %></strong><small><%= m.client_name||'Unnamed' %></small></td>
+                    <td><%= m.cell_number_normalised||m.cell_number||'—' %></td>
+                    <td><%= m.account_number||m.account_id||'—' %></td>
+                    <td><%= m.package_name||'—' %></td>
+                    <td><%= formatMergeValue(m.previous_upgrade_date)||'—' %></td>
+                    <td><strong><%= formatMergeValue(m.next_upgrade_date)||'—' %></strong></td></tr>
+                <% }) %></tbody>
+              </table></div>
+              <h4>Mobile-line database entries (<%= quickMerge.lines.length %>)</h4>
+              <% if(quickMerge.lines.length){ %>
+              <div class="review-table-wrap"><table class="review-line-table">
+                <thead><tr><th>Line ID</th><th>Mobile number</th><th>Linked customer</th><th>Account</th><th>Last upgrade</th><th>Next eligible upgrade</th><th>Status</th></tr></thead>
+                <tbody><% quickMerge.lines.forEach(line=>{ %>
+                  <tr>
+                    <td>#<%= line.id %></td><td><%= line.msisdn_normalised||'—' %></td>
+                    <td><% if(line.relation==='unassigned_account'){ %><strong>Account line — ownership to verify</strong><% } else { %>#<%= line.client_id %><% } %></td>
+                    <td><%= line.account_id||'—' %></td>
+                    <td><%= formatMergeValue(line.last_upgrade_date)||'—' %></td>
+                    <td><strong><%= formatMergeValue(line.eligible_upgrade_date)||'—' %></strong></td>
+                    <td><%= line.contract_status||'—' %></td>
+                  </tr>
+                <% }) %></tbody>
+              </table></div>
+              <% } else { %>
+                <p class="review-warning">No linked mobile-base lines were found for these records. This does not prove there are no contracts. Confirm the line ownership and customer-record dates before approving a combination.</p>
+              <% } %>
+              <p class="review-muted">Customer-record details and mobile-base entries may refer to the same contract. Both are shown for verification; this screen does not automatically create or delete a line.</p>
+            </section>
             <div class="review-pick-actions">
               <div class="review-pick-status" role="status" aria-live="polite">
                 <strong id="review-pick-selected-count"><%= defaultSet.size %> records selected</strong>
