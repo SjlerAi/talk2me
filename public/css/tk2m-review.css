@@ -125,3 +125,12 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .merge-change{background:#fff8e4}
 .merge-preview-values{min-width:700px}
 @media(max-width:900px){.merge-preview-summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+.merge-save-form{display:grid;gap:10px;max-width:850px;margin-top:17px}
+.merge-save-form textarea{width:100%;min-height:80px;border:1px solid #c6d7e3;border-radius:10px;padding:12px}
+.merge-save-form button{justify-self:start}
+.merge-existing-row{display:flex;justify-content:space-between;gap:15px;padding:15px 0;border-top:1px solid #edf2f6}
+.merge-existing-row strong,.merge-existing-row small{display:block}
+.merge-saved-link{padding:9px 12px;border:1px solid #b8d4e8;border-radius:8px;background:#f4faff}
+#merge-preview-button:disabled{opacity:.45;cursor:not-allowed}
+@media(max-width:540px){.merge-preview-summary{grid-template-columns:1fr}.merge-existing-row{flex-direction:column}}
