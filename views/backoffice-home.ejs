@@ -1,19 +1,66 @@
-<section class="page-head">
-  <div><h1>Administration</h1><p>Maintain staff, customer records and detailed reports. Daily operations start in the Command Centre.</p></div><a class="btn primary" href="<%= basePath %>/command-centre">Open Command Centre</a>
+<section class="page-head t2m-admin-preview-head">
+  <div>
+    <h1>Administration Centre</h1>
+    <p>One place for management and configuration. Daily tasks, messages and reminders stay on <strong>My Day</strong> and the Work launcher.</p>
+  </div>
+  <a class="btn primary" href="<%= basePath %>/workspace">← Back to My Day</a>
 </section>
-<div class="module-grid">
-  <% if(['owner','manager'].includes(currentUser.role)){ %><a class="module-card" href="<%= basePath %>/office-intelligence"><span class="module-icon">🧠</span><h2>Office Intelligence</h2><p>Gerda Agent: check the shop live, run today/weekly reports and review CRM activity from desktop or mobile.</p></a><% } %>
-  <a class="module-card" href="<%= basePath %>/backoffice/staff"><span class="module-icon">👥</span><h2>Staff</h2><p>Users, roles, profiles, photos and ID documents.</p></a>
-  <a class="module-card" href="<%= basePath %>/backoffice/attendance"><span class="module-icon">🕒</span><h2>Login & Attendance</h2><p>See active sessions, login and logout times, activity and daily hours.</p></a>
-  <a class="module-card" href="<%= basePath %>/backoffice/clients"><span class="module-icon">🧾</span><h2>Client Administration</h2><p>Maintain contact details, ownership, authority, status and line information.</p></a>
-  <a class="module-card" href="<%= basePath %>/tasks?view=all"><span class="module-icon">📣</span><h2>Messages & Tasks</h2><p>Send staff notifications, assign work, track progress and confirm completion.</p></a>
-  <a class="module-card" href="<%= basePath %>/backoffice/inquiries"><span class="module-icon">🗂️</span><h2>Inquiries</h2><p>Category reports, status tracking, follow-ups and staff performance.</p></a>
-  <a class="module-card" href="<%= basePath %>/upgrade-centre"><span class="module-icon">📈</span><h2>Upgrade Centre</h2><p>Historical and upcoming upgrade opportunities across every client line.</p></a>
-  <a class="module-card" href="<%= basePath %>/work-centre"><span class="module-icon">⏰</span><h2>Work Centre</h2><p>Open, overdue, due-today and unassigned customer work.</p></a>
-  <a class="module-card" href="<%= basePath %>/backoffice/reports/new-contacts"><span class="module-icon">📊</span><h2>Reports</h2><p>Walk-ins, staff activity and birthday correction history.</p></a>
-  <% if(currentUser.role==='owner'){ %><a class="module-card" href="<%= basePath %>/backoffice/contact-lists"><span class="module-icon">✉️</span><h2>Contact Lists & Communication</h2><p>Build customer email and mobile lists by category and date, export them, and send owner-approved customer emails.</p></a><% } %>
-  <% if(['owner','manager','admin'].includes(currentUser.role)){ %><a class="module-card" href="<%= basePath %>/backoffice/data-import"><span class="module-icon">📥</span><h2>Data Import Centre</h2><p>Upload, preview and audit monthly B12, Siebel and Fixed Base reports.</p></a><% } %>
-  <% if(['owner','manager'].includes(currentUser.role)){ %><a class="module-card" href="<%= basePath %>/backoffice/monthly-import-management<%= panelMode?'?panel=1':'' %>"><span class="module-icon">MI</span><h2>Monthly Import Management</h2><p>Track every imported customer, approval, live record, failure and completed action.</p></a><% } %>
-  <% if(['owner','manager','admin'].includes(currentUser.role)){ %><a class="module-card" href="<%= basePath %>/backoffice/legacy-client-claim-reconciliation<%= panelMode?'?panel=1':'' %>"><span class="module-icon">LC</span><h2>Legacy Client Claim Reconciliation</h2><p>Review historical pending claims in a read-only reconciliation report.</p></a><% } %>
-  <% if(['owner','admin'].includes(currentUser.role)){ %><a class="module-card" href="<%= basePath %>/backoffice/os-launchers"><span class="module-icon">⚙️</span><h2>Workstation Launchers</h2><p>Configure ten top-strip names, icons and secure external-system links for all staff.</p></a><% } %>
+<div class="t2m-admin-preview" aria-label="Administration categories">
+  <details class="t2m-admin-group" open>
+    <summary><span><strong>Staff &amp; Access</strong><small>Team members, login access and attendance</small></span><b>2 tools</b></summary>
+    <div class="module-grid">
+      <a class="module-card" href="<%= basePath %>/backoffice/staff"><span class="module-icon">👥</span><h2>Staff</h2><p>Users, roles, profiles, photos and ID documents.</p></a>
+      <a class="module-card" href="<%= basePath %>/backoffice/attendance"><span class="module-icon">🕒</span><h2>Login &amp; Attendance</h2><p>Active sessions, login/logout times, activity and hours.</p></a>
+    </div>
+  </details>
+
+  <details class="t2m-admin-group" open>
+    <summary><span><strong>Customers &amp; CRM Data</strong><small>Customer management, upgrades, imports and reconciliation</small></span><b>Data controls</b></summary>
+    <div class="module-grid">
+      <a class="module-card" href="<%= basePath %>/backoffice/clients"><span class="module-icon">🧾</span><h2>Client Administration</h2><p>Contact details, ownership, authority and line records.</p></a>
+      <a class="module-card" href="<%= basePath %>/upgrade-centre"><span class="module-icon">📈</span><h2>Upgrade Centre</h2><p>Upcoming and historical line upgrades.</p></a>
+      <% if(['owner','manager','admin'].includes(currentUser.role)){ %>
+        <a class="module-card" href="<%= basePath %>/backoffice/data-import"><span class="module-icon">📥</span><h2>Data Import Centre</h2><p>Upload, preview and audit B12, Siebel and Fixed Base reports.</p></a>
+      <% } %>
+      <% if(['owner','manager'].includes(currentUser.role)){ %>
+        <a class="module-card" href="<%= basePath %>/backoffice/monthly-import-management<%= panelMode?'?panel=1':'' %>"><span class="module-icon">MI</span><h2>Monthly Import Management</h2><p>Imported customers, approvals and exceptions.</p></a>
+      <% } %>
+      <% if(['owner','manager','admin'].includes(currentUser.role)){ %>
+        <a class="module-card" href="<%= basePath %>/backoffice/legacy-client-claim-reconciliation<%= panelMode?'?panel=1':'' %>"><span class="module-icon">LC</span><h2>Legacy Client Claim Reconciliation</h2><p>Review historical claims without modifying records.</p></a>
+      <% } %>
+    </div>
+  </details>
+
+  <details class="t2m-admin-group">
+    <summary><span><strong>Workflows &amp; Approvals</strong><small>Team oversight, customer inquiries and approval actions</small></span><b>Open tools</b></summary>
+    <div class="module-grid">
+      <a class="module-card" href="<%= basePath %>/command-centre"><span class="module-icon">◆</span><h2>Team Command Centre</h2><p>Management view of office operations.</p></a>
+      <a class="module-card" href="<%= basePath %>/approvals"><span class="module-icon">✓</span><h2>Approval Centre</h2><p>Review management decisions requiring approval.</p></a>
+      <a class="module-card" href="<%= basePath %>/tasks?view=all"><span class="module-icon">📣</span><h2>Team Task Oversight</h2><p>Manage delegated tasks and follow-ups; daily messaging stays in Work.</p></a>
+      <a class="module-card" href="<%= basePath %>/work-centre"><span class="module-icon">⏰</span><h2>Work Centre</h2><p>Overdue, due-today and unassigned customer work.</p></a>
+      <a class="module-card" href="<%= basePath %>/backoffice/inquiries"><span class="module-icon">🗂️</span><h2>Inquiries</h2><p>Customer follow-ups, categories and workflow status.</p></a>
+    </div>
+  </details>
+
+  <details class="t2m-admin-group">
+    <summary><span><strong>Reports &amp; Performance</strong><small>Office intelligence, daily activity and business reports</small></span><b>View reports</b></summary>
+    <div class="module-grid">
+      <% if(['owner','manager'].includes(currentUser.role)){ %>
+        <a class="module-card" href="<%= basePath %>/office-intelligence"><span class="module-icon">🧠</span><h2>Office Intelligence</h2><p>Monitor office performance and review CRM activity.</p></a>
+      <% } %>
+      <a class="module-card" href="<%= basePath %>/backoffice/reports/new-contacts"><span class="module-icon">📊</span><h2>Reports</h2><p>Walk-ins, staff activity and customer history.</p></a>
+    </div>
+  </details>
+
+  <% if(['owner','admin'].includes(currentUser.role)){ %>
+  <details class="t2m-admin-group">
+    <summary><span><strong>System &amp; Communication</strong><small>Launcher settings and controlled customer communication</small></span><b>Configure</b></summary>
+    <div class="module-grid">
+      <% if(currentUser.role==='owner'){ %>
+        <a class="module-card" href="<%= basePath %>/backoffice/contact-lists"><span class="module-icon">✉️</span><h2>Contact Lists &amp; Communication</h2><p>Prepare approved customer lists, exports and communications.</p></a>
+      <% } %>
+      <a class="module-card" href="<%= basePath %>/backoffice/os-launchers"><span class="module-icon">⚙️</span><h2>Workstation Launchers</h2><p>Manage daily application names, icons and secure links.</p></a>
+    </div>
+  </details>
+  <% } %>
 </div>

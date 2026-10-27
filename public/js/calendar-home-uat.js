@@ -7,6 +7,7 @@
   const config = JSON.parse(configNode.textContent || '{}');
   const basePath = String(config.basePath || '');
   const isManagement = Boolean(config.isManagement);
+  const tk2mPreview = Boolean(config.isStaging) || window.location.hostname === 'crm.tk2m.co.za';
 
   function openWorkWindow(options = {}) {
     const manager = window.Talk2MeOS?.windows;
@@ -137,7 +138,7 @@
     const renderMenu = () => {
       const source = sidebar.querySelector('.t2m-simple-nav');
       const status = config.status || {};
-      const quick = [];
+      const quick = tk2mPreview ? [{app:'work',icon:'✓',label:'Work',badge:Number(status.taskCount||0)}] : [];
 
       menu.innerHTML = '<header><div><span>Talk2Me</span><strong>Menu</strong></div><button type="button" data-mobile-menu-close aria-label="Close menu">×</button></header><div class="t2m-mobile-menu-grid" data-mobile-menu-grid></div>';
       const grid = menu.querySelector('[data-mobile-menu-grid]');
@@ -191,12 +192,23 @@
 
   function simplifyShell() {
     shell.classList.add('t2m-calendar-home-shell');
-    launcher?.setAttribute('hidden', '');
+    if (tk2mPreview) {
+      shell.classList.add('t2m-tk2m-test-shell');
+      launcher?.removeAttribute('hidden');
+    } else {
+      launcher?.setAttribute('hidden', '');
+    }
 
     sidebar.querySelectorAll(':scope > .t2m-os-sidebar-section').forEach(section => section.remove());
     const section = document.createElement('div');
     section.className = 't2m-os-sidebar-section t2m-simple-nav';
-    section.innerHTML = `<span class="t2m-os-sidebar-label">Work</span>
+    section.innerHTML = tk2mPreview ? `<span class="t2m-os-sidebar-label">Navigate</span>
+      <button type="button" class="is-current" data-home-today aria-label="My Day" title="My Day"><span>□</span><strong>My Day</strong></button>
+      <button type="button" data-os-launch="customers" aria-label="Customers" title="Customers"><span>C</span><strong>Customers</strong></button>
+      <button type="button" data-os-route="${basePath}/uat/library" data-route-title="Library" data-route-icon="L" aria-label="Library" title="Library"><span>L</span><strong>Library</strong></button>
+      ${isManagement ? `<button type="button" data-os-app="reports" aria-label="Reports" title="Reports"><span>▦</span><strong>Reports</strong></button>
+      <button type="button" data-os-route="${basePath}/backoffice" data-route-title="Administration" data-route-icon="⚙" aria-label="Administration" title="Administration"><span>⚙</span><strong>Administration</strong></button>` : ''}
+      <button type="button" data-os-app="help" aria-label="Help" title="Help"><span>?</span><strong>Help</strong></button>` : `<span class="t2m-os-sidebar-label">Work</span>
       <button type="button" class="is-current" data-home-today aria-label="My Day" title="My Day"><span>□</span><strong>My Day</strong></button>
       <button type="button" data-os-app="work" aria-label="Work" title="Work"><span>✓</span><strong>Work</strong></button>
       <button type="button" data-os-launch="customers" aria-label="Customers" title="Customers"><span>C</span><strong>Customers</strong></button>
@@ -283,13 +295,27 @@
         <div>
           <span>Talk2Me work planner</span>
           <h1>My Day</h1>
-          <p>${isManagement ? 'Team view shows the whole office. Staff colours show responsibility.' : 'Your tasks, customers and dated work in one place.'}</p>
+          <p>${tk2mPreview ? (isManagement ? 'Your calendar first. Switch between your day and the team, with staff colours showing responsibility.' : 'Your calendar, tasks, reminders and messages in one place.') : (isManagement ? 'Team view shows the whole office. Staff colours show responsibility.' : 'Your tasks, customers and dated work in one place.')}</p>
         </div>
         <div class="t2m-home-actions">
           <button type="button" data-home-add-task>+ Task</button>
           <button type="button" data-home-add-reminder>+ Reminder</button>
         </div>
       </header>
+      ${tk2mPreview ? `<section class="t2m-home-focus" aria-label="Daily priorities">
+        <button type="button" data-home-focus="tasks" data-os-app="tasks" aria-label="Open tasks and follow-ups">
+          <span>Tasks &amp; follow-ups</span><strong data-home-focus-count="tasks">—</strong><small>Selected day · open Work</small>
+        </button>
+        <button type="button" data-home-focus="reminders" aria-label="View reminders for selected day">
+          <span>Reminders</span><strong data-home-focus-count="reminders">—</strong><small>Selected day · calendar</small>
+        </button>
+        <button type="button" data-home-focus="messages" data-os-app="messages" aria-label="Open unread staff messages">
+          <span>Messages</span><strong data-home-focus-count="messages">—</strong><small>Unread · open messages</small>
+        </button>
+        <button type="button" data-home-focus="overdue" aria-label="Open my overdue tasks">
+          <span>My overdue</span><strong data-home-focus-count="overdue">—</strong><small>Needs your attention</small>
+        </button>
+      </section>` : ''}
       <div class="t2m-home-calendar-controls">
         <button type="button" data-home-prev aria-label="Previous month">‹</button>
         <button type="button" data-home-today-button>Today</button>
@@ -327,7 +353,8 @@
       staffFilter: null,
       events: [],
       loading: false,
-      error: ''
+      error: '',
+      focus: { messages: null, overdue: null }
     };
 
     const grid = workspace.querySelector('[data-home-grid]');
@@ -373,6 +400,29 @@
           render();
         };
       });
+    }
+
+    function renderFocus() {
+      if (!tk2mPreview) return;
+      const inactive = new Set(['completed', 'cancelled', 'closed', 'done', 'accepted']);
+      const selectedItems = visibleEvents().filter(item =>
+        item.date === state.selected && !inactive.has(String(item.status || '').toLowerCase()));
+      const taskCount = selectedItems.filter(item =>
+        item.source === 'task' || item.type === 'follow-up' || item.type === 'callback').length;
+      const reminderCount = selectedItems.filter(item =>
+        item.type === 'reminder' || item.type === 'appointment').length;
+      const counts = {
+        tasks: state.loading ? null : taskCount,
+        reminders: state.loading ? null : reminderCount,
+        messages: state.focus.messages,
+        overdue: state.focus.overdue
+      };
+      for (const [key, count] of Object.entries(counts)) {
+        const node = workspace.querySelector(`[data-home-focus-count="${key}"]`);
+        if (!node) continue;
+        node.textContent = count === null ? '—' : String(count);
+        node.closest('[data-home-focus]')?.classList.toggle('has-attention', Number(count) > 0);
+      }
     }
 
     function renderAgenda() {
@@ -489,6 +539,7 @@
         button.classList.toggle('is-active', button.dataset.homeScope === state.scope);
       });
       renderStaffFilters();
+      renderFocus();
       renderAgenda();
     }
 
@@ -507,6 +558,21 @@
       }
       state.loading = false;
       render();
+    }
+
+    async function loadAttention() {
+      if (!tk2mPreview) return;
+      const [messagesResult, statusResult] = await Promise.allSettled([
+        jsonFetch('/api/uat/chat/bootstrap'),
+        jsonFetch('/api/os/status')
+      ]);
+      state.focus.messages = messagesResult.status === 'fulfilled'
+        ? Math.max(0, Number(messagesResult.value.unreadTotal || 0) + Number(messagesResult.value.systemUnread || 0))
+        : null;
+      state.focus.overdue = statusResult.status === 'fulfilled'
+        ? Math.max(0, Number(statusResult.value.status?.overdueTaskCount || 0))
+        : null;
+      renderFocus();
     }
 
     function openTask() {
@@ -532,6 +598,19 @@
     workspace.querySelector('[data-home-today-button]').onclick = () => { const now = new Date(); state.month = monthStart(now); state.selected = iso(now); state.staffFilter = null; load(); };
     workspace.querySelector('[data-home-add-task]').onclick = openTask;
     workspace.querySelector('[data-home-add-reminder]').onclick = openReminder;
+    workspace.querySelector('[data-home-focus="reminders"]')?.addEventListener('click', () => {
+      const panel = workspace.querySelector('.t2m-home-agenda');
+      panel?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      panel?.classList.add('is-highlighted');
+      window.setTimeout(() => panel?.classList.remove('is-highlighted'), 900);
+    });
+    workspace.querySelector('[data-home-focus="overdue"]')?.addEventListener('click', () => {
+      openWorkWindow({
+        id: 'myday:overdue', appKey: 'overdue-work', title: 'My overdue tasks',
+        icon: '!', subtitle: 'Outstanding work requiring attention',
+        url: `${basePath}/os/my-work/overdue-tasks`, width: 940, height: 650
+      });
+    });
     workspace.querySelectorAll('[data-home-scope]').forEach(button => {
       button.onclick = () => {
         const next = button.dataset.homeScope;
@@ -575,15 +654,16 @@
     window.addEventListener('message', event => {
       if (event.origin !== location.origin) return;
       if (event.data?.type === 'talk2me:quick-action-saved' || event.data?.type === 'talk2me:calendar-item-updated') {
-        setTimeout(load, 150);
+        setTimeout(() => { load(); loadAttention(); }, 150);
       }
     });
 
     window.addEventListener('workspace:refresh', () => {
-      setTimeout(load, 100);
+      setTimeout(() => { load(); loadAttention(); }, 100);
     });
 
     load();
+    loadAttention();
   }
 
   // Mount My Day first. The calendar is the primary workspace and must not

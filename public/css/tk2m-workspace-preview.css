@@ -1,0 +1,126 @@
+/* TK2M preview: calendar-centred My Day, permanent everyday launcher and simple navigation.
+   Scoped to the migration release. The active UENT CRM has no dependency on this file. */
+.t2m-os-shell.t2m-tk2m-test-shell{
+  grid-template-rows:70px 70px minmax(0,1fr) 46px!important;
+}
+.t2m-os-shell.t2m-tk2m-test-shell .t2m-os-sidebar{
+  grid-row:2/5!important;
+}
+.t2m-os-shell.t2m-tk2m-test-shell .t2m-os-launcher{
+  display:flex!important;grid-column:2!important;grid-row:2!important;
+  min-height:0;overflow:hidden;align-items:center;justify-content:space-between;
+  background:#fff;border-bottom:1px solid #dce4eb;padding:5px 9px!important;gap:5px;
+}
+.t2m-os-shell.t2m-tk2m-test-shell .t2m-os-launcher-scroll{
+  display:flex;align-items:center;gap:6px;min-width:0;flex:1;
+  overflow-x:auto;overflow-y:hidden;scrollbar-width:thin;
+}
+.t2m-os-shell.t2m-tk2m-test-shell .t2m-os-launcher-scroll>button{
+  min-width:100px;max-width:172px;height:55px;flex:0 0 auto;
+  padding:5px 9px;font-size:12px;font-weight:800;border:1px solid #e5ebf1;border-radius:10px;background:#fff;
+}
+.t2m-os-shell.t2m-tk2m-test-shell .t2m-os-launcher-scroll>button:hover{
+  border-color:#bdcbd7;background:#f5f9fc;
+}
+.t2m-os-shell.t2m-tk2m-test-shell .t2m-os-launcher-arrow{
+  flex:0 0 30px;min-width:30px;width:30px;height:40px;padding:0;
+}
+.t2m-os-shell.t2m-tk2m-test-shell .t2m-os-workspace{grid-row:3!important}
+.t2m-os-shell.t2m-tk2m-test-shell .t2m-os-taskbar{grid-row:4!important}
+.t2m-tk2m-test-shell .t2m-simple-nav{gap:7px!important}
+.t2m-tk2m-test-shell .t2m-simple-nav>.t2m-os-sidebar-label{letter-spacing:.14em}
+.t2m-tk2m-test-shell .t2m-home-calendar{
+  grid-template-rows:auto auto auto auto minmax(0,1fr);gap:8px;
+  padding:12px 14px 10px;background:#f4f6f9;
+}
+.t2m-tk2m-test-shell .t2m-home-calendar-head{align-items:center}
+.t2m-tk2m-test-shell .t2m-home-calendar-head h1{font-size:25px}
+.t2m-tk2m-test-shell .t2m-home-focus{
+  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;
+}
+.t2m-tk2m-test-shell .t2m-home-focus button{
+  position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto;
+  align-items:center;gap:2px 8px;min-height:64px;
+  padding:9px 12px;border:1px solid #dce4ed;border-radius:11px;
+  background:#fff;color:#202832;text-align:left;box-shadow:0 2px 8px rgba(20,30,48,.025);
+}
+.t2m-tk2m-test-shell .t2m-home-focus button:hover,
+.t2m-tk2m-test-shell .t2m-home-focus button:focus-visible{
+  border-color:#0072bc;background:#f8fcff;
+}
+.t2m-tk2m-test-shell .t2m-home-focus button.has-attention{
+  border-color:#f3c5c6;background:#fffafa;
+}
+.t2m-tk2m-test-shell .t2m-home-focus button>span{
+  min-width:0;font-size:12px;font-weight:850;
+}
+.t2m-tk2m-test-shell .t2m-home-focus button>strong{
+  justify-self:end;color:#202832;font-size:24px;line-height:1;
+}
+.t2m-tk2m-test-shell .t2m-home-focus button.has-attention>strong{color:#c82935}
+.t2m-tk2m-test-shell .t2m-home-focus button>small{
+  grid-column:1/-1;color:#657383;font-size:10px;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;
+}
+.t2m-tk2m-test-shell .t2m-home-calendar-layout{
+  grid-template-columns:minmax(0,1.6fr) minmax(300px,.7fr);
+}
+.t2m-tk2m-test-shell .t2m-home-agenda.is-highlighted{
+  border-color:#0072bc;box-shadow:0 0 0 3px rgba(0,114,188,.14);
+}
+.t2m-tk2m-test-shell .t2m-home-agenda-list{scrollbar-width:thin}
+/* Administration: one entry, original authorisation rules and routes preserved. */
+.t2m-admin-preview-head{display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap}
+.t2m-admin-preview-head p{max-width:700px}
+.t2m-admin-preview{display:grid;gap:17px;min-width:0}
+.t2m-admin-preview .t2m-admin-group{
+  padding:16px;border:1px solid #dce4ed;border-radius:14px;background:#fff;
+}
+.t2m-admin-preview .t2m-admin-group>summary{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  cursor:pointer;list-style:none;padding:4px 0 7px;
+}
+.t2m-admin-preview .t2m-admin-group>summary::-webkit-details-marker{display:none}
+.t2m-admin-preview .t2m-admin-group>summary span{display:grid;gap:4px}
+.t2m-admin-preview .t2m-admin-group>summary strong{font-size:18px;color:#202832}
+.t2m-admin-preview .t2m-admin-group>summary small{color:#657383;font-size:12px}
+.t2m-admin-preview .t2m-admin-group>summary b{
+  padding:6px 9px;border:1px solid #e2eaf1;border-radius:999px;
+  background:#f4f7fa;font-size:11px;color:#415367;white-space:nowrap;
+}
+.t2m-admin-preview .t2m-admin-group>summary:focus-visible{outline:3px solid #9bcde6;border-radius:5px}
+.t2m-admin-preview .t2m-admin-group[open]{border-color:#bbd0df;box-shadow:0 4px 16px rgba(24,45,67,.05)}
+.t2m-admin-preview .t2m-admin-group[open]>summary{padding-bottom:12px;border-bottom:1px solid #edf2f6}
+.t2m-admin-preview .t2m-admin-group>header h2{margin:0;font-size:18px}
+.t2m-admin-preview .t2m-admin-group>header p{margin:4px 0 0;color:#657383;font-size:13px}
+.t2m-admin-preview .module-grid{margin-top:10px}
+.t2m-admin-preview .module-card h2{font-size:16px}
+.t2m-admin-preview .module-card p{font-size:12px}
+@media (max-width:1250px){
+  .t2m-tk2m-test-shell .t2m-home-focus{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .t2m-tk2m-test-shell .t2m-home-focus button{min-height:57px}
+  .t2m-tk2m-test-shell .t2m-home-calendar-layout{grid-template-columns:1fr}
+  .t2m-tk2m-test-shell .t2m-home-calendar{overflow:auto}
+  .t2m-tk2m-test-shell .t2m-home-agenda{min-height:200px}
+}
+@media (max-width:760px){
+  .t2m-os-shell.t2m-tk2m-test-shell{
+    grid-template-columns:1fr!important;
+    grid-template-rows:116px 60px minmax(0,1fr) 46px!important;
+  }
+  .t2m-os-shell.t2m-tk2m-test-shell .t2m-os-launcher{
+    grid-column:1!important;grid-row:2!important;
+    height:60px!important;min-height:60px!important;padding:4px!important;
+  }
+  .t2m-os-shell.t2m-tk2m-test-shell .t2m-os-workspace{grid-column:1!important;grid-row:3!important}
+  .t2m-os-shell.t2m-tk2m-test-shell .t2m-os-taskbar{grid-column:1!important;grid-row:4!important}
+  .t2m-tk2m-test-shell .t2m-home-calendar{padding:9px!important;gap:8px}
+  .t2m-tk2m-test-shell .t2m-home-focus{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+  .t2m-tk2m-test-shell .t2m-home-focus button{min-height:62px;padding:8px}
+  .t2m-tk2m-test-shell .t2m-home-focus button>span{font-size:11px}
+  .t2m-tk2m-test-shell .t2m-home-focus button>strong{font-size:21px}
+  .t2m-tk2m-test-shell .t2m-os-launcher-scroll>button{min-width:80px;max-width:125px;height:48px}
+}
+@media (prefers-reduced-motion:reduce){
+  .t2m-tk2m-test-shell .t2m-home-agenda{scroll-behavior:auto}
+}

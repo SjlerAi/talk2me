@@ -15,6 +15,7 @@
   <link rel="stylesheet" href="<%= basePath %>/public/css/attendance.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>">
   <link rel="stylesheet" href="<%= basePath %>/public/css/attendance-tabs.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>">
   <link rel="stylesheet" href="<%= basePath %>/public/css/layout-polish.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>">
+  <% if(isStaging){ %><link rel="stylesheet" href="<%= basePath %>/public/css/tk2m-workspace-preview.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>"><% } %>
   <link rel="stylesheet" href="<%= basePath %>/public/css/task-workflow.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>">
   <link rel="stylesheet" href="<%= basePath %>/public/css/legacy-client-claim-decisions.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>">
   <link rel="stylesheet" href="<%= basePath %>/public/css/client-assignment-centre.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>">
