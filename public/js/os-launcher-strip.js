@@ -9,7 +9,8 @@
   if (!strip || !previous || !next) return;
 
   function installUatCommandCentre() {
-    const isUatWorkspace = location.hostname === 'uent.co.za' && basePath === '/talk2me';
+    const isUatWorkspace = (location.hostname === 'uent.co.za' && basePath === '/talk2me') ||
+      (location.hostname === 'crm.tk2m.co.za' && basePath === '');
     if (!isUatWorkspace || document.querySelector('[data-uat-command-centre]')) return;
     const existing = [...document.querySelectorAll('[data-os-route]')]
       .find(node => String(node.dataset.osRoute || '').endsWith('/command-centre'));
