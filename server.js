@@ -388,9 +388,13 @@ if (UAT_MODE) {
     if (BASE_PATH) app.use(BASE_PATH, zippyIntegration);
   }
 
-  const cudoAi = require('./src/routes/cudo-ai');
-  app.use('/', cudoAi);
-  if (BASE_PATH) app.use(BASE_PATH, cudoAi);
+  // Cudu is retired from TK2M staging; Zippy is its separate successor.
+  // Preserve existing UENT operation until the separately approved cutover.
+  if (!CRM_STAGE_MODE) {
+    const cudoAi = require('./src/routes/cudo-ai');
+    app.use('/', cudoAi);
+    if (BASE_PATH) app.use(BASE_PATH, cudoAi);
+  }
 
   const managementIntelligence = require('./src/routes/management-intelligence');
   app.use('/', managementIntelligence);

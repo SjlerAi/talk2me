@@ -7,6 +7,7 @@
   if (!configNode) return;
   const config = JSON.parse(configNode.textContent || '{}');
   const basePath = String(config.basePath || '');
+  const retireCudoInTk2m = window.location.hostname === 'crm.tk2m.co.za';
   const user = config.user || {};
   const palette = ['#7c3aed','#2563eb','#059669','#ea580c','#db2777','#0891b2','#9333ea','#16a34a','#c2410c','#0284c7'];
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
@@ -573,7 +574,7 @@
         </select>
       </div>`;
 
-    const quickCommandPanel=taskState.management?quickCommandHtml():'';
+    const quickCommandPanel=taskState.management&&!retireCudoInTk2m?quickCommandHtml():'';
 
     const cards=taskState.tasks.length?taskState.tasks.map(task=>{
       const badge=taskInboxBadge(task);
@@ -634,7 +635,7 @@
     renderWorkHeader('new');
     clearInterval(chatPoll);
     fitWidgetMode(taskWidget,taskWidgetKey,{width:840,height:700,minWidth:560,minHeight:420});
-    if(taskState.management&&!prefill.advanced){
+    if(taskState.management&&!prefill.advanced&&!retireCudoInTk2m){
       // +Task opens Gerda's one-command screen. The detailed form is still available.
       taskBody.innerHTML='<section class="t2m-simple-new-task">'+quickCommandHtml()+
         '<button type="button" class="t2m-quick-task-more" data-task-more-options>More options · files, recipients and task details</button></section>';
