@@ -196,3 +196,19 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
  .review-pick-actions .review-primary{width:100%}
 }
 @media(prefers-reduced-motion:reduce){.review-pick-choice{transition:none}}
+
+
+/* Direct, one-tick-per-field comparison. The original account/contract data remains protected. */
+.merge-field-ticks{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:9px}
+.merge-field-tick{display:flex;align-items:flex-start;gap:10px;padding:12px;border:1px solid #d8e4ef;border-radius:10px;background:#fff;cursor:pointer;min-height:65px;overflow-wrap:anywhere}
+.merge-field-tick input{flex:0 0 auto;margin-top:4px;accent-color:#1c79ba;width:17px;height:17px}
+.merge-field-tick>span{display:flex;flex-direction:column;gap:5px;min-width:0}
+.merge-field-tick strong{font-size:12px}
+.merge-field-value{font-size:12px;color:#435971;white-space:normal}
+.merge-field-tick.is-chosen{border:2px solid #1674b5;background:#eef8ff;padding:11px}
+.merge-field-tick.is-unavailable{opacity:.44;background:#f4f7fa;cursor:not-allowed}
+.merge-field-tick:focus-within{outline:2px solid #8ac1eb;outline-offset:2px}
+.merge-field-table th[scope=row]{min-width:170px;vertical-align:top;text-align:left}
+.merge-field-table th[scope=row] small{display:block;font-weight:400;color:#657a8b;margin-top:4px}
+.merge-field-table td{width:100%}
+@media(max-width:580px){.merge-field-ticks{grid-template-columns:1fr}.merge-field-table th[scope=row]{min-width:120px}}
