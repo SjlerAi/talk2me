@@ -97,7 +97,13 @@ async function run(){
  }
  const script=load('public/js/tk2m-merge-planner.js');
  assert.ok(script.includes('data-merge-selected'));
- assert.ok(script.includes('donors.some'));
+ assert.ok(script.includes('validSelection()'));
+ assert.ok(script.includes('radio.disabled=!selected.has(radio.value)'));
+ assert.ok(html.includes('type="radio" name="donor[birthday]"'));
+ assert.ok(html.includes('data-merge-donor'));
+ assert.ok(html.includes('Tick the correct value'));
+ assert.ok(!html.includes('<select name="donor[birthday]"'));
+ assert.ok(load('public/css/tk2m-review.css').includes('.merge-field-tick.is-chosen'));
  const routes=load('src/routes/tk2m-merge-plans.js');
  assert.ok(routes.includes('crypto.timingSafeEqual'));
  assert.ok(routes.includes('tk2m_merge_case_locks'));
