@@ -15,6 +15,10 @@ function protectedPage(req,res,next){
   res.set('X-Robots-Tag','noindex, nofollow, noarchive');
   next();
 }
+function reviewSession(req,res,next){
+  if(!req.session.user)return res.redirect((res.locals.basePath||'')+'/data-review/login');
+  return requireAuth(req,res,next);
+}
 function authorize(req,res,next){
   const user=req.session.user;
   if(!user || !['staff','owner','manager'].includes(user.role)) {
@@ -48,7 +52,7 @@ router.get('/data-review/login',protectedPage,(req,res)=>{
   // Reuse existing CRM credentials; no second password store.
   res.redirect(base+'/login?return_to='+encodeURIComponent(base+'/data-review'));
 });
-router.get('/data-review',protectedPage,requireAuth,authorize,async(req,res,next)=>{
+router.get('/data-review',protectedPage,reviewSession,authorize,async(req,res,next)=>{
   try{
     const all=await authenticatedCases(req);
     const totals=summarize(all);
@@ -72,7 +76,7 @@ router.get('/data-review',protectedPage,requireAuth,authorize,async(req,res,next
       canManage:canManage(req.session.user)});
   }catch(error){next(error);}
 });
-router.get('/data-review/history',protectedPage,requireAuth,authorize,async(req,res,next)=>{
+router.get('/data-review/history',protectedPage,reviewSession,authorize,async(req,res,next)=>{
   try{
     const owner=canManage(req.session.user);
     const params=owner?[]:[Number(req.session.user.id)];
@@ -84,7 +88,7 @@ router.get('/data-review/history',protectedPage,requireAuth,authorize,async(req,
       csrf:csrf(req),selected:null,history,notice:'',canManage:owner});
   }catch(error){next(error);}
 });
-router.get('/data-review/case/:id',protectedPage,requireAuth,authorize,async(req,res,next)=>{
+router.get('/data-review/case/:id',protectedPage,reviewSession,authorize,async(req,res,next)=>{
   try{
     const id=String(req.params.id||'');
     if(!hex.test(id))return alertPage(res,404,'Case identifier not found.');
