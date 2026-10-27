@@ -97,7 +97,7 @@ async function loadCases(user,conn=db) {
   }
   const visible=cases.filter(c=>canSee(c,user));
   if(visible.length) {
-    const [decisions]=await conn.query('SELECT case_id,source_hash,status,notes,reviewer_staff_id,revision,reviewed_at FROM tk2m_review_decisions WHERE case_id IN (?)',[visible.map(c=>c.id)]);
+    const [decisions]=await conn.query('SELECT case_id,source_hash,status,note,reviewer_staff_id,revision,reviewed_at FROM tk2m_review_decisions WHERE case_id IN (?)',[visible.map(c=>c.id)]);
     const indexed=new Map(decisions.map(x=>[x.case_id,x]));
     for(const c of visible){
       c.review=indexed.get(c.id)||null;
