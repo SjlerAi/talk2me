@@ -20,6 +20,10 @@ const sessionSecure = String(process.env.SESSION_SECURE || 'false').toLowerCase(
 const UAT_MODE = String(process.env.UAT_MODE || '').trim().toLowerCase() === 'true';
 const CRM_STAGE_MODE = String(process.env.CRM_STAGE_MODE || '').trim().toLowerCase() === 'true';
 const APP_ENVIRONMENT = CRM_STAGE_MODE ? 'staging' : (UAT_MODE ? 'uat' : 'production');
+// Retire Cudu on the permanent TK2M CRM, including after production cutover.
+// UENT keeps its existing Cudu behavior until that system is decommissioned.
+const CUDO_DISABLED = CRM_STAGE_MODE ||
+  String(process.env.APP_URL || '').trim().replace(/\/$/, '').toLowerCase() === 'https://crm.tk2m.co.za';
 const EIGHT_HOURS_MS = 8 * 60 * 60 * 1000;
 
 function assetVersionForRelease() {
@@ -187,6 +191,7 @@ app.use((req, res, next) => {
   res.locals.unreadTaskCount = 0;
   res.locals.isUat = UAT_MODE;
   res.locals.isStaging = CRM_STAGE_MODE;
+  res.locals.cudoDisabled = CUDO_DISABLED;
   next();
 });
 
@@ -388,9 +393,9 @@ if (UAT_MODE) {
     if (BASE_PATH) app.use(BASE_PATH, zippyIntegration);
   }
 
-  // Cudu is retired from TK2M staging; Zippy is its separate successor.
-  // Preserve existing UENT operation until the separately approved cutover.
-  if (!CRM_STAGE_MODE) {
+  // Cudu is permanently retired on crm.tk2m.co.za. Keep UENT unchanged.
+  // The separate Zippy bridge is enabled only at an approved CRM cutover.
+  if (!CUDO_DISABLED) {
     const cudoAi = require('./src/routes/cudo-ai');
     app.use('/', cudoAi);
     if (BASE_PATH) app.use(BASE_PATH, cudoAi);

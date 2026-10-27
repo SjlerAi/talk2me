@@ -28,7 +28,7 @@
     .t2m-my-day-bootstrap p { margin: 0; color: #64748b; }
   </style>
   <% } %>
-  <% if(isUat && !isStaging && currentUser && String(currentUser.role||'').toLowerCase()==='owner'){ %><link rel="stylesheet" href="<%= basePath %>/public/css/cudo-widget.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>"><% } %>
+  <% if(isUat && !cudoDisabled && currentUser && String(currentUser.role||'').toLowerCase()==='owner'){ %><link rel="stylesheet" href="<%= basePath %>/public/css/cudo-widget.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>"><% } %>
 </head>
 <body class="t2m-os-body">
   <% const launchers = (typeof osLaunchers !== 'undefined' && Array.isArray(osLaunchers) ? osLaunchers : []).filter(item => item.is_enabled); %>
@@ -115,7 +115,7 @@
   <script defer data-calendar-home-uat src="<%= basePath %>/public/js/calendar-home-uat.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>"></script>
   <script defer src="<%= basePath %>/public/js/os-v6-alpha21-17.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>"></script>
   <% if(isManagement){ %><script defer src="<%= basePath %>/public/js/approval-badges.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>" data-base-path="<%= basePath %>"></script><% } %>
-  <% if(isUat && !isStaging && currentUser && String(currentUser.role||'').toLowerCase()==='owner'){ %><script defer src="<%= basePath %>/public/js/cudo-widget.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>" data-base-path="<%= basePath %>"></script><% } %>
+  <% if(isUat && !cudoDisabled && currentUser && String(currentUser.role||'').toLowerCase()==='owner'){ %><script defer src="<%= basePath %>/public/js/cudo-widget.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>" data-base-path="<%= basePath %>"></script><% } %>
   <script defer src="<%= basePath %>/public/js/pwa-install.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>" data-base-path="<%= basePath %>"></script>
 </body>
 </html>
