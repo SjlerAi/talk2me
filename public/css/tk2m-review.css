@@ -163,7 +163,15 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .review-pick-diff-label{display:inline-block;margin-top:6px;padding:3px 6px;border-radius:5px;background:#fff0d8;color:#8e591a;font-size:10px;font-weight:800}
 .review-pick-choice{display:flex;gap:11px;align-items:flex-start;min-height:54px;margin:-5px;padding:10px 9px;border:1px solid transparent;border-radius:9px;cursor:pointer;transition:background .12s ease,border-color .12s ease}
 .review-pick-choice:hover{background:#eff8ff}
-.review-pick-choice input{width:19px;height:19px;margin:2px 0 0;flex:none;accent-color:#168451}
+.review-pick-choice input[type=radio]{
+  appearance:none;-webkit-appearance:none;width:20px;height:20px;flex:none;
+  margin:2px 0 0;display:grid;place-items:center;border:2px solid #93a9b9;
+  background:#fff;border-radius:5px;cursor:pointer
+}
+.review-pick-choice input[type=radio]:checked{background:#178b55;border-color:#178b55}
+.review-pick-choice input[type=radio]:checked::before{content:"✓";font-size:15px;font-weight:900;line-height:1;color:#fff}
+.review-pick-choice input[type=radio]:focus-visible{outline:3px solid #8ec6f1;outline-offset:3px}
+.review-pick-choice input[type=radio]:disabled{cursor:not-allowed}
 .review-pick-choice.is-picked{background:#e7f7ed;border-color:#60bf8b;box-shadow:inset 3px 0 #1e9a59}
 .review-pick-choice:has(input:disabled){opacity:.52;cursor:not-allowed}
 .review-pick-value{display:grid;gap:4px;min-width:0;overflow-wrap:anywhere;font-size:13px;color:#28445b}
