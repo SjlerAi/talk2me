@@ -18,10 +18,11 @@ for (const template of ['views/os-shell.ejs', 'views/layout.ejs']) {
 }
 
 const server = read('server.js');
-assert.match(server, /if \(!CRM_STAGE_MODE\) \{\s*const cudoAi = require\('\.\/src\/routes\/cudo-ai'\)/);
+assert.match(server, /https:\/\/crm\.tk2m\.co\.za/);
+assert.match(server, /if \(!CUDO_DISABLED\) \{\s*const cudoAi = require\('\.\/src\/routes\/cudo-ai'\)/);
 const work = read('public/js/uat-work-widgets.js');
 assert.match(work, /retireCudoInTk2m\s*=\s*window\.location\.hostname === 'crm\.tk2m\.co\.za'/);
 assert.match(work, /taskState\.management\s*&&\s*!retireCudoInTk2m\s*\?\s*quickCommandHtml\(\)/);
 assert.match(work, /taskState\.management\s*&&\s*!prefill\.advanced\s*&&\s*!retireCudoInTk2m/);
 assert.match(work, /<h3>New task<\/h3>/);
-console.log('PASS: Cudu widget, quick command and API disabled only on TK2M staging; standard task form retained.');
+console.log('PASS: Cudu widget and API retired on permanent TK2M CRM; regular tasks preserved.');
