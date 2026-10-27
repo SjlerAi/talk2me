@@ -31,7 +31,7 @@
 </head>
 <body class="command-body <%= panelMode?'panel-mode':'' %>">
 <% if(cudoDisabled){ %><style id="tk2m-retired-cudu">.cudo-root{display:none!important}</style><% } %>
-<% if(currentUser && !panelMode){ const management=['owner','admin','manager'].includes(currentUser.role); const safeUnreadTaskCount=typeof unreadTaskCount==='undefined'?0:Number(unreadTaskCount||0); const safeApprovalCentreCount=typeof approvalCentreCount==='undefined'?0:Number(approvalCentreCount||0); %>
+<% if(currentUser && !panelMode && title !== 'Login'){ const management=['owner','admin','manager'].includes(currentUser.role); const safeUnreadTaskCount=typeof unreadTaskCount==='undefined'?0:Number(unreadTaskCount||0); const safeApprovalCentreCount=typeof approvalCentreCount==='undefined'?0:Number(approvalCentreCount||0); %>
 <aside class="command-sidebar" id="command-sidebar">
   <a class="command-brand" href="<%= basePath %>/workspace"><img src="<%= basePath %>/public/images/talk2me-logo.png" alt="Talk2Me"><div><strong>TALK2ME</strong><span>COMMAND</span></div></a>
   <div class="command-user"><div class="command-avatar"><%= (currentUser.full_name||'?').slice(0,1).toUpperCase() %></div><div><strong><%= currentUser.full_name %></strong><span><%= currentUser.role %></span></div></div>
