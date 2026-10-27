@@ -6,7 +6,7 @@
     <% if (error) { %><div class="alert"><%= error %></div><% } %>
     <div id="default-logout-notice" class="alert" hidden><strong>Automatic logout completed.</strong><br>Talk2Me closed the previous session at the configured daily logout time. Please log in again.</div>
     <form id="login-form" method="post" action="<%= basePath %>/login" autocomplete="off">
-      <% if(typeof returnTo==="string" && returnTo){ %><input type="hidden" name="return_to" value="<%= returnTo %>"><p class="login-return-notice">After signing in, you will return to the Customer Cleanup Centre.</p><% } %>
+      <% if(typeof returnTo==="string" && returnTo){ %><input type="hidden" name="return_to" value="<%= returnTo %>"><p class="login-return-notice"><%= returnTo.endsWith('/data-review')?'After signing in, you will open the Data Review Centre.':'After signing in, you will return to the Customer Cleanup Centre.' %></p><% } %>
       <input type="text" name="fake_username" autocomplete="username" tabindex="-1" aria-hidden="true" style="position:absolute;left:-9999px;opacity:0">
       <input type="password" name="fake_password" autocomplete="current-password" tabindex="-1" aria-hidden="true" style="position:absolute;left:-9999px;opacity:0">
       <label for="login-email">Email / Username</label>
