@@ -1,7 +1,7 @@
 # Talk2Me CRM — execution plan for crm.tk2m.co.za
 
 **Prepared:** 27 October 2026 (Africa/Johannesburg)  
-**Status:** STAGING PREPARED; SOURCE MIGRATION AND CUTOVER NOT STARTED.  
+**Status:** VERIFIED SNAPSHOT RESTORED INTO ISOLATED STAGING DATABASE AND PRIVATE FILE AREA; CRM APP DEPLOYMENT AND PRODUCTION CUTOVER NOT STARTED.  
 **Canonical future CRM:** https://crm.tk2m.co.za/login  
 **Current office CRM:** https://uent.co.za/talk2me/login  
 **Zippy:** https://zippy.tk2m.co.za/  
@@ -32,9 +32,9 @@
 | Zippy at TK2M | HTTP 200 at /api/health; `status=online`; separate Node 22 app |
 | Zippy current bridge | Hard-coded to `https://uent.co.za/talk2me/api/integrations/zippy/` |
 | Zippy database dependencies | `uent_zippy3` (personal) and `uent_Crm` (CRM) |
-| Target MySQL | `talk_crm_stage` created, **empty**; production DB not created |
+| Target MySQL | `talk_crm_stage` now restored from complete 27 October source snapshot, with 80 tables and 3 functioning views; production DB not created |
 | Private migration work root | `/home/talk/crm-migration`, owner-only mode 0700 |
-| Source DB access | Read-only metadata/count queries succeeded via existing Zippy connection; direct UENT filesystem and privileged backup access still unavailable |
+| Source DB access | Authorized `uent` remote terminal connected and active source directory audited; privileged MySQL snapshot exported successfully |
 | MariaDB | 10.11.19; 80 observed InnoDB base tables, 3 views, approximately 70.08 MiB allocated data+indexes |
 | Code delta | Preparation branch is 15 commits ahead of running release; do not deploy branch tip automatically |
 | Node | Node v20.20.2 and v22.23.4 available; use Node 20 for source-runtime parity unless explicitly validated otherwise |
@@ -124,12 +124,31 @@ This is the **only** stage requiring a controlled write freeze of the old CRM an
 - [x] Source aggregate counts, duplicate review counts and schema metadata
 - [x] Isolated `talk_crm_stage` empty DB in target cPanel
 - [x] Protected private migration directories and read-only baseline manifest
-- [ ] Source `uent` authenticated terminal for privileged complete backup and uploads inventory
-- [ ] Complete 80-table + 3-view, consistent source DB and private uploads backup, checksum and **tested** restoration
-- [ ] Least-privilege staging DB user and staging runtime credentials
+- [x] Source `uent` authenticated terminal; privileged consistent source database backup and active private upload inventory
+- [x] Non-final clean 80-table/3-view source dump and 49 private-file archive; verified SHA-256 transfer to `talk` and restored to staging (final cutover backup still required)
+- [x] Separate `talk_crmstg` staging DB user and owner-only private credentials; production credentials not provisioned
 - [ ] Production-safe feature gates, security fixes, worker suppression, bridge refactor and CI
 - [ ] Protected staging app installation / owner and staff acceptance
 - [ ] Final fresh backup, `talk_crm_prod` restore, approval, exact-release cutover
 - [ ] Zippy CRM bridge remap; later personal DB migration and independent confirmation
 
 **Never infer “data migrated” from only a healthy website or from the presence of an empty database.**
+
+
+## Verified migration milestone — 27 October 2026 (following authorized source access)
+
+**Source**: `uent` remote connection confirmed on cp47-jhb.za-dns.com; current CRM at `/home/uent/public_html/talk2me` is release `ec582d8245579446d469f02cd26d63a0f8d5e207`, DB `uent_Crm`, upload root `/home/uent/talk2me_uat_private_uploads`; health remained OK.
+
+**Backups**: consistent InnoDB dump with 80 base tables, 3 views, `--single-transaction`, and completion/EOF checks; the verified archive `20261027T025018-uent_Crm-clean.sql.gz` is approximately 5.14 MB and was transferred across accounts with an authenticated temporary loopback-only, single-use endpoint and matching SHA-256. The active upload archive contains 49 files / 24,329,470 uncompressed bytes, transferred with matching checksum. Private archival directories are owner-only, not in any public web root.
+
+**First attempted dump marked INVALID**: an earlier compression attempt appended extra gzip bytes after the SQL footer; the staging restore test detected that. The candidate was labelled `INVALID-DO-NOT-RESTORE` on both source and target. A new clean backup was generated from UENT and passed an actual staging restore.
+
+**Staging**: cPanel-created `talk_crm_stage` was safely reset after the first failed rehearsal; a separate `talk_crmstg` user with staging-only privileges was provisioned, credentials stored mode 0600. A verified clean dump restored fully: **80 tables, 3 views, 4 foreign-key constraints**. Three view queries pass; their historical source `DEFINER` references were mapped to the staging SQL user during restoration only. All source row-count checkpoints match: `clients` 3,393, `customer_accounts` 2,652, `staff_users` 14, `staff_tasks` 215, 4,332 rows each of monthly import rows/matches/actions, `temporary_duplicate_triage` 188 (131 auto-grouped, 57 pending), `temporary_cleanup_decisions` 176. Snapshot evidence is held privately at `/home/talk/crm-migration/restores`.
+
+**Files**: 49 active private-upload files restored to `/home/talk/crm-migration/staging-uploads/talk2me_uat_private_uploads`, verified exactly 24,329,470 bytes, with directory mode 0700 and file mode 0600. These remain outside the web root.
+
+**Not done**: the CRM Node application is not installed at `crm.tk2m.co.za`; HTTPS root remains HTTP 403, `/login` 404, and no staff can use staging yet. No production CRM database exists under `talk`. No staging scheduler, real email, WhatsApp, reminder, customer writes or Zippy bridge has been enabled. The active `https://uent.co.za/talk2me` CRM and `https://zippy.tk2m.co.za` remain serving their existing users.
+
+**Next technical blocker**: safely port approved My Day/work/library/import/cleanup features out of the source `UAT_MODE` feature gate while keeping the staging app's external sends and background jobs disabled. Review login/session/CSRF/MFA/rate-limiting and restore security before a protected Node/Passenger staging deployment. Perform full acceptance testing on this isolated snapshot before a separate final write-freeze and fresh production snapshot.
+
+**Security follow-up**: the active UENT `.env` and application `.htaccess` have mode 0644 and can contain runtime database secrets. Do not copy these into TK2M; review access paths and rotate historical credentials under an isolated, rollback-tested change. Avoid unreviewed chmod of live Apache/Passenger config.
