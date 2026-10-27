@@ -82,7 +82,7 @@
   <% const firstName = String(currentUser.full_name || currentUser.username || 'Staff').trim().split(/\s+/)[0]; %>
   <% const unassignedCount = typeof unassignedClientCount === 'undefined' ? 0 : Number(unassignedClientCount || 0); %>
   <% const approvalCount = typeof approvalCentreCount === 'undefined' ? 0 : Number(approvalCentreCount || 0); %>
-  <div class="t2m-os-shell<%= isStaging?' t2m-tk2m-test-shell t2m-calendar-home-shell':'' %>" id="talk2me-os" <%= isStaging?'data-tk2m-preview="1"':'' %>>
+  <div class="t2m-os-shell<%= isStaging?' t2m-tk2m-test-shell t2m-calendar-home-shell':'' %>" id="talk2me-os" <% if(isStaging){ %>data-tk2m-preview="1"<% } %>>
     <header class="t2m-os-topbar">
       <a class="t2m-os-brand" href="<%= basePath %>/workspace" aria-label="Talk2Me OS home">
         <img src="<%= basePath %>/public/images/talk2me-logo.png" alt="Talk2Me">
