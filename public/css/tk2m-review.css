@@ -116,3 +116,12 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .merge-field-choices{display:grid;gap:5px}
 .merge-field-choice{font-size:11px;overflow-wrap:anywhere;color:#546b7b}
 .merge-field-choice strong{display:inline}
+
+.merge-preview-card{border:2px solid #b3d8ef}
+.merge-preview-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin:15px 0}
+.merge-preview-summary>div{padding:13px;border:1px solid #d7e4ec;border-radius:9px;background:#f4faff}
+.merge-preview-summary small{display:block;color:#64798d;font-size:11px}
+.merge-preview-summary strong{display:block;font-size:17px}
+.merge-change{background:#fff8e4}
+.merge-preview-values{min-width:700px}
+@media(max-width:900px){.merge-preview-summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
