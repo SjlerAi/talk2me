@@ -191,6 +191,7 @@ app.use((req, res, next) => {
   res.locals.unreadTaskCount = 0;
   res.locals.isUat = UAT_MODE;
   res.locals.isStaging = CRM_STAGE_MODE;
+  res.locals.cudoDisabled = CUDO_DISABLED;
   next();
 });
 
