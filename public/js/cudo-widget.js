@@ -1,4 +1,14 @@
 'use strict';
+// TK2M retirement is enforced in the actual static asset because CloudLinux
+// may serve /public/ files before the Express route can intercept them.
+// Never reinstate the old assistant on crm.tk2m.co.za.
+if (window.location.hostname === 'crm.tk2m.co.za') {
+  const remove = () => document.querySelectorAll('.cudo-root').forEach(node => node.remove());
+  remove();
+  if (document.body && typeof MutationObserver !== 'undefined') {
+    new MutationObserver(remove).observe(document.body, {childList: true});
+  }
+} else {
 (()=>{
   if (window.top !== window.self) return;
   const currentScript=document.currentScript;
@@ -529,3 +539,4 @@
   loadBootstrap();
   setInterval(pollAlerts,60000);
 })();
+}
