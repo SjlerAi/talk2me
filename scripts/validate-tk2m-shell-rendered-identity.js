@@ -11,7 +11,7 @@ const layout = read('views/layout.ejs');
 const cal = read('public/js/calendar-home-uat.js');
 
 const common = {
-  title:'Talk2Me OS',appVersion:'6.0.0',assetVersion:'release-qa',basePath:'',
+  title:'Talk2Me OS',appVersion:'6.0.0',appBuild:'qa',assetVersion:'release-qa',basePath:'',
   isUat:true,cudoDisabled:true,
   isManagement:true,panelMode:false,
   currentUser:{id:1,role:'owner',full_name:'Test Owner',username:'qa'},
