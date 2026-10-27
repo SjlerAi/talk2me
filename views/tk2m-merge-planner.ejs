@@ -70,6 +70,34 @@
           <% }) %>
         </div>
         <p class="review-muted"><strong id="merge-selected-count"><%= chosen.length %> selected</strong> — The records not selected here are excluded from this proposal.</p>
+        <div class="review-line-inventory" aria-label="Contract and mobile line inventory">
+          <h3>All lines and dates stay separate</h3>
+          <p class="review-muted">A customer may have 10 or more mobile lines. <strong>Do not use the contact cellphone choice to remove other numbers.</strong> Each customer-record contract has its own package and upgrade history.</p>
+          <div class="review-table-wrap"><table class="review-line-table">
+            <thead><tr><th>Customer record</th><th>Recorded number</th><th>Account</th><th>Package</th><th>Previous upgrade</th><th>Next upgrade</th></tr></thead>
+            <tbody><% data.candidates.forEach(r=>{ %><tr>
+              <td>#<%= r.id %></td><td><%= r.cell_number_normalised||r.cell_number||'—' %></td>
+              <td><%= r.account_number||r.account_id||'—' %></td><td><%= r.package_name||'—' %></td>
+              <td><%= formatted(r.previous_upgrade_date)||'—' %></td>
+              <td><strong><%= formatted(r.next_upgrade_date)||'—' %></strong></td>
+            </tr><% }) %></tbody>
+          </table></div>
+          <h3>Mobile-line database records (<%= data.lines.length %>)</h3>
+          <% if(data.lines.length){ %><div class="review-table-wrap"><table class="review-line-table">
+            <thead><tr><th>Mobile line</th><th>Linked customer</th><th>Account</th><th>Last upgrade</th><th>Next eligible</th><th>Contract status</th></tr></thead>
+            <tbody><% data.lines.forEach(line=>{ %><tr>
+              <td>#<%= line.id %> · <%= line.msisdn_normalised||'—' %></td>
+              <td><%= line.relation==='unassigned_account'?'Account line — verify ownership':'#'+line.client_id %></td>
+              <td><%= line.account_id||'—' %></td>
+              <td><%= formatted(line.last_upgrade_date)||'—' %></td>
+              <td><strong><%= formatted(line.eligible_upgrade_date)||'—' %></strong></td>
+              <td><%= line.contract_status||'—' %></td>
+            </tr><% }) %></tbody>
+          </table></div><% }else{ %>
+            <p class="review-warning">No mobile-base lines found. Confirm contracts before any future execution.</p>
+          <% } %>
+          <p class="review-muted">A customer-record number and a mobile-base number can refer to the same contract; they are shown separately as evidence, not counted as extra subscriptions.</p>
+        </div>
       </section>
 
       <section class="review-card merge-form-step">
@@ -88,7 +116,7 @@
 
       <section class="review-card merge-form-step">
         <div class="merge-heading"><span class="merge-step-number">3</span><div><h2>Pick the best value for each field</h2>
-          <p>Tick the correct value directly beside each field. Choose one value per field: the birthday can come from one record and the latest accurate contact details from another.</p></div></div>
+          <p>Tick a source for each <strong>customer profile field</strong>. Birthday and email may come from different records. The preferred contact number is not a choice to remove mobile lines; line-level upgrade dates remain separate.</p></div></div>
         <div class="review-table-wrap"><table class="merge-field-table">
           <thead><tr><th>Customer information</th><th>Tick the correct value to retain</th></tr></thead>
           <tbody>
@@ -137,12 +165,36 @@
         <% }) %>
         </tbody>
       </table></div>
-      <h3>Protected mobile-line information</h3>
+      <h3>Retained customer-record contracts (<%= p.selectedContractRecords.length %>)</h3>
+      <p class="review-muted">Each selected record keeps its contract number, package and individual previous and next upgrade dates. These are not merged into one date.</p>
+      <div class="review-table-wrap"><table class="review-line-table">
+        <thead><tr><th>Original record</th><th>Recorded number</th><th>Account</th><th>Package</th><th>Previous upgrade</th><th>Next upgrade</th></tr></thead>
+        <tbody><% p.selectedContractRecords.forEach(line=>{ %><tr>
+          <td>#<%= line.clientId %></td><td><%= line.contactNumber||'—' %></td>
+          <td><%= line.accountNumber||line.accountId||'—' %></td><td><%= line.packageName||'—' %></td>
+          <td><%= line.previousUpgrade||'—' %></td>
+          <td><strong><%= line.nextUpgrade||'—' %></strong></td>
+        </tr><% }) %></tbody>
+      </table></div>
+      <% if(p.excludedContractRecords.length){ %>
+        <p class="review-muted"><strong><%= p.excludedContractRecords.length %> other customer-record contracts remain separate:</strong>
+        <%= p.excludedContractRecords.map(x=>'#'+x.clientId).join(', ') %>. Their mobile lines and dates are not part of this proposal.</p>
+      <% } %>
+      <h3>Protected mobile-line database entries (<%= p.linkedLines.length %>)</h3>
       <% if(!p.linkedLines.length){ %><p class="review-muted">No linked lines found for the selected customer IDs. This must be investigated before any future execution.</p><% } %>
       <% if(p.linkedLines.length){ %>
         <div class="review-table-wrap"><table><thead><tr><th>Line</th><th>Current customer</th><th>Last upgrade</th><th>Next eligible</th><th>Contract status</th></tr></thead>
           <tbody><% p.linkedLines.forEach(line=>{ %><tr><td><%= line.number||'Unknown line' %></td><td>#<%= line.clientId %></td><td><%= line.lastUpgrade||'—' %></td><td><%= line.nextEligible||'—' %></td><td><%= line.contractStatus||'—' %></td></tr><% }) %></tbody>
         </table></div>
+      <% } %>
+      <% if(p.unassignedAccountLines.length){ %>
+      <div class="review-warning">
+        <strong><%= p.unassignedAccountLines.length %> additional account lines need ownership verification.</strong>
+        These belong to a matching account but have no confirmed customer link. Do not move them to the primary customer automatically.
+        <ul><% p.unassignedAccountLines.forEach(line=>{ %>
+          <li>#<%= line.id %> — <%= line.number||'No number' %> · last upgrade <%= line.lastUpgrade||'—' %> · next eligible <%= line.nextEligible||'—' %></li>
+        <% }) %></ul>
+      </div>
       <% } %>
       <div class="review-warning">
         <strong>Nothing is merged by saving this plan.</strong> A different manager or owner must approve it.
