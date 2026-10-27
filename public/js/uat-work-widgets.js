@@ -7,6 +7,7 @@
   if (!configNode) return;
   const config = JSON.parse(configNode.textContent || '{}');
   const basePath = String(config.basePath || '');
+  const retireCudoInTk2m = window.location.hostname === 'crm.tk2m.co.za';
   const user = config.user || {};
   const palette = ['#7c3aed','#2563eb','#059669','#ea580c','#db2777','#0891b2','#9333ea','#16a34a','#c2410c','#0284c7'];
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
