@@ -53,7 +53,7 @@
 
     <% if(typeof management!=='undefined' && management){ %>
       <section class="section" id="wishlist-management">
-        <div class="detail-head"><div><h2>Gerda management wishlist</h2><p>Shared with the CRM Management Centre and floating Cudo.</p></div><a class="close" href="<%= basePath %>/management">Open full centre</a></div>
+        <div class="detail-head"><div><h2>Gerda management wishlist</h2><p>Shared with the CRM Management Centre<%= isStaging ? '.' : ' and floating Cudo.' %></p></div><a class="close" href="<%= basePath %>/management">Open full centre</a></div>
         <div class="staff-overview">
           <div class="mini"><span>Allocated clients</span><strong><%= management.totals.clients %></strong></div>
           <div class="mini"><span>Complete email + ID</span><strong><%= management.totals.complete %></strong></div>
