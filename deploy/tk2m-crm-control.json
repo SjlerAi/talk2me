@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "action": "deploy",
+  "action": "hold",
   "environment": "tk2m-staging",
   "request_id": "tk2m-20261115-live-final-activation",
   "release_branch": "release/tk2m-live-final-20261115",
