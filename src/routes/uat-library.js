@@ -484,7 +484,9 @@ router.get('/api/uat/library/health',async(req,res)=>{
     const names=new Set(tables.map(row=>row.TABLE_NAME));
     const approvedPrivateRoot=privateRoot==='/home/uent/talk2me_uat_private_uploads' ||
       (String(process.env.CRM_STAGE_MODE || '').toLowerCase()==='true' &&
-       privateRoot==='/home/talk/crm-migration/staging-uploads/talk2me_uat_private_uploads');
+       privateRoot==='/home/talk/crm-migration/staging-uploads/talk2me_uat_private_uploads') ||
+      (String(process.env.CRM_LIVE_MODE || '').toLowerCase()==='true' &&
+       privateRoot==='/home/talk/crm-live/uploads/talk2me_uat_private_uploads');
     const storage=approvedPrivateRoot &&
       fs.existsSync(libraryFileDir) && fs.existsSync(librarySnapshotDir);
     const healthy=names.size===4&&storage;

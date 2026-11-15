@@ -19,10 +19,13 @@ const PORT = process.env.PORT || 3000;
 const sessionSecure = String(process.env.SESSION_SECURE || 'false').toLowerCase() === 'true';
 const UAT_MODE = String(process.env.UAT_MODE || '').trim().toLowerCase() === 'true';
 const CRM_STAGE_MODE = String(process.env.CRM_STAGE_MODE || '').trim().toLowerCase() === 'true';
-const APP_ENVIRONMENT = CRM_STAGE_MODE ? 'staging' : (UAT_MODE ? 'uat' : 'production');
+const CRM_LIVE_MODE = String(process.env.CRM_LIVE_MODE || '').trim().toLowerCase() === 'true';
+const TK2M_SITE = CRM_STAGE_MODE || CRM_LIVE_MODE;
+if (CRM_LIVE_MODE && CRM_STAGE_MODE) throw new Error('CRM cannot operate as live and staging at once');
+const APP_ENVIRONMENT = CRM_LIVE_MODE ? 'production' : (CRM_STAGE_MODE ? 'staging' : (UAT_MODE ? 'uat' : 'production'));
 // Retire Cudu on the permanent TK2M CRM, including after production cutover.
 // UENT keeps its existing Cudu behavior until that system is decommissioned.
-const CUDO_DISABLED = CRM_STAGE_MODE ||
+const CUDO_DISABLED = TK2M_SITE ||
   String(process.env.APP_URL || '').trim().replace(/\/$/, '').toLowerCase() === 'https://crm.tk2m.co.za';
 const EIGHT_HOURS_MS = 8 * 60 * 60 * 1000;
 
@@ -121,9 +124,10 @@ if (UAT_MODE) {
       const chat = names.has('staff_chat_messages') && names.has('staff_chat_reads');
       const tasks = names.has('staff_tasks') && names.has('staff_task_workflow');
       const taskAttachments = names.has('staff_task_attachments');
-      const voiceDirectory = String(process.env.PRIVATE_UPLOAD_DIR || '').trim() === (CRM_STAGE_MODE
-        ? '/home/talk/crm-migration/staging-uploads/talk2me_uat_private_uploads'
-        : '/home/uent/talk2me_uat_private_uploads');
+      const voiceDirectory = String(process.env.PRIVATE_UPLOAD_DIR || '').trim() === (CRM_LIVE_MODE
+        ? '/home/talk/crm-live/uploads/talk2me_uat_private_uploads'
+        : (CRM_STAGE_MODE ? '/home/talk/crm-migration/staging-uploads/talk2me_uat_private_uploads'
+        : '/home/uent/talk2me_uat_private_uploads'));
       const healthy = chat && tasks && taskAttachments && voiceDirectory;
       res.status(healthy ? 200 : 503).json({
         status: healthy ? 'ok' : 'error',
@@ -170,7 +174,7 @@ if (UAT_MODE) {
 }
 
 app.use(session({
-  name: CRM_STAGE_MODE ? 'talk2me.tk2m.stage.sid' : (UAT_MODE ? 'talk2me.uat.sid' : 'talk2me.sid'),
+  name: CRM_LIVE_MODE ? 'talk2me.tk2m.sid' : (CRM_STAGE_MODE ? 'talk2me.tk2m.stage.sid' : (UAT_MODE ? 'talk2me.uat.sid' : 'talk2me.sid')),
   secret: process.env.SESSION_SECRET,
   store: new MySqlSessionStore(),
   resave: false,
@@ -190,7 +194,8 @@ app.use((req, res, next) => {
   res.locals.voipUrlTemplate = process.env.VOIP_URL_TEMPLATE || '';
   res.locals.unreadTaskCount = 0;
   res.locals.isUat = UAT_MODE;
-  res.locals.isStaging = CRM_STAGE_MODE;
+  res.locals.isStaging = TK2M_SITE;
+  res.locals.isLive = CRM_LIVE_MODE;
   res.locals.cudoDisabled = CUDO_DISABLED;
   next();
 });
@@ -212,9 +217,9 @@ registerPwaRoute('/manifest.webmanifest', (req, res) => {
   const scope = `${BASE_PATH || ''}/` || '/';
   res.type('application/manifest+json').send({
     id: `${BASE_PATH || ''}/workspace`,
-    name: UAT_MODE ? 'Talk2Me CRM UAT' : 'Talk2Me OS',
-    short_name: UAT_MODE ? 'Talk2Me UAT' : 'Talk2Me',
-    description: UAT_MODE ? 'Talk2Me isolated CRM test environment' : 'Talk2Me customer and staff command centre',
+    name: CRM_LIVE_MODE ? 'Talk2Me CRM' : (UAT_MODE ? 'Talk2Me CRM UAT' : 'Talk2Me OS'),
+    short_name: CRM_LIVE_MODE ? 'Talk2Me CRM' : (UAT_MODE ? 'Talk2Me UAT' : 'Talk2Me'),
+    description: CRM_LIVE_MODE ? 'Talk2Me customer and staff command centre' : (UAT_MODE ? 'Talk2Me isolated CRM test environment' : 'Talk2Me customer and staff command centre'),
     start_url: `${BASE_PATH || ''}/workspace`,
     scope,
     display: 'standalone',
@@ -303,7 +308,7 @@ app.use('/public', express.static(path.join(__dirname, 'public')));
 if (BASE_PATH) app.use(`${BASE_PATH}/public`, express.static(path.join(__dirname, 'public')));
 
 // Protected TK2M-only review portal. UENT live never loads the new routes.
-if (CRM_STAGE_MODE) {
+if (TK2M_SITE) {
   const dataReview = require('./src/routes/tk2m-data-review');
   const mergePlans = require('./src/routes/tk2m-merge-plans');
   app.use('/', mergePlans);
@@ -428,7 +433,7 @@ if (UAT_MODE) {
   // Isolated signed CRM endpoint for Zippy, available only in UAT.
   // No browser session or generic staff access is granted by this integration.
   // A live Zippy instance must never issue instructions to a test database.
-  if (!CRM_STAGE_MODE) {
+  if (!CRM_STAGE_MODE && (!CRM_LIVE_MODE || process.env.CRM_ZIPPY_INTEGRATION_ENABLED === 'true')) {
     const zippyIntegration = require('./src/routes/zippy-integration');
     app.use('/', zippyIntegration);
     if (BASE_PATH) app.use(BASE_PATH, zippyIntegration);
@@ -475,7 +480,7 @@ app.use((err, req, res, next) => {
   console.error(err);
   res.status(500).render('error', { title: 'Server error', message: 'Something went wrong. Check server logs.' });
 });
-if (!CRM_STAGE_MODE) startAgentDeadlineScheduler();
+if (!CRM_STAGE_MODE && (!CRM_LIVE_MODE || process.env.CRM_BACKGROUND_WORKERS_ENABLED === 'true')) startAgentDeadlineScheduler();
 
 // Numeric private development ports bind to loopback in staging. Passenger
 // can supply a non-numeric listener (a Unix socket or its managed handle),
@@ -483,10 +488,10 @@ if (!CRM_STAGE_MODE) startAgentDeadlineScheduler();
 // The public staging vhost must stay behind cPanel Directory Privacy.
 const stageListener = /^\d+$/.test(String(PORT)) ? Number(PORT) : String(PORT);
 function onListening() {
-  console.log(`Talk2Me CRM running on listener ${CRM_STAGE_MODE ? '[protected staging]' : PORT} with base path ${BASE_PATH} (${APP_ENVIRONMENT})`);
-  if (!CRM_STAGE_MODE) startNightlyLogoutWorker();
+  console.log(`Talk2Me CRM running on listener ${CRM_STAGE_MODE ? '[staging]' : PORT} with base path ${BASE_PATH} (${APP_ENVIRONMENT})`);
+  if (!CRM_STAGE_MODE && (!CRM_LIVE_MODE || process.env.CRM_BACKGROUND_WORKERS_ENABLED === 'true')) startNightlyLogoutWorker();
 }
-if (CRM_STAGE_MODE && typeof stageListener === 'number') {
+if (TK2M_SITE && typeof stageListener === 'number') {
   app.listen(stageListener, '127.0.0.1', onListening);
 } else {
   app.listen(stageListener, onListening);

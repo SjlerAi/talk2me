@@ -3,6 +3,7 @@
 const crypto=require('node:crypto');
 const {businessDate}=require('./auth');
 
+const protectedTk2m=String(process.env.CRM_STAGE_MODE||'')==='true' || String(process.env.CRM_LIVE_MODE||'')==='true';
 const LIMIT_MS=15*60*1000;
 const failures=new Map();
 const hash=(v)=>crypto.createHash('sha256').update(String(v)).digest('hex');
@@ -28,7 +29,7 @@ function loginKey(req) {
   return {ip:'ip:'+hash(ip),account:'account:'+hash(name)};
 }
 function attempts(req,res,next) {
-  if(String(process.env.CRM_STAGE_MODE||'')!=='true')return next();
+  if(!protectedTk2m)return next();
   const now=Date.now();clean(now);
   const keys=loginKey(req);
   if(touch(keys.ip,now,false)>=40 || touch(keys.account,now,false)>=7) {
@@ -39,13 +40,13 @@ function attempts(req,res,next) {
   next();
 }
 function failed(req) {
-  if(String(process.env.CRM_STAGE_MODE||'')!=='true')return;
+  if(!protectedTk2m)return;
   const keys=req.loginAttemptKeys||loginKey(req), now=Date.now();
   touch(keys.ip,now,true);
   touch(keys.account,now,true);
 }
 function succeeded(req) {
-  if(String(process.env.CRM_STAGE_MODE||'')!=='true')return;
+  if(!protectedTk2m)return;
   const keys=req.loginAttemptKeys||loginKey(req);
   failures.delete(keys.account);
 }
@@ -59,7 +60,7 @@ function validCsrf(req) {
   return crypto.timingSafeEqual(Buffer.from(expected,'hex'),Buffer.from(submitted,'hex'));
 }
 function protectPrivateRoutes(req,res,next) {
-  if(String(process.env.CRM_STAGE_MODE||'')!=='true')return next();
+  if(!protectedTk2m)return next();
   const p=req.path;
   // These are presentation resources only; no staff/customer exports are under /public.
   if(p==='/login' && (req.method==='GET' || req.method==='POST'))return next();

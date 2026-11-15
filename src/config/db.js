@@ -9,7 +9,32 @@ const privateUploadDir = String(process.env.PRIVATE_UPLOAD_DIR || '').trim();
 // The TK2M rehearsal is a separate account and database. Fail closed before
 // constructing a pool if a copied UENT runtime configuration is accidentally used.
 const isTk2mStaging = String(process.env.CRM_STAGE_MODE || '').trim().toLowerCase() === 'true';
-if (isTk2mStaging) {
+const isTk2mLive = String(process.env.CRM_LIVE_MODE || '').trim().toLowerCase() === 'true';
+if (isTk2mLive && isTk2mStaging) throw new Error('TK2M cannot be live and staging simultaneously.');
+if (isTk2mLive) {
+  // Explicitly promote the independently restored and verified November CRM snapshot.
+  // The staging-named DB is the authoritative production data store until a
+  // separate, tested credential and database move is approved.
+  if (!isUat) throw new Error('TK2M live safety: the approved office feature set is required.');
+  if (dbName !== 'talk_crm_stage' || dbUser !== 'talk_crmstg') {
+    throw new Error('TK2M live safety: only the verified migrated CRM database may be used.');
+  }
+  if (!new Set(['localhost','127.0.0.1','::1']).has(String(process.env.DB_HOST || 'localhost').trim())) {
+    throw new Error('TK2M live safety: database host must be local.');
+  }
+  if (privateUploadDir !== '/home/talk/crm-live/uploads/talk2me_uat_private_uploads') {
+    throw new Error('TK2M live safety: private uploaded files must use the approved live path.');
+  }
+  if (process.env.BASE_PATH !== '/' || process.env.APP_URL !== 'https://crm.tk2m.co.za') {
+    throw new Error('TK2M live safety: canonical domain and root path required.');
+  }
+  if (String(process.env.SESSION_SECURE || '').toLowerCase() !== 'true') {
+    throw new Error('TK2M live safety: HTTPS-only cookies are required.');
+  }
+  if (String(process.env.CUDO_EXTERNAL_SEND_ENABLED || '').toLowerCase() === 'true') {
+    throw new Error('TK2M live safety: retired Cudu external sending must remain disabled.');
+  }
+} else if (isTk2mStaging) {
   const expectedUploadDir = '/home/talk/crm-migration/staging-uploads/talk2me_uat_private_uploads';
   const allowedLocalHosts = new Set(['localhost', '127.0.0.1', '::1']);
   if (!isUat) throw new Error('TK2M staging safety: UAT_MODE must remain true to preserve approved office screens.');
