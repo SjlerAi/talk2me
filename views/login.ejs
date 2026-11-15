@@ -5,14 +5,15 @@
     <% if(isStaging){ %><p class="tk2m-stage-identity" style="text-align:center;margin:0 0 14px;font-size:11px;font-weight:850;letter-spacing:.09em;color:#a9252b">TK2M TEST CRM · NOT LIVE</p><% } %>
     <% if (error) { %><div class="alert"><%= error %></div><% } %>
     <div id="default-logout-notice" class="alert" hidden><strong>Automatic logout completed.</strong><br>Talk2Me closed the previous session at the configured daily logout time. Please log in again.</div>
-    <form id="login-form" method="post" action="<%= basePath %>/login" autocomplete="off">
+    <form id="login-form" method="post" action="<%= basePath %>/login" autocomplete="on">
+      <% if(isStaging){ %><input type="hidden" name="login_csrf" value="<%= loginCsrf %>"><% } %>
       <% if(typeof returnTo==="string" && returnTo){ %><input type="hidden" name="return_to" value="<%= returnTo %>"><p class="login-return-notice"><%= returnTo.endsWith('/data-review')?'After signing in, you will open the Data Review Centre.':'After signing in, you will return to the Customer Cleanup Centre.' %></p><% } %>
       <input type="text" name="fake_username" autocomplete="username" tabindex="-1" aria-hidden="true" style="position:absolute;left:-9999px;opacity:0">
       <input type="password" name="fake_password" autocomplete="current-password" tabindex="-1" aria-hidden="true" style="position:absolute;left:-9999px;opacity:0">
       <label for="login-email">Email / Username</label>
-      <input id="login-email" name="email" type="text" placeholder="Email address or username" autocomplete="off" autocapitalize="none" spellcheck="false" value="" required>
+      <input id="login-email" name="email" type="text" placeholder="Email address or username" autocomplete="username" autocapitalize="none" spellcheck="false" value="" required>
       <label for="login-password">Password</label>
-      <input id="login-password" name="password" type="password" placeholder="Password" autocomplete="new-password" value="" required>
+      <input id="login-password" name="password" type="password" placeholder="Password" autocomplete="current-password" value="" required>
       <button class="primary" type="submit">Login</button>
     </form>
     <% if(!isStaging){ %><div class="version-stamp">Version <strong><%= appVersion %></strong> <span>Build <%= appBuild %></span></div><% } %>

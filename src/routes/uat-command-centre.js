@@ -18,8 +18,8 @@ router.get('/command-centre', requireAuth, async (req, res, next) => {
       (SELECT COUNT(*) FROM inquiries WHERE status IN ${openStatuses} AND COALESCE(assigned_staff_id,staff_id) IS NULL) unassigned_work,
       (SELECT COUNT(*) FROM staff_tasks WHERE status IN ('unread','seen','in_progress')) open_tasks,
       (SELECT COUNT(*) FROM staff_tasks WHERE status IN ('unread','seen','in_progress') AND due_at<NOW()) overdue_tasks,
-      (SELECT COUNT(*) FROM clients WHERE line_status<>'cancelled' AND next_upgrade_date=CURRENT_DATE()) upgrades_today,
-      (SELECT COUNT(*) FROM clients WHERE line_status<>'cancelled' AND next_upgrade_date<CURRENT_DATE()) overdue_upgrades,
+      (SELECT COUNT(*) FROM crm_v_master_actionable_upgrades WHERE next_upgrade_date=CURRENT_DATE()) upgrades_today,
+      (SELECT COUNT(*) FROM crm_v_master_actionable_upgrades WHERE next_upgrade_date<CURRENT_DATE()) overdue_upgrades,
       (SELECT COUNT(DISTINCT COALESCE(NULLIF(id_number,''),CONCAT('client:',id))) FROM clients WHERE birthday IS NOT NULL AND MONTH(birthday)=MONTH(CURRENT_DATE()) AND DAY(birthday)=DAY(CURRENT_DATE())) birthdays_today,
       (SELECT COUNT(*) FROM clients WHERE DATE(created_at)=CURRENT_DATE() AND lifecycle_status='prospect') walkins_today,
       (SELECT COUNT(*) FROM clients c WHERE c.is_active=1 AND NOT EXISTS(SELECT 1 FROM client_assignments a WHERE a.is_active=1 AND (a.client_id=c.id OR (a.account_number<>'' AND a.account_number=c.account_number)))) unassigned_clients,
@@ -43,9 +43,9 @@ router.get('/command-centre', requireAuth, async (req, res, next) => {
 
     const [upgrades] = await db.query(`SELECT c.id,c.client_name,c.cell_number,c.account_number,c.handset,c.next_upgrade_date,
       DATEDIFF(c.next_upgrade_date,CURRENT_DATE()) days_until,COALESCE(s.full_name,'Unassigned') assigned_name
-      FROM clients c LEFT JOIN client_assignments a ON a.id=(SELECT a2.id FROM client_assignments a2 WHERE a2.is_active=1 AND (a2.client_id=c.id OR (a2.account_number<>'' AND a2.account_number=c.account_number)) ORDER BY (a2.client_id=c.id) DESC LIMIT 1)
+      FROM crm_v_master_actionable_upgrades c LEFT JOIN client_assignments a ON a.id=(SELECT a2.id FROM client_assignments a2 WHERE a2.is_active=1 AND (a2.client_id=c.id OR (a2.account_number<>'' AND a2.account_number=c.account_number)) ORDER BY (a2.client_id=c.id) DESC LIMIT 1)
       LEFT JOIN staff_users s ON s.id=a.assigned_staff_id
-      WHERE c.line_status<>'cancelled' AND c.next_upgrade_date BETWEEN DATE_SUB(CURRENT_DATE(),INTERVAL 30 DAY) AND DATE_ADD(CURRENT_DATE(),INTERVAL 7 DAY)
+      WHERE c.next_upgrade_date BETWEEN DATE_SUB(CURRENT_DATE(),INTERVAL 30 DAY) AND DATE_ADD(CURRENT_DATE(),INTERVAL 7 DAY)
       ORDER BY c.next_upgrade_date LIMIT 20`);
 
     const [birthdays] = await db.query(`SELECT MIN(id) id,MAX(client_name) client_name,MAX(cell_number) cell_number,MAX(email) email,MAX(birthday) birthday,COUNT(*) line_count

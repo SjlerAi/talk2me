@@ -1,0 +1,255 @@
+<style>
+.staff-audit{max-width:1420px;margin:0 auto;padding:20px;display:grid;gap:18px;color:#1e3448}
+.staff-audit *{box-sizing:border-box}
+.staff-audit .hero{display:flex;justify-content:space-between;align-items:start;gap:14px;flex-wrap:wrap}
+.staff-audit h1{font-size:clamp(23px,3vw,32px);line-height:1.15;margin:6px 0 7px}
+.staff-audit h2{font-size:20px;margin:0 0 8px}
+.staff-audit p{margin:5px 0;line-height:1.55}
+.staff-audit .muted{color:#607487;font-size:13px}
+.staff-audit .eyebrow{font-size:12px;font-weight:800;letter-spacing:.11em;text-transform:uppercase;color:#2472a5}
+.staff-audit .panel{background:#fff;border:1px solid #d6e2eb;border-radius:13px;padding:17px;min-width:0}
+.staff-audit .controls{display:flex;align-items:end;gap:12px;flex-wrap:wrap}
+.staff-audit .controls label{display:grid;gap:5px;font-size:12px;font-weight:800;min-width:150px}
+.staff-audit input,.staff-audit select{background:#fff;color:#1c3447;border:1px solid #adc1d0;border-radius:8px;padding:9px 10px;min-height:38px;font:inherit}
+.staff-audit a.btn,.staff-audit button{display:inline-flex;gap:6px;align-items:center;justify-content:center;border:1px solid #226b95;border-radius:8px;padding:10px 13px;background:#fff;color:#15577a;font-weight:800;text-decoration:none;cursor:pointer;min-height:38px}
+.staff-audit button.primary,.staff-audit a.btn.primary{background:#18688f;color:#fff}
+.staff-audit .scroll{overflow-x:auto;width:100%}
+.staff-audit table{width:100%;border-collapse:collapse;font-size:13px;min-width:660px}
+.staff-audit th,.staff-audit td{text-align:left;padding:10px 9px;border-bottom:1px solid #e4edf2;vertical-align:top;white-space:normal}
+.staff-audit th{background:#f2f7fa;color:#3c5a6c;font-size:11px;text-transform:uppercase;letter-spacing:.06em}
+.staff-audit tbody tr:hover{background:#f8fbfd}
+.staff-audit .number{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.staff-audit .number.strong{font-weight:900}
+.staff-audit .person-link{font-weight:800;color:#126594;text-decoration:none}
+.staff-audit .pill{display:inline-block;padding:3px 7px;background:#edf2f5;border-radius:99px;color:#557082;font-size:11px}
+.staff-audit .stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:9px}
+.staff-audit .stat{border:1px solid #d6e4ed;border-radius:10px;padding:12px;background:#fbfdfe}
+.staff-audit .stat strong{display:block;font-size:25px;line-height:1.1;color:#145879}
+.staff-audit .stat span{font-size:12px;color:#537084}
+.staff-audit .cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.staff-audit code{font-size:12px;overflow-wrap:anywhere}
+.staff-audit .foot{font-size:12px;color:#526a7c}
+.staff-audit .empty{color:#587182;background:#f5f9fb;border-radius:9px;padding:16px}
+.staff-audit .pager{display:flex;gap:12px;align-items:center;justify-content:center;flex-wrap:wrap}
+@media(max-width:800px){.staff-audit{padding:9px}.staff-audit .stats{grid-template-columns:repeat(2,minmax(0,1fr))}.staff-audit .cols{grid-template-columns:1fr}}
+</style>
+<section class="staff-audit">
+  <header class="hero">
+    <div>
+      <div class="eyebrow">Talk2Me management · Weekly usage audit</div>
+      <h1><%= person ? person.full_name + ' — CRM activity' : 'What every staff member uses' %></h1>
+      <p class="muted">Week: <strong><%= from %></strong> to <strong><%= to %></strong><%= weekIsCurrent?' · Week in progress':'' %>. Times shown in South Africa time.</p>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px">
+      <a class="btn" href="<%= basePath %>/backoffice">Administration</a>
+      <a class="btn" href="<%= basePath %>/backoffice/staff-usage?week=<%= previous %><%= person?'&staff='+person.id:'' %>">Previous week</a>
+      <a class="btn" href="<%= basePath %>/backoffice/staff-usage?week=<%= next %><%= person?'&staff='+person.id:'' %>">Next week</a>
+    </div>
+  </header>
+
+  <form class="panel controls" method="get" action="<%= basePath %>/backoffice/staff-usage">
+    <label>Week starting (Monday)
+      <input type="date" name="week" value="<%= week %>" required>
+    </label>
+    <label>Staff member
+      <select name="staff">
+        <option value="">All staff — weekly overview</option>
+        <% people.forEach(function(p){ %>
+          <option value="<%= p.id %>" <%= person&&person.id===p.id?'selected':'' %>><%= p.full_name %> (<%= p.role %>)</option>
+        <% }) %>
+      </select>
+    </label>
+    <button class="primary" type="submit">Show activity</button>
+    <a class="btn" href="<%= basePath %>/backoffice/staff-usage.csv?week=<%= week %><%= person?'&staff='+person.id:'' %>">Export weekly audit (CSV)</a>
+  </form>
+
+  <div class="panel">
+    <h2>How to read these figures</h2>
+    <p class="muted">A <strong>screen view</strong> is an actual CRM page response. A <strong>launcher click</strong> records which shortcut the staff member selected. A <strong>window event</strong> comes from the CRM browser shell (opened, refocused, minimised, closed or observed open). A <strong>saved request</strong> is a successful server write; an <strong>audited change</strong> is separately confirmed by the CRM change history. These counts overlap and must not be added together as completed work.</p>
+    <p class="muted"><strong>External Vodacom/MTN/Telkom/Sage windows:</strong> We record the portal launcher and browser-visible window events, not the contents of the external website. Existing history predates detailed window tracking, so older weeks may have launcher clicks without matching open/close events.</p>
+  </div>
+
+  <% if(!person){ %>
+    <section class="panel">
+      <h2>Weekly activity — all staff members</h2>
+      <p class="muted">Select a person to see every named screen, the buttons they clicked, the portals and pop-ups they opened, successful CRM save requests, audited record changes and a chronological history.</p>
+      <div class="scroll">
+        <table>
+          <thead><tr><th>Staff member</th><th>Role</th><th class="number">Screen views</th><th class="number">Different screens</th><th class="number">Launcher clicks</th><th class="number">CRM windows opened</th><th class="number">External portals opened</th><th class="number">Saved requests</th><th class="number">Audited changes</th><th>Most recent</th></tr></thead>
+          <tbody>
+            <% people.forEach(function(p){ %>
+              <tr>
+                <td><a class="person-link" href="<%= basePath %>/backoffice/staff-usage?week=<%= week %>&staff=<%= p.id %>"><%= p.full_name||('Staff #'+p.id) %></a><% if(!p.is_active){ %> <span class="pill">Inactive</span><% } %></td>
+                <td><%= p.role %></td>
+                <td class="number strong"><%= Number(p.screens||0) %></td>
+                <td class="number"><%= Number(p.different_screens||0) %></td>
+                <td class="number"><%= Number(p.launcher_clicks||0) %></td>
+                <td class="number"><%= Number(p.internal_opens||0) %></td>
+                <td class="number"><%= Number(p.external_opens||0) %></td>
+                <td class="number"><%= Number(p.saved_requests||0) %></td>
+                <td class="number"><%= Number(p.audited_changes||0) %></td>
+                <td><%= formatAt(p.last_used) %></td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </section>
+    <section class="panel">
+      <h2>Weekly messages and tasks by staff member</h2>
+      <p class="muted">Direct messages and task records are tracked separately from ordinary screen views. New per-message read receipts and exact direct-message reply links begin when the expanded audit goes live. Task counts include work created or acted on in the selected week.</p>
+      <div class="scroll"><table>
+        <thead><tr><th>Staff member</th><th class="number">Direct messages received</th><th class="number">Messages sent</th><th class="number">New read receipts</th><th class="number">Linked replies</th><th class="number">Tasks received</th><th class="number">Tasks issued</th><th class="number">Tasks marked seen</th><th class="number">Task comments</th><th class="number">Tasks completed</th></tr></thead>
+        <tbody><% people.forEach(function(p){ %><tr>
+          <td><a class="person-link" href="<%= basePath %>/backoffice/staff-usage?week=<%= week %>&staff=<%= p.id %>"><%= p.full_name||('Staff #'+p.id) %></a></td>
+          <td class="number"><%= Number(p.messages_in||0) %></td>
+          <td class="number"><%= Number(p.messages_sent||0) %></td>
+          <td class="number"><%= Number(p.receipts_created||0) %></td>
+          <td class="number"><%= Number(p.linked_replies||0) %></td>
+          <td class="number"><%= Number(p.tasks_received||0) %></td>
+          <td class="number"><%= Number(p.tasks_issued||0) %></td>
+          <td class="number"><%= Number(p.tasks_opened||0) %></td>
+          <td class="number"><%= Number(p.task_comments||0) %></td>
+          <td class="number"><%= Number(p.tasks_completed||0) %></td>
+        </tr><% }) %></tbody>
+      </table></div>
+    </section>
+  <% }else{ %>
+    <div class="stats">
+      <div class="stat"><strong><%= Number(person.screens||0) %></strong><span>CRM screens viewed</span></div>
+      <div class="stat"><strong><%= Number(person.launcher_clicks||0) %></strong><span>Launcher buttons clicked</span></div>
+      <div class="stat"><strong><%= Number(person.internal_opens||0) %></strong><span>Internal windows opened</span></div>
+      <div class="stat"><strong><%= Number(person.external_opens||0) %></strong><span>External portal windows</span></div>
+      <div class="stat"><strong><%= Number(person.audited_changes||0) %></strong><span>Audited business changes</span></div>
+    </div>
+
+    <section class="panel">
+      <h2>Messages — which ones were received, opened and answered?</h2>
+      <p class="muted">The report identifies messages by their CRM message number, sender and time. No message text or voice recording is shown. Opening a conversation marks the messages delivered to the CRM screen as read; this is not proof that every word was read.</p>
+      <div class="stats" style="margin:12px 0">
+        <div class="stat"><strong><%= detail.comms.metrics.incoming_direct %></strong><span>Direct messages received this week</span></div>
+        <div class="stat"><strong><%= detail.comms.metrics.messages_marked_read %></strong><span>Incoming messages marked read (including older cursors)</span></div>
+        <div class="stat"><strong><%= detail.comms.metrics.linked_incoming_replies %></strong><span>Incoming messages with a linked reply</span></div>
+        <div class="stat"><strong><%= detail.comms.metrics.outbound_messages %></strong><span>Messages sent</span></div>
+        <div class="stat"><strong><%= detail.comms.metrics.incoming_office %></strong><span>Office group messages available</span></div>
+      </div>
+      <% if(detail.comms.incoming.length){ %>
+        <div class="scroll"><table><thead><tr><th>Message</th><th>From</th><th>Sent to thread</th><th>Type</th><th>Read / opened</th><th>Replied?</th></tr></thead><tbody>
+        <% detail.comms.incoming.forEach(function(m){ %>
+          <tr>
+            <td><strong>#<%= m.id %></strong></td><td><%= m.sender_name %></td><td><%= formatAt(m.created_at) %></td>
+            <td><%= m.kind %> · <%= m.message_type %></td>
+            <td>
+              <% if(m.read_status==='opened_recorded'){ %>
+                <strong>Marked read</strong><small style="display:block"><%= formatAt(m.read_at) %></small>
+              <% }else if(m.read_status==='legacy_marked_read'){ %>
+                <strong>Previously marked read</strong><small style="display:block">Older read cursor; individual opening time unavailable</small>
+              <% }else{ %><span class="pill">Not marked read</span><% } %>
+            </td>
+            <td>
+              <% if(m.reply){ %>
+                <strong>Next direct reply #<%= m.reply.reply_message_id %></strong><small style="display:block"><%= formatAt(m.reply.reply_at) %><%= m.reply_after?' · after '+m.reply_after:'' %></small>
+              <% }else if(m.kind==='Office broadcast'){ %>
+                <span class="muted">Office messages have no individual reply assignment</span>
+              <% }else{ %>
+                <span class="pill">No linked reply</span>
+              <% } %>
+            </td>
+          </tr>
+        <% }) %></tbody></table></div>
+      <% }else{ %><p class="empty">No incoming CRM messages recorded for this staff member in this week.</p><% } %>
+      <h2 style="margin-top:18px">Messages sent by this staff member</h2>
+      <% if(detail.comms.outbound.length){ %><div class="scroll"><table><thead><tr><th>Message</th><th>To</th><th>Sent</th><th>Type</th><th>Reply relationship</th></tr></thead><tbody>
+        <% detail.comms.outbound.forEach(function(m){ %><tr>
+          <td><strong>#<%= m.id %></strong></td><td><%= m.recipient_name %></td><td><%= formatAt(m.created_at) %></td>
+          <td><%= m.message_type %></td><td><%= m.reply?'Replies to message #'+m.reply.incoming_message_id:'No specific reply link' %></td>
+        </tr><% }) %></tbody></table></div>
+      <% }else{ %><p class="empty">No messages sent through this CRM chat system in the selected week.</p><% } %>
+      <p class="muted">Historical messages may show “no linked reply” even if someone answered: new direct replies are associated with the latest preceding incoming message in that conversation, not an explicit quote-reply. Office broadcasts are not treated as assigned personal questions.</p>
+    </section>
+
+    <section class="panel">
+      <h2>Tasks — received, opened, answered and completed</h2>
+      <div class="stats" style="margin:12px 0">
+        <div class="stat"><strong><%= detail.comms.metrics.tasks_received %></strong><span>Tasks received this week</span></div>
+        <div class="stat"><strong><%= detail.comms.metrics.tasks_issued %></strong><span>Tasks issued this week (including self-assigned)</span></div>
+        <div class="stat"><strong><%= detail.comms.metrics.tasks_opened %></strong><span>Tasks first marked seen this week</span></div>
+        <div class="stat"><strong><%= detail.comms.metrics.tasks_with_written_response %></strong><span>Assigned tasks with a written comment this week</span></div>
+        <div class="stat"><strong><%= detail.comms.metrics.tasks_completed %></strong><span>Tasks completed this week</span></div>
+        <div class="stat"><strong><%= detail.comms.metrics.unread_of_week %></strong><span>Of this week's tasks, still unread now</span></div>
+      </div>
+      <% if(detail.comms.tasks.length){ %><div class="scroll"><table><thead><tr><th>Task</th><th>Assigned by</th><th>Assigned to</th><th>Received</th><th>Opened / seen</th><th>Response</th><th>Current status</th><th>Completed / approved</th></tr></thead><tbody>
+        <% detail.comms.tasks.forEach(function(t){ %><tr>
+          <td><strong>#<%= t.id %></strong><small style="display:block"><%= t.title %></small></td>
+          <td><%= t.created_by_name %></td><td><%= t.assigned_to_name %></td><td><%= formatAt(t.created_at) %></td>
+          <td><%= t.seen_at?formatAt(t.seen_at):'Not marked seen' %>
+            <% if(t.open_after){ %><small style="display:block">After <%= t.open_after %></small><% } %>
+          </td>
+          <td>
+            <% if(t.comments_in_week){ %><strong><%= t.comments_in_week %> written comment(s)</strong><% } %>
+            <% if(t.started_at){ %><small style="display:block">Started <%= formatAt(t.started_at) %></small><% } %>
+            <% if(!t.comments_in_week&&!t.started_at){ %><span class="pill">No comment recorded this week</span><% } %>
+          </td>
+          <td><strong><%= t.status %></strong><small style="display:block"><%= t.workflow_state %></small></td>
+          <td><%= t.status==='cancelled'?'Cancelled':t.completed_at?formatAt(t.completed_at):'Not completed' %>
+            <% if(t.acknowledged_at){ %><small style="display:block">Approved: <%= formatAt(t.acknowledged_at) %></small><% } %>
+          </td>
+        </tr><% }) %></tbody></table></div>
+      <% }else{ %><p class="empty">No task was assigned or had a tracked action for this employee in the selected week.</p><% } %>
+      <p class="muted">Task opening is taken from the server's seen timestamp. A written response is an actual staff comment, excluding automatic “opened” and status text. Task completion and manager approval are reported separately; creating a task does not mean it was completed.</p>
+    </section>
+
+    <div class="cols">
+      <section class="panel">
+        <h2>CRM screens opened</h2>
+        <% if(detail.screens.length){ %><div class="scroll"><table><thead><tr><th>Screen / route</th><th class="number">Opens</th><th>Last used</th></tr></thead><tbody>
+          <% detail.screens.forEach(function(s){ %><tr><td><code><%= s.screen %></code></td><td class="number"><%= Number(s.opens) %></td><td><%= formatAt(s.last_used) %></td></tr><% }) %>
+        </tbody></table></div><% }else{ %><p class="empty">No screen views recorded this week.</p><% } %>
+      </section>
+      <section class="panel">
+        <h2>CRM and supplier windows</h2>
+        <% if(detail.windows.length){ %><div class="scroll"><table><thead><tr><th>Window / portal</th><th>CRM screen / route</th><th>Kind</th><th class="number">Opened</th><th class="number">Refocused</th><th class="number">Close actions</th><th class="number">Observed still open</th></tr></thead><tbody>
+          <% detail.windows.forEach(function(w){ %><tr><td><strong><%= w.display_name %></strong></td><td><code><%= w.opened_route||'—' %></code></td><td><%= w.window_kind||'CRM' %></td><td class="number"><%= Number(w.opened||0) %></td><td class="number"><%= Number(w.refocused||0) %></td><td class="number"><%= Number(w.closed||0) %></td><td class="number"><%= Number(w.observed_open||0) %></td></tr><% }) %>
+        </tbody></table></div><% }else{ %><p class="empty">No detailed window lifecycle events recorded in this week. Historical launcher clicks may still appear below.</p><% } %>
+      </section>
+      <section class="panel">
+        <h2>Top-bar and quick-action buttons clicked</h2>
+        <% if(detail.clicks.length){ %><div class="scroll"><table><thead><tr><th>Button</th><th>CRM route</th><th class="number">Clicks</th></tr></thead><tbody>
+          <% detail.clicks.forEach(function(a){ %><tr><td><strong><%= a.feature %></strong></td><td><code><%= a.route_path %></code></td><td class="number"><%= Number(a.clicks) %></td></tr><% }) %>
+        </tbody></table></div><% }else{ %><p class="empty">No launcher clicks recorded this week.</p><% } %>
+      </section>
+      <section class="panel">
+        <h2>Confirmed CRM business changes</h2>
+        <% if(detail.actions.length){ %><div class="scroll"><table><thead><tr><th>Audited action</th><th class="number">Count</th><th>Last</th></tr></thead><tbody>
+          <% detail.actions.forEach(function(a){ %><tr><td><code><%= a.action_type %></code></td><td class="number"><%= Number(a.actions) %></td><td><%= formatAt(a.last_used) %></td></tr><% }) %>
+        </tbody></table></div><% }else{ %><p class="empty">No authoritative audited changes recorded this week.</p><% } %>
+      </section>
+    </div>
+    <section class="panel">
+      <h2>Successful CRM save/action requests</h2>
+      <p class="muted">These record server-handled saves and commands. The action audit above provides stronger evidence of the particular business change.</p>
+      <% if(detail.requests.length){ %><div class="scroll"><table><thead><tr><th>CRM action route</th><th>Method</th><th class="number">Requests</th><th>Last</th></tr></thead><tbody>
+        <% detail.requests.forEach(function(a){ %><tr><td><code><%= a.route_path %></code></td><td><%= a.method %></td><td class="number"><%= Number(a.successful_requests) %></td><td><%= formatAt(a.last_used) %></td></tr><% }) %>
+      </tbody></table></div><% }else{ %><p class="empty">No successful save requests recorded.</p><% } %>
+    </section>
+    <section class="panel">
+      <h2>Time-stamped individual audit trail</h2>
+      <p class="muted"><%= total %> recorded events and audited actions in this week. Browser-reported window events are labelled separately from CRM server actions. No customer-entered text or external portal content is logged.</p>
+      <% if(events.length){ %><div class="scroll"><table><thead><tr><th>Time</th><th>Source</th><th>Action</th><th>Screen / business record</th><th>Window / portal</th></tr></thead><tbody>
+        <% events.forEach(function(e){ %><tr>
+          <td><%= formatAt(e.event_at) %></td>
+          <td><span class="pill"><%= e.source==='audit'?'CRM audit':e.source==='server_request'?'CRM server':e.source==='chat'?'Chat evidence':e.source==='task'?'Task evidence':e.source==='notification'?'Notification receipt':e.source==='login'?'Login':'Browser event' %></span></td>
+          <td><strong><%= e.event %></strong></td>
+          <td><code><%= safeTarget(e) %></code></td>
+          <td><%= e.window_key||'' %><%= e.window_kind?' ('+e.window_kind+')':'' %></td>
+        </tr><% }) %>
+      </tbody></table></div><% }else{ %><p class="empty">No tracked activity for this person in the selected week.</p><% } %>
+      <% if(pages>1){ %><div class="pager">
+        <% if(page>1){ %><a class="btn" href="<%= basePath %>/backoffice/staff-usage?week=<%= week %>&staff=<%= person.id %>&page=<%= page-1 %>">Previous 75</a><% } %>
+        <span>Page <%= page %> of <%= pages %></span>
+        <% if(page<pages){ %><a class="btn" href="<%= basePath %>/backoffice/staff-usage?week=<%= week %>&staff=<%= person.id %>&page=<%= page+1 %>">Next 75</a><% } %>
+      </div><% } %>
+    </section>
+  <% } %>
+  <footer class="foot">Management-only audit. Access is limited to CRM Owner and Manager accounts. Opening an external supplier portal does not grant Talk2Me access to supplier-side pages, transactions or conversations. No audio or message contents are recorded. The audit is designed for transparent operational oversight, not keystroke or message monitoring.</footer>
+</section>

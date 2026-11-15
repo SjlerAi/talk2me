@@ -3,12 +3,14 @@
 const db = require('../config/db');
 
 let schemaPromise = null;
+let schemaReady = false;
 
 function clean(value, max = 255) {
   return String(value == null ? '' : value).trim().slice(0, max);
 }
 
 async function ensureUsageSchema() {
+  if (schemaReady) return;
   if (!schemaPromise) {
     schemaPromise = db.execute(`CREATE TABLE IF NOT EXISTS crm_usage_events (
       id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -28,7 +30,9 @@ async function ensureUsageSchema() {
       KEY idx_crm_usage_staff_date (staff_id,occurred_at),
       KEY idx_crm_usage_screen_date (screen_key,occurred_at),
       KEY idx_crm_usage_event_date (event_type,occurred_at)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`).finally(() => {
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`).then(() => {
+      schemaReady = true;
+    }).finally(() => {
       schemaPromise = null;
     });
   }

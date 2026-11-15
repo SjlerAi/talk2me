@@ -60,7 +60,7 @@
       <span><strong><%= Number(eventSummary.staff_unmapped||0) %></strong> staff code unresolved</span>
     </div>
     <form method="post" action="<%= basePath %>/backoffice/base-details/sync-events" style="margin-top:14px"><button class="btn">Synchronise activation & upgrade history</button></form>
-    <small>The ledger is idempotent by import row. Re-running refreshes links and staff mapping without duplicating events. SADMIN is classified as system activity, not a salesperson.</small>
+    <small>The counts use the reconciled current-event view: 214 repeated entries from overlapping reports are not counted twice. Both original source rows remain stored. Eighteen event pairs with conflicting details are still awaiting verification. New imports must be reconciled again after synchronising. SADMIN is classified as system activity, not a salesperson.</small>
   </section>
 
   <section class="card" style="margin-top:18px">

@@ -11,6 +11,18 @@
   const taskbarItems = document.getElementById('os-taskbar-items');
   const companionWindows = new Map();
   let activeExternalKey = null;
+  function auditCompanion(eventType, item, key, outcome='success') {
+    // Record only the owner-configured launcher SLOT, never the portal URL or
+    // anything typed on Vodacom / MTN / Telkom / Sage websites.
+    const slot=String(key||'').replace(/[^a-z0-9_-]/gi,'').slice(0,60);
+    if(!slot)return;
+    window.Talk2MeUsage?.track?.({
+      event_type:eventType,screen_key:'managed-launcher:'+slot,
+      module_name:'external_portal',route_path:location.pathname,
+      window_key:'managed-launcher:'+slot,window_kind:'external_companion',
+      outcome
+    });
+  }
 
   function syncSidebar() {
     const openCount = [...companionWindows.values()].filter(record => record.child && !record.child.closed).length;
@@ -172,6 +184,7 @@
 
     activeExternalKey = key;
     renderExternalTaskbar();
+    auditCompanion('external_focus',record.item,key);
 
     try { record.child.focus(); } catch (_) {}
     setTimeout(() => {
@@ -189,6 +202,7 @@
     try {
       if (record.child && !record.child.closed) record.child.close();
     } catch (_) {}
+    auditCompanion('external_close',record.item,key,record.child?.closed?'success':'requested');
 
     companionWindows.delete(key);
     if (activeExternalKey === key) activeExternalKey = null;
@@ -209,11 +223,13 @@
     const child = window.open('about:blank', name, companionFeatures(size));
 
     if (!child) {
+      auditCompanion('external_blocked',item,key,'blocked');
       toast(`${item.display_name} could not open`, 'Allow pop-ups for this Talk2Me site and try again.');
       return;
     }
 
     rememberCompanion(item, key, child);
+    auditCompanion('external_open',item,key);
     try { child.location.replace(item.portal_url); } catch (_) { child.location.href = item.portal_url; }
     try { child.focus(); } catch (_) {}
   }
@@ -223,6 +239,7 @@
     if (!item) return;
 
     if (!item.portal_url) {
+      auditCompanion('external_unconfigured',item,key,'unconfigured');
       toast(`${item.display_name} is not configured`, 'The owner must add its secure URL in Administration > Workstation Launchers.');
       return;
     }
@@ -284,6 +301,7 @@
     let changed = false;
     for (const [key, record] of companionWindows.entries()) {
       if (!record.child || record.child.closed) {
+        auditCompanion('external_close_detected',record.item,key,'observed');
         companionWindows.delete(key);
         if (activeExternalKey === key) activeExternalKey = null;
         changed = true;
@@ -291,6 +309,15 @@
     }
     if (changed) { syncSidebar(); renderExternalTaskbar(); }
   }, 1000);
+
+  // Evidence that a companion was *still observable as open*, sampled at most
+  // once every five minutes. Not a claim of productive time spent in it.
+  setInterval(() => {
+    for(const [key,record] of companionWindows.entries()) {
+      if(record.child && !record.child.closed)
+        auditCompanion('external_still_open',record.item,key,'observed');
+    }
+  }, 300000);
 
   window.addEventListener('focus', () => {
     activeExternalKey = null;

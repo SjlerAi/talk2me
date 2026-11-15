@@ -1,0 +1,90 @@
+<style>
+.master-reg{max-width:1400px;margin:0 auto;padding:22px;color:#243850;font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+.master-reg *{box-sizing:border-box}.master-reg .top{display:flex;align-items:start;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.master-reg h1{font-size:25px;margin:3px 0 6px}.master-reg h2{font-size:19px;margin:0 0 10px}
+.master-reg .small{font-size:12px;color:#62788a}.master-reg .eyebrow{font-size:11px;color:#744ca6;letter-spacing:.12em;font-weight:850}
+.master-reg .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:15px 0}
+.master-reg .card,.master-reg .panel{background:#fff;border:1px solid #dce6ef;border-radius:12px;padding:14px}
+.master-reg .card strong{font-size:25px;color:#183651;display:block}.master-reg .card small{color:#697a8d;font-size:11px}
+.master-reg .notice{padding:13px;margin:12px 0;border-radius:9px;background:#f0f5fa;border-left:4px solid #5576ae}
+.master-reg .warn{padding:13px;margin:12px 0;border-radius:9px;background:#fff8eb;border-left:4px solid #cf9439}
+.master-reg .toolbar{display:flex;align-items:end;gap:10px;flex-wrap:wrap}.master-reg label{flex:1;min-width:180px;color:#445e76;font-size:12px;font-weight:750}
+.master-reg input,.master-reg select{display:block;width:100%;background:#fff;border:1px solid #bacddd;border-radius:8px;padding:10px;margin-top:4px}
+.master-reg button,.master-reg .btn{display:inline-block;background:#294e78;border:1px solid #294e78;color:#fff;padding:9px 13px;border-radius:8px;text-decoration:none;font-weight:750;cursor:pointer}
+.master-reg .btn.secondary{background:#fff;color:#245686;border-color:#c8d8e4}.master-reg a:not(.btn){color:#265c8f;font-weight:700}
+.master-reg .scroll{overflow:auto;max-height:620px;margin:10px 0;border:1px solid #e5ebf1;border-radius:10px}
+.master-reg table{width:100%;min-width:740px;border-collapse:collapse;font-size:13px}
+.master-reg th,.master-reg td{padding:10px 9px;border-bottom:1px solid #e6edf2;text-align:left;vertical-align:top}
+.master-reg th{background:#eef4f8;position:sticky;top:0}.master-reg .pill{padding:4px 7px;background:#edf3f6;color:#2b5374;border-radius:15px;font-weight:750;font-size:11px;white-space:nowrap}
+.master-reg .pager{display:flex;align-items:center;justify-content:space-between;gap:9px;flex-wrap:wrap;margin:12px 0}
+@media(max-width:750px){.master-reg{padding:10px}.master-reg .cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
+</style>
+<section class="master-reg">
+  <div class="top">
+    <div>
+      <div class="eyebrow">TALK2ME · MASTER CRM</div>
+      <h1>One customer and service register</h1>
+      <p class="small">All CRM, Vodacom, fixed-service and import records are accounted for in this one register.
+        Source files remain available as evidence, not separate customer lists.</p>
+    </div>
+    <a class="btn secondary" href="<%= basePath %>/grouped-upgrade-accounts?mode=review<%= panelMode?'&panel=1':'' %>">Back to Conflict Resolution</a>
+  </div>
+  <div class="cards">
+    <div class="card"><strong><%= stats.account_groups %></strong><small>Customer / account-holder groups</small></div>
+    <div class="card"><strong><%= stats.services %></strong><small>Telephone and fixed-service entries</small></div>
+    <div class="card"><strong><%= stats.verified_links %></strong><small>Customer-to-supplier links verified</small></div>
+    <div class="card"><strong><%= stats.account_only %></strong><small>Service linked to an account, person not confirmed</small></div>
+    <div class="card"><strong><%= stats.conflicts %></strong><small>Service records needing account or identity review</small></div>
+  </div>
+  <div class="notice"><strong>How to read this register:</strong> One business account can have many telephone lines.
+    The account-holder groups are not yet a certified count of distinct people or businesses.
+    Account numbers may be verified without proving that two similar names belong to the same customer.
+    We have not invented any missing customer identities.</div>
+  <div class="warn"><strong>Source freshness:</strong> Snapshot #<%= active.run_id %>, compiled
+    <%= active.completed_at?new Date(active.completed_at).toLocaleString('en-ZA',{timeZone:'Africa/Johannesburg'}):'date pending' %>.
+    Provider contract activity is based on the last uploaded report, not a live Vodacom connection.
+    New changes require rebuilding the master register until real-time synchronization is enabled.</div>
+  <section class="panel">
+    <h2>Find a customer or account and see all its services</h2>
+    <form class="toolbar" method="get" action="<%= basePath %>/master-register">
+      <% if(panelMode){ %><input type="hidden" name="panel" value="1"><% } %>
+      <label>Search customer name, account or phone
+        <input type="search" name="q" value="<%= q %>" placeholder="Customer, B/VB account or telephone"></label>
+      <label>Verification status
+        <select name="filter">
+          <option value="all" <%= filter==='all'?'selected':'' %>>All customer/account groups</option>
+          <option value="account_reference" <%= filter==='account_reference'?'selected':'' %>>Existing official account reference</option>
+          <option value="source_unverified" <%= filter==='source_unverified'?'selected':'' %>>Source-only account, not yet verified</option>
+          <option value="needs_identity_review" <%= filter==='needs_identity_review'?'selected':'' %>>Conflicting account information</option>
+        </select>
+      </label>
+      <button type="submit">Find</button>
+      <a class="btn secondary" href="<%= basePath %>/master-register">Clear</a>
+    </form>
+    <p class="small"><strong><%= total %></strong> account-holder groups match your search.</p>
+    <div class="scroll">
+      <table><thead><tr><th>Customer / business</th><th>Account number</th><th>Telephone & service entries</th><th>Verification</th><th>Open</th></tr></thead>
+      <tbody>
+        <% customers.forEach(c=>{ %>
+          <tr>
+            <td><strong><%= c.display_name %></strong><small class="small" style="display:block"><%= c.customer_kind.replace(/_/g,' ') %></small></td>
+            <td><%= c.account_number||'Not supplied' %></td>
+            <td><strong><%= c.service_count %></strong> service(s)</td>
+            <td><span class="pill"><%= c.verification_state==='account_reference'?'Account reference recorded':
+              c.verification_state==='needs_identity_review'?'Account conflict — check':'Customer/account unverified' %></span></td>
+            <td><a href="<%= basePath %>/master-register/customer/<%= encodeURIComponent(c.customer_key) %>">See all services</a></td>
+          </tr>
+        <% }) %>
+        <% if(!customers.length){ %><tr><td colspan="5">No matching customer or account records.</td></tr><% } %>
+      </tbody></table>
+    </div>
+    <div class="pager">
+      <span class="small">Page <%= page %> of <%= pages %></span>
+      <span style="display:flex;gap:9px">
+        <% if(page>1){ %><a class="btn secondary" href="<%= basePath %>/master-register?q=<%= encodeURIComponent(q) %>&filter=<%= encodeURIComponent(filter) %>&page=<%= page-1 %>">Previous</a><% } %>
+        <% if(page<pages){ %><a class="btn secondary" href="<%= basePath %>/master-register?q=<%= encodeURIComponent(q) %>&filter=<%= encodeURIComponent(filter) %>&page=<%= page+1 %>">Next</a><% } %>
+      </span>
+    </div>
+  </section>
+  <div class="notice">The master register is the target for all customer views. Individual CRM screens are being connected in stages; the final switch will only be declared complete once they all use this register.</div>
+</section>

@@ -374,8 +374,38 @@ router.get('/customers/:id/360', requireAuth, async (req, res, next) => {
       });
     }
 
+    // This is the first LIVE Customer 360 route. The later route in index.js
+    // does not run for successful requests, so master relationships must be
+    // loaded here as well. A failure in an optional master panel must not
+    // break the customer's tasks, notes or editable CRM detail.
+    const management = ['owner','manager','admin'].includes(String(req.session.user.role||'').toLowerCase());
+    const emptyMaster = { masterCustomer:null, masterServices:[], masterServiceConflict:null };
+    const masterRegister = management
+      ? await optionalSection('one master customer register',id,emptyMaster,async()=>{
+          const [[mapping]]=await db.execute(
+            'SELECT master_customer_key,master_service_key,master_link_state '+
+            'FROM crm_v_master_clients WHERE id=:id LIMIT 1',{id});
+          if(!mapping) return emptyMaster;
+          const conflict=mapping.master_link_state==='needs_conflict_review'&&mapping.master_service_key
+            ? {serviceKey:mapping.master_service_key,phone:client.cell_number} : null;
+          if(!mapping.master_customer_key)
+            return {...emptyMaster,masterServiceConflict:conflict};
+          const [[customer]]=await db.execute(
+            'SELECT customer_key,display_name,account_number,verification_state,service_count '+
+            'FROM crm_master_customers WHERE run_id=(SELECT run_id FROM crm_master_active WHERE singleton=1) '+
+            'AND customer_key=:key',{key:mapping.master_customer_key});
+          if(!customer)return {...emptyMaster,masterServiceConflict:conflict};
+          const [services]=await db.execute(
+            'SELECT service_key,phone,service_type,crm_client_id,mobile_base_id,fixed_service_id,link_state,display_name '+
+            'FROM crm_v_master_service_register WHERE master_customer_key=:key '+
+            'ORDER BY service_type,phone,service_key LIMIT 220',{key:customer.customer_key});
+          return {masterCustomer:customer,masterServices:services,masterServiceConflict:conflict};
+        })
+      : emptyMaster;
+
     res.render('customer-360', {
       title: client.client_name || 'Customer Workspace',
+      ...masterRegister,
       client,
       lines,
       history,

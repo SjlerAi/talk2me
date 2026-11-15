@@ -1,0 +1,303 @@
+<style>
+.bfc{max-width:1440px;margin:auto;padding:18px 22px 46px;color:#162331;font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
+.bfc *{box-sizing:border-box}.bfc h1{font-size:24px;margin:0 0 4px}.bfc h2{font-size:17px;margin:0 0 10px}
+.bfc .muted{color:#667687}.bfc .hero{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;flex-wrap:wrap;margin-bottom:14px}
+.bfc .eyebrow{font-size:11px;text-transform:uppercase;letter-spacing:1.4px;font-weight:800;color:#7554b1}
+.bfc .stats{display:grid;grid-template-columns:repeat(6,minmax(100px,1fr));gap:9px;margin:12px 0 18px}
+.bfc .stat{background:#fff;border:1px solid #dce2e9;border-radius:12px;padding:12px;min-height:75px}
+.bfc .stat strong{display:block;font-size:24px;color:#152b40}.bfc .stat small{display:block;color:#607186;margin-top:3px}
+.bfc .panel{background:#fff;border:1px solid #dce2e9;border-radius:13px;padding:16px;margin:12px 0;box-shadow:0 1px 5px #172a4010}
+.bfc .note{border-left:4px solid #8d73bb;padding:9px 12px;background:#f6f3fb;border-radius:6px}
+.bfc .alert{border-left:4px solid #bf7f21;background:#fff6e8;padding:11px 14px;border-radius:7px;margin:12px 0}
+.bfc .alert.success{border-color:#25865a;background:#eaf8ef}.bfc .toolbar{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap}
+.bfc label{font-size:12px;color:#4a5c6d;font-weight:650;display:flex;flex-direction:column;gap:5px}
+.bfc input,.bfc select,.bfc textarea{border:1px solid #b8c5d0;border-radius:7px;background:#fff;color:#1e293b;padding:8px;max-width:100%;font:inherit}
+.bfc input[type=checkbox]{width:auto}.bfc input[type=file]{padding:6px;width:min(100%,360px)}
+.bfc input[type=datetime-local]{min-width:170px}
+.bfc button,.bfc .btn{border:1px solid #263954;background:#263954;color:#fff;border-radius:8px;padding:9px 13px;cursor:pointer;font-weight:700;text-decoration:none}
+.bfc button:hover,.bfc .btn:hover{filter:brightness(1.14)}.bfc button:disabled{opacity:.5;cursor:not-allowed}
+.bfc .btn-light{background:#fff;color:#21354b;border-color:#bdc9d5}
+.bfc .pill{display:inline-block;background:#eef1f5;border-radius:15px;padding:4px 8px;font-size:11px;font-weight:750;color:#45596e}
+.bfc .pill.ok{background:#e4f5e9;color:#176638}.bfc .pill.warning{background:#fff2d2;color:#865815}.bfc .pill.danger{background:#ffe9e9;color:#a12525}
+.bfc .contact{background:#fff;border:1px solid #d9e1e8;border-radius:13px;margin:10px 0;overflow:hidden}
+.bfc .contact-top{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;justify-content:space-between;padding:14px 16px}
+.bfc .contact h3{margin:0 0 3px;font-size:16px}.bfc .contact-summary{flex:1;min-width:225px}
+.bfc .contact-details{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px}
+.bfc .meta{font-size:12px;color:#5c697a}.bfc .contact-side{min-width:220px;max-width:350px;font-size:12px}
+.bfc .mini-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;padding:10px 16px;border-top:1px solid #e9edf1;background:#f8fafb;font-size:12px}
+.bfc .mini-grid strong{display:block;color:#24384d;margin-bottom:3px}
+.bfc details{border-top:1px solid #e7edf2;padding:10px 16px}
+.bfc summary{cursor:pointer;font-weight:750;color:#394e66}.bfc .detail-section{margin:12px 0;padding:8px 10px;border-radius:8px;background:#f7f9fb}
+.bfc .detail-section p{margin:4px 0}.bfc .line{border-bottom:1px solid #e5eaf0;padding:6px 0}
+.bfc .actions{padding:14px 16px;background:#f9fafb;border-top:1px solid #e7edf2}
+.bfc .actions form{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
+.bfc .actions .check{display:flex;flex-direction:row;align-items:center;max-width:310px;font-size:12px;font-weight:500}
+.bfc .actions .check input{margin:0 6px 0 0}
+.bfc .actions textarea{width:min(100%,310px);height:44px}
+.bfc .pagination{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:16px 0}
+.bfc .selection-bar{position:sticky;bottom:8px;z-index:12;background:#223950;color:#fff;border-radius:12px;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;box-shadow:0 8px 32px #142a4060}
+.bfc .selection-bar button{background:#fff;color:#18334d;border-color:#fff}
+.bfc .selection-bar[hidden]{display:none}
+.bfc .empty{background:#fff;border:1px dashed #bdcad8;border-radius:12px;padding:24px;text-align:center}
+.bfc a{color:#285d98}
+@media(max-width:800px){.bfc{padding:12px}.bfc .stats{grid-template-columns:repeat(2,1fr)}.bfc .mini-grid{grid-template-columns:1fr}.bfc .panel{padding:12px}}
+</style>
+<section class="bfc">
+  <div class="hero">
+    <div><div class="eyebrow">Talk2Me / Calling campaign</div><h1>Black Friday 2026</h1>
+      <div class="muted">Match upgrades to existing CRM clients, verify staff ownership, review open work, then delegate individual calls.</div>
+      <% if(manager){ %><p style="margin:8px 0 0"><a href="<%= basePath %>/grouped-upgrade-accounts<%= panelMode?'?panel=1':'' %>">View imported business accounts and all linked telephone lines</a></p><% } %>
+    </div>
+    <a class="btn btn-light" href="<%= basePath %>/workspace" target="_top">Back to My Day</a>
+  </div>
+  <% if(flash){ %><div class="alert <%= kind==='success'?'success':'' %>" role="status"><%= flash %></div><% } %>
+  <% if(!batch){ %>
+    <div class="panel">
+      <h2>Start with the eligible-upgrade list</h2>
+      <p class="muted">Import <strong>Eligible for Upgrade Combined.xls</strong>. This creates a separate campaign, not duplicate CRM customers. The existing customer database is never overwritten.</p>
+      <% if(manager){ %>
+      <form method="post" action="<%= basePath %>/black-friday/import" enctype="multipart/form-data" class="toolbar">
+        <label>Excel file (.xls / .xlsx)<input type="file" name="upgrade_file" accept=".xls,.xlsx" required></label>
+        <input type="hidden" name="panel" value="<%= panelMode?'1':'0' %>">
+        <button type="submit">Import & match customers</button>
+      </form>
+      <% }else{ %><p class="note">Gerda or a manager must import the file before staff can view their assignments.</p><% } %>
+    </div>
+  <% }else{ %>
+    <% const selectedStaff = data.staff.find(s=>Number(s.id)===Number(data.options.selectedStaffId)); %>
+    <% if(manager){ %>
+    <section class="panel" style="border:2px solid #6f539b;background:#faf9fd">
+      <div class="eyebrow">Step 1 / Choose the person first</div>
+      <h2 style="font-size:20px;margin-top:5px">Who must phone the customers?</h2>
+      <form method="get" action="<%= basePath %>/black-friday" class="toolbar">
+        <% if(panelMode){ %><input type="hidden" name="panel" value="1"><% } %>
+        <label style="font-size:14px;min-width:min(100%,350px)">Staff member
+          <select name="staff" required style="font-size:16px;padding:12px" onchange="this.form.requestSubmit()">
+            <option value="">— Choose a staff member —</option>
+            <% data.staff.filter(s=>!['Test','Admin Test','Man Test'].includes(s.full_name)).forEach(s=>{ %>
+            <option value="<%= s.id %>" <%= selectedStaff&&Number(selectedStaff.id)===Number(s.id)?'selected':'' %>>
+              <%= s.full_name %> — <%= Number(data.staffCounts[s.id]||0) %> CRM clients
+            </option><% }) %>
+          </select>
+        </label>
+        <button type="submit">Show this staff member's clients</button>
+      </form>
+      <% if(!selectedStaff){ %>
+        <p class="muted" style="margin-bottom:0">Choose Jonathan, Annazel or another staff member above. Their available Black Friday customers will appear for you to tick and send as follow-up tasks. Nothing is assigned automatically.</p>
+      <% }else{ %>
+        <div class="toolbar" style="margin-top:14px">
+          <a class="btn <%= data.options.pool==='own'?'':'btn-light' %>" href="<%= basePath %>/black-friday?staff=<%= selectedStaff.id %>&pool=own<%= panelMode?'&panel=1':'' %>">
+            Their existing clients (<%= Number(data.staffCounts[selectedStaff.id]||0) %>)
+          </a>
+          <a class="btn <%= data.options.pool==='unassigned'?'':'btn-light' %>" href="<%= basePath %>/black-friday?staff=<%= selectedStaff.id %>&pool=unassigned<%= panelMode?'&panel=1':'' %>">
+            Allocate from unassigned pool (<%= data.queueCounts.unassigned||0 %>)
+          </a>
+        </div>
+        <p class="muted" style="margin:8px 0 0">You are allocating Black Friday calling tasks to <strong><%= selectedStaff.full_name %></strong>, not changing any permanent CRM account owner.</p>
+      <% } %>
+    </section>
+    <% } %>
+    <% if(!manager||selectedStaff){ %>
+    <div class="stats">
+      <div class="stat"><strong><%= Number(data.stats.total||0) %></strong><small>Distinct cellphone numbers</small></div>
+      <div class="stat"><strong><%= Number(data.stats.matched||0)+Number(data.stats.multi||0) %></strong><small>Exact customer-line matches</small></div>
+      <div class="stat"><strong><%= Number(data.stats.unmatched||0) %></strong><small>No individual customer-line match</small></div>
+      <div class="stat"><strong><%= Object.values(data.staffCounts).reduce((a,b)=>a+Number(b),0) %></strong><small>Customers with a staff owner / assignee</small></div>
+      <div class="stat"><strong><%= data.queueCounts.unassigned||0 %></strong><small>Need staff allocation or matching</small></div>
+      <div class="stat"><strong><%= Number(data.progress.assigned||0) %></strong><small>Follow-up tasks dispatched</small></div>
+    </div>
+    <div class="panel">
+      <div class="hero"><div><h2>Current campaign</h2><div class="muted"><%= batch.source_filename %> · <%= batch.source_rows %> source lines · imported <%= new Date(batch.created_at).toLocaleString('en-ZA',{dateStyle:'medium',timeStyle:'short'}) %></div></div>
+        <span class="pill">CRM records preserved</span>
+      </div>
+      <div class="note"><strong>How this works:</strong> The staff filter shows the customer's <strong>existing CRM owner</strong> until a Black Friday follow-up task is sent. After dispatch, the task recipient becomes the Black Friday responsible staff member without changing the permanent CRM owner. The unassigned queue holds customers needing CRM matching or staff allocation. Check contract details and approved deals before quoting. Existing tasks and calls are not duplicated automatically.</div>
+      <p class="muted">Use the staff selector above to switch between staff members or their unassigned allocation pool. The campaign does not create any customer duplicates.</p>
+    </div>
+    <form method="get" action="<%= basePath %>/black-friday" class="panel toolbar" aria-label="Filter selected staff's Black Friday customers">
+      <% if(panelMode){ %><input name="panel" type="hidden" value="1"><% } %>
+      <% if(manager){ %><input name="staff" type="hidden" value="<%= selectedStaff.id %>"><input name="pool" type="hidden" value="<%= data.options.pool||'own' %>"><% } %>
+      <label>Search name / number / email<input name="q" type="search" value="<%= data.options.q||'' %>" placeholder="Search customers"></label>
+      <label>CRM match
+        <select name="match">
+          <option value="">All CRM match types (<%= data.stats.total||0 %>)</option>
+          <% for(const [value,label,n] of [['matched','One CRM record',data.stats.matched],['multiple_lines','Multiple CRM lines',data.stats.multi],['unmatched','No direct customer-line match',data.stats.unmatched],['ambiguous','Ambiguous CRM account',data.stats.ambiguous]]){ %>
+            <option value="<%= value %>" <%= data.options.match===value?'selected':'' %>><%= label %> (<%= Number(n||0) %>)</option>
+          <% } %>
+        </select>
+      </label>
+      <% if(manager){ %><label>Campaign stage<select name="queue">
+        <% for(const [value,label,n] of [['','All stages',data.queueCounts.all],['ready','Ready for existing owner',data.queueCounts.ready],['unassigned','Needs allocation / matching',data.queueCounts.unassigned],['review','Requires extra review',data.queueCounts.review],['dispatched','Already dispatched',data.queueCounts.dispatched]]){ %>
+          <option value="<%= value %>" <%= (data.options.queue||'')===value?'selected':'' %>><%= label %> (<%= n||0 %>)</option>
+        <% } %>
+      </select></label><% } %>
+      <button type="submit">Apply filters</button>
+      <a class="btn btn-light" href="<%= basePath %>/black-friday?<%= manager?'staff='+selectedStaff.id+'&pool='+data.options.pool:'' %><%= panelMode?'&panel=1':'' %>">Clear filters</a>
+    </form>
+    <% if(manager&&data.rows.some(r=>r.can_select_for_dispatch)){ %>
+    <div class="panel" id="bfc-dispatch" style="border:2px solid #c4d4e2">
+      <div class="eyebrow">Step 3 / Select & send</div>
+      <h2 style="font-size:20px;margin-top:5px">Tick clients to send to <%= selectedStaff.full_name %></h2>
+      <% if(data.options.pool==='unassigned'){ %>
+        <p class="muted">These customers have no confirmed CRM staff owner. Check their identity, source lines and upgrade status before allocating a calling task. This does not change permanent ownership.</p>
+      <% }else{ %>
+        <p class="muted">Showing <strong><%= data.count %></strong> Black Friday customers associated with <%= selectedStaff.full_name %>. Tick the customers for follow-up, or select all eligible customers on this page.</p>
+      <% } %>
+      <label style="display:inline-flex;flex-direction:row;align-items:center;gap:6px;margin-bottom:12px">
+        <input id="bfc-select-all" type="checkbox"> Select all eligible customers shown (<%= data.rows.filter(r=>r.can_select_for_dispatch).length %>)
+      </label>
+      <form method="post" action="<%= basePath %>/black-friday/dispatch-bulk" id="bfc-bulk" class="toolbar"
+        onsubmit="return bfcConfirmSubmit(this)">
+        <input type="hidden" name="panel" value="<%= panelMode?'1':'0' %>">
+        <input type="hidden" name="mode" value="<%= data.options.pool==='unassigned'?'staff':'owner' %>">
+        <input type="hidden" name="pool" value="<%= data.options.pool||'own' %>">
+        <input type="hidden" name="bulk_staff_id" value="<%= selectedStaff.id %>">
+        <label>Follow-up deadline<input type="datetime-local" name="due_at" required></label>
+        <label>Instructions to <%= selectedStaff.full_name %><textarea name="note" maxlength="750" placeholder="Contact the selected clients; confirm upgrade and approved deal"></textarea></label>
+        <% if(data.options.pool==='unassigned'){ %>
+          <label class="check"><input type="checkbox" name="confirm_review" value="1" required> I reviewed the selected unassigned customers and authorise their follow-up allocation.</label>
+        <% } %>
+        <button type="submit" id="bfc-send" data-staff="<%= selectedStaff.full_name %>" disabled>Tick clients to send</button>
+      </form>
+      <p class="muted" style="margin-bottom:0">Only records marked <strong>Due</strong>, with no unresolved source flags, can be selected. Existing open CRM work and already-dispatched campaign tasks are protected from duplication.</p>
+    </div>
+    <% } %>
+    <p class="muted">Showing <strong><%= data.rows.length %></strong> of <strong><%= data.count %></strong> matching numbers. One customer may have several source lines and multiple valid CRM contract lines.</p>
+    <% if(!data.rows.length){ %><div class="empty"><strong>No customers match this combination of filters.</strong>
+      <% if(data.options.staffFilter && data.options.staffFilter!=='unassigned'){ const person=data.staff.find(s=>String(s.id)===String(data.options.staffFilter)); %>
+        <p><%= person?.full_name||'This staff member' %> has <strong><%= Number(data.staffCounts[data.options.staffFilter]||0) %></strong> customers in the overall campaign. The CRM match or campaign-stage filter may be narrowing the result.</p>
+      <% } %>
+      <a class="btn btn-light" href="<%= basePath %>/black-friday?staff=<%= selectedStaff.id %>&pool=<%= data.options.pool||'own' %><%= panelMode?'&panel=1':'' %>">Clear filters for <%= selectedStaff.full_name %></a>
+    </div><% } %>
+    <% data.rows.forEach(row=>{ %>
+      <article class="contact">
+        <div class="contact-top">
+          <div class="contact-summary">
+            <% if(manager&&row.can_select_for_dispatch){ %>
+              <label class="check" style="display:inline-flex;flex-direction:row;align-items:center;margin-bottom:6px">
+                <input class="bfc-pick" type="checkbox" name="contacts" form="bfc-bulk" value="<%= row.id %>"> Send follow-up to <%= selectedStaff.full_name %>
+              </label>
+            <% }else if(manager&&!row.task_id){ %>
+              <span class="pill warning"><%= !row.is_due?'Not marked Due / verify eligibility':row.review_flags?'Review multiple source lines':row.outstanding.length?'Existing CRM work to review':'Customer matching or ownership needs review' %></span>
+            <% } %>
+            <h3><%= row.source_name||row.crm?.client_name||'Customer name not supplied' %></h3>
+            <div class="meta"><strong><%= row.msisdn %></strong> · <%= row.source_email||'No email in spreadsheet' %></div>
+            <div class="contact-details">
+              <span class="pill <%= ['matched','multiple_lines'].includes(row.match_status)?'ok':row.match_status==='ambiguous'?'danger':'warning' %>">
+                <%= {matched:'CRM matched',multiple_lines:'CRM multiple lines',unmatched:(row.grouped_account?'Account mapped, customer line pending':'No direct client match'),ambiguous:'Ambiguous match'}[row.match_status]||row.match_status %>
+              </span>
+              <span class="pill <%= row.owner.review?'warning':'ok' %>"><%= row.owner.staff_name %></span>
+              <span class="pill <%= row.is_due?'ok':'warning' %>"><%= row.is_due?'Marked Due':'Eligibility review' %></span>
+              <% if(row.review_flags){ %><span class="pill danger">Source review</span><% } %>
+              <% if(row.task_id){ %><span class="pill ok">Task #<%= row.task_id %> · <%= row.call_status %></span><% } %>
+            </div>
+          </div>
+          <div class="contact-side">
+            <div><strong>Spreadsheet upgrade date:</strong> <%= row.eligible_at?new Date(row.eligible_at).toISOString().slice(0,10):'Not provided' %></div>
+            <div><strong>Source status:</strong> <%= row.source_upgrade_label||'Not stated' %></div>
+            <div><strong>Open CRM work:</strong> <%= row.outstanding.length %> visible item(s)</div>
+            <div><strong>CRM account:</strong> <%= row.crm?.account_number||'Not linked' %></div>
+            <% if(row.grouped_account){ %>
+            <div><strong>Imported account:</strong> <%= row.grouped_account.account_number||'Account number missing' %> ·
+              <a href="<%= basePath %>/grouped-upgrade-accounts?q=<%= encodeURIComponent(row.grouped_account.account_number||row.msisdn) %>&panel=1">View all <%= row.grouped_account.line_count %> lines</a>
+            </div>
+            <% } %>
+          </div>
+        </div>
+        <div class="mini-grid">
+          <div><strong>Existing CRM customer</strong><%= row.crm?.client_name||'No verified CRM link' %>
+            <% if(row.crm){ %> · <a href="<%= basePath %>/customers/<%= row.crm.id %>/360?panel=1">Open CRM snapshot</a><% } %>
+          </div>
+          <div><strong>Current CRM owner</strong><%= row.owner.staff_name %>
+            <% if(row.owner.review){ %><div class="pill warning"><%= row.owner.reason %></div><% } %>
+            <% if(row.task_id){ %><div><strong>Black Friday task assigned to</strong><%= row.responsible_name %></div><% } %>
+          </div>
+          <div><strong>Available information</strong><%= row.source_row_count %> source entry/entries · <%= row.crm_lines.length %> CRM account line(s)</div>
+        </div>
+        <details>
+          <summary>View upgrade lines, customer history and outstanding work</summary>
+          <% if(row.review_flags){ %><div class="alert"><%= row.review_flags %></div><% } %>
+          <div class="detail-section"><strong>Spreadsheet lines (kept separately)</strong>
+            <% row.source_lines.forEach(l=>{ %><div class="line">
+              <strong><%= l.msisdn %></strong> · <%= l.tariff_description||l.tariff||'Tariff not supplied' %><br>
+              Upgrade: <%= l.eligible_at||'Unknown' %> · Contract end: <%= l.terminate_at||'Unknown' %> · Average spend: <%= l.average_spend||'Unknown' %> · <%= l.upgrade_label||'' %>
+            </div><% }) %>
+          </div>
+          <div class="detail-section"><strong>Existing CRM account lines</strong>
+            <% if(!row.crm_lines.length){ %><p>No confident CRM account match; Gerda must check the customer first.</p><% } %>
+            <% row.crm_lines.forEach(l=>{ %><div class="line">
+              <strong><%= l.cell_number||'No number' %></strong> · <%= l.account_number||'No account' %> · <%= l.package_name||'Unspecified plan' %>
+              <div class="muted">CRM upgrade: <%= l.next_upgrade_date?new Date(l.next_upgrade_date).toISOString().slice(0,10):'Not recorded' %> · <%= l.line_status||'Status not set' %></div>
+            </div><% }) %>
+          </div>
+          <div class="detail-section"><strong>Open CRM actions</strong>
+            <% if(!row.outstanding.length){ %><p>No open CRM tasks, callbacks, follow-ups or inquiries recorded for the matched account. This does not rule out calls outside the CRM.</p><% } %>
+            <% row.outstanding.forEach(i=>{ %><div class="line"><strong><%= i.kind %>:</strong> <%= i.detail||'Details not recorded' %> <span class="muted"><%= i.due_date?new Date(i.due_date).toLocaleString('en-ZA'):'No due date' %></span></div><% }) %>
+          </div>
+        </details>
+        <div class="actions">
+          <% if(row.task_id){ %>
+            <p class="muted"><strong>Assigned task:</strong> <a href="<%= basePath %>/tasks/<%= row.task_id %>?panel=1">Open CRM task #<%= row.task_id %></a> · Recorded outcome: <%= row.call_status||'assigned' %></p>
+            <% if(manager||Number(row.action_staff_id)===Number(currentUser.id)){ %>
+            <form method="post" action="<%= basePath %>/black-friday/outcome">
+              <input name="panel" type="hidden" value="<%= panelMode?'1':'0' %>">
+              <input name="staff_target" type="hidden" value="<%= manager&&selectedStaff?selectedStaff.id:currentUser.id %>">
+              <input name="pool" type="hidden" value="<%= data.options.pool||'own' %>">
+              <input name="contact_id" type="hidden" value="<%= row.id %>">
+              <label>Call outcome<select name="call_status">
+                <% for(const [v,t] of [['assigned','Not called yet'],['no_answer','No answer'],['callback','Call back'],['interested','Interested'],['quoted','Quotation sent'],['sale','Sale completed'],['declined','Not interested'],['wrong_number','Wrong number'],['completed','Follow-up completed']]){ %>
+                  <option value="<%= v %>" <%= row.call_status===v?'selected':'' %>><%= t %></option>
+                <% } %>
+              </select></label>
+              <label>Notes<textarea name="note" maxlength="1600"><%= row.call_note||'' %></textarea></label>
+              <button type="submit">Save call outcome</button>
+            </form>
+            <% } %>
+          <% }else if(manager){ %>
+            <p class="muted"><%= row.can_select_for_dispatch?'Tick the customer above to include them in the selected staff member’s calling list.':'Review this record before sending any new campaign task.' %></p>
+          <% }else{ %><p class="muted">No Black Friday task is assigned to you for this customer yet.</p><% } %>
+        </div>
+      </article>
+    <% }) %>
+    <% const pageUrl=n=>basePath+'/black-friday?'+new URLSearchParams({...(panelMode?{panel:'1'}:{}),...(manager&&selectedStaff?{staff:String(selectedStaff.id),pool:data.options.pool||'own'}:{}),...(data.options.q?{q:data.options.q}:{}),...(data.options.match?{match:data.options.match}:{}),...(manager&&data.options.queue?{queue:data.options.queue}:{}),page:String(n)}).toString(); %>
+    <div class="pagination">
+      <% if(data.page>1){ %><a class="btn btn-light" href="<%= pageUrl(data.page-1) %>">Previous page</a><% }else{ %><span></span><% } %>
+      <strong>Page <%= data.page %> of <%= data.pages %></strong>
+      <% if(data.page<data.pages){ %><a class="btn" href="<%= pageUrl(data.page+1) %>">Next page</a><% }else{ %><span></span><% } %>
+    </div>
+    <% if(manager&&data.rows.some(r=>r.can_select_for_dispatch)){ %>
+      <div class="selection-bar" id="bfc-selection-bar" hidden>
+        <strong id="bfc-selection-count">0 customers selected</strong>
+        <button type="submit" form="bfc-bulk" id="bfc-bottom-send">Send selected to <%= selectedStaff.full_name %></button>
+      </div>
+    <% } %>
+    <% } %>
+  <% } %>
+</section>
+<script>
+function bfcConfirmSubmit(form) {
+  const selected=document.querySelectorAll('.bfc-pick:checked').length;
+  if(!selected)return false;
+  const staff=document.getElementById('bfc-send')?.dataset.staff||'the selected staff member';
+  return window.confirm('Send '+selected+' Black Friday follow-up task(s) to '+staff+'? This will create CRM tasks but not change customer ownership.');
+}
+(() => {
+  const toggle=document.getElementById('bfc-select-all');
+  const picks=[...document.querySelectorAll('.bfc-pick')];
+  const send=document.getElementById('bfc-send');
+  const bar=document.getElementById('bfc-selection-bar');
+  const barCount=document.getElementById('bfc-selection-count');
+  if(!toggle||!send)return;
+  function update(){
+    const count=picks.filter(input=>input.checked).length;
+    send.disabled=count===0;
+    send.textContent=count?'Send '+count+' follow-up'+(count===1?'':'s')+' to '+send.dataset.staff:'Tick clients to send';
+    if(bar)bar.hidden=count===0;
+    if(barCount)barCount.textContent=count+' customer'+(count===1?'':'s')+' selected for '+send.dataset.staff;
+    toggle.checked=picks.length>0&&count===picks.length;
+    toggle.indeterminate=count>0&&count<picks.length;
+  }
+  toggle.addEventListener('change',()=>{picks.forEach(input=>{input.checked=toggle.checked});update()});
+  picks.forEach(input=>input.addEventListener('change',update));
+  update();
+})();
+</script>

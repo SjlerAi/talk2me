@@ -1,0 +1,76 @@
+<style>
+.mcd{max-width:1320px;margin:0 auto;padding:20px;font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;color:#20384e}
+.mcd *{box-sizing:border-box}.mcd h1{font-size:25px;margin:3px 0 5px}.mcd h2{font-size:18px;margin:10px 0}
+.mcd .top{display:flex;justify-content:space-between;align-items:start;gap:12px;flex-wrap:wrap}
+.mcd .eyebrow{font-size:11px;color:#734ba8;letter-spacing:.12em;font-weight:850}.mcd .muted{color:#657b8e}
+.mcd .btn{padding:8px 13px;border:1px solid #b8cadb;border-radius:9px;background:white;color:#265b8b;text-decoration:none;font-weight:750}
+.mcd .panel{border:1px solid #dbe5ef;background:#fff;border-radius:12px;padding:15px;margin:12px 0}
+.mcd .summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.mcd .tile{padding:11px;border:1px solid #dfe6ed;border-radius:10px;background:#f8fbfd}
+.mcd .tile small{color:#6b7f90;font-size:11px;display:block}.mcd .tile strong{font-size:16px}
+.mcd .warn{padding:12px;background:#fff8ed;border-left:4px solid #cf9439;border-radius:9px;margin:12px 0}
+.mcd .scroll{overflow:auto;max-height:650px;border:1px solid #e1e8f0;border-radius:9px}
+.mcd table{min-width:850px;width:100%;border-collapse:collapse;font-size:13px}
+.mcd th,.mcd td{padding:9px;text-align:left;vertical-align:top;border-bottom:1px solid #e8eef3}
+.mcd th{background:#eef5f9;position:sticky;top:0}.mcd a{color:#265c8d}
+.mcd .pill{font-size:11px;background:#eef3f7;color:#205177;padding:4px 8px;border-radius:18px;font-weight:700}
+@media(max-width:700px){.mcd{padding:10px}}
+</style>
+<section class="mcd">
+  <div class="top">
+    <div>
+      <div class="eyebrow">TALK2ME · ONE MASTER CUSTOMER REGISTER</div>
+      <h1><%= customer.display_name %></h1>
+      <p class="muted"><%= customer.account_number||'Official B/VB account number not yet verified' %></p>
+    </div>
+    <a class="btn" href="<%= basePath %>/master-register">Back to Master Register</a>
+  </div>
+  <div class="panel">
+    <div class="summary">
+      <div class="tile"><small>Business / account reference</small><strong><%= customer.account_number||'Pending' %></strong></div>
+      <div class="tile"><small>Services linked to this account</small><strong><%= customer.service_count %></strong></div>
+      <div class="tile"><small>Source records associated</small><strong><%= customer.source_count %></strong></div>
+      <div class="tile"><small>Verification status</small><strong><%= customer.verification_state.replace(/_/g,' ') %></strong></div>
+    </div>
+    <% if(customer.verification_state!=='account_reference'){ %>
+      <div class="warn"><strong>Needs verification:</strong> This is one account-holder group, not yet a proven unique person or business. We have kept the source records separate rather than inventing a customer identity.</div>
+    <% }else{ %>
+      <p class="muted" style="margin:11px 0 0">An existing CRM account has been identified. This does not automatically prove that other B/VB accounts with similar names belong to the same person.</p>
+    <% } %>
+    <p class="muted">Master snapshot #<%= active.run_id %> · Sources: <%= sources.map(s=>s.source_type.replace(/_/g,' ')+' ('+s.total+')').join(', ') %></p>
+  </div>
+  <div class="panel">
+    <h2>All telephone and service lines</h2>
+    <p class="muted">Each line below has its own source history. Conflicts are not automatically assigned to the wrong customer.</p>
+    <div class="scroll"><table><thead><tr><th>Number / service</th><th>Type</th><th>Customer relationship</th><th>Records</th><th>Open</th></tr></thead><tbody>
+      <% services.forEach(s=>{ const evidence=JSON.parse(s.evidence_json||'{}'); %>
+        <tr>
+          <td><strong><%= s.phone||s.service_key %></strong><small class="muted" style="display:block"><%= s.display_name %></small></td>
+          <td><%= s.service_type==='fixed'?'Fixed service':s.service_type==='voip'?'VoIP':
+            s.service_type==='mobile'?'Mobile':'Other telephone' %></td>
+          <td><span class="pill"><%= s.link_state==='verified_crm_supplier_link'?'CRM + supplier match':
+            s.link_state==='crm_customer_linked'?'CRM record found':
+            s.link_state==='account_only_no_customer'?'Account known; customer pending':
+            s.link_state==='needs_conflict_review'?'Check conflicting information':'Customer not identified' %></span>
+            <% if(evidence.issues?.length){ %><small class="muted" style="display:block">Check: <%= evidence.issues.map(x=>x.replace(/_/g,' ')).join(', ') %></small><% } %>
+          </td>
+          <td><%= s.source_count %> source record(s)</td>
+          <td>
+            <% if(s.crm_client_id&&s.link_state!=='needs_conflict_review'){ %>
+              <a href="<%= basePath %>/customers/<%= s.crm_client_id %>/360">Open CRM customer</a>
+            <% }else if(s.mobile_base_id){ %>
+              <a href="<%= basePath %>/mobile-base/<%= s.mobile_base_id %>">Inspect supplier line</a>
+            <% }else if(s.fixed_service_id){ %>
+              <span class="muted">Fixed service #<%= s.fixed_service_id %></span>
+            <% }else{ %><span class="muted">Requires verification</span><% } %>
+          </td>
+        </tr>
+      <% }) %>
+      <% if(!services.length){ %><tr><td colspan="5">No telephone or service lines are currently associated with this account.</td></tr><% } %>
+    </tbody></table></div>
+    <% if(customer.service_count>services.length){ %><p class="muted">Showing the first <%= services.length %> of <%= customer.service_count %> services; the master register still contains all source rows.</p><% } %>
+  </div>
+  <div class="panel">
+    <a href="<%= basePath %>/grouped-upgrade-accounts/master-review">Open unresolved CRM conflicts</a>
+  </div>
+</section>

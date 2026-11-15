@@ -199,7 +199,9 @@ const { dailySessionMiddleware } = require('./src/middleware/auth');
 const { usageMiddleware } = require('./src/services/usage-telemetry');
 app.use(dailySessionMiddleware());
 app.use(usageMiddleware());
-
+// Keep the independent test CRM safe when the temporary hosting password is removed.
+const tk2mStaffLogin = require('./src/middleware/tk2m-staging-login');
+app.use(tk2mStaffLogin.protectPrivateRoutes);
 
 function registerPwaRoute(route, handler) {
   app.get(route, handler);
@@ -313,6 +315,11 @@ const usageTelemetry = require('./src/routes/usage-telemetry');
 app.use('/', usageTelemetry);
 if (BASE_PATH) app.use(BASE_PATH, usageTelemetry);
 
+// Management-only weekly CRM usage audit from current UENT release.
+const weeklyStaffUsage = require('./src/routes/staff-usage-weekly').router;
+app.use('/', weeklyStaffUsage);
+if (BASE_PATH) app.use(BASE_PATH, weeklyStaffUsage);
+
 const nightlyLogoutSettings = require('./src/routes/nightly-logout-settings');
 app.use('/', nightlyLogoutSettings);
 if (BASE_PATH) app.use(BASE_PATH, nightlyLogoutSettings);
@@ -340,6 +347,19 @@ if (BASE_PATH) app.use(BASE_PATH, legacyClientClaimDecisions);
 const clientAssignmentCentre = require('./src/routes/client-assignment-centre');
 app.use('/', clientAssignmentCentre);
 if (BASE_PATH) app.use(BASE_PATH, clientAssignmentCentre);
+
+// UENT customer follow-through and upgrade review workflows.
+const blackFridayCampaign = require('./src/routes/black-friday-campaign');
+app.use('/', blackFridayCampaign);
+if (BASE_PATH) app.use(BASE_PATH, blackFridayCampaign);
+
+const groupedUpgradeAccounts = require('./src/routes/grouped-upgrade-accounts');
+app.use('/', groupedUpgradeAccounts);
+if (BASE_PATH) app.use(BASE_PATH, groupedUpgradeAccounts);
+
+const groupedUpgradeLineReview = require('./src/routes/grouped-upgrade-line-review');
+app.use('/', groupedUpgradeLineReview);
+if (BASE_PATH) app.use(BASE_PATH, groupedUpgradeLineReview);
 
 const approvalCentre = require('./src/routes/approval-centre');
 app.use('/', approvalCentre);
@@ -413,6 +433,11 @@ if (UAT_MODE) {
     app.use('/', zippyIntegration);
     if (BASE_PATH) app.use(BASE_PATH, zippyIntegration);
   }
+
+  // Current UENT Master Customer search must run before legacy fixed.js search.
+  const masterCustomerSearch = require('./src/routes/base-details-search');
+  app.use('/', masterCustomerSearch);
+  if (BASE_PATH) app.use(BASE_PATH, masterCustomerSearch);
 
   // Cudu is permanently retired on crm.tk2m.co.za. Keep UENT unchanged.
   // The separate Zippy bridge is enabled only at an approved CRM cutover.

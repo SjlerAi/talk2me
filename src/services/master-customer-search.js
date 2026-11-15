@@ -1,0 +1,120 @@
+'use strict';
+// One-result-per-service search from the active master register.
+// CRM/Vodacom/fixed tables are joined for current display details only.
+// Staff visibility is calculated in two small batched queries, not a costly
+// correlated subquery for every candidate line.
+const db=require('../config/db');
+const ADMIN=new Set(['owner','manager','admin']);
+const clean=v=>String(v??'').trim().slice(0,100);
+function normalPhone(v){
+ let s=String(v||'').replace(/\D/g,'');
+ if(s.length===11&&s.startsWith('27'))s='0'+s.slice(2);
+ if(s.length===9&&/^[678]/.test(s))s='0'+s;
+ return /^0\d{9}$/.test(s)?s:null;
+}
+async function visibleToStaff(rows,userId){
+ if(!rows.length||!Number.isSafeInteger(userId)||userId<1)return [];
+ const activeRun=Number(rows[0].run_id);
+ const candidates=rows.filter(r=>r.master_customer_key&&r.link_state!=='needs_conflict_review'&&
+  (r.crm_client_id||r.mobile_base_id||r.fixed_service_id));
+ if(!candidates.length)return [];
+ const keys=[...new Set(candidates.map(x=>x.service_key))];
+ const accounts=[...new Set(candidates.map(x=>x.official_account).filter(Boolean))];
+ const [clientOwners]=await db.query(
+  'SELECT src.service_key,ca.assigned_staff_id FROM crm_master_service_sources src '+
+  "JOIN client_assignments ca ON ca.client_id=CAST(src.source_id AS UNSIGNED) AND ca.is_active=1 "+
+  "WHERE src.run_id=? AND src.source_type='client' AND src.service_key IN (?)",
+  [activeRun,keys]);
+ const [accountOwners]=accounts.length?
+  await db.query('SELECT account_number,assigned_staff_id FROM client_assignments WHERE is_active=1 AND account_number IN (?)',
+   [accounts]):[[]];
+ const byLine=new Map(),byAccount=new Map();
+ for(const a of clientOwners){
+  if(!byLine.has(a.service_key))byLine.set(a.service_key,new Set());
+  byLine.get(a.service_key).add(Number(a.assigned_staff_id));
+ }
+ for(const a of accountOwners){
+  if(!byAccount.has(a.account_number))byAccount.set(a.account_number,new Set());
+  byAccount.get(a.account_number).add(Number(a.assigned_staff_id));
+ }
+ return candidates.filter(r=>{
+  const fixedOwner=Number(r.fixed_assigned_staff_id||0);
+  const accountOwner=Number(r.crm_account_staff_id||0);
+  if(fixedOwner&&fixedOwner!==userId)return false;
+  if(accountOwner&&accountOwner!==userId)return false;
+  if(accountOwner===userId||fixedOwner===userId)return true;
+  const owners=new Set([...(byLine.get(r.service_key)||[]),
+    ...(byAccount.get(r.official_account)||[])]);
+  return !owners.size||owners.has(userId);
+ });
+}
+async function searchMaster({query,user,basePath='/talk2me'}){
+ const q=clean(query);if(q.length<2)return [];
+ const management=ADMIN.has(String(user?.role||'').toLowerCase());
+ const userId=Number(user?.id);
+ if(!management&&(!Number.isSafeInteger(userId)||userId<1))return [];
+ const canon=normalPhone(q),like='%'+q+'%';
+ const sql=[
+  "SELECT s.run_id,s.service_key,s.phone,s.service_type,s.master_customer_key,",
+  "s.link_state,s.crm_client_id,s.mobile_base_id,s.fixed_service_id,s.display_name master_line_name,",
+  "m.account_number official_account,m.display_name master_customer_name,",
+  "acct.assigned_staff_id crm_account_staff_id,",
+  "c.client_name crm_name,c.account_number crm_account,c.cell_number crm_phone,",
+  "c.email crm_email,c.handset crm_handset,c.package_name crm_package,",
+  "b.msisdn_original base_phone,b.account_code base_account,b.account_name base_name,",
+  "b.email_address base_email,b.tariff_name base_tariff,b.price_plan base_price_plan,",
+  "b.device_manufacturer,b.device_name,fa.id fixed_account_id,",
+  "fa.account_number fixed_account,fa.customer_name fixed_name,",
+  "fa.contact_number fixed_contact,fa.email fixed_email,fa.assigned_staff_id fixed_assigned_staff_id,",
+  "fs.router_model,fs.package_name fixed_package,fs.branch_name,fs.solution_id",
+  "FROM crm_master_active active",
+  "JOIN crm_master_runs run ON run.id=active.run_id AND run.state='ready'",
+  "JOIN crm_master_services s ON s.run_id=active.run_id",
+  "LEFT JOIN crm_master_customers m ON m.run_id=s.run_id AND m.customer_key=s.master_customer_key",
+  "LEFT JOIN customer_accounts acct ON acct.id=m.crm_account_id",
+  "LEFT JOIN clients c ON c.id=s.crm_client_id",
+  "LEFT JOIN mobile_base_current b ON b.id=s.mobile_base_id",
+  "LEFT JOIN fixed_services fs ON fs.id=s.fixed_service_id",
+  "LEFT JOIN fixed_accounts fa ON fa.id=fs.fixed_account_id",
+  "WHERE active.singleton=1 AND (",
+  "(:phone IS NOT NULL AND s.phone=:phone)",
+  "OR s.phone LIKE :like OR s.display_name LIKE :like",
+  "OR m.display_name LIKE :like OR m.account_number LIKE :like",
+  "OR c.client_name LIKE :like OR c.email LIKE :like OR c.id_number LIKE :like",
+  "OR b.account_name LIKE :like OR b.account_code LIKE :like",
+  "OR b.email_address LIKE :like OR b.icc_id LIKE :like OR b.imsi LIKE :like",
+  "OR fa.customer_name LIKE :like OR fa.account_number LIKE :like",
+  "OR fs.branch_name LIKE :like OR fs.solution_id LIKE :like",
+  ")",
+  "ORDER BY CASE WHEN :phone IS NOT NULL AND s.phone=:phone THEN 0 ELSE 1 END,",
+  "CASE s.link_state WHEN 'verified_crm_supplier_link' THEN 0",
+  "WHEN 'crm_customer_linked' THEN 1 WHEN 'account_only_no_customer' THEN 2 ELSE 3 END,",
+  "COALESCE(m.display_name,s.display_name),s.phone",
+  "LIMIT "+(management?20:140)
+ ].join(' ');
+ const [found]=await db.execute(sql,{phone:canon,like});
+ const rows=management?found:await visibleToStaff(found,userId);
+ return rows.slice(0,20).map(r=>{
+  const fixed=r.service_type==='fixed';
+  const relatedType=fixed?'fixed':r.crm_client_id?'mobile':r.mobile_base_id?'mobile_base':'unverified';
+  const directId=fixed?r.fixed_account_id:r.crm_client_id||r.mobile_base_id||r.service_key;
+  const url=fixed&&r.fixed_account_id?basePath+'/fixed/accounts/'+r.fixed_account_id:
+    r.crm_client_id&&r.link_state!=='needs_conflict_review'
+      ?basePath+'/customers/'+r.crm_client_id+'/360':
+    r.mobile_base_id?basePath+'/mobile-base/'+r.mobile_base_id:
+    basePath+'/master-register/service/'+encodeURIComponent(r.service_key);
+  return {
+   id:directId,service_key:r.service_key,record_type:relatedType,
+   service_type:r.service_type,verification_status:r.link_state,
+   master_customer_key:r.master_customer_key,
+   account_number:r.official_account||r.crm_account||r.base_account||r.fixed_account||null,
+   client_name:r.master_customer_name||r.crm_name||r.base_name||r.fixed_name||r.master_line_name,
+   cell_number:r.phone||r.fixed_contact||null,
+   email:r.crm_email||r.base_email||r.fixed_email||null,
+   handset:r.crm_handset||[r.device_manufacturer,r.device_name].filter(Boolean).join(' ')||r.router_model||null,
+   package_name:r.crm_package||r.base_tariff||r.base_price_plan||r.fixed_package||null,
+   branch_name:r.branch_name||null,solution_id:r.solution_id||null,url
+  };
+ });
+}
+module.exports={searchMaster,normalPhone};

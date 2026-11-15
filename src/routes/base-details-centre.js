@@ -77,7 +77,7 @@ async function loadCentre() {
       SUM(staff_id IS NOT NULL) staff_matched,
       SUM(UPPER(TRIM(COALESCE(agent_code,'')))='SADMIN') system_events,
       SUM(agent_code IS NOT NULL AND staff_id IS NULL AND UPPER(TRIM(agent_code))<>'SADMIN') staff_unmapped
-    FROM mobile_events
+    FROM crm_v_mobile_events_current
   `);
   const pendingMobileSummary = await loadPendingMobileSummary();
   return {

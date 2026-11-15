@@ -253,7 +253,9 @@ async function getMyWorkOverview({userId,month=null}={}){
         SUM(CASE WHEN t.created_by<>:id THEN 1 ELSE 0 END) delegated_tasks
       FROM staff_tasks t WHERE t.assigned_to=:id AND t.status IN ${ACTIVE_TASK}`,{id}),
     db.execute(`SELECT DISTINCT c.id,c.client_name,c.cell_number,c.account_number,c.next_upgrade_date,
-        CASE WHEN c.next_upgrade_date IS NOT NULL AND DATE(c.next_upgrade_date)<CURRENT_DATE() THEN 1 ELSE 0 END overdue_upgrade,
+        CASE WHEN c.next_upgrade_date IS NOT NULL AND DATE(c.next_upgrade_date)<CURRENT_DATE()
+          AND EXISTS (SELECT 1 FROM crm_v_master_actionable_upgrades accepted WHERE accepted.id=c.id)
+          THEN 1 ELSE 0 END overdue_upgrade,
         EXISTS(SELECT 1 FROM inquiries i WHERE i.client_id=c.id AND i.status IN ${OPEN_INQUIRY}) open_inquiry,
         EXISTS(SELECT 1 FROM customer_followups f WHERE f.client_id=c.id AND f.status='open' AND f.scheduled_at<NOW()) overdue_followup,
         EXISTS(SELECT 1 FROM customer_callbacks cb WHERE cb.client_id=c.id AND cb.status='scheduled' AND cb.scheduled_at<NOW()) overdue_callback
@@ -261,7 +263,7 @@ async function getMyWorkOverview({userId,month=null}={}){
         AND (ca.client_id=c.id OR (COALESCE(ca.account_number,'')<>'' AND ca.account_number=c.account_number))
       WHERE c.is_active=1 AND COALESCE(c.line_status,'active')<>'cancelled'
         AND (
-          (c.next_upgrade_date IS NOT NULL AND DATE(c.next_upgrade_date)<CURRENT_DATE())
+          (c.next_upgrade_date IS NOT NULL AND DATE(c.next_upgrade_date)<CURRENT_DATE() AND EXISTS (SELECT 1 FROM crm_v_master_actionable_upgrades accepted WHERE accepted.id=c.id))
           OR EXISTS(SELECT 1 FROM inquiries i WHERE i.client_id=c.id AND i.status IN ${OPEN_INQUIRY})
           OR EXISTS(SELECT 1 FROM customer_followups f WHERE f.client_id=c.id AND f.status='open' AND f.scheduled_at<NOW())
           OR EXISTS(SELECT 1 FROM customer_callbacks cb WHERE cb.client_id=c.id AND cb.status='scheduled' AND cb.scheduled_at<NOW())
@@ -272,7 +274,7 @@ async function getMyWorkOverview({userId,month=null}={}){
         AND (ca.client_id=c.id OR (COALESCE(ca.account_number,'')<>'' AND ca.account_number=c.account_number))
       WHERE c.is_active=1 AND COALESCE(c.line_status,'active')<>'cancelled'
         AND (
-          (c.next_upgrade_date IS NOT NULL AND DATE(c.next_upgrade_date)<CURRENT_DATE())
+          (c.next_upgrade_date IS NOT NULL AND DATE(c.next_upgrade_date)<CURRENT_DATE() AND EXISTS (SELECT 1 FROM crm_v_master_actionable_upgrades accepted WHERE accepted.id=c.id))
           OR EXISTS(SELECT 1 FROM inquiries i WHERE i.client_id=c.id AND i.status IN ${OPEN_INQUIRY})
           OR EXISTS(SELECT 1 FROM customer_followups f WHERE f.client_id=c.id AND f.status='open' AND f.scheduled_at<NOW())
           OR EXISTS(SELECT 1 FROM customer_callbacks cb WHERE cb.client_id=c.id AND cb.status='scheduled' AND cb.scheduled_at<NOW())

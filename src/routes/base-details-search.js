@@ -4,7 +4,7 @@ const express = require('express');
 const db = require('../config/db');
 const { requireAuth } = require('../middleware/auth');
 const { normaliseSouthAfricanMobile, formatSouthAfricanMobile } = require('../services/sa-phone-normalisation');
-const { materializeBaseAccount } = require('../services/base-details-client-materializer');
+const {searchMaster}=require('../services/master-customer-search');
 
 const router = express.Router();
 const IS_UAT = String(process.env.UAT_MODE || '').trim().toLowerCase() === 'true';
@@ -46,166 +46,18 @@ function safeDiagnostic(error) {
   return `${code}: ${message}`;
 }
 
-router.get('/search/all', requireAuth, async (req, res, next) => {
-  try {
-    const q = String(req.query.q || '').trim();
-    if (q.length < 2) return res.json([]);
-    const like = `%${q}%`;
-    const phone = normaliseSouthAfricanMobile(q) || null;
-    const phoneLocal = phone ? `0${phone.slice(2)}` : null;
-    const management = isManagement(req.session.user) ? 1 : 0;
-    const userId = Number(req.session.user.id);
-    const searchParams = { phone, phoneLocal, like, management, userId };
-
-    const [mobile] = await db.execute(`
-      SELECT c.id,c.account_number,c.client_name,c.cell_number,c.email,c.handset,c.package_name,
-        'mobile' record_type
-      FROM clients c
-      WHERE ((
-          :phone IS NOT NULL AND (
-            c.cell_number_normalised=:phone
-            OR REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(TRIM(COALESCE(c.cell_number,'')),'+',''),' ',''),'-',''),'(',''),')','') IN (:phone,:phoneLocal)
-          )
-        )
-         OR c.client_name LIKE :like OR c.cell_number LIKE :like OR c.email LIKE :like
-         OR c.account_number LIKE :like OR c.id_number LIKE :like
-        )
-        AND (
-          :management=1
-          OR EXISTS (
-            SELECT 1 FROM client_assignments vis
-            WHERE vis.is_active=1
-              AND (vis.client_id=c.id OR (COALESCE(vis.account_number,'')<>'' AND vis.account_number=c.account_number))
-              AND vis.assigned_staff_id=:userId
-          )
-          OR NOT EXISTS (
-            SELECT 1 FROM client_assignments vis2
-            WHERE vis2.is_active=1
-              AND (vis2.client_id=c.id OR (COALESCE(vis2.account_number,'')<>'' AND vis2.account_number=c.account_number))
-          )
-        )
-      ORDER BY CASE WHEN :phone IS NOT NULL AND (
-        c.cell_number_normalised=:phone
-        OR REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(TRIM(COALESCE(c.cell_number,'')),'+',''),' ',''),'-',''),'(',''),')','') IN (:phone,:phoneLocal)
-      ) THEN 0 ELSE 1 END,c.client_name
-      LIMIT 12
-    `, searchParams);
-
-    let currentBase = [];
-    if (await baseSchemaReady()) {
-      [currentBase] = await db.execute(`
-        SELECT mb.id,mb.account_code account_number,
-          COALESCE(NULLIF(TRIM(mb.account_name),''),NULLIF(TRIM(CONCAT_WS(' ',mb.first_name,mb.surname)),''),mb.msisdn_original) client_name,
-          mb.msisdn_original cell_number,mb.email_address email,
-          NULLIF(TRIM(CONCAT_WS(' ',mb.device_manufacturer,mb.device_name)),'') handset,
-          COALESCE(NULLIF(TRIM(mb.tariff_name),''),NULLIF(TRIM(mb.price_plan),'')) package_name,
-          'mobile_base' record_type,
-          mb.client_id,mb.account_id,mb.icc_id,mb.imsi,
-          COALESCE(
-            mb.client_id,
-            (
-              SELECT c3.id
-              FROM clients c3
-              WHERE NULLIF(TRIM(c3.account_number),'') IS NOT NULL
-                AND TRIM(c3.account_number)=TRIM(mb.account_code)
-              ORDER BY (c3.cell_number_normalised=mb.msisdn_normalised) DESC,c3.is_active DESC,c3.id ASC
-              LIMIT 1
-            )
-          ) resolved_client_id
-        FROM mobile_base_current mb
-        WHERE (
-            (:phone IS NOT NULL AND (
-              mb.msisdn_normalised=:phone
-              OR REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(TRIM(COALESCE(mb.msisdn_original,'')),'+',''),' ',''),'-',''),'(',''),')','') IN (:phone,:phoneLocal)
-            ))
-            OR mb.msisdn_original LIKE :like OR mb.account_code LIKE :like OR mb.account_name LIKE :like
-            OR mb.first_name LIKE :like OR mb.surname LIKE :like OR mb.email_address LIKE :like
-            OR mb.id_number LIKE :like OR mb.icc_id LIKE :like OR mb.imsi LIKE :like
-          )
-          AND (
-            :management=1
-            OR EXISTS (
-              SELECT 1 FROM client_assignments bvis
-              WHERE bvis.is_active=1
-                AND (bvis.client_id=mb.client_id OR (COALESCE(bvis.account_number,'')<>'' AND bvis.account_number=mb.account_code))
-                AND bvis.assigned_staff_id=:userId
-            )
-            OR NOT EXISTS (
-              SELECT 1 FROM client_assignments bvis2
-              WHERE bvis2.is_active=1
-                AND (bvis2.client_id=mb.client_id OR (COALESCE(bvis2.account_number,'')<>'' AND bvis2.account_number=mb.account_code))
-            )
-          )
-        ORDER BY CASE WHEN :phone IS NOT NULL AND (
-          mb.msisdn_normalised=:phone
-          OR REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(TRIM(COALESCE(mb.msisdn_original,'')),'+',''),' ',''),'-',''),'(',''),')','') IN (:phone,:phoneLocal)
-        ) THEN 0 ELSE 1 END,
-          mb.account_name,mb.msisdn_normalised
-        LIMIT 12
-      `, searchParams);
-    }
-
-    const [fixed] = await db.execute(`
-      SELECT DISTINCT fa.id,fa.account_number,fa.customer_name client_name,
-        fa.contact_number cell_number,fa.email,fs.router_model handset,fs.package_name,
-        fs.id fixed_service_id,fs.branch_name,fs.solution_id,fs.order_number,'fixed' record_type
-      FROM fixed_accounts fa
-      LEFT JOIN fixed_services fs ON fs.fixed_account_id=fa.id
-      WHERE ((:phone IS NOT NULL AND (
-          fa.contact_number_normalised=:phone
-          OR REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(TRIM(COALESCE(fa.contact_number,'')),'+',''),' ',''),'-',''),'(',''),')','') IN (:phone,:phoneLocal)
-        ))
-         OR fa.customer_name LIKE :like OR fa.contact_name LIKE :like OR fa.contact_number LIKE :like
-         OR fa.email LIKE :like OR fa.account_number LIKE :like OR fs.branch_name LIKE :like
-         OR fs.solution_id LIKE :like OR fs.order_number LIKE :like OR fs.sim_number LIKE :like OR fs.mac_address LIKE :like
-        )
-        AND (:management=1 OR fa.assigned_staff_id=:userId OR fa.assigned_staff_id IS NULL)
-      ORDER BY fa.customer_name,fs.branch_name
-      LIMIT 12
-    `, searchParams);
-
-    const crmRows = mobile.map(row => ({ ...row, url: `${res.locals.basePath}/customers/${row.id}/360` }));
-    const crmClientIds = new Set(crmRows.map(row => Number(row.id)).filter(Number.isSafeInteger));
-    const crmAccounts = new Set(crmRows.map(row => accountKey(row.account_number)).filter(Boolean));
-    const seenPhones = new Set(crmRows.map(row => normaliseSouthAfricanMobile(row.cell_number)).filter(Boolean));
-    const seenBaseTargets = new Set();
-    const baseRows = [];
-
-    for (const row of currentBase) {
-      const resolvedClientId = Number(row.resolved_client_id || 0) || null;
-      const key = accountKey(row.account_number);
-      const rowPhone = normaliseSouthAfricanMobile(row.cell_number);
-
-      if (resolvedClientId && (crmClientIds.has(resolvedClientId) || (key && crmAccounts.has(key)))) continue;
-      if (!resolvedClientId && rowPhone && seenPhones.has(rowPhone)) continue;
-
-      const targetKey = resolvedClientId
-        ? `client:${resolvedClientId}`
-        : key
-          ? `base-account:${key}`
-          : `base:${row.id}`;
-      if (seenBaseTargets.has(targetKey)) continue;
-      seenBaseTargets.add(targetKey);
-
-      baseRows.push({
-        ...row,
-        id: resolvedClientId || row.id,
-        record_type: resolvedClientId ? 'mobile' : 'mobile_base',
-        cell_number: formatSouthAfricanMobile(row.cell_number),
-        url: resolvedClientId
-          ? `${res.locals.basePath}/customers/${resolvedClientId}/360`
-          : `${res.locals.basePath}/mobile-base/${row.id}`
-      });
-    }
-
-    const rows = [
-      ...crmRows,
-      ...baseRows,
-      ...fixed.map(row => ({ ...row, url: `${res.locals.basePath}/fixed/accounts/${row.id}` }))
-    ];
-    return res.json(rows.slice(0, 20));
-  } catch (error) { next(error); }
+router.get('/search/all',requireAuth,async(req,res,next)=>{
+  try{
+    const rows=await searchMaster({
+      query:req.query.q,user:req.session.user,basePath:res.locals.basePath||'/talk2me'
+    });
+    res.set('Cache-Control','private, no-store');
+    return res.json(rows);
+  }catch(error){next(error)}
 });
+
+// The old independent CRM + Vodacom search was removed.
+// /search/all reads exclusively from the active master register.
 
 router.get('/api/uat/customers/:id/base-details', requireAuth, async (req, res, next) => {
   try {
@@ -253,13 +105,26 @@ router.get('/mobile-base/:id', requireAuth, async (req, res, next) => {
     const id = Number(req.params.id);
     if (!Number.isSafeInteger(id) || id < 1) return res.status(400).render('error', { title: 'Invalid mobile service', message: 'Select a valid current mobile service.' });
 
-    if (IS_UAT && String(req.query.source || '') !== '1') {
-      const result = await materializeBaseAccount({ baseId: id, userId: req.session.user.id });
-      return res.redirect(`${res.locals.basePath}/customers/${result.clientId}/360?base_linked=1`);
-    }
-
+    // Opening a supplier line MUST NEVER create customer records. The
+    // verified master-customer workflow owns every customer/account change.
     const [[line]] = await db.execute(`SELECT * FROM mobile_base_current WHERE id=:id LIMIT 1`, { id });
     if (!line) return res.status(404).render('error', { title: 'Current mobile service not found', message: 'This current Base Details service line does not exist.' });
+
+    const management=isManagement(req.session.user);
+    if(!management){
+      const matches=await searchMaster({query:line.msisdn_normalised,user:req.session.user,
+        basePath:res.locals.basePath||'/talk2me'});
+      const sourceKey='mobile:'+formatSouthAfricanMobile(line.msisdn_normalised);
+      if(!matches.some(row=>row.service_key===sourceKey))
+        return res.status(403).render('error',{title:'Not authorised',
+          message:'This telephone line is not allocated to you or is awaiting owner verification.'});
+    }
+    const [[master]] = await db.execute(
+      "SELECT s.service_key,s.master_customer_key,s.link_state FROM crm_master_service_sources x "+
+      "JOIN crm_master_services s ON s.run_id=x.run_id AND s.service_key=x.service_key "+
+      "WHERE x.run_id=(SELECT run_id FROM crm_master_active WHERE singleton=1) "+
+      "AND x.source_type='mobile_base' AND x.source_id=? LIMIT 1",
+      [String(id)]);
 
     const warnings = [];
 
@@ -283,7 +148,7 @@ router.get('/mobile-base/:id', requireAuth, async (req, res, next) => {
     const events = await safeSection('Activation and upgrade history', [], async () => {
       const [rows] = await db.execute(`
         SELECT me.*,su.full_name staff_name
-        FROM mobile_events me
+        FROM crm_v_mobile_events_current me
         LEFT JOIN staff_users su ON su.id=me.staff_id
         WHERE me.mobile_base_current_id=:id OR me.msisdn_normalised=:phone
         ORDER BY me.event_date DESC,me.id DESC
@@ -305,7 +170,8 @@ router.get('/mobile-base/:id', requireAuth, async (req, res, next) => {
 
     return res.render('mobile-base-view', {
       title: line.account_name || line.msisdn_original || 'Current Vodacom Service',
-      line,events,snapshots,sectionWarnings:[...new Set(warnings)]
+      line,events,snapshots,master:master||null,management,
+      sectionWarnings:[...new Set(warnings)]
     });
   } catch (error) {
     console.error(`[MobileBase ${req.params.id}] fatal open failure:`, error.code || '', error.message || error);

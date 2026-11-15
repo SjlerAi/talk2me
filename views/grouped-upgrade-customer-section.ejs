@@ -1,0 +1,159 @@
+<style>
+.gcr{margin:16px 0;padding:16px;border:1px solid #c5d5e2;border-radius:13px;background:#f8fbfe;color:#24384e;font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+.gcr *{box-sizing:border-box}.gcr h2{font-size:19px;margin:0 0 7px!important}.gcr h3{font-size:16px;margin:13px 0 7px}
+.gcr .intro{color:#617489;margin:5px 0 14px}.gcr .inside{background:#fff;border:1px solid #d8e4ee;border-radius:11px;padding:13px;margin:12px 0}
+.gcr .formgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr));gap:11px}
+.gcr label:not(.option){display:block;min-width:0;color:#334e69;font-size:12px;font-weight:700}
+.gcr input:not([type=radio]):not([type=checkbox]),.gcr select,.gcr textarea{display:block;width:100%!important;max-width:100%!important;min-width:0;min-height:40px;padding:9px 11px;margin-top:5px;border:1px solid #b8c8d6;border-radius:8px;background:#fff;color:#253a51;font:inherit}
+.gcr .option{display:grid!important;grid-template-columns:20px minmax(0,1fr)!important;align-items:start!important;gap:10px!important;min-width:0;margin:9px 0!important;padding:11px 13px!important;border:1px solid #d4dfec;border-radius:9px;background:#fff;color:#1f3752;font-size:13px;font-weight:600;cursor:pointer}
+.gcr .option:has(input:checked){background:#f0f8ff;border-color:#5c8ab5}.gcr .option>input{display:block!important;position:static!important;appearance:auto!important;width:18px!important;min-width:18px!important;max-width:18px!important;height:18px!important;min-height:18px!important;margin:2px 0 0!important;padding:0!important;accent-color:#285e94}
+.gcr .option>span{min-width:0;overflow-wrap:anywhere}.gcr .option small{display:block;color:#687e90;font-size:12px;font-weight:400;margin-top:3px;line-height:1.45}
+.gcr .action{display:inline-block;max-width:100%;margin:13px 0 2px;padding:10px 16px!important;border:1px solid #285c88!important;border-radius:9px;background:#285c88!important;color:#fff!important;font-weight:800;cursor:pointer}
+.gcr .searchrow{display:flex;align-items:end;gap:9px;flex-wrap:wrap}.gcr .searchrow>label{flex:1;min-width:190px}.gcr .searchrow>button{margin:0}.gcr details{margin:13px 0}
+.gcr summary{cursor:pointer;font-weight:800;padding:7px 0}.gcr .warning{border-left:4px solid #c28f38;background:#fff6e8;border-radius:8px;padding:10px;margin:10px 0}
+.gcr .fine{color:#6a7d8c;font-size:12px;line-height:1.45;margin:10px 0}.gcr .result{color:#235f40}
+@media(max-width:720px){.gcr{padding:11px}.gcr .action{width:100%}}
+</style>
+<% const gcrPath=sourceLine?basePath+'/grouped-upgrade-accounts/line/'+sourceLine.id+'/review':basePath+'/grouped-upgrade-accounts/account/'+customerGroup.id+'/customer'; %>
+<% const gcrPost=sourceLine?basePath+'/grouped-upgrade-accounts/line/'+sourceLine.id+'/customer':basePath+'/grouped-upgrade-accounts/account/'+customerGroup.id+'/customer'; %>
+<% const sourceMobile=sourceLine&&/^0(6\d|7\d|8[1-5])\d{7}$/.test(sourceLine.phone); %>
+<% const defaultService=sourceMobile?'mobile':(sourceLine&&['voip','fixed','other'].includes(sourceLine.service_type)?sourceLine.service_type:'unverified'); %>
+<section class="gcr" id="create-or-link-customer">
+  <h2>Find, create or link the correct customer</h2>
+  <p class="intro">Check existing customers first. Select a genuine match or create a new record. The CRM will connect it to this business, preserve separate contract lines and record the update automatically. <strong>No written reason is required.</strong></p>
+  <% if(sourceLine&&sourceLine.crm_client_id){ %>
+    <div class="inside"><strong class="result">This number is already linked to CRM customer #<%= sourceLine.crm_client_id %>.</strong>
+      <a href="<%= basePath %>/customers/<%= sourceLine.crm_client_id %>/360?panel=1">Open customer record</a>.
+      New client creation is disabled for this line to prevent duplicates.
+    </div>
+  <% }else{ %>
+    <% if(customerGroup.crm_account_id){ %>
+      <div class="inside">Verified CRM account: <strong><%= customerGroup.account_number %></strong> — <%= customerGroup.account_name||'' %>. New customers are linked to this account.</div>
+    <% }else{ %>
+      <div class="warning">The official account number has not been confirmed. You can create an <strong>unverified customer/contact</strong> without inventing a B/VB number. It will stay linked to this imported business group for later account verification.</div>
+    <% } %>
+    <% if(sourceLine){ %><p><strong>Imported service number:</strong> <%= sourceLine.phone %>. This number will not be overwritten.</p><% } %>
+    <div class="inside">
+      <h3>1. Check for a matching customer</h3>
+      <form method="get" action="<%= gcrPath %>" class="searchrow">
+        <% if(panelMode){ %><input type="hidden" name="panel" value="1"><% } %>
+        <label>Search name, cellphone, account, ID or email
+          <input type="search" name="client_search" placeholder="Search existing CRM clients" value="<%= clientSearch||'' %>">
+        </label>
+        <button type="submit" class="action">Find matches</button>
+      </form>
+      <% if(nearClients.length){ %>
+        <form method="post" action="<%= gcrPost %>">
+          <input type="hidden" name="csrf_token" value="<%= csrfToken %>">
+          <input type="hidden" name="panel" value="<%= panelMode?'1':'0' %>">
+          <input type="hidden" name="action" value="link_customer">
+          <% nearClients.forEach(c=>{ %>
+          <label class="option"><input type="radio" name="existing_client_id" value="<%= c.id %>" required>
+            <span><strong><%= c.client_name||c.company_name||'Customer #'+c.id %></strong> — CRM #<%= c.id %>
+              <small><%= c.match_type %> · <%= c.account_number||'Account not supplied' %> · <%= c.cell_number||'Mobile not supplied' %>
+              · <%= c.email||'Email not supplied' %> · <%= c.is_active?'Active':'Archived (not selectable)' %></small>
+            </span>
+          </label>
+          <% }) %>
+          <% if(!customerGroup.crm_account_id){ %>
+          <label class="option"><input type="checkbox" name="confirm_account_from_client" value="yes">
+            <span>I confirm the selected existing customer's official business account is the correct account for this imported business
+              <small>Required before the system changes an unverified B/VB account link. This will be audited.</small>
+            </span>
+          </label>
+          <% } %>
+          <div class="formgrid">
+            <label><strong>Official B / VB account number</strong> (if verified)
+              <input type="text" name="official_account_number" maxlength="80"
+                value="<%= customerGroup.account_number||'' %>"
+                placeholder="Enter the actual Vodacom account number"
+                <%= customerGroup.crm_account_id?'readonly':'' %>>
+            </label>
+            <% if(!customerGroup.crm_account_id){ %><label class="option">
+              <input type="checkbox" name="confirm_separate_account" value="yes">
+              <span>Separate verified account, if this business already has another B/VB number
+                <small>Tick only when Vodacom confirms this is a different, genuine account.</small></span>
+            </label><% } %>
+            <% if(!sourceLine){ %><label>New service telephone number (optional)
+              <input type="tel" name="service_phone" placeholder="Leave blank if not known"></label><% } %>
+            <label>Correct service type
+              <select name="service_type">
+                <% for(const [value,title] of [['unverified','Still unverified'],['mobile','Mobile'],['voip','VoIP / internet phone'],['fixed','Fixed landline'],['other','Other service']]){ %>
+                <option value="<%= value %>" <%= defaultService===value?'selected':'' %>><%= title %></option><% } %>
+              </select>
+            </label>
+            <label>Customer contact cellphone (optional)
+              <input type="tel" name="contact_mobile" placeholder="Only enter an actual mobile number"></label>
+            <label>Assign to consultant (optional)
+              <select name="assigned_staff_id"><option value="">Keep current owner / unassigned</option>
+                <% eligibleStaff.forEach(s=>{ %><option value="<%= s.id %>"><%= s.full_name %></option><% }) %>
+              </select>
+            </label>
+          </div>
+          <p class="fine">For an additional mobile belonging to an existing person, the CRM creates a <strong>separate contract-line record</strong> instead of overwriting their other cellphone. For VoIP/fixed lines, the existing customer's mobile remains unchanged.</p>
+          <button type="submit" class="action">Update — link selected CRM customer</button>
+        </form>
+      <% }else{ %><p class="fine">No likely customer matches were found. Search with another detail, or create a new customer below.</p><% } %>
+    </div>
+    <details class="inside" <%= !nearClients.length?'open':'' %>>
+      <summary>2. Create a new customer or contact with the correct details</summary>
+      <p class="fine">Enter the real B/VB account number directly in the form. On Update, the CRM will use an exact existing account or create it if new. If you do not know the official number, leave it blank; no number will be invented. Other unverified details may also be left blank.</p>
+      <form method="post" action="<%= gcrPost %>">
+        <input type="hidden" name="csrf_token" value="<%= csrfToken %>">
+        <input type="hidden" name="panel" value="<%= panelMode?'1':'0' %>">
+        <input type="hidden" name="action" value="create_customer">
+        <div class="formgrid">
+          <label><strong>Official B / VB account number</strong> (if verified)
+            <input type="text" name="official_account_number" maxlength="80"
+              value="<%= customerGroup.account_number||'' %>"
+              placeholder="Enter the actual B / VB number from Vodacom"
+              <%= customerGroup.crm_account_id?'readonly':'' %>>
+          </label>
+          <% if(!customerGroup.crm_account_id){ %><label class="option">
+            <input type="checkbox" name="confirm_separate_account" value="yes">
+            <span>Separate verified account, if this business already has another B/VB number
+              <small>Tick only if Vodacom confirms that this is a different official account.</small></span>
+          </label><% } %>
+          <label>Customer / business name (required)
+            <input name="client_name" required maxlength="180" value="<%= customerGroup.account_name||'' %>" placeholder="Enter verified customer name"></label>
+          <label>Company name
+            <input name="company_name" maxlength="160" value="<%= customerGroup.account_name||'' %>"></label>
+          <label>Contact first name<input name="first_name" maxlength="100"></label>
+          <label>Contact surname<input name="surname" maxlength="100"></label>
+          <label>Contact person's name<input name="main_contact_name" maxlength="160"></label>
+          <label>Customer type<select name="customer_type">
+            <option value="business" selected>Business</option><option value="individual">Individual</option><option value="unknown">Not yet confirmed</option>
+          </select></label>
+          <% if(!sourceLine){ %><label>Telephone number / service number (optional)
+            <input type="tel" name="service_phone" placeholder="Unknown? Leave blank"></label><% } %>
+          <label>Verified contact cellphone (optional)
+            <input type="tel" name="contact_mobile" placeholder="<%= sourceMobile?'Imported mobile will be used automatically':'No invented numbers' %>"></label>
+          <label>Email<input type="email" name="email" maxlength="180"></label>
+          <label>ID / registration number<input name="id_number" maxlength="30"></label>
+          <label>Alternative contact number<input type="tel" name="alt_number" maxlength="30"></label>
+          <label>Town / city<input name="city_town" maxlength="160"></label>
+          <label>Package / contract description<input name="package_name" maxlength="180" placeholder="If known"></label>
+          <label>Service type<select name="service_type">
+            <% for(const [value,title] of [['unverified','Still unverified'],['mobile','Mobile'],['voip','VoIP / internet phone'],['fixed','Fixed line'],['other','Other non-mobile']]){ %>
+              <option value="<%= value %>" <%= defaultService===value?'selected':'' %>><%= title %></option>
+            <% } %>
+          </select></label>
+          <label>Previous upgrade date<input type="date" name="previous_upgrade_date"></label>
+          <label>Next verified upgrade date<input type="date" name="next_upgrade_date"></label>
+          <label>Contract term<select name="contract_term_months"><option value="24">24 months</option><option value="36">36 months</option><option value="12">12 months</option></select></label>
+          <label>Assign to consultant (optional)
+            <select name="assigned_staff_id"><option value="">Leave unassigned / keep account owner</option>
+            <% eligibleStaff.forEach(s=>{ %><option value="<%= s.id %>"><%= s.full_name %></option><% }) %>
+            </select>
+          </label>
+        </div>
+        <label>Customer details / notes (optional)<textarea name="notes" rows="2" maxlength="2000"></textarea></label>
+        <label class="option"><input type="checkbox" name="confirm_separate_contact" value="yes">
+          <span>I've checked the suggested matches, and this is a separate customer/contact
+            <small>Helps prevent creating a duplicate when contact details such as email are shared.</small></span>
+        </label>
+        <button type="submit" class="action">Update — create and link customer</button>
+      </form>
+    </details>
+  <% } %>
+</section>

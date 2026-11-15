@@ -1,7 +1,8 @@
 <link rel="stylesheet" href="<%= basePath %>/css/uat-customer-filters.css">
 <section class="page-head">
-  <div><h1>Customers</h1><p>Find clients and lines from the central database. Protected changes follow the approval workflow.</p></div>
+  <div><h1>Customers</h1><p>CRM customer and contract-line records linked to the One Master Customer Register. Each business can own several separate lines. Protected changes follow the approval workflow.</p></div>
   <% if(['owner','manager'].includes(currentUser.role)){ %>
+    <% if(currentUser.role==='owner'){ %><a class="btn" href="<%= basePath %>/master-register">Open One Master Register</a><% } %>
     <a class="btn primary" href="<%= basePath %>/backoffice/clients/new">Add Client / Prospect</a>
   <% } else { %>
     <a class="btn primary" href="<%= basePath %>/queries/new">Quick Add / New Inquiry</a>
@@ -177,7 +178,7 @@ const staffFormValues=new URLSearchParams(queryStringFor({scope:'staff',staff_id
   </form>
 </section>
 <div class="customer-results-summary" role="status" aria-live="polite">
-  <strong><%= total.toLocaleString('en-ZA') %> matching customer<%= total===1?'':'s' %></strong>
+  <strong><%= total.toLocaleString('en-ZA') %> matching CRM customer/line record<%= total===1?'':'s' %></strong>
   <span><% if(total){ %>Showing <%= firstRecord %>–<%= lastRecord %> of <%= total %><% }else{ %>Try a different date, staff member or filter.<% } %></span>
 </div>
 <div class="card table-card customer-results-card">
@@ -186,7 +187,9 @@ const staffFormValues=new URLSearchParams(queryStringFor({scope:'staff',staff_id
     <tbody>
     <% if(!clients.length){ %><tr class="customer-empty-row"><td colspan="<%= 8+(attention.focus==='birthdays'?1:0)+(attention.focus!=='all'?1:0) %>">No customers match the selected filters.</td></tr><% } %>
     <% clients.forEach(c=>{ %><tr>
-      <td data-label="Customer"><a class="customer-name-link" href="<%= basePath %>/customers/<%= c.id %>/360"><strong><%= c.client_name %></strong><% if(c.account_number){ %><small>Account: <%= c.account_number %></small><% } %><% if(c.email){ %><small><%= c.email %></small><% } %></a></td>
+      <td data-label="Customer"><a class="customer-name-link" href="<%= basePath %>/customers/<%= c.id %>/360"><strong><%= c.client_name %></strong><% if(c.account_number){ %><small>Account: <%= c.account_number %></small><% } %><% if(c.email){ %><small><%= c.email %></small><% } %></a>
+        <% if(c.master_link_state==='needs_conflict_review'){ %><small style="color:#9b610f">Master review required</small><% } %>
+        <% if(currentUser.role==='owner'&&c.master_customer_key){ %><small><a href="<%= basePath %>/master-register/customer/<%= encodeURIComponent(c.master_customer_key) %>">All lines under master account</a></small><% } %></td>
       <td data-label="Type"><span class="client-status <%= c.lifecycle_status||'client' %>"><%= c.lifecycle_status||'client' %></span><% if(c.lead_status){ %><br><small><%= c.lead_status.replace('_',' ') %></small><% } %></td>
       <td data-label="Contact"><%= c.cell_number||'—' %></td>
       <td data-label="Latest inquiry"><%= c.last_inquiry||'—' %><% if(c.last_action){ %><br><small><strong>Action:</strong> <%= c.last_action %></small><% } %></td>

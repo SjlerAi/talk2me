@@ -1,0 +1,329 @@
+<style>
+.gar{max-width:1140px;margin:0 auto;padding:23px;color:#23374c;font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+.gar *{box-sizing:border-box}.gar h1{font-size:25px;line-height:1.25;margin:0 0 3px}.gar h2{font-size:17px;margin:0 0 10px}
+.gar .muted{color:#66758a}.gar .eyebrow{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#7752a3;font-weight:850}
+.gar .head,.gar .flex{display:flex;flex-wrap:wrap;align-items:center;gap:12px;justify-content:space-between}
+.gar .panel{background:#fff;border:1px solid #dce3ea;border-radius:13px;margin:12px 0;padding:18px}
+.gar .statgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,270px),1fr));gap:12px}
+.gar .stat{min-width:0;border:1px solid #dce3ea;border-radius:10px;padding:13px;overflow-wrap:anywhere}
+.gar .stat>strong{display:block;color:#1e3145;font-size:18px!important;line-height:1.3!important;font-weight:800;margin:6px 0}
+.gar .stat>small{display:block;color:#758393;font-size:12px!important}
+.gar .pill{display:inline-block;padding:4px 9px;border-radius:50px;font-size:11px;font-weight:780;background:#eef1f5;color:#354c63}
+.gar .pill.warn{background:#fff1d5;color:#865319}.gar .pill.good{background:#e5f5ea;color:#21633c}
+.gar .button,.gar button{padding:9px 14px;border:1px solid #2b435d;border-radius:8px;background:#2b435d;color:#fff;cursor:pointer;text-decoration:none;font-weight:750;display:inline-block}
+.gar .button.secondary{background:#fff;color:#294660;border-color:#b8c7d6}
+.gar label{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:740;color:#4e6379;margin:0;min-width:0}
+.gar textarea,.gar select{border:1px solid #bcc8d3;border-radius:8px;padding:10px;background:#fff;color:#1e344c;font:inherit}
+.gar textarea{width:100%;min-height:79px;resize:vertical}.gar .notice{border-left:4px solid #7958a6;background:#f6f2fb;padding:11px 13px;border-radius:8px}
+.gar .notice.warning{border-color:#d49a32;background:#fff7e8}.gar .notice.success{border-color:#3b9663;background:#eef9f0}
+/* Keep review options compact: global CRM form styles can make radio inputs 100% wide. */
+.gar .choices{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;min-width:0}
+.gar label.choice{display:grid!important;grid-template-columns:20px minmax(0,1fr)!important;align-items:start!important;column-gap:14px!important;row-gap:0!important;
+  width:100%!important;max-width:100%;min-width:0;min-height:0!important;height:auto!important;margin:0!important;padding:14px 16px!important;
+  box-sizing:border-box;border:1px solid #dae3eb;border-radius:10px;background:#fff;cursor:pointer;color:#22384d;font-size:14px;font-weight:650;text-align:left;line-height:1.45;white-space:normal}
+.gar label.choice:hover{border-color:#91a8bc;background:#f9fbfd}
+.gar label.choice:focus-within{outline:2px solid #4b83a8;outline-offset:2px}
+.gar label.choice:has(input:checked){border-color:#3a709a;background:#eff7fd}
+.gar label.choice>input[type="radio"],.gar label.choice>input[type="checkbox"]{
+  appearance:auto!important;-webkit-appearance:auto!important;display:block!important;position:static!important;visibility:visible!important;opacity:1!important;
+  width:19px!important;min-width:19px!important;max-width:19px!important;height:19px!important;min-height:19px!important;max-height:19px!important;
+  flex:0 0 19px!important;grid-column:1!important;grid-row:1!important;justify-self:start!important;align-self:start!important;
+  margin:2px 0 0!important;padding:0!important;transform:none!important;box-shadow:none!important;background:transparent!important;cursor:pointer;
+  accent-color:#28577f}
+.gar label.choice>span{display:block!important;grid-column:2!important;grid-row:1!important;flex:initial!important;
+  width:auto!important;max-width:100%!important;min-width:0!important;overflow-wrap:break-word;word-break:normal;
+  white-space:normal!important;font-size:14px!important;font-weight:650!important;line-height:1.45!important}
+.gar label.choice>span small{display:block!important;color:#65758a;font-size:12px!important;font-weight:450!important;
+  line-height:1.55!important;margin-top:4px!important;white-space:normal!important;overflow-wrap:anywhere}
+.gar table{border-collapse:collapse;width:100%}.gar th,.gar td{border-bottom:1px solid #e8edf2;text-align:left;padding:9px;vertical-align:top;word-break:break-word}
+.gar th{font-size:12px;background:#f2f5f8;color:#4c5c6c}.gar .tablewrap{overflow:auto}
+.gar .record{padding:10px 0;border-top:1px solid #eff2f5;font-size:13px;line-height:1.45;overflow-wrap:anywhere}
+.gar .record strong{display:block;font-size:14px!important;line-height:1.35!important;font-weight:750!important;overflow-wrap:anywhere}
+.gar .history{font-size:12px}.gar .history th,.gar .history td{padding:8px}
+.gar hr{border:none;border-top:1px solid #e3e9f0;margin:18px 0}
+.gar .reason{padding:10px;border-radius:9px;background:#fff6e7;color:#865319;font-weight:650}
+.gar .resolve-card{border:1px solid #c8d9e8;background:#f9fbfe;border-radius:12px;padding:17px;margin:15px 0}
+.gar .resolve-card h2{font-size:18px;margin:4px 0 12px}
+.gar .resolve-card input[type="text"],.gar .resolve-card input[type="search"],.gar .resolve-card select{
+  width:100%!important;max-width:100%!important;min-width:0;display:block;border:1px solid #b5c5d4;padding:10px 12px;border-radius:8px;min-height:40px;color:#18354f;background:#fff;font:inherit
+}
+.gar .resolve-card label:not(.choice){display:block;margin:12px 0}
+.gar .resolve-card label:not(.choice)>input,.gar .resolve-card label:not(.choice)>select{margin-top:6px}
+.gar .update-btn{display:inline-flex;align-items:center;justify-content:center;background:#225781!important;color:#fff!important;border:1px solid #225781!important;border-radius:9px;font-weight:800!important;min-height:42px;margin-top:12px;padding:10px 18px!important;max-width:100%}
+.gar .update-btn:hover{filter:brightness(1.1)}
+.gar .search-account{display:flex;gap:9px;align-items:end;flex-wrap:wrap;margin:12px 0}
+.gar .search-account input{flex:1;min-width:170px}
+.gar .search-account button{margin:0}
+.gar .resolve-card details{margin-top:14px;border-top:1px solid #d8e3ec;padding-top:10px}
+.gar .resolve-card details summary{cursor:pointer;font-weight:700}
+@media(max-width:740px){.gar{padding:12px}.gar .statgrid{grid-template-columns:minmax(0,1fr)}.gar .panel{padding:13px}
+.gar label.choice{padding:12px 13px!important;column-gap:11px!important}.gar .resolve-card{padding:12px}.gar .update-btn{width:100%}.gar .head{align-items:flex-start}
+.gar .head .button{width:auto}.gar .flex{align-items:flex-start}.gar h1{font-size:22px}}
+@media(prefers-reduced-motion:no-preference){.gar label.choice{transition:background .12s,border-color .12s}}
+</style>
+<section class="gar">
+  <div class="head">
+    <div>
+      <div class="eyebrow">Talk2Me / Grouped upgrade accounts / Line review</div>
+      <h1>Resolve telephone line <%= line.phone %></h1>
+      <p class="muted">Account <strong><%= line.account_number||'Not supplied' %></strong> — <%= line.account_name||'Name missing' %></p>
+    </div>
+    <a class="button secondary" href="<%= basePath %>/grouped-upgrade-accounts?q=<%= encodeURIComponent(line.account_number||line.phone) %><%= panelMode?'&panel=1':'' %>">Back to this account</a>
+  </div>
+  <% if(flash){ %><div class="notice success" role="status"><%= flash %></div><% } %>
+  <div class="panel">
+    <div class="flex">
+      <h2>Why was this line flagged?</h2>
+      <span class="pill <%= line.review_state==='other_service_confirmed'?'good':line.review_required?'warn':'good' %>"><%=
+        line.review_state==='other_service_confirmed'?'Reviewed: other service / excluded from mobile calls':
+        line.review_state==='mobile_approved'?'Approved mobile account mapping':
+        line.review_state==='duplicate_resolved'?'Duplicate CRM customer resolved':
+        line.review_state==='account_corrected'?'Correct CRM account linked':
+        line.review_state==='account_name_resolved'?'Account name corrected':
+        line.review_state==='needs_info'&&['voip','fixed','other'].includes(line.service_type)?'Service classified — official account number pending':
+        line.review_state==='needs_info'?'More information needed':
+        line.review_state==='needs_correction'?'Account correction required':
+        line.review_required?'Pending review':'No review required'
+      %></span>
+    </div>
+    <div class="reason"><%= String(line.line_status||'unknown').replaceAll('_',' ') %> · <%= String(line.base_status||'unknown').replaceAll('_',' ') %>
+      <% if(line.notes){ %> · <%= line.notes %><% } %>
+    </div>
+    <% if(line.phone.startsWith('087')){ %>
+    <p class="notice warning"><strong>087 number:</strong> This is generally a VoIP/fixed-service range, not a normal cellphone upgrade line. Confirm its service type before deciding. Keep it under the business for reference if valid, but do not create a mobile customer record or send a mobile upgrade task for it.</p>
+    <% } %>
+    <div class="statgrid">
+      <div class="stat"><small>Source account</small><strong><%= line.account_number||'Missing account number' %></strong><%= line.account_name||'Name not provided' %></div>
+      <div class="stat"><small>Existing CRM account</small>
+        <strong><%= matched.account?.account_number||'No account linked to this number yet' %></strong>
+        <%= matched.account?.display_name||'Possible name matches are listed in the account selection form below' %>
+      </div>
+      <div class="stat"><small>Black Friday source status</small><strong><%= line.source_upgrade_label||'Not supplied' %></strong>
+        <%= line.black_friday_task_id?'Task #'+line.black_friday_task_id+' already exists':'No Black Friday task' %>
+      </div>
+    </div>
+    <p class="muted">An approved correction updates the actual CRM account, account-to-line link or selected customer record. The original source values and historical customer records remain available in the automatic audit history. No outbound calling task is created by resolving a conflict.</p>
+  </div>
+  <div class="panel">
+    <h2>Compare against existing CRM records</h2>
+    <div class="statgrid">
+      <div class="stat"><small>Customer records with this phone</small><strong><%= matched.clients.length %></strong>
+      <% matched.clients.forEach(c=>{ %><div class="record"><strong><%= c.client_name||'Client #'+c.id %></strong>
+        Account <%= c.account_number||'(blank)' %> · client #<%= c.id %> · <a href="<%= basePath %>/customers/<%= c.id %>/360?panel=1">Open CRM record</a></div><% }) %>
+      <% if(!matched.clients.length){ %><span class="muted">No direct client-line match found</span><% } %></div>
+      <div class="stat"><small>Mobile-base entries with this phone</small><strong><%= matched.base.length %></strong>
+      <% matched.base.forEach(b=>{ %><div class="record"><strong>Base line #<%= b.id %></strong> Account <%= b.account_code||'(blank)' %>
+        · <a href="<%= basePath %>/mobile-base/<%= b.id %>?panel=1">Open base line</a></div><% }) %>
+      <% if(!matched.base.length){ %><span class="muted">No matching mobile-base line found</span><% } %></div>
+      <div class="stat"><small>Spreadsheet contract entries</small><strong><%= sources.length %></strong>
+      <% sources.forEach(x=>{ %><div class="record"><strong>Excel row <%= x.row %></strong>
+        <%= x.data.tariff_description||x.data.tariff||'No package description' %> · upgrade <%= x.data.eligible_at||'date unknown' %>
+        · <%= x.data.upgrade_label||'' %></div><% }) %></div>
+    </div>
+  </div>
+  <div class="panel" id="resolve-actions">
+    <div class="flex"><h2 style="margin:0">Choose the correct information, then click Update</h2><span class="pill good">Owner decisions are recorded automatically</span></div>
+    <p class="muted">No written reason or second approval is required. Your selection, the original values, the changes, your name and the time are saved in the CRM audit trail. Contract lines are never deleted.</p>
+    <% if(error){ %><div class="notice warning" role="alert"><strong>Not updated:</strong> <%= error %></div><% } %>
+    <% const actionUrl=basePath+'/grouped-upgrade-accounts/line/'+line.id+'/resolve'; %>
+    <% const activeReview=Number(line.review_required)===1&&['pending','needs_info','needs_correction'].includes(line.review_state); %>
+    <% const nameConflict=line.account_review_status==='conflicting_account_names'; %>
+    <% const otherClientAccount=matched.clients.some(c=>Number(c.account_id||0)!==Number(line.crm_account_id||0)); %>
+    <% const otherBaseAccount=matched.base.some(b=>b.account_id&&Number(b.account_id)!==Number(line.crm_account_id||0)); %>
+    <% const needsAccount=(!line.account_number||!line.crm_account_id||otherClientAccount||otherBaseAccount||line.base_status==='base_account_conflict'||line.line_status==='existing_line_other_account'); %>
+    <% const canApplyGroup=!line.account_number&&!line.crm_account_id&&line.account_review_status==='missing_account_number'&&siblings.length>1&&siblings.every(x=>Number(x.review_required)===1&&['pending','needs_info','needs_correction'].includes(x.review_state)&&!/^0(6\d|7\d|8[1-5])\d{7}$/.test(x.phone)); %>
+
+    <% if(activeReview && nameConflict){ %>
+    <div class="resolve-card">
+      <div class="eyebrow">Account name conflict</div>
+      <h2>Which business name must the CRM keep?</h2>
+      <form method="post" action="<%= actionUrl %>">
+        <input type="hidden" name="csrf_token" value="<%= csrfToken %>"><input type="hidden" name="panel" value="<%= panelMode?'1':'0' %>">
+        <input type="hidden" name="action" value="select_name">
+        <div class="choices">
+          <% sourceNames.forEach((name,i)=>{ %>
+            <label class="choice"><input type="radio" name="account_name" value="<%= name %>" required>
+              <span><%= name %><small><%= name===matched.account?.display_name?'Current CRM business name':'Name supplied in the spreadsheet' %></small></span>
+            </label>
+          <% }) %>
+          <label class="choice"><input type="radio" name="account_name" value="__custom__"><span>Enter a corrected business name
+            <small>Choose this only if both displayed names need correction.</small></span></label>
+        </div>
+        <label style="margin:10px 0 0">Corrected name (only when choosing a new name)
+          <input type="text" name="new_account_name" maxlength="180" placeholder="Correct official business name">
+        </label>
+        <button type="submit" class="update-btn">Update business name and its linked lines</button>
+      </form>
+    </div>
+    <% } %>
+
+    <% if(activeReview && matched.clients.length>1){ %>
+    <div class="resolve-card">
+      <div class="eyebrow">Duplicate CRM customer records</div>
+      <h2>Which client record must remain the current record?</h2>
+      <form method="post" action="<%= actionUrl %>">
+        <input type="hidden" name="csrf_token" value="<%= csrfToken %>"><input type="hidden" name="panel" value="<%= panelMode?'1':'0' %>">
+        <input type="hidden" name="action" value="choose_primary">
+        <div class="choices">
+        <% matched.clients.forEach((c,i)=>{ %>
+          <label class="choice"><input type="radio" name="client_id" value="<%= c.id %>" required>
+            <span><strong><%= c.client_name||'Customer '+c.id %></strong> — CRM #<%= c.id %>
+              <small><%= c.is_active?'Current active record':'Historical/inactive record' %> · Account <%= c.account_number||'Missing' %> · <%= c.package_name||'No package recorded' %>
+              · Next upgrade <%= c.next_upgrade_date?new Date(c.next_upgrade_date).toISOString().slice(0,10):'not recorded' %></small>
+            </span>
+          </label>
+        <% }) %>
+        </div>
+        <% if(new Set(matched.clients.map(c=>c.client_name||'')).size>1){ %>
+          <label style="margin-top:13px">Name to keep (optional; otherwise use the chosen current record)
+            <select name="name_client_id"><option value="">Keep name from the selected record</option>
+            <% matched.clients.forEach(c=>{if(c.client_name){ %><option value="<%= c.id %>"><%= c.client_name %> (CRM #<%= c.id %>)</option><% }}) %>
+            </select>
+          </label>
+        <% } %>
+        <% if(new Set(matched.clients.map(c=>c.email||'')).size>1){ %>
+          <label style="margin-top:13px">Email address to keep (optional)
+            <select name="email_client_id"><option value="">Keep email from the selected record</option>
+            <% matched.clients.forEach(c=>{if(c.email){ %><option value="<%= c.id %>"><%= c.email %> (CRM #<%= c.id %>)</option><% }}) %>
+            </select>
+          </label>
+        <% } %>
+        <p class="muted">All distinct numbers under the business account stay intact. Historical duplicate records are archived, not deleted; tasks, messages and linked history move to the selected active record. The selected record's package and upgrade date remain unchanged.</p>
+        <button type="submit" class="update-btn">Update — keep selected client and combine duplicates</button>
+      </form>
+    </div>
+    <% } %>
+
+    <% if(activeReview && needsAccount){ %>
+    <div class="resolve-card">
+      <div class="eyebrow">Account / line mismatch</div>
+      <h2>Which CRM account does this telephone number belong to?</h2>
+      <% if(!line.account_number){ %>
+        <div class="notice warning"><strong>No official B/VB account number was supplied.</strong>
+          The source business is <strong><%= line.account_name||'Unidentified business' %></strong>.
+          Do not invent a number. You may select a real existing account if verified, or classify the telephone service below and leave the account pending.
+        </div>
+      <% } %>
+      <% if(canApplyGroup){ %>
+        <p><strong>This business has <%= siblings.length %> numbers in the same import group:</strong>
+          <%= siblings.map(x=>x.phone).join(' · ') %></p>
+      <% } %>
+      <form method="get" action="<%= basePath %>/grouped-upgrade-accounts/line/<%= line.id %>/review" class="search-account">
+        <% if(panelMode){ %><input name="panel" type="hidden" value="1"><% } %>
+        <input type="search" name="account_search" placeholder="Search account number or business name" value="<%= accountSearch %>">
+        <button type="submit" class="button secondary">Find account</button>
+      </form>
+      <% if(suggestions.length){ %>
+      <form method="post" action="<%= actionUrl %>">
+        <input type="hidden" name="csrf_token" value="<%= csrfToken %>"><input type="hidden" name="panel" value="<%= panelMode?'1':'0' %>">
+        <input type="hidden" name="action" value="select_account">
+        <div class="choices">
+        <% suggestions.forEach((a,i)=>{ %>
+          <label class="choice"><input type="radio" name="account_id" value="<%= a.id %>" required>
+            <span><strong><%= a.account_number %></strong> — <%= a.display_name||'Account name not recorded' %>
+              <small><%= a.matchingSourceName?'Possible name match in existing CRM — confirm it is the same business before selecting':Number(line.crm_account_id)===Number(a.id)?'Linked CRM account':matched.clients.some(c=>Number(c.account_id)===Number(a.id))?'Existing CRM customer account':matched.base.some(b=>Number(b.account_id)===Number(a.id))?'Current supplier account':'Matching CRM account' %></small></span>
+          </label>
+        <% }) %>
+        </div>
+        <% if(canApplyGroup){ %>
+        <label class="choice" style="margin-top:12px!important"><input type="checkbox" name="apply_group" value="yes" checked>
+          <span>Apply this account choice to all <%= siblings.length %> numbers shown above
+            <small>Only the lines in this imported business group; no other accounts or contracts are merged.</small></span>
+        </label>
+        <% } %>
+        <% if(!resolverMobile){ %>
+          <label>Service type (optional — can be confirmed later)
+            <select name="service_type">
+              <option value="">Leave service type for later</option>
+              <option value="voip" <%= line.service_type==='voip'?'selected':'' %>>VoIP / internet telephone service</option>
+              <option value="fixed" <%= line.service_type==='fixed'?'selected':'' %>>Fixed landline</option>
+              <option value="other" <%= line.service_type==='other'?'selected':'' %>>Other non-mobile service</option>
+            </select>
+          </label>
+        <% } %>
+        <p class="muted">This updates only the chosen line(s) to the verified account. Original source information, separate contract lines and staff history are preserved.</p>
+        <button type="submit" class="update-btn">Update selected account<%= canApplyGroup?' and linked numbers':'' %></button>
+      </form>
+      <% }else{ %><p class="notice warning">No existing account match found. You can search by business name or account number, or leave the account number unverified and classify the number below.</p><% } %>
+      <% if(!line.account_number){ %>
+      <details style="margin-top:14px"><summary>I have the verified official account number — add it here</summary>
+        <p class="muted">Only enter the genuine number shown in Vodacom's records. Never enter an example or an invented B/VB number.</p>
+        <form method="post" action="<%= actionUrl %>">
+          <input type="hidden" name="csrf_token" value="<%= csrfToken %>"><input type="hidden" name="panel" value="<%= panelMode?'1':'0' %>">
+          <input type="hidden" name="action" value="create_account">
+          <label>Verified Vodacom account number<input type="text" name="account_code" minlength="5" maxlength="80" required placeholder="Enter the actual account number from Vodacom"></label>
+          <label>Official business name<input type="text" name="account_display_name" minlength="3" maxlength="180" required value="<%= line.account_name||'' %>"></label>
+          <% if(canApplyGroup){ %>
+          <label class="choice"><input type="checkbox" name="apply_group" value="yes" checked>
+            <span>Apply this verified account to all <%= siblings.length %> numbers in this business group</span></label>
+          <% } %>
+          <% if(!resolverMobile){ %><label>Service type (optional)
+            <select name="service_type"><option value="">Choose later</option><option value="voip">VoIP</option><option value="fixed">Fixed line</option><option value="other">Other non-mobile</option></select></label><% } %>
+          <button class="update-btn" type="submit">Update — create verified account and link number(s)</button>
+        </form>
+      </details>
+      <% } %>
+    </div>
+    <% } %>
+
+    <% if(activeReview && (!resolverMobile||line.line_status==='non_mobile_number'||line.line_status==='voip_087_review')){ %>
+    <div class="resolve-card">
+      <div class="eyebrow">Fixed / VoIP / other service</div>
+      <h2>Which type of service is this number?</h2>
+      <form method="post" action="<%= actionUrl %>">
+        <input type="hidden" name="csrf_token" value="<%= csrfToken %>"><input type="hidden" name="panel" value="<%= panelMode?'1':'0' %>">
+        <input type="hidden" name="action" value="service_type">
+        <div class="choices">
+          <label class="choice"><input type="radio" name="service_type" value="voip" required><span>VoIP / internet telephone service</span></label>
+          <label class="choice"><input type="radio" name="service_type" value="fixed"><span>Fixed telephone / landline</span></label>
+          <label class="choice"><input type="radio" name="service_type" value="other"><span>Another non-mobile service</span></label>
+        </div>
+        <% if(canApplyGroup){ %>
+        <label class="choice" style="margin-top:12px!important"><input type="checkbox" name="apply_group" value="yes" checked>
+          <span>Classify all <%= siblings.length %> numbers in this business group together</span>
+        </label>
+        <% } %>
+        <p class="muted">If the official account is unknown, this saves the service type against the imported business name and keeps account verification pending. It will not create a fictitious account or a mobile-upgrade task.</p>
+        <button type="submit" class="update-btn">Update service type<%= canApplyGroup?' for both numbers':'' %></button>
+      </form>
+    </div>
+    <% } %>
+
+    <% if(activeReview && resolverMobile && matched.clients.length<=1 && !needsAccount && !nameConflict){ %>
+    <div class="resolve-card">
+      <div class="eyebrow">Verified mobile account link</div>
+      <h2>Confirm this line belongs to <%= line.account_number %></h2>
+      <p class="muted">There is no unresolved duplicate or account mismatch. Confirm the existing account-to-number link, without creating a second customer or deleting any history.</p>
+      <form method="post" action="<%= actionUrl %>">
+        <input type="hidden" name="csrf_token" value="<%= csrfToken %>"><input type="hidden" name="panel" value="<%= panelMode?'1':'0' %>">
+        <input type="hidden" name="action" value="approve_mobile">
+        <button type="submit" class="update-btn">Update — confirm mobile line</button>
+      </form>
+    </div>
+    <% } %>
+
+    <% if(!activeReview){ %>
+      <div class="notice success"><strong>This item has been resolved.</strong> The actual changes have been saved in the CRM and the audit trail below.</div>
+      <form method="post" action="<%= actionUrl %>">
+        <input type="hidden" name="csrf_token" value="<%= csrfToken %>"><input type="hidden" name="panel" value="<%= panelMode?'1':'0' %>">
+        <input type="hidden" name="action" value="reopen">
+        <button type="submit" class="button secondary">Reopen for correction</button>
+      </form>
+    <% } %>
+    <div class="flex" style="margin-top:16px">
+      <a class="button secondary" href="<%= basePath %>/grouped-upgrade-accounts?mode=review<%= panelMode?'&panel=1':'' %>">Back to remaining conflicts</a>
+    </div>
+  </div>
+  <%- include('grouped-upgrade-customer-section') %>
+  <div class="panel">
+    <h2>Review history</h2>
+    <% if(!history.length){ %><p class="muted">No decisions have been recorded for this line yet.</p><% }else{ %>
+    <div class="tablewrap"><table class="history">
+      <thead><tr><th>Reviewed</th><th>Reviewer</th><th>Decision</th><th>Automatic audit entry</th></tr></thead>
+      <tbody><% history.forEach(h=>{ %><tr><td><%= new Date(h.created_at).toLocaleString('en-ZA') %></td>
+        <td><%= h.reviewer_name||'Staff #'+h.reviewer_id %></td>
+        <td><%= String(h.decision).replaceAll('_',' ') %></td><td><%= h.note %></td></tr><% }) %></tbody>
+    </table></div>
+    <% } %>
+  </div>
+</section>

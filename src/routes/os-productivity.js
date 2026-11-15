@@ -61,21 +61,25 @@ async function loadOsStatus(userId) {
         WHERE assigned_to = :userId AND status = 'open'
           AND DATE(scheduled_at) = CURRENT_DATE())) AS follow_up_today_count,
     (SELECT COUNT(DISTINCT COALESCE(NULLIF(c.id_number,''), CONCAT('client:',c.id)))
-      FROM clients c
+      FROM crm_v_master_clients c
       JOIN client_assignments a ON a.is_active = 1
         AND a.assigned_staff_id = :userId
         AND (a.client_id = c.id OR (a.account_number <> '' AND a.account_number = c.account_number))
       WHERE c.birthday IS NOT NULL
         AND MONTH(c.birthday) = MONTH(CURRENT_DATE())
         AND DAY(c.birthday) = DAY(CURRENT_DATE())) AS birthdays_today_count,
-    (SELECT COUNT(DISTINCT c.id)
-      FROM clients c
+    (SELECT COUNT(DISTINCT c.master_service_key)
+      FROM crm_v_master_actionable_upgrades c
       JOIN client_assignments a ON a.is_active = 1
         AND a.assigned_staff_id = :userId
         AND (a.client_id = c.id OR (a.account_number <> '' AND a.account_number = c.account_number))
-      WHERE c.line_status <> 'cancelled'
-        AND c.next_upgrade_date IS NOT NULL
-        AND DATE(c.next_upgrade_date) BETWEEN CURRENT_DATE() AND DATE_ADD(CURRENT_DATE(), INTERVAL 7 DAY)) AS upgrades_due_count,
+      WHERE DATE(c.next_upgrade_date) BETWEEN CURRENT_DATE() AND DATE_ADD(CURRENT_DATE(), INTERVAL 7 DAY)) AS upgrades_due_count,
+    (SELECT COUNT(DISTINCT COALESCE(c.master_service_key,CONCAT('client:',c.id)))
+      FROM crm_v_master_upgrade_holds c
+      JOIN client_assignments a ON a.is_active = 1
+        AND a.assigned_staff_id = :userId
+        AND (a.client_id = c.id OR (a.account_number <> '' AND a.account_number = c.account_number))
+      WHERE DATE(c.next_upgrade_date) BETWEEN CURRENT_DATE() AND DATE_ADD(CURRENT_DATE(), INTERVAL 7 DAY)) AS upgrades_review_count,
     ((SELECT COUNT(*) FROM inquiries
       WHERE COALESCE(assigned_staff_id, staff_id) = :userId
         AND status IN ${OPEN_INQUIRY_STATUSES}
@@ -101,6 +105,7 @@ async function loadOsStatus(userId) {
     followUpTodayCount: Number(row?.follow_up_today_count || 0),
     birthdaysTodayCount: Number(row?.birthdays_today_count || 0),
     upgradesDueCount: Number(row?.upgrades_due_count || 0),
+    upgradesReviewCount: Number(row?.upgrades_review_count || 0),
     callbacksTodayCount: Number(row?.callbacks_today_count || 0),
     newProspectsCount: Number(row?.new_prospects_count || 0)
   };

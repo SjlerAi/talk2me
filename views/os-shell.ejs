@@ -19,52 +19,8 @@
   <link rel="stylesheet" href="<%= basePath %>/public/css/client-assignment-centre.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>">
   <link rel="stylesheet" href="<%= basePath %>/public/css/os-sidebar-collapse.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>">
   <link rel="stylesheet" href="<%= basePath %>/public/css/os-window-geometry.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>">
-  <link rel="stylesheet" data-calendar-home-uat href="<%= basePath %>/public/css/calendar-home-uat.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>">
   <% if(isStaging){ %><link rel="stylesheet" href="<%= basePath %>/public/css/tk2m-workspace-preview.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>"><% } %>
-  <% if(isStaging){ %>
-  <style id="tk2m-myday-focus-critical">
-    /* Inline with My Day to keep calendar controls and priority cards aligned
-       even if a separate staging stylesheet is stale or not applied. */
-    #talk2me-os .t2m-home-calendar {
-      grid-template-rows:auto auto auto auto minmax(0,1fr)!important;
-      gap:8px!important;overflow:auto;
-    }
-    #talk2me-os .t2m-home-focus {
-      display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;
-      align-items:stretch;gap:7px!important;min-width:0;margin:0;
-    }
-    #talk2me-os .t2m-home-focus>button {
-      display:grid!important;grid-template-columns:minmax(0,1fr) auto!important;
-      grid-template-rows:auto auto;align-items:center;gap:3px 7px!important;
-      min-width:0;min-height:61px;padding:9px 10px!important;
-      border:1px solid #d6e0ea!important;border-radius:11px!important;
-      background:#fff!important;color:#202832!important;text-align:left!important;
-    }
-    #talk2me-os .t2m-home-focus>button>span {
-      display:block;min-width:0;font-size:11px!important;font-weight:850;
-      line-height:1.25;white-space:normal;
-    }
-    #talk2me-os .t2m-home-focus>button>strong {
-      display:block;font-size:22px!important;line-height:1;color:#263544!important;
-    }
-    #talk2me-os .t2m-home-focus>button.has-attention>strong {
-      color:#bd2130!important;
-    }
-    #talk2me-os .t2m-home-focus>button>small {
-      display:block;grid-column:1/-1;min-width:0;
-      color:#657383;font-size:10px!important;
-      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-    }
-    #talk2me-os .t2m-home-team-filter {
-      position:relative;z-index:1;
-    }
-    @media(max-width:760px){
-      #talk2me-os .t2m-home-focus{
-        grid-template-columns:repeat(2,minmax(0,1fr))!important;
-      }
-    }
-  </style>
-  <% } %>
+  <link rel="stylesheet" data-calendar-home-uat href="<%= basePath %>/public/css/calendar-home-uat.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>">
   <% if (isUat) { %>
   <style id="t2m-uat-myday-first-paint">
     #talk2me-os:not([data-calendar-home-ready="1"]) #os-desk-widgets { display: none !important; }
@@ -74,62 +30,18 @@
   </style>
   <% } %>
   <% if(isUat && !cudoDisabled && currentUser && String(currentUser.role||'').toLowerCase()==='owner'){ %><link rel="stylesheet" href="<%= basePath %>/public/css/cudo-widget.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>"><% } %>
-  <% if(isStaging){ %>
-  <style id="tk2m-boot-critical">
-    /* Hide the legacy shell entirely until calendar and navigation are ready. */
-    body.tk2m-booting #talk2me-os,
-    body.tk2m-booting #os-toast-region { visibility:hidden!important }
-    .tk2m-start-screen {
-      position:fixed;z-index:25000;inset:0;display:grid;place-items:center;
-      padding:22px;background:radial-gradient(circle at 12% 12%,#d4e7f9,transparent 48%),
-        linear-gradient(145deg,#eaf3fc,#f7fbff);
-      color:#233c52;font:inherit;
-    }
-    .tk2m-start-screen[hidden]{display:none!important}
-    .tk2m-start-inner {max-width:360px;text-align:center}
-    .tk2m-start-inner img {display:block;width:130px;height:auto;margin:0 auto 20px}
-    .tk2m-start-inner h1 {font-size:23px;letter-spacing:-.02em;margin:0 0 8px}
-    .tk2m-start-inner p {color:#61788e;font-size:13px;line-height:1.5;margin:0}
-    .tk2m-start-spinner {
-      width:28px;height:28px;border-radius:50%;margin:23px auto 0;
-      border:3px solid #b9d7f0;border-top-color:#e11d2a;
-      animation:tk2m-start-spin .85s linear infinite;
-    }
-    .tk2m-start-screen.is-error .tk2m-start-spinner {display:none}
-    .tk2m-start-retry {
-      margin-top:20px;padding:12px 20px;border:0;border-radius:10px;
-      background:#e11d2a;color:#fff;font:inherit;font-weight:800;cursor:pointer
-    }
-    .tk2m-start-retry[hidden]{display:none!important}
-    @keyframes tk2m-start-spin{to{transform:rotate(360deg)}}
-    @media(prefers-reduced-motion:reduce){.tk2m-start-spinner{animation:none}}
-  </style>
-  <% } %>
 </head>
-<body class="t2m-os-body<%= isStaging?' tk2m-booting':'' %>">
-  <% if(isStaging){ %>
-  <div id="tk2m-start-screen" class="tk2m-start-screen" role="status" aria-live="polite" aria-label="Preparing My Day">
-    <div class="tk2m-start-inner">
-      <img src="<%= basePath %>/public/images/talk2me-logo.png" alt="Talk2Me">
-      <h1>Opening My Day</h1>
-      <p id="tk2m-start-message">Preparing your calendar and daily applications…</p>
-      <div class="tk2m-start-spinner" aria-hidden="true"></div>
-      <button type="button" class="tk2m-start-retry" id="tk2m-start-retry" hidden>Try again</button>
-      <noscript><p>Enable JavaScript to open the CRM calendar.</p></noscript>
-    </div>
-  </div>
-  <% } %>
-  <% if(cudoDisabled){ %><style id="tk2m-retired-cudu">.cudo-root{display:none!important}</style><% } %>
+<body class="t2m-os-body">
   <% const launchers = (typeof osLaunchers !== 'undefined' && Array.isArray(osLaunchers) ? osLaunchers : []).filter(item => item.is_enabled); %>
   <% const attendance = typeof attendanceState !== 'undefined' ? attendanceState : null; %>
   <% const firstName = String(currentUser.full_name || currentUser.username || 'Staff').trim().split(/\s+/)[0]; %>
   <% const unassignedCount = typeof unassignedClientCount === 'undefined' ? 0 : Number(unassignedClientCount || 0); %>
   <% const approvalCount = typeof approvalCentreCount === 'undefined' ? 0 : Number(approvalCentreCount || 0); %>
-  <div class="t2m-os-shell<%= isStaging?' t2m-tk2m-test-shell t2m-calendar-home-shell':'' %>" id="talk2me-os" <% if(isStaging){ %>data-tk2m-preview="1"<% } %>>
+  <div class="t2m-os-shell<%= isStaging ? ' t2m-tk2m-test-shell t2m-calendar-home-shell' : '' %>" id="talk2me-os">
     <header class="t2m-os-topbar">
       <a class="t2m-os-brand" href="<%= basePath %>/workspace" aria-label="Talk2Me OS home">
         <img src="<%= basePath %>/public/images/talk2me-logo.png" alt="Talk2Me">
-        <span><strong>Talk2Me</strong><small><%= isStaging?'TK2M TEST · ':'' %>OS v<%= appVersion %></small></span>
+        <span><strong>Talk2Me</strong><small>OS v<%= appVersion %></small></span>
       </a>
       <div class="t2m-os-search" role="search">
         <span aria-hidden="true">⌕</span>
@@ -150,13 +62,14 @@
       <div class="t2m-os-sidebar-section"><span class="t2m-os-sidebar-label">Work</span>
         <button type="button" data-os-app="queue" aria-label="Queue" title="Queue"><span>▤</span><strong>Queue</strong><b data-badge="queue" <%= status.queueCount ? '' : 'hidden' %>><%= status.queueCount %></b></button>
         <button type="button" data-os-app="work" aria-label="Work" title="Work"><span>✓</span><strong>Work</strong><b data-badge="work" <%= status.taskCount ? '' : 'hidden' %>><%= status.taskCount %></b></button>
+        <button type="button" data-os-route="<%= basePath %>/black-friday" data-route-title="Black Friday Calls" data-route-icon="☎" aria-label="Black Friday Calls" title="Black Friday Calls"><span>☎</span><strong>Black Friday</strong></button>
         <button type="button" data-os-route="<%= basePath %>/clients/assignment-centre?view=unassigned" data-route-title="Client Assignment Centre" data-route-icon="◇" aria-label="Unassigned Clients" title="Unassigned Clients"><span>◇</span><strong>Unassigned Clients</strong><b data-badge="unassignedClients" <%= unassignedCount ? '' : 'hidden' %>><%= unassignedCount %></b></button>
         <button type="button" data-os-app="calendar" aria-label="Calendar" title="Calendar"><span>□</span><strong>Calendar</strong></button><button type="button" data-os-app="notes" aria-label="Notes" title="Notes"><span>✎</span><strong>Notes</strong></button><button type="button" data-os-app="calculator" aria-label="Calculator" title="Calculator"><span>#</span><strong>Calculator</strong></button>
       </div>
       <div class="t2m-os-sidebar-section"><span class="t2m-os-sidebar-label">Information</span><button type="button" data-os-app="reports" aria-label="Reports" title="Reports"><span>▦</span><strong>Reports</strong></button><button type="button" data-os-app="help" aria-label="Help" title="Help"><span>?</span><strong>Help</strong></button></div>
-      <% if (isManagement) { %><div class="t2m-os-sidebar-section"><span class="t2m-os-sidebar-label">Management</span><button type="button" data-os-route="<%= basePath %>/command-centre" data-route-title="Command Centre" data-route-icon="◆" aria-label="Command Centre" title="Command Centre"><span>◆</span><strong>Command Centre</strong></button><button type="button" data-os-route="<%= basePath %>/backoffice/attendance" data-route-title="Attendance Register" data-route-icon="◷" aria-label="Attendance Register" title="Attendance Register"><span>◷</span><strong>Attendance Register</strong></button><button type="button" data-os-route="<%= basePath %>/approvals" data-route-title="Approval Centre" data-route-icon="✓" aria-label="Approval Centre" title="Approval Centre"><span>✓</span><strong data-approval-label><%= approvalCount?'Approvals Needed':'Approvals' %></strong><b data-approval-count <%= approvalCount?'':'hidden' %>><%= approvalCount %></b></button><button type="button" data-os-route="<%= basePath %>/upgrade-centre" data-route-title="Upgrade Centre" data-route-icon="↗" aria-label="Upgrade Centre" title="Upgrade Centre"><span>↗</span><strong>Upgrades</strong></button><button type="button" data-os-route="<%= basePath %>/backoffice" data-route-title="Administration" data-route-icon="⚙" aria-label="Administration" title="Administration"><span>⚙</span><strong>Administration</strong></button></div><% } %>
+      <% if (isManagement) { %><div class="t2m-os-sidebar-section"><span class="t2m-os-sidebar-label">Management</span><button type="button" data-os-route="<%= basePath %>/command-centre" data-route-title="Command Centre" data-route-icon="◆" aria-label="Command Centre" title="Command Centre"><span>◆</span><strong>Command Centre</strong></button><button type="button" data-os-route="<%= basePath %>/backoffice/attendance" data-route-title="Attendance Register" data-route-icon="◷" aria-label="Attendance Register" title="Attendance Register"><span>◷</span><strong>Attendance Register</strong></button><button type="button" data-os-route="<%= basePath %>/approvals" data-route-title="Approval Centre" data-route-icon="✓" aria-label="Approval Centre" title="Approval Centre"><span>✓</span><strong data-approval-label><%= approvalCount?'Approvals Needed':'Approvals' %></strong><b data-approval-count <%= approvalCount?'':'hidden' %>><%= approvalCount %></b></button><button type="button" data-os-route="<%= basePath %>/upgrade-centre" data-route-title="Upgrade Centre" data-route-icon="↗" aria-label="Upgrade Centre" title="Upgrade Centre"><span>↗</span><strong>Upgrades</strong></button><button type="button" data-os-route="<%= basePath %>/backoffice" data-route-title="Administration" data-route-icon="⚙" aria-label="Administration" title="Administration"><span>⚙</span><strong>Administration</strong></button><button type="button" data-os-route="<%= basePath %>/backoffice/staff-usage" data-route-title="Weekly Staff Usage Audit" data-route-icon="▤" aria-label="Weekly Staff Usage Audit" title="Weekly Staff Usage Audit"><span>▤</span><strong>Staff Usage Audit</strong></button></div><% } %>
     </aside>
-    <nav class="t2m-os-launcher" aria-label="Primary systems">
+    <nav class="t2m-os-launcher" aria-label="Primary systems" title="Screen and launcher/window activity is recorded for weekly CRM management review. Content inside external supplier websites is not collected.">
       <button class="t2m-os-launcher-arrow" type="button" data-launcher-scroll="previous" aria-label="Previous launcher">‹</button>
       <div class="t2m-os-launcher-scroll">
         <button type="button" data-os-launch="customers"><span class="t2m-brand-mark customer">C</span><strong>Customers</strong></button>
@@ -171,7 +84,6 @@
         <p>Opening your work calendar… If it does not appear, refresh the page.</p>
       </section>
       <% } %>
-      <% if(!isStaging){ %>
       <section class="t2m-os-desk-widgets" id="os-desk-widgets" aria-label="Today overview">
         <article class="t2m-os-desk-widget" data-widget="work"><header><div><span>My desk</span><strong>Today’s Work</strong></div><button type="button" data-widget-collapse aria-label="Collapse Today’s Work">−</button></header><div class="t2m-os-widget-body">
           <% if(isManagement){ %><div class="t2m-os-widget-row is-view-only"><button class="t2m-os-widget-view" type="button" data-os-route="<%= basePath %>/approvals" data-route-title="Approval Centre" data-route-icon="◆" aria-label="Open approvals needed"><span data-approval-label><%= approvalCount?'Approvals needed':'Approvals' %></span><strong data-status="approvalCount" data-positive="<%= approvalCount > 0 %>"><%= approvalCount %></strong></button></div><% } %>
@@ -188,55 +100,24 @@
           <div class="t2m-os-widget-row"><button class="t2m-os-widget-view" type="button" data-os-route="<%= basePath %>/os/my-work/prospects" data-route-title="New Prospects" data-route-icon="+" aria-label="Open new prospects"><span>New prospects</span><strong data-status="newProspectsCount" data-positive="<%= status.newProspectsCount > 0 %>"><%= status.newProspectsCount %></strong></button><button class="t2m-os-widget-add" type="button" data-widget-add="prospect" data-add-title="Add Prospect" data-add-icon="+" aria-label="Add a prospect" title="Add a prospect">+</button></div>
         </div></article>
       </section>
-      <% } %>
     </main>
     <div class="t2m-os-window-layer" id="os-window-layer" aria-label="Floating application windows"></div>
     <footer class="t2m-os-taskbar" id="os-taskbar" aria-label="Open windows"><span class="t2m-os-taskbar-label">Open windows</span><div class="t2m-os-taskbar-items" id="os-taskbar-items"></div></footer>
   </div>
   <div class="t2m-os-toast-region" id="os-toast-region" aria-live="polite" aria-atomic="true"></div>
-  <script id="talk2me-os-config" type="application/json"><%- JSON.stringify({basePath,appVersion,assetVersion,user:{id:currentUser.id,name:currentUser.full_name,role:currentUser.role},isStaging:Boolean(isStaging),isManagement,status,launchers}).replace(/</g, '\u003c') %></script>
+  <script id="talk2me-os-config" type="application/json"><%- JSON.stringify({basePath,appVersion,assetVersion,user:{id:currentUser.id,name:currentUser.full_name,role:currentUser.role},isManagement,isStaging,status,launchers}).replace(/</g, '\u003c') %></script>
   <script defer src="<%= basePath %>/public/js/os-sidebar-state.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>"></script>
   <script defer src="<%= basePath %>/public/js/os-window-geometry.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>"></script>
-  <script defer src="<%= basePath %>/public/js/os-v6.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>"></script>
-  <script defer src="<%= basePath %>/public/js/os-launchers.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>"></script>
+  <script defer src="<%= basePath %>/public/js/os-v6.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>-staffaudit1"></script>
+  <script defer src="<%= basePath %>/public/js/os-launchers.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>-staffaudit1"></script>
   <script defer src="<%= basePath %>/public/js/os-launcher-strip.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>"></script>
   <script defer src="<%= basePath %>/public/js/os-v6-alpha21.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>"></script>
   <script defer src="<%= basePath %>/public/js/os-v6-alpha21-7.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>"></script>
   <script defer src="<%= basePath %>/public/js/os-v6-alpha21-8.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>"></script>
   <script defer data-calendar-home-uat src="<%= basePath %>/public/js/calendar-home-uat.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>"></script>
-  <script defer src="<%= basePath %>/public/js/os-v6-alpha21-17.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>"></script>
+  <script defer src="<%= basePath %>/public/js/os-v6-alpha21-17.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>-staffaudit1"></script>
   <% if(isManagement){ %><script defer src="<%= basePath %>/public/js/approval-badges.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>" data-base-path="<%= basePath %>"></script><% } %>
   <% if(isUat && !cudoDisabled && currentUser && String(currentUser.role||'').toLowerCase()==='owner'){ %><script defer src="<%= basePath %>/public/js/cudo-widget.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>" data-base-path="<%= basePath %>"></script><% } %>
   <script defer src="<%= basePath %>/public/js/pwa-install.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>" data-base-path="<%= basePath %>"></script>
-  <% if(isStaging){ %>
-  <script id="tk2m-boot-controller">
-    (() => {
-      const screen = document.getElementById('tk2m-start-screen');
-      const message = document.getElementById('tk2m-start-message');
-      const retry = document.getElementById('tk2m-start-retry');
-      let completed = false;
-      let expired = false;
-      retry?.addEventListener('click', () => window.location.reload());
-      const fail = () => {
-        if (completed || expired) return;
-        expired = true;
-        if (message) message.textContent = 'My Day could not finish opening. Please try again.';
-        if (screen) screen.classList.add('is-error');
-        if (retry) retry.hidden = false;
-      };
-      const ready = () => {
-        if (completed || expired) return;
-        completed = true;
-        window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
-          document.body.classList.remove('tk2m-booting');
-          document.getElementById('talk2me-os')?.setAttribute('aria-busy','false');
-          if (screen) screen.hidden = true;
-        }));
-      };
-      window.Talk2MeBoot = { ready, fail };
-      window.setTimeout(() => { if (!completed) fail(); }, 11000);
-    })();
-  </script>
-  <% } %>
 </body>
 </html>

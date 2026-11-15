@@ -7,20 +7,12 @@
   if (!configNode) return;
   const config = JSON.parse(configNode.textContent || '{}');
   const basePath = String(config.basePath || '');
-  // A stale browser tab can retain a previously injected Cudu launcher.
-  // TK2M permanently removes it; this does not affect the live UENT CRM.
   if (window.location.hostname === 'crm.tk2m.co.za') {
-    document.documentElement.dataset.cudoDisabled = 'true';
-    const removeRetiredWidget = () => {
-      document.querySelectorAll('.cudo-root').forEach(node => node.remove());
-    };
-    removeRetiredWidget();
-    if (document.body && typeof MutationObserver !== 'undefined') {
-      const guard = new MutationObserver(removeRetiredWidget);
-      guard.observe(document.body, {childList: true});
-    }
+    document.documentElement.dataset.cudoDisabled='true';
+    const retire=()=>document.querySelectorAll('.cudo-root').forEach(el=>el.remove());
+    retire();
+    if(document.body&&typeof MutationObserver!=='undefined')new MutationObserver(retire).observe(document.body,{childList:true});
   }
-  const retireCudoInTk2m = window.location.hostname === 'crm.tk2m.co.za';
   const user = config.user || {};
   const palette = ['#7c3aed','#2563eb','#059669','#ea580c','#db2777','#0891b2','#9333ea','#16a34a','#c2410c','#0284c7'];
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
@@ -587,7 +579,7 @@
         </select>
       </div>`;
 
-    const quickCommandPanel=taskState.management&&!retireCudoInTk2m?quickCommandHtml():'';
+    const quickCommandPanel=taskState.management?quickCommandHtml():'';
 
     const cards=taskState.tasks.length?taskState.tasks.map(task=>{
       const badge=taskInboxBadge(task);
@@ -648,7 +640,7 @@
     renderWorkHeader('new');
     clearInterval(chatPoll);
     fitWidgetMode(taskWidget,taskWidgetKey,{width:840,height:700,minWidth:560,minHeight:420});
-    if(taskState.management&&!prefill.advanced&&!retireCudoInTk2m){
+    if(taskState.management&&!prefill.advanced){
       // +Task opens Gerda's one-command screen. The detailed form is still available.
       taskBody.innerHTML='<section class="t2m-simple-new-task">'+quickCommandHtml()+
         '<button type="button" class="t2m-quick-task-more" data-task-more-options>More options · files, recipients and task details</button></section>';

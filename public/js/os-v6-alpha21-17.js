@@ -113,8 +113,12 @@
   try { config = JSON.parse(configNode.textContent || '{}'); } catch (_) {}
   const basePath = String(config.basePath || '');
 
-  function track({event_type='ui_action',screen_key='',module_name='',route_path='',entity_type='',entity_id=null,action=''}) {
-    const payload = {event_type,screen_key,module_name,route_path,entity_type,entity_id,action};
+  function track({event_type='ui_action',screen_key='',module_name='',route_path='',
+    action='',window_key='',window_kind='',outcome=''}) {
+    // Labels and actions only. No customer details, entered text, search
+    // phrases, external portal URLs or messages are transmitted.
+    const payload = {event_type,screen_key,module_name,route_path,
+      action,window_key,window_kind,outcome};
     fetch(`${basePath}/api/usage/events`, {
       method:'POST',
       credentials:'same-origin',
