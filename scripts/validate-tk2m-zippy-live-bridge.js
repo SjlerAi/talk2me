@@ -1,0 +1,17 @@
+'use strict';
+const fs=require('node:fs'),assert=require('node:assert/strict');
+const path=require('node:path');
+const root=path.resolve(__dirname,'..');
+const load=p=>fs.readFileSync(path.join(root,p),'utf8');
+const gate=load('src/middleware/tk2m-staging-login.js');
+const bridge=load('src/routes/zippy-integration.js');
+const server=load('server.js');
+assert.ok(gate.includes("if(req.method==='POST' && /^\\/api\\/integrations\\/zippy"));
+assert.match(gate,/CRM_ZIPPY_INTEGRATION_ENABLED/);
+assert.match(bridge,/ZIPPY_CRM_BRIDGE_KEY_FILE/);
+assert.match(bridge,/verifySigned/);
+assert.match(bridge,/x-zippy-nonce/);
+assert.match(bridge,/Duplicate Zippy request rejected/);
+assert.match(bridge,/AUTHORI[ZS]ED_OWNERS/);
+assert.match(server,/CRM_ZIPPY_INTEGRATION_ENABLED === 'true'/);
+console.log('TK2M_SIGNED_ZIPPY_BRIDGE_SECURITY_CONTRACT_PASS');

@@ -64,6 +64,10 @@ function protectPrivateRoutes(req,res,next) {
   const p=req.path;
   // These are presentation resources only; no staff/customer exports are under /public.
   if(p==='/login' && (req.method==='GET' || req.method==='POST'))return next();
+  // Service-to-service Zippy requests have independent HMAC authentication,
+  // owner identity verification and nonce replay protection at their route.
+  if(req.method==='POST' && /^\/api\/integrations\/zippy\/(preview|confirm|updates|lookup)$/.test(p) &&
+      String(process.env.CRM_ZIPPY_INTEGRATION_ENABLED||'')==='true')return next();
   if(req.method==='GET' && (p.startsWith('/public/') ||
       p==='/manifest.webmanifest' || p==='/service-worker.js' || p==='/offline'))return next();
   const user=req.session?.user;

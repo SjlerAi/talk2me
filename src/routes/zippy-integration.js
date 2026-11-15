@@ -12,7 +12,7 @@ const router=express.Router();
 const UAT_ONLY=String(process.env.UAT_MODE||'').toLowerCase()==='true';
 const OWNER_EMAIL='gerda@talk-online.co.za';
 const AUTHORIZED_OWNERS=new Set([OWNER_EMAIL,'info@b4s.co.za']);
-const SECRET_FILE='/home/uent/.zippy-t2m-uat-bridge-key';
+const SECRET_FILE=String(process.env.ZIPPY_CRM_BRIDGE_KEY_FILE || '/home/uent/.zippy-t2m-uat-bridge-key');
 let readyPromise=null;
 const fail=(res,status,text)=>res.status(status).set('Cache-Control','no-store').json({ok:false,error:text});
 async function ensureBridgeTables(){
