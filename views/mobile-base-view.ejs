@@ -1,10 +1,15 @@
 <section class="page-head">
   <div>
-    <span class="eyebrow">Current Vodacom service</span>
+    <span class="eyebrow">Vodacom historical source · master-linked</span>
     <h1><%= line.account_name || [line.first_name,line.surname].filter(Boolean).join(' ') || line.msisdn_original %></h1>
     <p><strong><%= line.msisdn_original || line.msisdn_normalised %></strong> · Account <strong><%= line.account_code || '-' %></strong></p>
   </div>
-  <% if (line.client_id) { %><a class="btn primary" href="<%= basePath %>/customers/<%= line.client_id %>/360">Open CRM Customer</a><% } %>
+  <div style="display:flex;gap:9px;flex-wrap:wrap">
+    <% if (management && master) { %>
+      <a class="btn primary" href="<%= basePath %>/master-register/service/<%= encodeURIComponent(master.service_key) %>#resolve-account"><%= master.link_state==='needs_conflict_review'?'Resolve account conflict':'Open Master Service' %></a>
+    <% } %>
+    <% if (line.client_id) { %><a class="btn" href="<%= basePath %>/customers/<%= line.client_id %>/360">Open Linked CRM Record</a><% } %>
+  </div>
 </section>
 
 <% if (typeof sectionWarnings !== 'undefined' && sectionWarnings && sectionWarnings.length) { %>
@@ -12,8 +17,12 @@
 <% } %>
 
 <div class="phase-notice">
-  <strong>Vodacom current-service record</strong>
-  <p>This screen is read-only. It shows the latest Base Details service truth without creating or overwriting historical CRM customer records.</p>
+  <strong>Vodacom Base Details — source evidence only</strong>
+  <p>This page is strictly read-only. It cannot create customers or telephone lines.
+  The official customer and service relationship is held in the One Master Customer Register,
+  and this September 2026 supplier extract does not prove a contract is currently active.</p>
+  <% if(master && master.link_state==='needs_conflict_review'){ %><p><strong>Conflict:</strong>
+  This service needs verification before it can be linked to a customer.</p><% } %>
 </div>
 
 <section class="card" style="margin-top:18px">

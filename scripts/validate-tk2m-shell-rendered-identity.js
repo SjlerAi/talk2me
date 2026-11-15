@@ -12,7 +12,7 @@ const cal = read('public/js/calendar-home-uat.js');
 
 const common = {
   title:'Talk2Me OS',appVersion:'6.0.0',appBuild:'qa',assetVersion:'release-qa',basePath:'',
-  isUat:true,cudoDisabled:true,
+  isUat:true,cudoDisabled:true,loginCsrf:'0'.repeat(64),
   isManagement:true,panelMode:false,
   currentUser:{id:1,role:'owner',full_name:'Test Owner',username:'qa'},
   status:{taskCount:0,queueCount:0,dueTodayTaskCount:0,overdueTaskCount:0},

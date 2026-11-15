@@ -79,9 +79,12 @@ jobs:
           ! grep -Fq "include('partials/customer-mobile-current')" views/customer-360.ejs
           grep -q "Current Mobile Service" views/partials/customer-mobile-current.ejs
           grep -q "Activation & Upgrade History" views/partials/customer-mobile-current.ejs
-      - name: Guard universal current-base search
+      - name: Guard current master-linked Base Details search
         run: |
           grep -q "mobile_base_current" src/routes/base-details-search.js
-          grep -q "icc_id LIKE :like" src/routes/base-details-search.js
-          grep -q "imsi LIKE :like" src/routes/base-details-search.js
+          grep -q "searchMaster" src/routes/base-details-search.js
+          grep -q "crm_master_active" src/services/master-customer-search.js
+          grep -q "b.icc_id LIKE :like" src/services/master-customer-search.js
+          grep -q "b.imsi LIKE :like" src/services/master-customer-search.js
+          grep -q "visibleToStaff" src/services/master-customer-search.js
           grep -q "mobile-base/:id" src/routes/base-details-search.js

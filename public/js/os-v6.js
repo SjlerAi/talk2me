@@ -17,6 +17,25 @@
   const windowInset = windowGeometry.DEFAULT_INSET;
   const supplierKey = 'talk2me-os-v6-suppliers';
   const notesKey = `talk2me-os-v6-notes-${config.user?.id || 'user'}`;
+  function auditWindow(eventType, options, outcome='success') {
+    if (!window.Talk2MeUsage?.track) return;
+    const key = String(options?.appKey || options?.id || 'window')
+      .replace(/[^a-z0-9:_-]/gi,'').slice(0,80) || 'window';
+    const kind = key.startsWith('managed-launcher:') ? 'external_embedded'
+      : key.startsWith('supplier:') ? 'external_supplier'
+      : key === 'customer' ? 'crm_customer'
+      : options?.url ? 'crm' : 'native';
+    let routePath=location.pathname;
+    if(options?.url) {
+      try {const url=new URL(options.url,location.href);
+        if(url.origin===location.origin)routePath=url.pathname;
+      }catch (_) {}
+    }
+    window.Talk2MeUsage.track({
+      event_type:eventType,screen_key:key,module_name:kind.startsWith('external')?'external_portal':'crm_window',
+      route_path:routePath,window_key:key,window_kind:kind,outcome
+    });
+  }
   const sidebarPreferenceKey = `talk2me-os-sidebar-collapsed-${config.user?.id || 'user'}`;
 
   function renderSidebar(state) {
@@ -142,6 +161,7 @@
     open(options) {
       const existing = this.windows.get(options.id);
       if (existing) {
+        auditWindow('window_reopen', existing.options);
         this.restore(options.id);
         this.focus(options.id);
         return existing;
@@ -182,6 +202,8 @@
       };
       this.applyRect(record, initialRect);
       this.windows.set(options.id, record);
+      auditWindow('window_open', options);
+      record.lastFocusAuditAt = Date.now();
       this.syncSidebar();
       this.install(record);
       this.render(record);
@@ -275,6 +297,14 @@
 
     focus(id) {
       const record = this.windows.get(id); if (!record) return;
+      const wasFocused = record.node.classList.contains('is-focused');
+      const now = Date.now();
+      // Only log a new focus after switching windows; prevent noisy mouse-down
+      // events and drag operations from writing repeated audit rows.
+      if (!wasFocused && (!record.lastFocusAuditAt || now-record.lastFocusAuditAt>=60000)) {
+        record.lastFocusAuditAt=now;
+        auditWindow('window_focus',record.options);
+      }
       this.windows.forEach(item => item.node.classList.remove('is-focused'));
       record.node.classList.add('is-focused');
       record.node.style.zIndex = String(++this.z);
@@ -283,6 +313,7 @@
 
     minimize(id) {
       const record = this.windows.get(id); if (!record) return;
+      if (!record.minimized) auditWindow('window_minimize',record.options);
       record.minimized = true; record.node.classList.add('is-minimized');
       this.sync(record.options.appKey || id);
       this.renderTaskbar();
@@ -290,6 +321,7 @@
 
     restore(id) {
       const record = this.windows.get(id); if (!record) return;
+      if(record.minimized) auditWindow('window_restore',record.options);
       record.minimized = false; record.node.classList.remove('is-minimized');
       this.fitRecord(record);
       this.sync(record.options.appKey || id);
@@ -298,6 +330,7 @@
 
     maximize(id) {
       const record = this.windows.get(id); if (!record) return;
+      auditWindow(record.maximized?'window_unmaximize':'window_maximize',record.options);
       const button = record.node.querySelector('[data-action="maximize"]');
       if (!record.maximized) {
         const area = this.readLayer();
@@ -320,6 +353,7 @@
 
     close(id) {
       const record = this.windows.get(id); if (!record) return;
+      auditWindow('window_close',record.options);
       const appKey = record.options.appKey || id;
       record.node.remove(); this.windows.delete(id); this.sync(appKey);
       this.syncSidebar();
@@ -368,7 +402,7 @@
   function native(app) {
     if (app === 'settings') return settings();
     if (app === 'help') return windows.open({ id: 'help', appKey: 'help', title: 'Help Centre', icon: '?', width: 760, height: 590, render(body) {
-      body.innerHTML = `<div class="t2m-os-native"><h2>Talk2Me Help Centre</h2><p>Use this area for the operating manual and role-specific guidance.</p><ul class="t2m-os-help-list"><li><strong>Customer search</strong><br>Find mobile and fixed customers from the universal search bar.</li><li><strong>Supplier systems</strong><br>Open Vodacom, MTN, Telkom or Sage from the top launcher.</li><li><strong>Tasks and messages</strong><br>Use the left menu to manage assigned work and staff communication.</li><li><strong>Windows</strong><br>Move, resize, minimise, restore or maximise any application window.</li></ul></div>`;
+      body.innerHTML = `<div class="t2m-os-native"><h2>Talk2Me Help Centre</h2><p>Use this area for the operating manual and role-specific guidance.</p><ul class="t2m-os-help-list"><li><strong>Customer search</strong><br>Find mobile and fixed customers from the universal search bar.</li><li><strong>Supplier systems</strong><br>Open Vodacom, MTN, Telkom or Sage from the top launcher.</li><li><strong>Tasks and messages</strong><br>Use the left menu to manage assigned work and staff communication.</li><li><strong>Windows</strong><br>Move, resize, minimise, restore or maximise any application window.</li><li><strong>Usage history</strong><br>The CRM records screens, saved actions and top-bar window interactions for weekly management review. It does not read external supplier websites or record what you type into them.</li></ul></div>`;
     }});
     if (app === 'notes') return windows.open({ id: 'notes', appKey: 'notes', title: 'Notes', icon: '✎', width: 680, height: 540, render(body) {
       body.innerHTML = '<div class="t2m-os-native t2m-os-notes"><div><h2>My Notes</h2><p>Private notes saved in this browser.</p></div><textarea aria-label="My notes" placeholder="Write a note…"></textarea><small>Saved locally</small></div>';
@@ -399,10 +433,24 @@
 
   function openSupplier(key) {
     const supplier = readSuppliers()[key];
-    if (!supplier?.url) { settings(); return toast(`${supplier?.name || 'Supplier'} not configured`, 'Add the secure portal URL in Settings.'); }
+    function logSupplier(action,outcome='success'){
+      window.Talk2MeUsage?.track?.({event_type:action,screen_key:'supplier:'+key,
+        module_name:'external_portal',route_path:location.pathname,
+        window_key:'supplier:'+key,window_kind:'external_supplier',outcome});
+    }
+    if (!supplier?.url) {
+      logSupplier('external_unconfigured','unconfigured');
+      settings();
+      return toast(`${supplier?.name || 'Supplier'} not configured`, 'Add the secure portal URL in Settings.');
+    }
     windows.open({ id: `supplier:${key}`, appKey: `supplier:${key}`, title: supplier.name, icon: supplier.icon, subtitle: 'External supplier system', width: 1120, height: 690, render(body) {
       body.innerHTML = `<div style="height:100%;display:grid;grid-template-rows:48px 1fr"><div class="t2m-os-supplier-toolbar"><span>${esc(supplier.url)}</span><button class="t2m-os-secondary-button" type="button">Open separately ↗</button></div><iframe title="${esc(supplier.name)}" src="${esc(supplier.url)}"></iframe></div>`;
-      body.querySelector('button').onclick = () => window.open(supplier.url, `talk2me-${key}`, 'noopener,noreferrer');
+      body.querySelector('button').onclick = () => {
+        window.open(supplier.url, `talk2me-${key}`, 'noopener,noreferrer');
+        // With noopener, browsers can return null even when a new window opens.
+        // Record a request, not a falsely verified successful or blocked pop-up.
+        logSupplier('external_open','requested');
+      };
     }});
   }
 
@@ -434,7 +482,7 @@
     try {
       const response = await fetch(`${basePath}/search/all?q=${encodeURIComponent(query)}`, { signal: controller.signal, headers: { Accept: 'application/json' } });
       if (!response.ok) throw new Error('Search failed'); results = await response.json(); searchInput.setAttribute('aria-expanded', 'true');
-      searchResults.innerHTML = results.length ? results.map((row, index) => `<button type="button" class="t2m-os-search-result" data-result="${index}"><span>${row.record_type === 'fixed' ? 'T' : 'C'}</span><span class="t2m-os-search-result-copy"><strong>${esc(row.client_name || 'Unnamed customer')}</strong><span>${esc([row.cell_number || row.branch_name, row.account_number, row.solution_id || row.handset].filter(Boolean).join(' · '))}</span></span><small>${row.record_type === 'fixed' ? 'FIXED' : 'MOBILE'}</small></button>`).join('') : `<div class="t2m-os-search-message"><strong>No customer found</strong><br>${esc(query)}</div>`;
+      searchResults.innerHTML = results.length ? results.map((row, index) => `<button type="button" class="t2m-os-search-result" data-result="${index}"><span>${row.service_type === 'voip' ? 'V' : row.service_type === 'fixed' ? 'T' : 'C'}</span><span class="t2m-os-search-result-copy"><strong>${esc(row.client_name || 'Unnamed customer')}</strong><span>${esc([row.cell_number || row.branch_name, row.account_number, row.solution_id || row.handset].filter(Boolean).join(' · '))}</span></span><small>${row.service_type === 'voip' ? 'VOIP' : row.service_type === 'fixed' ? 'FIXED' : row.verification_status === 'needs_conflict_review' ? 'REVIEW' : 'MOBILE'}</small></button>`).join('') : `<div class="t2m-os-search-message"><strong>No customer found</strong><br>${esc(query)}</div>`;
       if (results.length === 1 && query.replace(/\D/g, '').length >= 10) openCustomer(results[0]);
     } catch (error) { if (error.name !== 'AbortError') searchResults.innerHTML = '<div class="t2m-os-search-message">Search temporarily unavailable.</div>'; }
   }

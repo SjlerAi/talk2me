@@ -1,0 +1,177 @@
+<style>
+.mrv{max-width:1370px;margin:0 auto;padding:22px;color:#203951;font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+.mrv *{box-sizing:border-box}.mrv h1{font-size:25px;margin:2px 0 5px}.mrv h2{font-size:19px;margin:7px 0}
+.mrv .sub{color:#657a8d}.mrv .eyebrow{font-size:11px;letter-spacing:.1em;color:#7d4dac;font-weight:800}
+.mrv .top{display:flex;align-items:start;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.mrv a{color:#225f95}.mrv .button,.mrv button{display:inline-block;padding:8px 12px;border-radius:9px;border:1px solid #2a5377;background:#2a5377;color:white;text-decoration:none;font-weight:700}
+.mrv .button.secondary{color:#225075;background:white;border-color:#ccd8e3}
+.mrv .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin:16px 0}
+.mrv .stat,.mrv .panel{padding:14px;background:white;border:1px solid #dbe5ec;border-radius:12px}
+.mrv .stat strong{font-size:24px;display:block;color:#19354d}.mrv .stat small{font-size:12px;color:#60738a}
+.mrv .toolbar{display:flex;align-items:end;gap:9px;flex-wrap:wrap}.mrv label{display:block;font-size:12px;font-weight:700}
+.mrv input,.mrv select{display:block;padding:9px;border:1px solid #b9cbdc;background:white;color:#23435d;border-radius:8px;width:100%;margin-top:5px}
+.mrv .toolbar label{flex:1;min-width:170px}.mrv table{width:100%;border-collapse:collapse;min-width:790px;font-size:12px}
+.mrv th,.mrv td{padding:9px;border-bottom:1px solid #e5ebf0;text-align:left;vertical-align:top}
+.mrv th{background:#eff5f9;position:sticky;top:0}.mrv .scroll{overflow:auto;max-height:610px;border:1px solid #e1e8ef;border-radius:10px;margin:11px 0}
+.mrv .info{background:#f5f7fd;border-left:4px solid #7758a9;padding:11px 13px;border-radius:8px;margin:12px 0}
+.mrv .warn{background:#fff8ed;border-left:4px solid #bd832f;padding:11px 13px;border-radius:8px;margin:12px 0}
+.mrv .pill{font-size:11px;font-weight:750;border-radius:20px;background:#eff3f7;color:#245679;padding:4px 8px;display:inline-block}
+.mrv .actions{display:flex;gap:7px;flex-wrap:wrap}.mrv .actions a{font-weight:700}
+.mrv .pager{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px}
+.mrv details{padding:12px 0;border-bottom:1px solid #e3eaf0}.mrv summary{cursor:pointer;font-weight:750}
+@media(max-width:740px){.mrv{padding:12px}.mrv .stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+</style>
+<% const descriptions={
+ 'duplicate_crm_same_account':'Same mobile under the same account',
+ 'duplicate_crm_cross_account':'Same mobile under different accounts',
+ 'duplicate_crm_missing_account':'Same mobile with missing account',
+ 'id_number_difference_review':'ID details differ between sources',
+ 'account_id_conflict':'Vodacom and CRM account links disagree',
+ 'account_link_missing':'Official account relationship needs checking',
+ 'nonmobile_review_pending':'VoIP/fixed service needs verification',
+ 'crm_only_import_review':'Imported line needs CRM checking',
+ 'grouped_import_review':'Imported line needs checking',
+ 'account_code_conflict':'Official account number differs',
+ 'supplier_linked_other_client':'Supplier line linked to another customer',
+ 'multiple_active_crm_rows_same_phone':'Same cellphone appears in multiple active CRM records',
+ 'different_account_relationships':'CRM and Vodacom/import account ownership disagree',
+ 'import_conflict_pending':'Imported telephone line awaiting verification',
+ 'different_person_id_values':'CRM and supplier identity details need checking',
+ 'supplier_account_code_disagreement':'Supplier account code conflicts with its linked official account'
+}; %>
+<section class="mrv">
+  <div class="top">
+    <div>
+      <div class="eyebrow">TALK2ME · MASTER DATABASE RECONCILIATION</div>
+      <h1>Account conflicts for Owner or Manager review</h1>
+      <p class="sub">These are the remaining OPEN cases in the active Master Customer Register. The action beside each telephone number takes the Owner or Manager to the right correction screen. Opening a record never changes it.</p>
+    </div>
+    <a class="button secondary" href="<%= basePath %>/grouped-upgrade-accounts?mode=review<%= panelMode?'&panel=1':'' %>">Back to Gerda's Conflict Resolution</a>
+  </div>
+  <% if(notice){ %><div class="info" role="status"><strong>Decision saved:</strong> <%= notice %> The resolved telephone number is no longer in the open conflict list.</div><% } %>
+  <div class="stats">
+    <div class="stat"><strong><%= progress.telephone_cases_open||0 %></strong><small>Different telephone numbers needing review</small></div>
+    <div class="stat"><strong><%= eventConflicts.length %></strong><small>Repeated transaction pairs with conflicting details</small></div>
+    <div class="stat"><strong><%= duplicateAccounts.length %></strong><small>Possible duplicate official accounts</small></div>
+    <div class="stat"><strong><%= staffConflicts.length %></strong><small>Accounts with competing staff ownership</small></div>
+  </div>
+  <div class="info">
+    <strong>Current breakdown:</strong>
+    <% types.forEach((t,i)=>{ %>
+      <%= i?', ':'' %><strong><%= t.n %></strong> <%= descriptions[t.assessment]||t.assessment %><% }) %>.
+    Some issues overlap; these numbers must not be added together.
+  </div>
+  <div class="info">
+    <strong>Already completed without Gerda:</strong>
+    <%= progress.source_links_added||0 %> verified supplier-to-customer links and
+    <%= progress.event_repeats_canonicalized||0 %> repeated historical transactions consolidated in reporting.
+    No customer history, contract lines or source imports were deleted.
+  </div>
+  <div class="warn">
+    <strong>Not a correction list:</strong> <%= progress.needs_fresh_source||0 %> telephone numbers occur in only one of the compared datasets.
+    We need a current Vodacom Base Details report before deciding if those numbers are active or cancelled.
+    Gerda should not manually delete these numbers.
+  </div>
+
+  <div class="warn">
+    <strong>Upgrade-date verification is separate:</strong> Some CRM lines are held because their last upgrade or customer link is not trustworthy.
+    They are excluded from My Day, Cudo and the approved Upgrade Centre until corrected.
+    <a href="<%= basePath %>/master-register/upgrade-holds">Open held upgrade dates and pending approved imports</a>.
+  </div>
+  <section class="panel">
+    <h2>Telephone-number conflicts</h2>
+    <form method="get" class="toolbar" action="<%= basePath %>/grouped-upgrade-accounts/master-review">
+      <% if(panelMode){ %><input type="hidden" name="panel" value="1"><% } %>
+      <label>Current master conflict type
+        <select name="type">
+          <option value="all">All remaining telephone cases</option>
+          <% types.forEach(t=>{ %>
+            <option value="<%= t.assessment %>" <%= type===t.assessment?'selected':'' %>>
+              <%= descriptions[t.assessment]||t.assessment %> (<%= t.n %>)
+            </option>
+          <% }) %>
+        </select>
+      </label>
+      <label>Search phone, account or business
+        <input type="search" name="q" value="<%= search %>" placeholder="Search current cases">
+      </label>
+      <button type="submit">Find cases</button>
+      <a class="button secondary" href="<%= basePath %>/grouped-upgrade-accounts/master-review">Clear</a>
+    </form>
+    <p class="sub"><strong><%= total %></strong> cases match this selection. A line with several valid contracts must not be merged automatically.</p>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Telephone</th><th>Problem to verify</th><th>Customer / business</th><th>CRM account and source</th><th>Next action</th></tr></thead>
+        <tbody>
+        <% cases.forEach(c=>{ %>
+          <tr>
+            <td><strong><%= c.phone %></strong><br><small><%= c.active_crm_rows||0 %> active CRM rows</small></td>
+            <td><% c.master_issues.forEach(issue=>{ %>
+              <div><%= descriptions[issue]||issue %></div>
+            <% }) %></td>
+            <td><%= c.client_name||c.supplier_name||c.master_service_name||'Name not verified' %>
+              <% if(c.crm_client_id){ %><small style="display:block">CRM #<%= c.crm_client_id %></small><% } %>
+            </td>
+            <td><%= c.account_number||c.supplier_code||'Account number missing' %>
+              <% if(c.account_number&&c.supplier_code&&c.account_number!==c.supplier_code){ %>
+                <small style="display:block">Vodacom: <%= c.supplier_code %></small><% } %>
+            </td>
+            <td>
+              <div class="actions">
+              <% if(c.import_first){ %>
+                <a class="button" href="<%= basePath %>/grouped-upgrade-accounts/line/<%= c.grouped_review_id %>/review">Resolve imported line</a>
+              <% }else if(c.duplicate_review_type){ %>
+                <a class="button" href="<%= basePath %>/temporary-cleanup/review/<%= c.duplicate_review_type %>/<%= c.duplicate_review_phone %>">Review duplicate contract lines</a>
+              <% }else if(c.account_choice){ %>
+                <a class="button" href="<%= basePath %>/master-register/service/<%= encodeURIComponent(c.master_service_key) %>#resolve-account">Choose correct account</a>
+              <% }else if(c.master_service_key){ %>
+                <a class="button secondary" href="<%= basePath %>/master-register/service/<%= encodeURIComponent(c.master_service_key) %>#resolve-account">Review source evidence</a>
+              <% } %>
+              <% if(c.grouped_review_id&&!c.import_first){ %>
+                <a href="<%= basePath %>/grouped-upgrade-accounts/line/<%= c.grouped_review_id %>/review">Import details</a>
+              <% } %>
+              </div>
+              <% if(c.master_issues.includes('different_person_id_values')){ %><small>Check the original identity details before changing this customer</small><% } %>
+            </td>
+          </tr>
+        <% }) %>
+        <% if(!cases.length){ %><tr><td colspan="5">No matching cases.</td></tr><% } %>
+        </tbody>
+      </table>
+    </div>
+    <div class="pager">
+      <span class="sub">Page <%= page %> of <%= pages %></span>
+      <div class="actions">
+        <% if(page>1){ %><a class="button secondary" href="<%= basePath %>/grouped-upgrade-accounts/master-review?type=<%= encodeURIComponent(type) %>&q=<%= encodeURIComponent(search) %>&page=<%= page-1 %>">Previous</a><% } %>
+        <% if(page<pages){ %><a class="button secondary" href="<%= basePath %>/grouped-upgrade-accounts/master-review?type=<%= encodeURIComponent(type) %>&q=<%= encodeURIComponent(search) %>&page=<%= page+1 %>">Next</a><% } %>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Other business decisions</h2>
+    <details>
+      <summary><%= eventConflicts.length %> activation / upgrade pairs with conflicting information</summary>
+      <div class="scroll"><table><thead><tr><th>Telephone</th><th>Event type</th><th>Conflicting fields</th><th>Two report events</th></tr></thead><tbody>
+        <% eventConflicts.forEach(e=>{ %>
+          <tr><td><%= e.msisdn_normalised %></td><td><%= e.event_type %></td>
+            <td><%= JSON.parse(e.reasons_json||'[]').join(', ').replace(/different_/g,'') %></td>
+            <td>#<%= e.reference_event_id %> and #<%= e.repeated_event_id %></td></tr>
+        <% }) %>
+      </tbody></table></div>
+    </details>
+    <details>
+      <summary><%= duplicateAccounts.length %> repeated official account numbers</summary>
+      <div class="scroll"><table><thead><tr><th>Official account</th><th>CRM account record IDs</th></tr></thead><tbody>
+      <% duplicateAccounts.forEach(x=>{ %><tr><td><strong><%= x.account_key %></strong></td><td><%= x.account_ids_json %></td></tr><% }) %>
+      </tbody></table></div>
+    </details>
+    <details>
+      <summary><%= staffConflicts.length %> business accounts with conflicting staff assignments</summary>
+      <div class="scroll"><table><thead><tr><th>Account</th><th>Different staff assignments</th></tr></thead><tbody>
+      <% staffConflicts.forEach(x=>{ %><tr><td><%= x.account_key %></td><td><%= x.owners %></td></tr><% }) %>
+      </tbody></table></div>
+    </details>
+  </section>
+  <p class="sub">Review lists use historical source data and must not be used to delete numbers that are absent from the September Vodacom extract.</p>
+</section>

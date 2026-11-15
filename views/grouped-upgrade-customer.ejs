@@ -1,0 +1,72 @@
+<section style="max-width:1120px;margin:0 auto;padding:18px;color:#243a52;font:14px/1.5 system-ui,-apple-system,'Segoe UI',sans-serif">
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+    <div><div style="color:#7554a5;font-weight:850;font-size:11px;letter-spacing:.1em">TALK2ME / OWNER CONFLICT RESOLUTION</div>
+      <h1 style="font-size:25px;margin:2px 0">Create or link a customer</h1>
+      <p style="margin:2px 0;color:#60758a"><%= customerGroup.account_name||'Business name not supplied' %> ·
+      <strong><%= customerGroup.account_number||'Official account number still missing' %></strong></p>
+    </div>
+    <a href="<%= basePath %>/grouped-upgrade-accounts?mode=review<%= panelMode?'&panel=1':'' %>" style="padding:9px 12px;border:1px solid #bdcddd;border-radius:8px;text-decoration:none;color:#265787">Back to Gerda's conflict queue</a>
+  </div>
+  <% if(flash){ %><div style="margin:12px 0;padding:12px;border-left:4px solid #319966;background:#e7f9f0"><strong><%= flash %></strong></div><% } %>
+  <% if(error){ %><div style="margin:12px 0;padding:12px;border-left:4px solid #bc7a2f;background:#fff5e6"><strong>Not updated:</strong> <%= error %></div><% } %>
+  <% if(!customerGroup.crm_account_id){ %>
+  <div style="margin:14px 0;padding:14px;border:1px solid #dfcba8;border-radius:10px;background:#fff9f0">
+    <h2 style="font-size:17px;margin:0 0 5px">First choice: confirm the existing business account, if known</h2>
+    <p style="color:#6a6f7e">These are only suggestions. The official account must be verified before linking a customer to it. Do not create an example B/VB number.</p>
+    <form method="get" action="<%= basePath %>/grouped-upgrade-accounts/account/<%= customerGroup.id %>/customer" style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin:10px 0">
+      <% if(panelMode){ %><input type="hidden" name="panel" value="1"><% } %>
+      <label style="flex:1;min-width:190px">Search account number or business name
+        <input type="search" name="account_search" value="<%= accountSearch||'' %>" placeholder="Search existing CRM business account" style="display:block;width:100%;padding:9px;border:1px solid #b5c8d9;border-radius:8px">
+      </label>
+      <button type="submit" style="padding:10px;background:#275987;color:#fff;border:0;border-radius:8px">Find account</button>
+    </form>
+    <% if(accountSuggestions.length){ %>
+      <form method="post" action="<%= basePath %>/grouped-upgrade-accounts/account/<%= customerGroup.id %>/customer">
+        <input type="hidden" name="csrf_token" value="<%= csrfToken %>"><input type="hidden" name="panel" value="<%= panelMode?'1':'0' %>">
+        <input type="hidden" name="action" value="select_group_account">
+        <% accountSuggestions.forEach(a=>{ %>
+          <label style="display:grid;grid-template-columns:19px minmax(0,1fr);gap:9px;margin:8px 0;padding:10px;border:1px solid #dfdfdb;border-radius:8px;background:#fff">
+          <input type="radio" name="account_id" value="<%= a.id %>" required style="width:18px;height:18px;margin-top:2px">
+          <span><strong><%= a.account_number %> — <%= a.display_name||'Account name not supplied' %></strong>
+            <small style="display:block;color:#657688"><%= a.matchingSourceName?'Possible business name match — confirm before linking':'CRM business account' %></small></span>
+          </label>
+        <% }) %>
+        <button type="submit" style="padding:10px;background:#245f8a;color:#fff;border:0;border-radius:8px">Update — confirm selected account</button>
+      </form>
+    <% } %>
+    <details style="margin:12px 0"><summary style="cursor:pointer;font-weight:750">I have a verified official account number not in the CRM</summary>
+      <form method="post" action="<%= basePath %>/grouped-upgrade-accounts/account/<%= customerGroup.id %>/customer">
+        <input type="hidden" name="csrf_token" value="<%= csrfToken %>"><input type="hidden" name="panel" value="<%= panelMode?'1':'0' %>">
+        <input type="hidden" name="action" value="create_group_account">
+        <p>Use the actual Vodacom B/VB/I number, never a placeholder.</p>
+        <label>Verified official account number<input name="account_code" required maxlength="80" style="display:block;width:100%;padding:9px;margin:5px 0;border:1px solid #b5c8d9;border-radius:8px"></label>
+        <label>Correct business name<input name="account_display_name" required maxlength="180" value="<%= customerGroup.account_name||'' %>" style="display:block;width:100%;padding:9px;margin:5px 0;border:1px solid #b5c8d9;border-radius:8px"></label>
+        <label style="display:flex;align-items:start;gap:8px;margin:10px 0"><input type="checkbox" name="confirm_separate_account" value="yes" style="width:18px;height:18px">
+          <span>Separate verified official account, if this business already has another B/VB number</span></label>
+        <button type="submit" style="padding:10px;background:#245f8a;color:#fff;border:0;border-radius:8px">Update — create verified account</button>
+      </form>
+    </details>
+  </div>
+  <% } %>
+  <% if(relatedLines.length){ %>
+    <div style="border:1px solid #dce4ef;padding:12px;border-radius:10px;margin:12px 0;background:#fff">
+      <strong>Telephone numbers in this imported business group:</strong>
+      <%= relatedLines.map(x=>x.phone).join(' · ') %>
+      <p style="margin:5px 0;color:#66798e">These existing numbers will not be deleted or overwritten.</p>
+    </div>
+  <% }else{ %>
+    <div style="border:1px solid #dce4ef;padding:12px;border-radius:10px;margin:12px 0;background:#fff">
+      <strong>No telephone number is recorded for this business group.</strong> You can create a customer contact without a number, or enter a verified new telephone number below.
+    </div>
+  <% } %>
+  <% if(linkedCustomers.length){ %>
+    <div style="border:1px solid #dce4ef;padding:12px;border-radius:10px;margin:12px 0;background:#fff">
+      <strong>Already linked CRM customers:</strong>
+      <% linkedCustomers.forEach(c=>{ %>
+      <p style="margin:6px 0">#<%= c.id %> · <%= c.client_name||'(No name)' %> · <%= c.cell_number||'Telephone not supplied' %>
+        <a href="<%= basePath %>/customers/<%= c.id %>/360?panel=1">Open customer</a></p>
+      <% }) %>
+    </div>
+  <% } %>
+  <%- include('grouped-upgrade-customer-section') %>
+</section>

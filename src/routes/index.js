@@ -7,6 +7,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { requireAuth, businessDate } = require('../middleware/auth');
 const { safeLoginReturn } = require('../services/cleanup-login-return');
+const tk2mLogin = require('../middleware/tk2m-staging-login');
 const { canUseTemporaryCleanup } = require('../services/temporary-cleanup-access');
 const { trackEvent } = require('../services/usage-telemetry');
 const { sendTaskEmail } = require('../services/mailer');
@@ -16,6 +17,7 @@ const { claimClient } = require('../services/client-claim');
 
 const router = express.Router();
 
+// All active staff accounts must authenticate with a stored password hash.
 
 function isOwnerRole(user) {
   return user && ['owner','admin','manager'].includes(user.role);
@@ -181,11 +183,11 @@ router.get('/', (req, res) => {
 });
 
 router.get('/login', (req, res) => {
-  // A valid logged-in session must not render Staff Login underneath
-  // the authenticated toolbar. Return to the normal role landing page.
+  // A valid logged-in session must return directly to the authenticated workspace.
   if (req.session.user) {
-    const reviewTarget=safeLoginReturn(req.query.return_to,res.locals.basePath,res.locals.isStaging);
-    return res.redirect(reviewTarget === res.locals.basePath+'/data-review' ? reviewTarget : `${res.locals.basePath}${defaultLanding(req.session.user)}`);
+    return res.redirect(safeLoginReturn(req.query.return_to,res.locals.basePath,res.locals.isStaging) === res.locals.basePath+'/data-review'
+      ? res.locals.basePath+'/data-review'
+      : res.locals.basePath+defaultLanding(req.session.user));
   }
   const reason = String(req.query.reason || '');
   const error = reason === 'daily'
@@ -193,12 +195,15 @@ router.get('/login', (req, res) => {
     : null;
   const returnTo = safeLoginReturn(req.query.return_to, res.locals.basePath, res.locals.isStaging);
   res.render('login', { title: 'Login', error, returnTo,
-    // TK2M preview has its own tiny auth shell. UENT retains its original layout.
+    loginCsrf: res.locals.isStaging ? tk2mLogin.csrf(req) : null,
     layout: res.locals.isStaging ? 'tk2m-login-layout' : 'layout' });
 });
 
-router.post('/login', async (req, res, next) => {
+router.post('/login', tk2mLogin.attempts, async (req, res, next) => {
   try {
+    if (res.locals.isStaging && !tk2mLogin.validCsrf(req)) {
+      return res.status(403).type('text/plain').send('This login form has expired. Refresh the login page and try again.');
+    }
     const returnTo = safeLoginReturn(req.body.return_to, res.locals.basePath, res.locals.isStaging);
     const login = String(req.body.email || '').trim();
     const password = req.body.password;
@@ -209,9 +214,14 @@ router.post('/login', async (req, res, next) => {
     const user = rows[0];
     let ok = false;
     if (user && user.password_hash) ok = await bcrypt.compare(password, user.password_hash);
-    // Legacy accounts without a password hash require a secure administrator-led reset.
-    if (!user || !ok) return res.status(401).render('login', { title: 'Login', error: 'Invalid login details.', returnTo,
-      layout: res.locals.isStaging ? 'tk2m-login-layout' : 'layout' });
+    // No plaintext fallback passwords, including in UENT test mode.
+    if (!user || !ok) {
+      tk2mLogin.failed(req);
+      return res.status(401).render('login', { title: 'Login', error: 'Invalid login details.', returnTo,
+        loginCsrf: res.locals.isStaging ? tk2mLogin.csrf(req) : null,
+        layout: res.locals.isStaging ? 'tk2m-login-layout' : 'layout' });
+    }
+    tk2mLogin.succeeded(req);
     const sessionUser = { id: user.id, full_name: user.full_name, email: user.email, role: user.role, username: user.username || user.full_name };
     req.session.regenerate(async error => {
       if (error) return next(error);
@@ -242,7 +252,7 @@ router.post('/login', async (req, res, next) => {
           httpStatus:302,
           metadata:{ loginDate:req.session.loginDate }
         });
-        const reviewAllowed=res.locals.isStaging && returnTo===res.locals.basePath+'/data-review';
+        const reviewAllowed = res.locals.isStaging && returnTo === res.locals.basePath+'/data-review';
         const landing = returnTo && (canUseTemporaryCleanup(sessionUser)||reviewAllowed) ? returnTo : res.locals.basePath + defaultLanding(sessionUser);
         req.session.save(saveError => saveError ? next(saveError) : res.redirect(landing));
       } catch(e){ next(e); }
@@ -273,7 +283,7 @@ router.get('/dashboard', requireAuth, async (req, res, next) => {
     const [[openCases]] = await db.query("SELECT COUNT(*) total FROM inquiries WHERE status IN ('open','follow_up','waiting_customer','waiting_network','waiting_supplier')");
     const [[completedToday]] = await db.query("SELECT COUNT(*) total FROM inquiries WHERE DATE(COALESCE(completed_at, updated_at))=CURRENT_DATE() AND status IN ('resolved','cancelled')");
     const [[followupsDue]] = await db.query("SELECT COUNT(*) total FROM inquiries WHERE status IN ('open','follow_up','waiting_customer','waiting_network','waiting_supplier') AND follow_up_at IS NOT NULL AND DATE(follow_up_at) <= CURRENT_DATE()");
-    const [[clients]] = await db.query("SELECT COUNT(*) total FROM clients");
+    const [[clients]] = await db.query("SELECT COUNT(*) total FROM crm_master_customers WHERE run_id=(SELECT run_id FROM crm_master_active WHERE singleton=1)");
     const [activity] = await db.query(`SELECT i.id, i.created_at, i.client_name, i.cell_number, i.status, c.category_name, COALESCE(s.full_name,'Unassigned') staff_member
       FROM inquiries i LEFT JOIN inquiry_categories c ON c.id=i.category_id LEFT JOIN staff_users s ON s.id=i.staff_id
       ORDER BY i.created_at DESC LIMIT 25`);
@@ -314,7 +324,7 @@ router.get('/dashboard', requireAuth, async (req, res, next) => {
 
     const [upgrades] = await db.query(`SELECT id, account_number, client_name, cell_number, email, handset, package_name, upgrade_date,
       DATEDIFF(DATE(upgrade_date), CURRENT_DATE()) AS days_until_upgrade
-      FROM clients
+      FROM crm_v_master_actionable_upgrades
       WHERE upgrade_date IS NOT NULL
         AND DATE(upgrade_date) BETWEEN CURRENT_DATE() AND DATE_ADD(CURRENT_DATE(), INTERVAL 7 DAY)
       ORDER BY DATE(upgrade_date), client_name, cell_number`);
@@ -1240,7 +1250,13 @@ router.get('/backoffice/clients/new', requireAuth, requireRole('owner','manager'
       if (inq) prefill = inq;
     }
     const [staff] = await db.query(`SELECT id,full_name FROM staff_users WHERE is_active=1 ORDER BY full_name`);
-    const account=prefill.account_number?await ensureCustomerAccount(prefill.account_number,prefill.client_name):null;
+    // Opening a blank/new customer form must never create an official account.
+    // Account creation and verification happen on the authorised POST only.
+    let account=null;
+    if(prefill.account_number){
+      const normalised=String(prefill.account_number).replace(/\s+/g,'').toUpperCase().slice(0,80);
+      [[account]]=await db.execute('SELECT id,assigned_staff_id FROM customer_accounts WHERE account_number_normalised=:normalised LIMIT 1',{normalised});
+    }
     res.render('client-edit',{title:'Add Client / Potential Client',client:null,prefill,inquiryId,saved:false,staff,assignedStaffId:account?.assigned_staff_id||null});
   } catch(e){ next(e); }
 });
@@ -1406,8 +1422,8 @@ router.get('/command-centre', requireAuth, requireOwnerRole, async (req,res,next
       (SELECT COUNT(*) FROM inquiries WHERE status IN ${openStatuses} AND COALESCE(assigned_staff_id,staff_id) IS NULL) unassigned_work,
       (SELECT COUNT(*) FROM staff_tasks WHERE status IN ('unread','seen','in_progress')) open_tasks,
       (SELECT COUNT(*) FROM staff_tasks WHERE status IN ('unread','seen','in_progress') AND due_at<NOW()) overdue_tasks,
-      (SELECT COUNT(*) FROM clients WHERE line_status<>'cancelled' AND next_upgrade_date=CURRENT_DATE()) upgrades_today,
-      (SELECT COUNT(*) FROM clients WHERE line_status<>'cancelled' AND next_upgrade_date<CURRENT_DATE()) overdue_upgrades,
+      (SELECT COUNT(*) FROM crm_v_master_actionable_upgrades WHERE next_upgrade_date=CURRENT_DATE()) upgrades_today,
+      (SELECT COUNT(*) FROM crm_v_master_actionable_upgrades WHERE next_upgrade_date<CURRENT_DATE()) overdue_upgrades,
       (SELECT COUNT(DISTINCT COALESCE(NULLIF(id_number,''),CONCAT('client:',id))) FROM clients WHERE birthday IS NOT NULL AND MONTH(birthday)=MONTH(CURRENT_DATE()) AND DAY(birthday)=DAY(CURRENT_DATE())) birthdays_today,
       (SELECT COUNT(*) FROM clients WHERE DATE(created_at)=CURRENT_DATE() AND lifecycle_status='prospect') walkins_today,
       (SELECT COUNT(*) FROM clients c WHERE c.is_active=1 AND NOT EXISTS(SELECT 1 FROM client_assignments a WHERE a.is_active=1 AND (a.client_id=c.id OR (a.account_number<>'' AND a.account_number=c.account_number)))) unassigned_clients,
@@ -1429,9 +1445,9 @@ router.get('/command-centre', requireAuth, requireOwnerRole, async (req,res,next
       ORDER BY CASE priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 ELSE 2 END,due_at IS NULL,due_at LIMIT 30`);
     const [upgrades] = await db.query(`SELECT c.id,c.client_name,c.cell_number,c.account_number,c.handset,c.next_upgrade_date,
       DATEDIFF(c.next_upgrade_date,CURRENT_DATE()) days_until,COALESCE(s.full_name,'Unassigned') assigned_name
-      FROM clients c LEFT JOIN client_assignments a ON a.id=(SELECT a2.id FROM client_assignments a2 WHERE a2.is_active=1 AND (a2.client_id=c.id OR (a2.account_number<>'' AND a2.account_number=c.account_number)) ORDER BY (a2.client_id=c.id) DESC LIMIT 1)
+      FROM crm_v_master_actionable_upgrades c LEFT JOIN client_assignments a ON a.id=(SELECT a2.id FROM client_assignments a2 WHERE a2.is_active=1 AND (a2.client_id=c.id OR (a2.account_number<>'' AND a2.account_number=c.account_number)) ORDER BY (a2.client_id=c.id) DESC LIMIT 1)
       LEFT JOIN staff_users s ON s.id=a.assigned_staff_id
-      WHERE c.line_status<>'cancelled' AND c.next_upgrade_date BETWEEN DATE_SUB(CURRENT_DATE(),INTERVAL 30 DAY) AND DATE_ADD(CURRENT_DATE(),INTERVAL 7 DAY)
+      WHERE c.next_upgrade_date BETWEEN DATE_SUB(CURRENT_DATE(),INTERVAL 30 DAY) AND DATE_ADD(CURRENT_DATE(),INTERVAL 7 DAY)
       ORDER BY c.next_upgrade_date LIMIT 20`);
     const [birthdays] = await db.query(`SELECT MIN(id) id,MAX(client_name) client_name,MAX(cell_number) cell_number,MAX(email) email,MAX(birthday) birthday,COUNT(*) line_count
       FROM clients WHERE birthday IS NOT NULL AND MONTH(birthday)=MONTH(CURRENT_DATE()) AND DAY(birthday)=DAY(CURRENT_DATE())
@@ -1448,7 +1464,7 @@ router.get(['/workspace','/staff-workspace','/my-command-centre'], requireAuth, 
       WHERE COALESCE(i.assigned_staff_id,i.staff_id)=:id AND i.status IN ('open','follow_up','waiting_customer','waiting_network','waiting_supplier')
       ORDER BY i.follow_up_at IS NULL,i.follow_up_at,i.created_at DESC`,{id});
     const [tasks]=await db.execute(`SELECT * FROM staff_tasks WHERE assigned_to=:id AND status IN ('unread','seen','in_progress') ORDER BY due_at IS NULL,due_at`,{id});
-    const [upgrades]=await db.execute(`SELECT DISTINCT c.id,c.client_name,c.cell_number,c.account_number,c.next_upgrade_date FROM clients c JOIN client_assignments a ON a.is_active=1 AND a.assigned_staff_id=:id AND (a.client_id=c.id OR (a.account_number<>'' AND a.account_number=c.account_number)) WHERE c.line_status<>'cancelled' AND c.next_upgrade_date<=DATE_ADD(CURRENT_DATE(),INTERVAL 7 DAY) ORDER BY c.next_upgrade_date LIMIT 50`,{id});
+    const [upgrades]=await db.execute(`SELECT DISTINCT c.id,c.client_name,c.cell_number,c.account_number,c.next_upgrade_date FROM crm_v_master_actionable_upgrades c JOIN client_assignments a ON a.is_active=1 AND a.assigned_staff_id=:id AND (a.client_id=c.id OR (a.account_number<>'' AND a.account_number=c.account_number)) WHERE c.next_upgrade_date<=DATE_ADD(CURRENT_DATE(),INTERVAL 7 DAY) ORDER BY c.next_upgrade_date LIMIT 50`,{id});
     const [birthdays]=await db.execute(`SELECT MIN(c.id) id,MAX(c.client_name) client_name,MAX(c.cell_number) cell_number,MAX(c.email) email,MAX(c.birthday) birthday,COUNT(*) line_count FROM clients c JOIN client_assignments a ON a.is_active=1 AND a.assigned_staff_id=:id AND (a.client_id=c.id OR (a.account_number<>'' AND a.account_number=c.account_number)) WHERE c.birthday IS NOT NULL AND MONTH(c.birthday)=MONTH(CURRENT_DATE()) AND DAY(c.birthday)=DAY(CURRENT_DATE()) GROUP BY COALESCE(NULLIF(c.id_number,''),CONCAT('client:',c.id)) ORDER BY client_name`,{id});
     const [fixedAccounts]=await db.execute(`SELECT fa.id,fa.customer_name,fa.account_number,fa.contact_number,COUNT(fs.id) service_count FROM fixed_accounts fa LEFT JOIN fixed_services fs ON fs.fixed_account_id=fa.id WHERE fa.assigned_staff_id=:id AND fa.account_status='active' GROUP BY fa.id ORDER BY fa.customer_name`,{id});
     const [[changes]]=await db.execute(`SELECT COUNT(*) total FROM data_change_requests WHERE requested_by=:id AND status IN ('pending_manager','pending_owner')`,{id});
@@ -1511,7 +1527,35 @@ router.get('/customers/:id/360', requireAuth, async (req,res,next) => {
     const [[accountRecord]]=client.account_number?await db.execute(`SELECT a.*,s.full_name assigned_staff_name FROM customer_accounts a LEFT JOIN staff_users s ON s.id=a.assigned_staff_id WHERE a.account_number_normalised=UPPER(REPLACE(TRIM(:account),' ','')) LIMIT 1`,{account:client.account_number}):[[]];
     const [[pendingClaim]]=accountRecord?await db.execute(`SELECT r.id,r.requested_by,u.full_name requested_by_name,r.created_at FROM data_change_requests r JOIN staff_users u ON u.id=r.requested_by WHERE r.request_type='claim_account' AND r.record_id=:accountId AND r.status IN ('pending_manager','pending_owner') ORDER BY r.created_at LIMIT 1`,{accountId:accountRecord.id}):[[]];
     const [fixedAccounts]=await db.execute(`SELECT fa.*,COUNT(fs.id) fixed_service_count FROM fixed_accounts fa LEFT JOIN fixed_services fs ON fs.fixed_account_id=fa.id WHERE (:account<>'' AND (fa.account_number=:account OR fa.linked_mobile_account_number=:account)) OR fa.linked_client_id=:id GROUP BY fa.id`,{id,account:client.account_number||''});
-    res.render('customer-360',{title:client.client_name||'Customer Workspace',client,lines,history,tasks,assignment:assignment||null,assignmentStaff,accountRecord:accountRecord||null,pendingClaim:pendingClaim||null,fixedAccounts,assigned:req.query.assigned,claimRequested:req.query.claim_requested,changeRequested:req.query.change_requested});
+    // Read the account and ALL verified service lines from the single master
+    // register. Keep the editable CRM line records and historical tasks intact.
+    const management=['owner','manager','admin'].includes(req.session.user.role);
+    let masterCustomer=null,masterServices=[],masterServiceConflict=null;
+    if(management){
+      const [[mapping]]=await db.execute(
+        'SELECT c.master_customer_key,c.master_account_number,c.master_customer_verification,c.master_service_key,c.master_link_state '+
+        'FROM crm_v_master_clients c WHERE c.id=:id LIMIT 1',{id});
+      if(mapping?.master_link_state==='needs_conflict_review'&&mapping.master_service_key){
+        masterServiceConflict={serviceKey:mapping.master_service_key,phone:client.cell_number};
+      }
+      if(mapping?.master_customer_key){
+        const [[master]]=await db.execute(
+          'SELECT customer_key,display_name,account_number,verification_state,service_count '+
+          'FROM crm_master_customers WHERE run_id=(SELECT run_id FROM crm_master_active WHERE singleton=1) '+
+          'AND customer_key=:key',{key:mapping.master_customer_key});
+        masterCustomer=master||null;
+        if(masterCustomer){
+          [masterServices]=await db.execute(
+            'SELECT service_key,phone,service_type,crm_client_id,mobile_base_id,fixed_service_id,link_state,display_name '+
+            'FROM crm_v_master_service_register WHERE master_customer_key=:key '+
+            'ORDER BY service_type,phone,service_key LIMIT 220',{key:masterCustomer.customer_key});
+        }
+      }
+    }
+    res.render('customer-360',{title:client.client_name||'Customer Workspace',client,lines,history,tasks,
+      assignment:assignment||null,assignmentStaff,accountRecord:accountRecord||null,
+      pendingClaim:pendingClaim||null,fixedAccounts,masterCustomer,masterServices,masterServiceConflict,
+      assigned:req.query.assigned,claimRequested:req.query.claim_requested,changeRequested:req.query.change_requested});
   } catch(e){next(e);}
 });
 
@@ -1526,8 +1570,8 @@ router.get('/upgrade-centre', requireAuth, requireOwnerRole, async (req,res,next
     else where.push('c.next_upgrade_date<CURRENT_DATE()');
     if(q) where.push('(c.cell_number LIKE :q OR c.account_number LIKE :q OR c.client_name LIKE :q OR c.package_name LIKE :q)');
     const [rows]=await db.execute(`SELECT c.*,DATEDIFF(c.next_upgrade_date,CURRENT_DATE()) days_until,
-      (SELECT COUNT(*) FROM clients x WHERE x.account_number=c.account_number AND c.account_number<>'') line_count,
-      COALESCE(s.full_name,'Unassigned') assigned_name FROM clients c
+      (SELECT COUNT(*) FROM crm_v_master_service_register x WHERE x.master_customer_key=c.master_customer_key AND x.link_state<>'needs_conflict_review') line_count,
+      COALESCE(s.full_name,'Unassigned') assigned_name FROM crm_v_master_actionable_upgrades c
       LEFT JOIN client_assignments a ON a.id=(SELECT a2.id FROM client_assignments a2 WHERE a2.is_active=1 AND (a2.client_id=c.id OR (a2.account_number<>'' AND a2.account_number=c.account_number)) ORDER BY (a2.client_id=c.id) DESC LIMIT 1)
       LEFT JOIN staff_users s ON s.id=a.assigned_staff_id WHERE ${where.join(' AND ')} ORDER BY c.next_upgrade_date,c.client_name LIMIT 2000`,params);
     res.render('upgrade-centre',{title:'Upgrade Centre',rows,filters:{window,q}});
@@ -1539,7 +1583,7 @@ router.get('/upgrade-centre.csv', requireAuth, requireOwnerRole, async (req,res,
     const window=String(req.query.window||'overdue'),q=String(req.query.q||'').trim(); const where=["line_status<>'cancelled'",'next_upgrade_date IS NOT NULL']; const params={q:`%${q}%`};
     if(window==='today')where.push('next_upgrade_date=CURRENT_DATE()');else if(window==='week')where.push('next_upgrade_date BETWEEN CURRENT_DATE() AND DATE_ADD(CURRENT_DATE(),INTERVAL 7 DAY)');else if(window==='month')where.push('YEAR(next_upgrade_date)=YEAR(CURRENT_DATE()) AND MONTH(next_upgrade_date)=MONTH(CURRENT_DATE())');else if(window==='future')where.push('next_upgrade_date>CURRENT_DATE()');else where.push('next_upgrade_date<CURRENT_DATE()');
     if(q)where.push('(cell_number LIKE :q OR account_number LIKE :q OR client_name LIKE :q OR package_name LIKE :q)');
-    const [rows]=await db.execute(`SELECT client_name,account_number,cell_number,package_name,handset,previous_upgrade_date,contract_term_months,next_upgrade_date,last_upgrade_consultant,line_status FROM clients WHERE ${where.join(' AND ')} ORDER BY next_upgrade_date,client_name`,params);
+    const [rows]=await db.execute(`SELECT client_name,account_number,cell_number,package_name,handset,previous_upgrade_date,contract_term_months,next_upgrade_date,last_upgrade_consultant,line_status FROM crm_v_master_actionable_upgrades WHERE ${where.join(' AND ')} ORDER BY next_upgrade_date,client_name`,params);
     const esc=v=>`"${String(v??'').replace(/"/g,'""')}"`; const lines=[['Client','Account','Cellphone','Package','Handset','Previous Upgrade','Term Months','Next Upgrade','Previous Consultant','Line Status'].map(esc).join(',')]; rows.forEach(x=>lines.push(Object.values(x).map(esc).join(',')));
     res.setHeader('Content-Type','text/csv; charset=utf-8');res.setHeader('Content-Disposition','attachment; filename="talk2me-upgrades.csv"');res.send('\ufeff'+lines.join('\n'));
   }catch(e){next(e)}
@@ -1707,7 +1751,7 @@ router.get('/my-change-requests',requireAuth,async(req,res,next)=>{try{const [ro
 
 router.get('/reports',requireAuth,requireRole('owner','manager'),async(req,res,next)=>{
   try{const type=String(req.query.type||'birthdays'),window=String(req.query.window||'today'),q=String(req.query.q||'').trim();let rows=[];
-    if(type==='birthdays'){const where=['c.birthday IS NOT NULL'];const params={q:`%${q}%`};if(window==='today')where.push('MONTH(c.birthday)=MONTH(CURRENT_DATE()) AND DAY(c.birthday)=DAY(CURRENT_DATE())');else if(window==='week')where.push("DAYOFYEAR(c.birthday) BETWEEN DAYOFYEAR(CURRENT_DATE()) AND DAYOFYEAR(DATE_ADD(CURRENT_DATE(),INTERVAL 7 DAY))");else if(window==='month')where.push('MONTH(c.birthday)=MONTH(CURRENT_DATE())');else if(window==='missing')where[0]='c.birthday IS NULL';if(q)where.push('(c.client_name LIKE :q OR c.cell_number LIKE :q OR c.account_number LIKE :q OR c.email LIKE :q)');[rows]=await db.execute(`SELECT MIN(c.id) id,MAX(c.client_name) client_name,MAX(c.cell_number) cell_number,MAX(c.email) email,MAX(c.city_town) city_town,MAX(c.birthday) birthday,MAX(c.main_contact_name) main_contact_name,COUNT(*) line_count,COALESCE(MAX(s.full_name),'Unassigned') assigned_name FROM clients c LEFT JOIN client_assignments a ON a.is_active=1 AND (a.client_id=c.id OR (a.account_number<>'' AND a.account_number=c.account_number)) LEFT JOIN staff_users s ON s.id=a.assigned_staff_id WHERE ${where.join(' AND ')} GROUP BY COALESCE(NULLIF(c.id_number,''),CONCAT('client:',c.id)) ORDER BY MONTH(MAX(c.birthday)),DAY(MAX(c.birthday)),client_name LIMIT 2000`,params)}
+    if(type==='birthdays'){const where=['c.birthday IS NOT NULL'];const params={q:`%${q}%`};if(window==='today')where.push('MONTH(c.birthday)=MONTH(CURRENT_DATE()) AND DAY(c.birthday)=DAY(CURRENT_DATE())');else if(window==='week')where.push("DAYOFYEAR(c.birthday) BETWEEN DAYOFYEAR(CURRENT_DATE()) AND DAYOFYEAR(DATE_ADD(CURRENT_DATE(),INTERVAL 7 DAY))");else if(window==='month')where.push('MONTH(c.birthday)=MONTH(CURRENT_DATE())');else if(window==='missing')where[0]='c.birthday IS NULL';if(q)where.push('(c.client_name LIKE :q OR c.cell_number LIKE :q OR c.account_number LIKE :q OR c.email LIKE :q)');[rows]=await db.execute(`SELECT MIN(c.id) id,MAX(c.client_name) client_name,MAX(c.cell_number) cell_number,MAX(c.email) email,MAX(c.city_town) city_town,MAX(c.birthday) birthday,MAX(c.main_contact_name) main_contact_name,COUNT(*) line_count,COALESCE(MAX(s.full_name),'Unassigned') assigned_name FROM crm_v_master_clients c LEFT JOIN client_assignments a ON a.is_active=1 AND (a.client_id=c.id OR (a.account_number<>'' AND a.account_number=c.account_number)) LEFT JOIN staff_users s ON s.id=a.assigned_staff_id WHERE ${where.join(' AND ')} GROUP BY COALESCE(NULLIF(c.id_number,''),CONCAT('client:',c.id)) ORDER BY MONTH(MAX(c.birthday)),DAY(MAX(c.birthday)),client_name LIMIT 2000`,params)}
     res.render('reports',{title:'Reports',type,window,q,rows});
   }catch(e){next(e)}
 });

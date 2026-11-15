@@ -307,8 +307,9 @@ router.get('/api/calendar/events', requireAuth, async (req, res, next) => {
         ? 'AND (a.assigned_staff_id=:userId OR a.assigned_staff_id IS NULL)'
         : 'AND a.assigned_staff_id=:userId';
     const [clients] = await db.execute(`SELECT DISTINCT c.id,c.id_number,c.account_number,c.client_name,c.cell_number,c.birthday,
-      c.next_upgrade_date,c.upgrade_date,a.assigned_staff_id,ass.full_name assigned_name
-      FROM clients c
+      c.next_upgrade_date,c.upgrade_date,a.assigned_staff_id,ass.full_name assigned_name,
+      EXISTS(SELECT 1 FROM crm_v_master_actionable_upgrades qualified WHERE qualified.id=c.id) master_upgrade_verified
+      FROM crm_v_master_clients c
       LEFT JOIN client_assignments a ON a.is_active=1
         AND (a.client_id=c.id OR (COALESCE(a.account_number,'')<>'' AND a.account_number=c.account_number))
       LEFT JOIN staff_users ass ON ass.id=a.assigned_staff_id
@@ -336,7 +337,8 @@ router.get('/api/calendar/events', requireAuth, async (req, res, next) => {
         }
       }
 
-      const upgradeDate = sqlDate(row.next_upgrade_date || row.upgrade_date);
+      // Never offer a duplicate or superseded line as a calendar upgrade.
+    const upgradeDate = Number(row.master_upgrade_verified)===1 ? sqlDate(row.next_upgrade_date) : null;
       if (within(upgradeDate, start, end)) {
         const key = `${row.id}:${upgradeDate}`;
         if (!upgradeSeen.has(key)) {

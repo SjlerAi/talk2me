@@ -954,7 +954,7 @@ async function queryClientAttention(message) {
 
   const [upgrades] = await db.execute(`SELECT c.id client_id,c.client_name,c.cell_number,c.account_number,c.next_upgrade_date,
       DATEDIFF(CURRENT_DATE(),DATE(c.next_upgrade_date)) days_overdue
-    FROM clients c
+    FROM crm_v_master_actionable_upgrades c
     WHERE c.is_active=1
       AND COALESCE(c.line_status,'active')<>'cancelled'
       AND c.next_upgrade_date IS NOT NULL
@@ -1155,38 +1155,45 @@ async function queryClientAttention(message) {
 
 async function queryClientDatabaseOverview() {
   const [[row]] = await db.execute(`SELECT
-      COUNT(DISTINCT CASE WHEN c.is_active=1 AND COALESCE(c.line_status,'active')<>'cancelled' THEN c.id END) active_clients,
-      COUNT(DISTINCT CASE WHEN c.is_active=1 AND COALESCE(c.line_status,'active')<>'cancelled'
-        AND NOT EXISTS(
-          SELECT 1 FROM client_assignments ca
-          WHERE ca.is_active=1 AND (
-            ca.client_id=c.id OR (
-              COALESCE(ca.account_number,'')<>''
-              AND COALESCE(c.account_number,'')<>''
-              AND ca.account_number=c.account_number
-            )
-          )
-        ) THEN c.id END) unallocated_clients,
-      COUNT(DISTINCT CASE WHEN c.is_active=1 AND c.next_upgrade_date IS NOT NULL
-        AND DATE(c.next_upgrade_date)<CURRENT_DATE() THEN c.id END) overdue_upgrades
-    FROM clients c`);
+    (SELECT COUNT(*) FROM crm_master_customers
+      WHERE run_id=(SELECT run_id FROM crm_master_active WHERE singleton=1)) master_groups,
+    COUNT(DISTINCT CASE WHEN c.is_active=1
+      AND COALESCE(c.line_status,'active')<>'cancelled' THEN c.id END) active_line_records,
+    COUNT(DISTINCT CASE WHEN c.is_active=1
+      AND COALESCE(c.line_status,'active')<>'cancelled'
+      AND NOT EXISTS(
+        SELECT 1 FROM client_assignments ca
+        WHERE ca.is_active=1 AND (
+          ca.client_id=c.id OR
+          (COALESCE(ca.account_number,'')<>'' AND ca.account_number=c.account_number)
+        )
+      ) THEN c.id END) unallocated_line_records,
+    (SELECT COUNT(*) FROM crm_v_master_actionable_upgrades
+      WHERE next_upgrade_date<CURRENT_DATE()) verified_overdue_upgrades,
+    (SELECT COUNT(*) FROM crm_v_master_upgrade_holds
+      WHERE next_upgrade_date<CURRENT_DATE()) overdue_upgrades_held
+    FROM crm_v_master_clients c`);
 
-  const active = Number(row?.active_clients || 0);
-  const unallocated = Number(row?.unallocated_clients || 0);
-  const upgrades = Number(row?.overdue_upgrades || 0);
+  const master = Number(row?.master_groups || 0);
+  const active = Number(row?.active_line_records || 0);
+  const unallocated = Number(row?.unallocated_line_records || 0);
+  const upgrades = Number(row?.verified_overdue_upgrades || 0);
+  const held = Number(row?.overdue_upgrades_held || 0);
   return {
     intent:'client_database_overview',
-    text:`I checked the CRM client records before answering. I found ${active} active clients, ${unallocated} without an active staff allocation, and ${upgrades} with an overdue upgrade date. I still need a little more detail about which client question you want me to answer.`,
+    text:`The single Master Customer Register has ${master} customer/account-holder groups (not yet ${master} individually verified people), and ${active} active CRM customer/line records. ${unallocated} active records have no staff assignment. There are ${upgrades} overdue upgrade opportunities with a verified master line relationship; another ${held} upgrade records are held for verification. These are different measures, not separate customer lists.`,
     rows:[
-      {id:'active',title:'Active clients',detail:String(active),meta:'clients'},
-      {id:'unallocated',title:'Unallocated clients',detail:String(unallocated),meta:'clients + client_assignments'},
-      {id:'upgrades',title:'Overdue upgrades',detail:String(upgrades),meta:'clients'}
+      {id:'master',title:'Customer/account-holder groups',detail:String(master),meta:'master register'},
+      {id:'active',title:'Active CRM customer/line records',detail:String(active),meta:'master-mapped CRM records'},
+      {id:'unallocated',title:'Unallocated customer/line records',detail:String(unallocated),meta:'master + staff assignments'},
+      {id:'upgrades',title:'Verified overdue upgrade lines',detail:String(upgrades),meta:'master actionable upgrades'},
+      {id:'held',title:'Overdue upgrade records on hold',detail:String(held),meta:'master upgrade review'}
     ],
     actions:['open_agent'],
     suggestions:['Show me the unallocated clients','Which clients have overdue upgrades?','How many clients were followed up this month?'],
     evidence:{
-      summary:'Checked CRM client and assignment records before asking for clarification.',
-      sources:['clients','client_assignments']
+      summary:'Read the one active master customer and service register; distinguished account groups, CRM line records and verified upgrade opportunities.',
+      sources:['crm_master_customers','crm_v_master_clients','crm_v_master_actionable_upgrades','crm_v_master_upgrade_holds','client_assignments']
     },
     state:{selection:null}
   };
@@ -1353,7 +1360,7 @@ async function queryUpgrades(message) {
   const [rows] = await db.execute(`SELECT DISTINCT c.id,c.id client_id,c.client_name,c.cell_number,c.account_number,c.package_name,
       c.next_upgrade_date,ca.assigned_staff_id,COALESCE(s.full_name,'Unassigned') staff_name,
       DATEDIFF(CURRENT_DATE(),DATE(c.next_upgrade_date)) days_overdue
-    FROM clients c
+    FROM crm_v_master_actionable_upgrades c
     LEFT JOIN client_assignments ca ON ca.is_active=1
       AND (ca.client_id=c.id OR (COALESCE(ca.account_number,'')<>'' AND ca.account_number=c.account_number))
     LEFT JOIN staff_users s ON s.id=ca.assigned_staff_id

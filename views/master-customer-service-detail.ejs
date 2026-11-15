@@ -1,0 +1,163 @@
+<style>
+.msdetail{max-width:1150px;margin:0 auto;padding:20px;font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;color:#213b54}
+.msdetail *{box-sizing:border-box}.msdetail h1{font-size:24px;margin:4px 0 6px}.msdetail h2{font-size:19px;margin:8px 0}
+.msdetail .top{display:flex;justify-content:space-between;align-items:start;gap:15px;flex-wrap:wrap}
+.msdetail .tag{color:#744aaa;font-size:11px;letter-spacing:.12em;font-weight:850}.msdetail .muted{color:#687d91}
+.msdetail .panel{background:#fff;border:1px solid #dee7ee;border-radius:12px;padding:15px;margin:12px 0}
+.msdetail .notice{background:#fff8e9;padding:12px;border-radius:9px;border-left:4px solid #bd8a34}
+.msdetail a{color:#28638e;font-weight:700}.msdetail .back{border:1px solid #bacbda;padding:9px 13px;border-radius:9px;text-decoration:none}
+.msdetail .details{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
+.msdetail .item{background:#f8fbfd;border:1px solid #e0e7ee;border-radius:8px;padding:11px}
+.msdetail .item small{color:#6b8092;display:block}
+.msdetail table{width:100%;border-collapse:collapse;min-width:650px}.msdetail td,.msdetail th{padding:10px;border-bottom:1px solid #e7eef3;text-align:left}.msdetail .scroll{overflow:auto}
+.msdetail .compare{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:12px 0}
+.msdetail .source-card{background:#f8fbfd;border:1px solid #dbe6f0;border-radius:12px;padding:15px;min-width:0}
+.msdetail .source-card strong{font-size:18px;display:block}.msdetail .source-card small{display:block;color:#60778b;margin-top:5px}
+.msdetail .choice{display:block;background:#f8fbfd;border:1px solid #d4e0e9;border-radius:10px;padding:13px;margin:10px 0;cursor:pointer}
+.msdetail .choice input{margin-right:9px;accent-color:#2c6b95}.msdetail .choice strong{font-size:14px}.msdetail .choice small{display:block;margin:5px 0 0 25px;color:#57748a}
+.msdetail .submit{background:#d12f36;border:0;color:white;font-weight:800;border-radius:9px;padding:12px 18px;cursor:pointer}
+.msdetail .success{border-left:4px solid #38815f;background:#ecf8f1;border-radius:9px;padding:12px}
+.msdetail .error{border-left:4px solid #d32f3a;background:#fff1f1;border-radius:9px;padding:12px}
+.msdetail .steps{font-weight:800;color:#284f73}.msdetail .note{font-size:12px;color:#60738a}
+@media(max-width:700px){.msdetail{padding:10px}.msdetail .compare{grid-template-columns:1fr}}
+</style>
+<section class="msdetail">
+  <div class="top">
+    <div>
+      <div class="tag">TALK2ME · MASTER CUSTOMER REGISTER</div>
+      <h1><%= service.phone||service.display_name %></h1>
+      <p class="muted"><%= service.display_name %> · <%= service.service_type %> service</p>
+    </div>
+    <a class="back" href="<%= basePath %>/grouped-upgrade-accounts/master-review">Back to Conflict Resolution</a>
+  </div>
+  <div class="panel">
+    <div class="details">
+      <div class="item"><small>Current customer/account</small><strong><%= customer?.display_name||'Not verified yet' %></strong></div>
+      <div class="item"><small>Official account number</small><strong><%= customer?.account_number||'Not yet verified' %></strong></div>
+      <div class="item"><small>Customer relationship</small><strong><%= service.link_state.replace(/_/g,' ') %></strong></div>
+      <div class="item"><small>Original records</small><strong><%= sources.length %></strong></div>
+    </div>
+    <% if(customer){ %><p><a href="<%= basePath %>/master-register/customer/<%= encodeURIComponent(customer.customer_key) %>">View this customer and all services</a></p><% } %>
+    <% if(evidence.issues?.length){ %>
+      <div class="notice"><strong>Requires checking:</strong> <%= evidence.issues.map(x=>x.replace(/_/g,' ')).join(', ') %>.
+        No account or customer was chosen automatically when the source information disagreed.</div>
+    <% } %>
+  </div>
+  <% if(error){ %><div class="error" role="alert"><strong>Correction not applied:</strong> <%= error %></div><% } %>
+  <% if(flash){ %><div class="success" role="status"><%= flash %></div><% } %>
+  <% if(service.link_state==='needs_conflict_review'){ %>
+  <section class="panel" id="resolve-account">
+    <div class="tag">ACTION REQUIRED · OWNER OR MANAGER</div>
+    <h2>Resolve this conflict here</h2>
+    <p><strong>Do not leave this page to make the decision.</strong> Compare the CRM record with the imported Vodacom record, then select the correct action. This does not merge the two customer accounts or delete any lines.</p>
+    <% if(recordedDecision){ %>
+      <div class="notice"><strong>Previous decision:</strong>
+        <%= recordedDecision.resolution_mode==='needs_info'?'Could not confirm yet':
+          recordedDecision.resolution_mode==='keep_crm'?'Keep CRM account':'Use Vodacom-linked account' %>.
+        Saved by <strong><%= recordedDecision.reviewer_name||('Staff #'+recordedDecision.reviewed_by) %></strong>
+        (<%= recordedDecision.reviewer_role||'management' %>) on
+        <%= new Date(recordedDecision.reviewed_at).toLocaleString('en-ZA',{timeZone:'Africa/Johannesburg',hour12:false}) %>.
+      </div>
+    <% } %>
+    <% if(resolution?.blocked){ %>
+      <div class="notice"><strong>This conflict cannot be corrected by a simple account choice:</strong>
+        <%= resolution.blocked %></div>
+      <p>Open the relevant original records below, or use
+        <a href="<%= basePath %>/grouped-upgrade-accounts/master-review">the conflict queue</a>
+        to take the appropriate duplicate/customer action.</p>
+      <% if(evidence.issues?.includes('multiple_active_crm_rows_same_phone')&&service.phone){ %>
+        <a class="back" href="<%= basePath %>/temporary-cleanup/review/same_account_phone/<%= '27'+service.phone.slice(1) %>">Review repeated CRM records</a>
+      <% } %>
+    <% }else if(resolution){ %>
+      <p class="steps">Step 1 — Compare the two existing account records</p>
+      <div class="compare">
+        <article class="source-card">
+          <div class="tag">CURRENT CRM RECORD</div>
+          <strong><%= resolution.crmAccount.account_number %></strong>
+          <p><%= resolution.crmAccount.display_name %></p>
+          <small>Customer record #<%= resolution.client.id %> · <%= resolution.client.client_name||'Name not captured' %></small>
+          <small><%= resolution.counts.crm %> active CRM telephone line(s) under this account</small>
+          <small>This number currently belongs to this account in the CRM.</small>
+          <a href="<%= basePath %>/customers/<%= resolution.client.id %>/360">Inspect full CRM customer record</a>
+        </article>
+        <article class="source-card">
+          <div class="tag">VODACOM BASE DETAILS · HISTORICAL</div>
+          <strong><%= resolution.supplierAccount.account_number %></strong>
+          <p><%= resolution.base.account_name||resolution.supplierAccount.display_name %></p>
+          <small>Vodacom source account code: <%= resolution.base.account_code_core||resolution.base.account_code||'Unknown' %></small>
+          <small><%= resolution.counts.supplier %> other active CRM line(s) under this account</small>
+          <small>Supplier row #<%= resolution.base.id %> · <%= resolution.base.source_captured_at?new Date(resolution.base.source_captured_at).toLocaleDateString('en-ZA'):'Historical import' %></small>
+          <a href="<%= basePath %>/mobile-base/<%= resolution.base.id %>">Inspect original Vodacom evidence</a>
+        </article>
+      </div>
+      <div class="notice"><strong>What disagrees?</strong> CRM assigns <%= service.phone %> to
+        <strong><%= resolution.crmAccount.account_number %></strong>, while the Vodacom source assigns the same line to
+        <strong><%= resolution.supplierAccount.account_number %></strong>. The supplier file is from September 2026.
+        It is evidence, not proof of the account's current status.
+      </div>
+      <form method="post" action="<%= basePath %>/master-register/service/<%= encodeURIComponent(service.service_key) %>/resolve">
+        <input type="hidden" name="csrf_token" value="<%= csrfToken %>">
+        <input type="hidden" name="source_hash" value="<%= resolution.sourceHash %>">
+        <p class="steps">Step 2 — Select the correct decision for this one number</p>
+        <label class="choice">
+          <input type="radio" name="mode" value="keep_crm" required>
+          <strong>Keep the CRM account: <%= resolution.crmAccount.account_number %></strong>
+          <small>I have verified that this telephone number belongs on the existing CRM account.
+          Record the old Vodacom account disagreement without changing the source report or the other telephone lines.</small>
+        </label>
+        <label class="choice">
+          <input type="radio" name="mode" value="use_supplier" required>
+          <strong>Use the Vodacom-linked account: <%= resolution.supplierAccount.account_number %></strong>
+          <small>I have verified that this number belongs on the other existing account.
+          Move ONLY this one CRM line to that account. Leave the other lines, customer history and original source report untouched.
+          If consultants or account links disagree, the change will be blocked.</small>
+        </label>
+        <label class="choice">
+          <input type="radio" name="mode" value="needs_info" required>
+          <strong>Cannot confirm yet — keep this conflict open</strong>
+          <small>Leave both accounts unchanged. The conflict stays in the queue until it can be verified.</small>
+        </label>
+        <button class="submit" type="submit">Save selected decision</button>
+        <p class="note"><strong>No typing needed.</strong> The CRM automatically records the signed-in Owner or Manager,
+          the date and time, the selected account, and the exact changes. Saving confirms the selected action for
+          <%= service.phone %>. A confirmed correction disappears from the open conflict list; “Cannot confirm yet”
+          keeps the case open. No SMS, email or staff task is sent automatically.</p>
+      </form>
+    <% } %>
+  </section>
+  <% }else if(evidence.owner_decision||recordedDecision){ %>
+    <div class="success"><strong>Management-reviewed account relationship:</strong>
+      This service has an approved master relationship. The original supplier account information remains available below.
+      <% if(recordedDecision){ %>
+        <p>Saved by <strong><%= recordedDecision.reviewer_name||('Staff #'+recordedDecision.reviewed_by) %></strong>
+          (<%= recordedDecision.reviewer_role||'management' %>) on
+          <%= new Date(recordedDecision.reviewed_at).toLocaleString('en-ZA',{timeZone:'Africa/Johannesburg',hour12:false}) %>.
+          Decision: <strong><%= recordedDecision.resolution_mode==='keep_crm'?'Keep CRM account':
+            recordedDecision.resolution_mode==='use_supplier'?'Use Vodacom-linked account':'Needs more information' %></strong>.</p>
+      <% } %>
+      <a href="<%= basePath %>/grouped-upgrade-accounts/master-review">Return to remaining conflicts</a>.
+    </div>
+  <% } %>
+  <div class="panel">
+    <h2>Original records — inspect only when needed</h2>
+    <p class="muted">The source records below are kept for history and verification. They do not create separate customer identities.</p>
+    <div class="scroll"><table><thead><tr><th>Source</th><th>Original record</th><th>Inspect</th></tr></thead>
+      <tbody>
+      <% sources.forEach(s=>{ %>
+        <tr>
+          <td><%= s.source_type.replace(/_/g,' ') %></td>
+          <td>#<%= s.source_id %></td>
+          <td>
+          <% if(s.source_type==='client'){ %>
+            <a href="<%= basePath %>/customers/<%= encodeURIComponent(s.source_id) %>/360">Open CRM record</a>
+          <% }else if(s.source_type==='mobile_base'){ %>
+            <a href="<%= basePath %>/mobile-base/<%= encodeURIComponent(s.source_id) %>">Open Vodacom source</a>
+          <% }else if(s.source_type==='grouped_import'){ %>
+            <a href="<%= basePath %>/grouped-upgrade-accounts/line/<%= encodeURIComponent(s.source_id) %>/review">Open import review</a>
+          <% }else{ %><span class="muted">Retained in original database</span><% } %>
+          </td>
+        </tr>
+      <% }) %>
+      </tbody></table></div>
+  </div>
+</section>

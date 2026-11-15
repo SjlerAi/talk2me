@@ -9,6 +9,7 @@ const { ensureAgentResponsibilitySchema } = require('../services/office-intellig
 const {prepareNaturalCommand,chooseNaturalCommand,continueNaturalPronoun,naturalNameReply,continueNaturalIncomplete,naturalDetailReply}=require('../services/cudo-natural-plan');
 const {sendNaturalCommand}=require('../services/cudo-natural-send');
 const { trackEvent } = require('../services/usage-telemetry');
+const chatAudit = require('../services/staff-chat-audit');
 const { getTaskAttachmentDownload } = require('../services/work-dispatch');
 const { ensureWorkOperatingSchema, getMyWorkOverview, getOfficeScorecard, getTargetCentre, saveTargetGoal, getMonthlyImportSummary } = require('../services/work-operating-model');
 
@@ -32,6 +33,13 @@ function idOf(value) {
 
 function clean(value, max = 5000) {
   return String(value == null ? '' : value).trim().slice(0, max);
+}
+
+// An optional usage-audit write must never prevent receiving or sending a
+// customer's/staff member's message. Failures are server logged for repair.
+async function auditBestEffort(label,fn) {
+  try{return await fn();}
+  catch(error){console.error('Staff chat audit '+label+' failed:',error.message);return null;}
 }
 
 function staffShortName(row) {
@@ -125,6 +133,7 @@ async function ensureSchema() {
         updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         PRIMARY KEY (staff_id,conversation_key)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+      await auditBestEffort('schema',()=>chatAudit.ensureSchema());
       await db.query(`CREATE TABLE IF NOT EXISTS staff_task_workflow (
         task_id BIGINT UNSIGNED NOT NULL,
         workflow_state VARCHAR(40) NOT NULL DEFAULT 'active',
@@ -487,7 +496,17 @@ router.get('/api/uat/chat/messages', requireAuth, async (req, res, next) => {
       createdAt: row.created_at
     }));
     const lastId = messages.length ? Number(messages[messages.length - 1].id) : 0;
+    const [[readBefore]] = await db.execute(
+      'SELECT last_read_message_id FROM staff_chat_reads WHERE staff_id=:userId AND conversation_key=:key LIMIT 1',
+      {userId,key:conversation.key});
+    const unreadBefore = Number(readBefore?.last_read_message_id||0);
+    const firstOpened = Number(await auditBestEffort('message receipts',()=>
+      chatAudit.saveMessageReads(db,userId,conversation.key,
+        rows.filter(row=>Number(row.id)>unreadBefore)))||0);
     await markConversationRead(userId, conversation.key, lastId);
+    await trackEvent({staffId:userId,eventType:'work_chat_opened',screenKey:'work_messages',
+      routePath:'/api/uat/chat/messages',moduleName:'work',httpMethod:'GET',httpStatus:200,
+      metadata:{conversationType:conversation.type,newReadReceipts:firstOpened}});
     res.json({ ok: true, conversation: { token: conversation.token, type: conversation.type, name: conversation.other?.full_name || 'Office' }, messages });
   } catch (error) { next(error); }
 });
@@ -502,16 +521,20 @@ router.post('/api/uat/chat/messages', requireAuth, async (req, res, next) => {
     if (!body) return res.status(400).json({ ok: false, error: 'Type a message.' });
     const relatedClientId = idOf(req.body.related_client_id);
     const relatedTaskId = idOf(req.body.related_task_id);
+    const replyToMessageId=await auditBestEffort('text reply lookup',()=>
+      chatAudit.lastIncomingAwaitingReply(db,userId,conversation.key));
     const [result] = await db.execute(`INSERT INTO staff_chat_messages
       (conversation_key,sender_staff_id,message_type,body,related_client_id,related_task_id)
       VALUES (:key,:userId,'text',:body,:relatedClientId,:relatedTaskId)`, {
       key: conversation.key, userId, body, relatedClientId, relatedTaskId
     });
     await markConversationRead(userId, conversation.key, result.insertId);
+    if(replyToMessageId)await auditBestEffort('text reply link',()=>
+      chatAudit.saveMessageReply(db,result.insertId,replyToMessageId,userId));
     await trackEvent({
       staffId:userId,eventType:'work_message_sent',screenKey:'work_messages',routePath:'/api/uat/chat/messages',
       moduleName:'work',entityType:'staff_chat_messages',entityId:result.insertId,httpMethod:'POST',httpStatus:200,
-      metadata:{conversationType:conversation.type}
+      metadata:{conversationType:conversation.type,replyLinked:Boolean(replyToMessageId)}
     });
     res.json({ ok: true, id: result.insertId });
   } catch (error) { next(error); }
@@ -532,6 +555,8 @@ router.post('/api/uat/chat/voice', requireAuth, async (req, res, next) => {
         const seconds = Math.max(1, Math.min(180, Number(req.body.duration_seconds || 1)));
         const relatedClientId = idOf(req.body.related_client_id);
         const relatedTaskId = idOf(req.body.related_task_id);
+        const replyToMessageId=await auditBestEffort('voice reply lookup',()=>
+          chatAudit.lastIncomingAwaitingReply(db,userId,conversation.key));
         const [result] = await db.execute(`INSERT INTO staff_chat_messages
           (conversation_key,sender_staff_id,message_type,voice_filename,voice_mime,voice_bytes,voice_seconds,related_client_id,related_task_id)
           VALUES (:key,:userId,'voice',:filename,:mime,:bytes,:seconds,:relatedClientId,:relatedTaskId)`, {
@@ -539,6 +564,12 @@ router.post('/api/uat/chat/voice', requireAuth, async (req, res, next) => {
           relatedClientId, relatedTaskId
         });
         await markConversationRead(userId, conversation.key, result.insertId);
+        if(replyToMessageId)await auditBestEffort('voice reply link',()=>
+          chatAudit.saveMessageReply(db,result.insertId,replyToMessageId,userId));
+        await trackEvent({staffId:userId,eventType:'work_voice_message_sent',screenKey:'work_messages',
+          routePath:'/api/uat/chat/voice',moduleName:'work',
+          entityType:'staff_chat_messages',entityId:result.insertId,httpMethod:'POST',httpStatus:200,
+          metadata:{conversationType:conversation.type,replyLinked:Boolean(replyToMessageId)}});
         res.json({ ok: true, id: result.insertId });
       } catch (inner) {
         if (req.file?.path) fs.unlink(req.file.path, () => {});

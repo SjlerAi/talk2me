@@ -101,9 +101,14 @@ router.get('/backoffice/clients',requireAuth,async(req,res,next)=>{
     });
     Object.assign(params,attentionSql.params);
     where.push(...attentionSql.clauses);
+    // Upgrade-only filters use the one verified master service register. Do not
+    // offer duplicate or superseded upgrade dates as active calling opportunities.
+    if(filters.work==='upgrades'||filters.month){
+      where.push('EXISTS (SELECT 1 FROM crm_v_master_actionable_upgrades qualified WHERE qualified.id=c.id)');
+    }
     if (filters.error) where.push('1=0'); // Fail visibly closed for an invalid date/month.
     const sqlWhere='WHERE '+where.join(' AND ');
-    const [[matching]] = await db.execute('SELECT COUNT(*) total FROM clients c '+sqlWhere,params);
+    const [[matching]] = await db.execute('SELECT COUNT(*) total FROM crm_v_master_clients c '+sqlWhere,params);
     const total=Number(matching?.total||0);
     const pageCount=Math.max(1,Math.ceil(total/PAGE_SIZE));
     const page=Math.min(pageCount,filters.requestedPage);
@@ -112,6 +117,7 @@ router.get('/backoffice/clients',requireAuth,async(req,res,next)=>{
 
     const [clients]=await db.execute(`SELECT
       c.id,c.account_number,c.client_name,c.cell_number,c.email,c.lifecycle_status,c.lead_status,c.created_at,
+      c.master_customer_key,c.master_service_key,c.master_link_state,c.master_account_number,
       COALESCE(c.city_town,NULLIF(TRIM(JSON_UNQUOTE(JSON_EXTRACT(c.raw_import_json, '$.city_town'))), ''),'') AS city_town,
       c.handset,c.upgrade_date,c.previous_upgrade_date,c.next_upgrade_date,c.line_status,c.birthday,
       (SELECT a.assigned_staff_id FROM client_assignments a
@@ -123,7 +129,7 @@ router.get('/backoffice/clients',requireAuth,async(req,res,next)=>{
       (SELECT i.query_text FROM inquiries i WHERE i.client_id=c.id ORDER BY i.created_at DESC LIMIT 1) AS last_inquiry,
       (SELECT i.action_taken FROM inquiries i WHERE i.client_id=c.id ORDER BY i.created_at DESC LIMIT 1) AS last_action
       ${attentionSql.projection?', '+attentionSql.projection:''}
-      FROM clients c ${work.join} ${sqlWhere} ORDER BY ${attention.focus==='needs_attention'&&filters.sort==='recent'?attentionSql.sort:work.sort} LIMIT :limit OFFSET :offset`,params);
+      FROM crm_v_master_clients c ${work.join} ${sqlWhere} ORDER BY ${attention.focus==='needs_attention'&&filters.sort==='recent'?attentionSql.sort:work.sort} LIMIT :limit OFFSET :offset`,params);
     if(attention.focus!=='all')clients.forEach(client=>{client.attentionReasons=reasonLabels(client,attention);});
 
     // The tab badges describe the selected visibility scope; the separate match count
@@ -133,8 +139,8 @@ router.get('/backoffice/clients',requireAuth,async(req,res,next)=>{
       SUM(c.is_active=1 AND c.lifecycle_status='prospect') prospect_count,
       SUM(c.is_active=1 AND c.lifecycle_status='prospect' AND (c.email IS NULL OR c.email='' OR c.city_town IS NULL OR c.city_town='' OR c.id_number IS NULL OR c.id_number='')) incomplete_count,
       SUM(c.is_active=0 OR c.lifecycle_status='archived') archived_count
-      FROM clients c WHERE ${visibility}`,{visibilityStaffId:selectedStaffId||userId});
-    const [[unassigned]] = await db.execute(`SELECT COUNT(*) total FROM clients c
+      FROM crm_v_master_clients c WHERE ${visibility}`,{visibilityStaffId:selectedStaffId||userId});
+    const [[unassigned]] = await db.execute(`SELECT COUNT(*) total FROM crm_v_master_clients c
       WHERE c.is_active=1 AND ${visibility} AND ${unassignedClause()}`,{visibilityStaffId:selectedStaffId||userId});
 
     const queryStringFor=(overrides={})=>{

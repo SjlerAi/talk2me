@@ -182,7 +182,7 @@ async function queryIntelligence(rangeKey='this_week') {
 async function commercialIntelligence() {
   await ensureManagementSchema();
   const [packages]=await db.query(`SELECT COALESCE(NULLIF(TRIM(package_name),''),'Unknown') package_name,COUNT(*) client_lines
-    FROM clients WHERE is_active=1 AND COALESCE(line_status,'active')<>'cancelled'
+    FROM crm_v_master_clients WHERE is_active=1 AND COALESCE(line_status,'active')<>'cancelled'
     GROUP BY COALESCE(NULLIF(TRIM(package_name),''),'Unknown') ORDER BY client_lines DESC LIMIT 15`);
   const [towns]=await db.query(`SELECT
     COALESCE(NULLIF(NULLIF(LOWER(TRIM(city_town)),'null'),''),'Unknown') city_town_key,
@@ -191,9 +191,11 @@ async function commercialIntelligence() {
       ELSE MAX(TRIM(city_town))
     END city_town,
     COUNT(*) clients,
-    SUM(CASE WHEN next_upgrade_date IS NOT NULL AND DATE(next_upgrade_date)<=CURRENT_DATE() THEN 1 ELSE 0 END) due_upgrades,
+    SUM(CASE WHEN next_upgrade_date IS NOT NULL AND DATE(next_upgrade_date)<=CURRENT_DATE()
+      AND EXISTS(SELECT 1 FROM crm_v_master_actionable_upgrades accepted WHERE accepted.id=customer.id)
+      THEN 1 ELSE 0 END) due_upgrades,
     SUM(CASE WHEN COALESCE(email,'')='' OR COALESCE(id_number,'')='' THEN 1 ELSE 0 END) incomplete_records
-    FROM clients WHERE is_active=1 AND COALESCE(line_status,'active')<>'cancelled'
+    FROM crm_v_master_clients customer WHERE is_active=1 AND COALESCE(line_status,'active')<>'cancelled'
     GROUP BY COALESCE(NULLIF(NULLIF(LOWER(TRIM(city_town)),'null'),''),'Unknown')
     ORDER BY clients DESC LIMIT 20`);
   const packageRows=packages.map(row=>({...row,client_lines:Number(row.client_lines||0)}));

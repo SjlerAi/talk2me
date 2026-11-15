@@ -46,6 +46,7 @@
     <span class="command-nav-label">Management</span>
     <a href="<%= basePath %>/command-centre"><b>▦</b><span>Shop Command Centre</span></a>
     <a href="<%= basePath %>/backoffice/attendance" data-command-panel><b>◷</b><span>Attendance Register</span></a>
+    <a href="<%= basePath %>/backoffice/staff-usage" data-command-panel><b>▤</b><span>Weekly Staff Usage</span></a>
     <a href="<%= basePath %>/approvals" data-command-panel><b>◆</b><span data-approval-label><%= safeApprovalCentreCount?'Approvals Needed':'Approvals' %></span><em data-approval-count <%= safeApprovalCentreCount?'':'hidden' %>><%= safeApprovalCentreCount %></em></a>
     <a href="<%= basePath %>/upgrade-centre" data-command-panel><b>↗</b><span>Upgrades</span></a>
     <a href="<%= basePath %>/reports?type=birthdays" data-command-panel><b>★</b><span>Reports</span></a>
@@ -75,10 +76,35 @@
 (()=>{
  const BASE=<%- JSON.stringify(basePath) %>, q=document.getElementById('universal-client-search'), results=document.getElementById('universal-client-results'); let timer;
  if(q){q.addEventListener('input',()=>{clearTimeout(timer);timer=setTimeout(async()=>{const v=q.value.trim();if(v.length<2){results.innerHTML='';return}try{const rows=await fetch(BASE+'/search/all?q='+encodeURIComponent(v)).then(r=>r.json());results.innerHTML=rows.length?rows.map(c=>`<a href="${c.url}" data-command-panel><strong><small class="search-type ${c.record_type}">${c.record_type==='fixed'?'FIXED':'MOBILE'}</small> ${c.client_name||'Unnamed'}</strong><span>${c.cell_number||c.branch_name||''} · ${c.account_number||'No account'} · ${c.solution_id||c.handset||''}</span></a>`).join(''):`<div class="command-no-result"><strong>No customer found</strong><span>${v}</span><a href="${BASE}/queries/new?new_phone=${encodeURIComponent(v)}" data-command-panel>Add customer & continue</a></div>`}catch(e){results.innerHTML='<div class="command-no-result">Search temporarily unavailable</div>'}},180)});}
- const panel=document.getElementById('work-panel'),frame=document.getElementById('work-panel-frame'),close=document.getElementById('work-panel-close');let savedY=0;
- function openPanel(url,label){savedY=scrollY;const u=new URL(url,location.href);u.searchParams.set('panel','1');frame.src=u.href;document.getElementById('work-panel-title').textContent=label||'Complete the action';panel.hidden=false;panel.setAttribute('aria-hidden','false');document.body.classList.add('panel-open')}
- function closePanel(){panel.hidden=true;panel.setAttribute('aria-hidden','true');frame.src='about:blank';document.body.classList.remove('panel-open');scrollTo(0,savedY);window.dispatchEvent(new Event('workspace:refresh'))}
- document.addEventListener('click',e=>{const a=e.target.closest('a[data-command-panel]');if(!a||e.ctrlKey||e.metaKey)return;e.preventDefault();results.innerHTML='';openPanel(a.href,a.textContent.trim())});close.addEventListener('click',closePanel);addEventListener('message',e=>{if(e.data==='talk2me:close-panel')closePanel()});
+ const panel=document.getElementById('work-panel'),frame=document.getElementById('work-panel-frame'),close=document.getElementById('work-panel-close');let savedY=0,openedPanelRoute='';
+ function trackLegacyPanel(eventType,screenPath){
+   try {
+     const u=new URL(screenPath||location.pathname,location.href);
+     if(u.origin!==location.origin)return;
+     const body=JSON.stringify({event_type:eventType,screen_key:'legacy_panel',module_name:'crm_window',
+       route_path:u.pathname,window_key:'legacy_panel',window_kind:'crm',outcome:'success'});
+     fetch(BASE+'/api/usage/events',{method:'POST',credentials:'same-origin',keepalive:true,
+       headers:{'Content-Type':'application/json','Accept':'application/json'},body}).catch(()=>{});
+   } catch (_) {}
+ }
+ function openPanel(url,label){
+   savedY=scrollY;const u=new URL(url,location.href);if(u.origin!==location.origin)return;
+   const wasOpen=!panel.hidden;
+   u.searchParams.set('panel','1');frame.src=u.href;openedPanelRoute=u.pathname;
+   document.getElementById('work-panel-title').textContent=label||'Complete the action';
+   panel.hidden=false;panel.setAttribute('aria-hidden','false');document.body.classList.add('panel-open');
+   trackLegacyPanel(wasOpen?'window_reopen':'window_open',u.pathname);
+ }
+ function closePanel(){
+   if(panel.hidden)return;
+   trackLegacyPanel('window_close',openedPanelRoute);
+   panel.hidden=true;panel.setAttribute('aria-hidden','true');frame.src='about:blank';
+   openedPanelRoute='';document.body.classList.remove('panel-open');
+   scrollTo(0,savedY);window.dispatchEvent(new Event('workspace:refresh'));
+ }
+ document.addEventListener('click',e=>{const a=e.target.closest('a[data-command-panel]');if(!a||e.ctrlKey||e.metaKey)return;e.preventDefault();results.innerHTML='';openPanel(a.href,a.textContent.trim())});
+ close.addEventListener('click',closePanel);
+ addEventListener('message',e=>{if(e.origin===location.origin&&e.data==='talk2me:close-panel')closePanel()});
  document.getElementById('sidebar-toggle').onclick=()=>document.body.classList.toggle('sidebar-collapsed');
  const alertButton=document.getElementById('alert-toggle');let alerts=localStorage.getItem('t2m-alerts')==='on',lastId=null,initial=true;function paint(){alertButton.classList.toggle('enabled',alerts);alertButton.querySelector('span').textContent=alerts?'Alerts on':'Alerts off'}paint();
  alertButton.onclick=async()=>{alerts=!alerts;localStorage.setItem('t2m-alerts',alerts?'on':'off');if(alerts&&'Notification'in window&&Notification.permission==='default')await Notification.requestPermission();paint()};

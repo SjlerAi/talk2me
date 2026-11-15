@@ -1,0 +1,154 @@
+<style>
+.gua{max-width:1400px;margin:0 auto;padding:24px;color:#233449;font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+.gua *{box-sizing:border-box}.gua h1{font-size:25px;margin:0 0 5px}.gua h2{font-size:19px;margin:0 0 8px}
+.gua .muted{color:#687689}.gua .eyebrow{letter-spacing:.12em;text-transform:uppercase;font-weight:850;color:#7952ab;font-size:11px}
+.gua .top{display:flex;gap:12px;justify-content:space-between;align-items:center;flex-wrap:wrap}
+.gua .stats{display:grid;grid-template-columns:repeat(5,minmax(130px,1fr));gap:10px;margin:15px 0}
+.gua .stat{padding:12px 14px;background:#fff;border:1px solid #dfe6ed;border-radius:12px}
+.gua .stat strong{display:block;font-size:25px;color:#162e47}.gua .stat small{display:block;color:#697888;font-size:11px}
+.gua .panel{background:#fff;border:1px solid #dde5ed;border-radius:12px;padding:15px;margin-bottom:12px}
+.gua .toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.gua a,.gua .btn{color:#285b91}.gua .btn,.gua button{display:inline-block;padding:9px 12px;border:1px solid #2c4260;border-radius:8px;background:#2c4260;color:#fff;text-decoration:none;font-weight:700;cursor:pointer}
+.gua .btn.secondary{color:#294058;background:#fff;border-color:#c1ced9}
+.gua label{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:700;color:#52647c}
+.gua input,.gua select{border:1px solid #b4c3d1;padding:9px;border-radius:8px;font:inherit;color:#162b42;background:#fff}
+.gua .account{background:#fff;border:1px solid #dfe6ed;border-radius:12px;margin:10px 0;padding:15px}
+.gua .name{font-size:17px;font-weight:750;margin:0 0 3px}
+.gua .acc-top{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.gua .pill{display:inline-block;font-weight:750;font-size:11px;border-radius:30px;background:#eaf2f7;color:#21577d;padding:4px 8px;margin-right:5px}
+.gua .pill.warn{background:#fff0d6;color:#8b4f17}.gua .pill.good{background:#e6f6ea;color:#23663d}
+.gua details{margin-top:10px}.gua summary{font-weight:750;cursor:pointer;padding:6px 0}
+.gua .scroll{overflow:auto;max-height:450px;border:1px solid #e5ebf0;border-radius:9px}
+.gua table{border-collapse:collapse;min-width:760px;width:100%;font-size:12px}
+.gua th,.gua td{padding:8px;text-align:left;border-bottom:1px solid #eef2f6;vertical-align:top}
+.gua th{background:#edf2f7;position:sticky;top:0;z-index:1}
+.gua .issue{color:#a35a19;font-weight:650}
+.gua .review-actions{margin:12px 0 3px;padding:12px;border-left:4px solid #d59a36;background:#fff8eb;border-radius:8px}
+.gua .review-item{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid #f2e3c9}
+.gua .review-item:last-child{border:0}.gua .review-item strong{margin-right:8px}.gua tr.needs-review{background:#fff9ed}
+.gua .btn.review{background:#925f15;border-color:#925f15}.gua .btn.sm{padding:6px 9px;font-size:12px}
+.gua .pill.reviewed{background:#e6f4ec;color:#286b46}
+.gua .pagination{display:flex;justify-content:space-between;align-items:center;margin:15px 0}
+.gua .explain{border-left:4px solid #7a56aa;background:#f7f4fc;padding:12px;border-radius:6px}
+@media(max-width:900px){.gua{padding:12px}.gua .stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+</style>
+<section class="gua">
+  <div class="top">
+    <div><div class="eyebrow">Talk2Me / Grouped upgrade accounts</div><h1>Accounts and all their telephone lines</h1>
+      <p class="muted">Source: Grouped_Upgrade_Customers.xlsx. Account number (B), account name (C), line count (D), and telephone numbers (E). Column A ignored.</p>
+    </div>
+    <a class="btn secondary" href="<%= basePath %>/black-friday<%= panelMode?'?panel=1':'' %>">Back to Black Friday</a>
+  </div>
+  <% if(flash){ %><div class="panel" style="border-left:5px solid #21965b;background:#f0faf2;font-weight:750" role="status"><%= flash %></div><% } %>
+  <% if(!batch){ %>
+    <div class="panel"><h2>No grouped-account import found</h2><p>The grouped account file has not been staged in this CRM environment.</p></div>
+  <% }else{ %>
+    <div class="stats">
+      <div class="stat"><strong><%= stats.numbered_accounts||0 %></strong><small>Distinct account numbers in import</small></div>
+      <div class="stat"><strong><%= stats.created_accounts||0 %></strong><small>New CRM accounts created</small></div>
+      <div class="stat"><strong><%= stats.distinct_numbers||0 %></strong><small>Distinct telephone numbers mapped</small></div>
+      <div class="stat"><strong><%= stats.base_links||0 %></strong><small>Confirmed existing mobile-base lines</small></div>
+      <div class="stat"><strong><%= stats.review_lines||0 %></strong><small>Telephone numbers held for review</small></div>
+    </div>
+    <div class="panel" style="display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap">
+      <div><strong>Resolve exceptions:</strong> <%= stats.review_lines||0 %> telephone numbers still need individual checking. Use the review button beside the exact number. Original CRM records are preserved.</div>
+      <div class="toolbar">
+        <a class="btn review" href="<%= basePath %>/grouped-upgrade-accounts?mode=review<%= panelMode?'&panel=1':'' %>">Review flagged lines in CRM</a>
+        <a class="btn secondary" href="<%= basePath %>/master-register<%= panelMode?'?panel=1':'' %>">One Master Customer Register</a>
+        <a class="btn secondary" href="<%= basePath %>/grouped-upgrade-accounts/master-review<%= panelMode?'?panel=1':'' %>">Master CRM — remaining review cases</a>
+        <a class="btn secondary" href="<%= basePath %>/grouped-upgrade-accounts/review.csv">Download review list (CSV)</a>
+      </div>
+    </div>
+    <div class="panel explain">
+      <strong>Import status:</strong> All 853 numbers are available as account-to-line mappings inside UENT. Existing customer records and the <%= stats.sent_tasks||0 %> Black Friday task records were preserved. New account numbers were created only where no CRM account existed. No provisional customer-line duplicates were created. Numbers with missing account codes, conflicting names or service types remain clearly marked for review.
+    </div>
+    <form method="get" action="<%= basePath %>/grouped-upgrade-accounts" class="panel toolbar">
+      <% if(panelMode){ %><input type="hidden" name="panel" value="1"><% } %>
+      <label>Find account, name or number<input name="q" value="<%= q %>" placeholder="Search accounts or cellphone" type="search" style="min-width:230px"></label>
+      <label>Show<select name="mode">
+        <% for(const [value,label] of [['all','All grouped accounts'],['review','Needs review'],['new','New CRM accounts'],['existing','Existing CRM accounts']]){ %>
+        <option value="<%= value %>" <%= mode===value?'selected':'' %>><%= label %></option><% } %>
+      </select></label>
+      <button type="submit">Filter</button>
+      <a class="btn secondary" href="<%= basePath %>/grouped-upgrade-accounts<%= panelMode?'?panel=1':'' %>">Clear</a>
+    </form>
+    <p class="muted"><strong><%= total %></strong> account groups match your search. Select an account to expand its full telephone-line list.</p>
+    <% accounts.forEach(a=>{ %>
+    <article class="account">
+      <div class="acc-top">
+        <div>
+          <div class="name"><%= a.account_name||'Account name missing — review' %></div>
+          <div class="muted">Account: <strong><%= a.account_number||'No account number provided' %></strong> · CRM account ID: <%= a.crm_account_id||'Not linked' %></div>
+          <div style="margin-top:8px">
+            <span class="pill"><%= a.line_count_actual||0 %> distinct lines</span>
+            <% if(Number(a.linked_crm_lines)>0){ %><span class="pill good"><%= a.linked_crm_lines %> CRM client matches</span><% } %>
+            <% if(Number(a.linked_base_lines)>0){ %><span class="pill good"><%= a.linked_base_lines %> mobile-base matches</span><% } %>
+            <% if(Number(a.needs_review)>0){ %><span class="pill warn"><%= a.needs_review %> need review</span><% } %>
+            <% if(a.classified_lines.length){ %><span class="pill reviewed"><%= a.classified_lines.length %> classified other service</span><% } %>
+            <% if(a.review_status==='new_account_created'){ %><span class="pill good">New account created</span><% } %>
+            <% if(a.review_status==='conflicting_account_names'){ %><span class="pill warn">Conflicting account names</span><% } %>
+            <% if(a.review_status==='missing_account_number'){ %><span class="pill warn">Missing account number</span><% } %>
+          </div>
+        </div>
+        <a class="btn secondary" href="<%= basePath %>/grouped-upgrade-accounts/account/<%= a.id %>/customer<%= panelMode?'?panel=1':'' %>">
+          <%= Number(a.line_count_actual)===0?'Add customer / telephone number':'Find / create / link customer' %>
+        </a>
+      </div>
+      <% if(a.review_status==='conflicting_account_names'){ %><div class="issue" style="margin-top:8px">Source names differ: <%= JSON.parse(a.source_names_json).join(' / ') %>. Do not merge these automatically.</div><% } %>
+      <% if(a.pending_lines.length){ %>
+      <div class="review-actions" role="group" aria-label="Telephone numbers needing review for <%= a.account_name %>">
+        <strong><%= a.pending_lines.length===1?'This is the exact line requiring review:':'These are the exact lines requiring review:' %></strong>
+        <% a.pending_lines.forEach(line=>{ %>
+        <div class="review-item">
+          <div><strong><%= line.phone %></strong><span class="pill warn"><%= String(line.line_status).replaceAll('_',' ') %></span>
+            <% if(line.review_state==='needs_info'||line.review_state==='needs_correction'){ %><span class="pill warn"><%= String(line.review_state).replaceAll('_',' ') %></span><% } %>
+          </div>
+          <a class="btn review sm" href="<%= basePath %>/grouped-upgrade-accounts/line/<%= line.id %>/review<%= panelMode?'?panel=1':'' %>">Review this line</a>
+        </div>
+        <% }) %>
+      </div>
+      <% } %>
+      <details>
+        <summary>View all <%= a.line_count_actual||0 %> telephone numbers and import matches</summary>
+        <div class="scroll"><table>
+          <thead><tr><th>Telephone number</th><th>CRM / source status</th><th>Mobile base</th><th>Upgrade label</th><th>Existing work</th><th>Review</th></tr></thead>
+          <tbody>
+            <% a.lines.forEach(line=>{ %>
+              <tr class="<%= line.review_required&&['pending','needs_info','needs_correction'].includes(line.review_state)?'needs-review':'' %>">
+                <td><strong><%= line.phone %></strong></td>
+                <td><span class="<%= line.review_required?'issue':'' %>"><%= String(line.line_status||'').replaceAll('_',' ') %></span>
+                  <% if(line.crm_client_id){ %><div><a href="<%= basePath %>/customers/<%= line.crm_client_id %>/360?panel=1">Open existing CRM customer</a></div><% } %>
+                  <% if(line.notes){ %><div class="issue"><%= line.notes %></div><% } %>
+                </td>
+                <td><%= String(line.base_status||'').replaceAll('_',' ') %>
+                  <% if(line.base_line_id){ %><div><a href="<%= basePath %>/mobile-base/<%= line.base_line_id %>?panel=1">View base line</a></div><% } %>
+                </td>
+                <td><%= line.source_upgrade_label||'Not supplied' %></td>
+                <td><% if(line.task_id){ %><a href="<%= basePath %>/tasks/<%= line.task_id %>?panel=1">Task #<%= line.task_id %></a><% }else{ %><span class="muted">No Black Friday task</span><% } %></td>
+                <td>
+                  <% if(line.review_required&&['pending','needs_info','needs_correction'].includes(line.review_state)){ %>
+                    <a class="btn review sm" href="<%= basePath %>/grouped-upgrade-accounts/line/<%= line.id %>/review<%= panelMode?'?panel=1':'' %>">Review this line</a>
+                  <% }else if(line.review_state==='other_service_confirmed'){ %>
+                    <span class="pill reviewed">Reviewed: other service</span>
+                    <div><a href="<%= basePath %>/grouped-upgrade-accounts/line/<%= line.id %>/review<%= panelMode?'?panel=1':'' %>">View decision</a></div>
+                  <% }else if(line.review_state==='mobile_approved'){ %>
+                    <span class="pill reviewed">Approved</span>
+                    <div><a href="<%= basePath %>/grouped-upgrade-accounts/line/<%= line.id %>/review<%= panelMode?'?panel=1':'' %>">Review history</a></div>
+                  <% }else{ %><span class="muted">No review required</span><% } %>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table></div>
+      </details>
+    </article>
+    <% }) %>
+    <% if(!accounts.length){ %><div class="panel">No account groups match these filters.</div><% } %>
+    <% const linkPage=n=>basePath+'/grouped-upgrade-accounts?'+new URLSearchParams({q,mode,page:String(n),...(panelMode?{panel:'1'}:{})}).toString(); %>
+    <div class="pagination">
+      <% if(page>1){ %><a class="btn secondary" href="<%= linkPage(page-1) %>">Previous</a><% }else{ %><span></span><% } %>
+      <strong>Page <%= page %> of <%= pages %></strong>
+      <% if(page<pages){ %><a class="btn" href="<%= linkPage(page+1) %>">Next</a><% }else{ %><span></span><% } %>
+    </div>
+  <% } %>
+</section>

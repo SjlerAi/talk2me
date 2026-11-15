@@ -1,0 +1,84 @@
+<style>
+.muh{max-width:1370px;margin:0 auto;padding:22px;color:#223c54;font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+.muh *{box-sizing:border-box}.muh h1{font-size:25px;margin:3px 0}.muh h2{font-size:18px}.muh a{color:#25638a;font-weight:700}
+.muh .muted{font-size:12px;color:#667c91}.muh .eyebrow{color:#7652a7;font-size:11px;letter-spacing:.1em;font-weight:850}
+.muh .head{display:flex;align-items:start;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.muh .panel,.muh .card{border:1px solid #dbe6ed;background:#fff;border-radius:12px;padding:15px;margin:12px 0}
+.muh .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:14px 0}.muh .card{margin:0}.muh .card strong{font-size:23px;display:block}
+.muh .warn{background:#fff7e8;border-left:4px solid #c38c32;border-radius:8px;padding:12px}
+.muh .filters{display:flex;align-items:end;gap:9px;flex-wrap:wrap}.muh label{flex:1;min-width:180px;color:#4b647c;font-size:12px;font-weight:700}
+.muh input,.muh select{display:block;width:100%;background:#fff;border:1px solid #b7c7d9;border-radius:7px;padding:9px;margin-top:4px}
+.muh button,.muh .btn{background:#284f79;border:1px solid #284f79;border-radius:8px;padding:9px 13px;color:white;text-decoration:none;font-weight:750;cursor:pointer}
+.muh .btn.secondary{background:#fff;color:#265681;border-color:#c7d7e3}.muh .scroll{overflow:auto;max-height:640px}
+.muh table{width:100%;min-width:810px;border-collapse:collapse;font-size:12px}
+.muh th,.muh td{padding:10px 8px;border-bottom:1px solid #e3eaf0;text-align:left;vertical-align:top}.muh th{background:#eef4f7;position:sticky;top:0}
+.muh .pager{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+@media(max-width:750px){.muh{padding:10px}.muh .cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
+</style>
+<% const labels={
+  master_customer_conflict:'Customer or account conflict',
+  duplicate_or_unlinked_line:'Repeated or unlinked telephone line',
+  unverified_customer:'Customer relationship not verified',
+  newer_performed_upgrade_not_reconciled:'Newer completed upgrade recorded',
+  other_verification_required:'Other unresolved contract verification'
+};%>
+<section class="muh">
+  <div class="head">
+    <div>
+      <div class="eyebrow">TALK2ME · ONE MASTER CUSTOMER REGISTER</div>
+      <h1>Upgrade dates held for verification</h1>
+      <p class="muted">Records on this screen are NOT presented as ready-to-call upgrades to staff or Cudo.</p>
+    </div>
+    <a class="btn secondary" href="<%= basePath %>/grouped-upgrade-accounts/master-review">Back to Conflict Resolution</a>
+  </div>
+  <div class="cards">
+    <div class="card"><strong><%= total %></strong><small>Matching held CRM upgrade records</small></div>
+    <div class="card"><strong><%= categories.length %></strong><small>Reasons for holding an upgrade</small></div>
+    <div class="card"><strong><%= pendingApproved %></strong><small>Previously approved import actions not yet applied</small></div>
+  </div>
+  <div class="warn"><strong>Important:</strong> These are customer/line records, not necessarily distinct people.
+    Some overlap with the master conflict list. We cannot guess an upgrade date, merge two different contracts,
+    or call a customer using an old date. The September Vodacom file is not a current live contract feed.</div>
+  <section class="panel">
+    <h2>Find held upgrades</h2>
+    <form method="get" class="filters" action="<%= basePath %>/master-register/upgrade-holds">
+      <label>Reason
+        <select name="reason"><option value="">All reasons</option>
+          <% categories.forEach(c=>{ %>
+            <option value="<%= c.hold_reason %>" <%= c.hold_reason===reason?'selected':'' %>><%= labels[c.hold_reason]||c.hold_reason %> (<%= c.n %>)</option>
+          <% }) %>
+        </select>
+      </label>
+      <label>Search name, account or number<input type="search" name="q" value="<%= q %>" placeholder="Find customer or number"></label>
+      <button type="submit">Show cases</button>
+      <a class="btn secondary" href="<%= basePath %>/master-register/upgrade-holds">Clear</a>
+    </form>
+    <p class="muted"><strong><%= total %></strong> records match these filters. These records need review, not deletion.</p>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Customer</th><th>Account</th><th>Telephone</th><th>Old upgrade date</th><th>Current claimed next date</th><th>Reason for hold</th><th>Review</th></tr></thead>
+        <tbody>
+        <% rows.forEach(r=>{ %><tr>
+          <td><strong><%= r.client_name %></strong></td>
+          <td><%= r.account_number||'Unknown' %></td>
+          <td><%= r.cell_number||'—' %></td>
+          <td><%= r.previous_upgrade_date?new Date(r.previous_upgrade_date).toLocaleDateString('en-ZA'):'Unknown' %></td>
+          <td><%= r.next_upgrade_date?new Date(r.next_upgrade_date).toLocaleDateString('en-ZA'):'Unknown' %></td>
+          <td><%= labels[r.hold_reason]||r.hold_reason %></td>
+          <td><a href="<%= basePath %>/customers/<%= r.id %>/360">Open CRM record</a>
+            <% if(r.master_service_key){ %><div><a href="<%= basePath %>/master-register/service/<%= encodeURIComponent(r.master_service_key) %>">Master service evidence</a></div><% } %>
+          </td>
+        </tr><% }) %>
+        <% if(!rows.length){ %><tr><td colspan="7">No matching held upgrade records.</td></tr><% } %>
+        </tbody>
+      </table>
+    </div>
+    <div class="pager">
+      <small class="muted">Page <%= page %> of <%= pages %></small>
+      <div>
+        <% if(page>1){ %><a class="btn secondary" href="<%= basePath %>/master-register/upgrade-holds?reason=<%= encodeURIComponent(reason) %>&q=<%= encodeURIComponent(q) %>&page=<%= page-1 %>">Previous</a><% } %>
+        <% if(page<pages){ %><a class="btn secondary" href="<%= basePath %>/master-register/upgrade-holds?reason=<%= encodeURIComponent(reason) %>&q=<%= encodeURIComponent(q) %>&page=<%= page+1 %>">Next</a><% } %>
+      </div>
+    </div>
+  </section>
+</section>
