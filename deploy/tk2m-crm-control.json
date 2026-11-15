@@ -2,9 +2,9 @@
   "schema": 1,
   "action": "deploy",
   "environment": "tk2m-staging",
-  "request_id": "tk2m-20261115-production-cutover",
-  "release_branch": "release/tk2m-live-cutover-20261115",
-  "release_sha": "3786c53096d9073f8358b9aee38c8b920b0aa93f",
+  "request_id": "tk2m-20261115-live-final-activation",
+  "release_branch": "release/tk2m-live-final-20261115",
+  "release_sha": "ef284666014d2691f451e202cd157eb681a912ba",
   "owner_acceptance": false,
   "production_cutover": false
 }
