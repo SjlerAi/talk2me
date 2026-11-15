@@ -14,7 +14,7 @@ const calendar=read('public/js/calendar-home-uat.js');
 const css=read('public/css/tk2m-login.css');
 const context={
   basePath:'',appVersion:'6.0.0-alpha.21.26',assetVersion:'test-release',appBuild:'test',
-  isUat:true,cudoDisabled:true,panelMode:false,isManagement:true,returnTo:null,error:null,
+  isUat:true,cudoDisabled:true,panelMode:false,isManagement:true,returnTo:null,error:null,loginCsrf:'0'.repeat(64),
   title:'Login',currentUser:null,
   status:{queueCount:0,taskCount:0,dueTodayTaskCount:0,overdueTaskCount:0},
   osLaunchers:[{slot_key:'tobi',display_name:'Tobi',icon_text:'T',is_enabled:1}]

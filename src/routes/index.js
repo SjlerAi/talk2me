@@ -185,8 +185,9 @@ router.get('/', (req, res) => {
 router.get('/login', (req, res) => {
   // A valid logged-in session must return directly to the authenticated workspace.
   if (req.session.user) {
-    const reviewTarget=safeLoginReturn(req.query.return_to,res.locals.basePath,res.locals.isStaging);
-    return res.redirect(reviewTarget === res.locals.basePath+'/data-review' ? reviewTarget : res.locals.basePath+defaultLanding(req.session.user));
+    return res.redirect(safeLoginReturn(req.query.return_to,res.locals.basePath,res.locals.isStaging) === res.locals.basePath+'/data-review'
+      ? res.locals.basePath+'/data-review'
+      : res.locals.basePath+defaultLanding(req.session.user));
   }
   const reason = String(req.query.reason || '');
   const error = reason === 'daily'
