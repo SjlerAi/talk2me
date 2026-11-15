@@ -28,7 +28,7 @@
   <section class="module-card" style="display:block">
     <h2>Send email from Back Office</h2>
     <% if(emailAllowed){ %>
-      <p><strong>From:</strong> <%= 'gerda@tk2m.co.za' %><br><strong>Reply-To:</strong> <%= 'gerda@talk-online.co.za' %></p>
+      <p><strong>From:</strong> <%= senderIdentity.from %><br><strong>Reply-To:</strong> <%= senderIdentity.replyTo %></p>
       <p><%= smtp.ready?'TK2M local mail relay verified.':'Mail not ready: '+(smtp.reason||'Check configuration.') %></p>
       <form action="<%= basePath %>/backoffice/office-tools/email/prepare" method="post" style="display:grid;gap:10px">
         <input type="hidden" name="office_csrf" value="<%= officeCsrf %>">
@@ -48,14 +48,54 @@
         <button class="btn primary" type="submit">Preview email — nothing sent yet</button>
       </form>
     <% }else{ %>
-      <p>The shared Gerda mailbox is restricted to her verified CRM Owner login. You may still generate your own documents here.</p>
+      <p>Email is restricted to the corresponding verified CRM Owner login. You may still generate your own documents here.</p>
     <% } %>
   </section>
 </div>
+<% if(inboxStatus){ %>
+<section class="module-card" style="display:block;margin-top:16px" aria-label="B4S incoming email">
+  <h2>Stephan's B4S Inbox — incoming email</h2>
+  <p><strong>Account:</strong> info@b4s.co.za</p>
+  <% if(!inboxStatus.connected){ %>
+    <p><strong>Connection pending:</strong> <%= inboxStatus.reason||'Secure mailbox authorisation required' %></p>
+    <p>Incoming messages remain safely at the B4S mail provider until the mailbox is connected. Sending and the existing mailbox are not affected.</p>
+    <form action="<%= basePath %>/backoffice/office-tools/inbox/connect" method="post" style="display:grid;gap:10px;max-width:450px">
+      <input type="hidden" name="office_csrf" value="<%= officeCsrf %>">
+      <label for="b4s-mailbox-password">B4S mailbox password or dedicated app password</label>
+      <input id="b4s-mailbox-password" type="password" name="mailbox_password" required minlength="6" maxlength="256" autocomplete="off" placeholder="Enter securely here — not in chat">
+      <button class="btn primary" type="submit">Verify and connect my B4S Inbox</button>
+    </form>
+    <p><small>The password is checked only with mail.b4s.co.za using encrypted IMAP, then held in a private server file outside the website. Never send passwords through ChatGPT.</small></p>
+  <% }else{ %>
+    <p>Secure IMAP mailbox connected. Reading a message here does not delete it from the provider.</p>
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+      <a class="btn" href="<%= basePath %>/backoffice/office-tools?inbox=1">Refresh incoming email</a>
+      <form action="<%= basePath %>/backoffice/office-tools/inbox/disconnect" method="post">
+        <input type="hidden" name="office_csrf" value="<%= officeCsrf %>">
+        <button class="btn" type="submit">Disconnect this mailbox</button>
+      </form>
+    </div>
+    <% if(inboxList?.error){ %><p><%= inboxList.error %></p><% } %>
+    <% if(inboxList?.messages){ %>
+      <% if(!inboxList.messages.length){ %><p>No messages in the inbox.</p><% }else{ %>
+      <div style="overflow:auto;margin-top:12px">
+        <table><thead><tr><th>From</th><th>Subject</th><th>Received</th><th>Status</th><th>Open</th></tr></thead><tbody>
+        <% for(const m of inboxList.messages){ %>
+          <tr><td><%= m.from||'Unknown sender' %></td><td><%= m.subject %></td>
+          <td><%= m.date?new Date(m.date).toLocaleString('en-ZA'):'—' %></td>
+          <td><%= m.unread?'Unread':'Read' %></td>
+          <td><a href="<%= basePath %>/backoffice/office-tools/inbox/<%= m.uid %>">Read / reply</a></td></tr>
+        <% } %></tbody></table>
+      </div>
+      <% } %>
+    <% } %>
+  <% } %>
+</section>
+<% } %>
 <% if(emailAllowed && pending){ %>
 <section class="module-card" style="display:block;margin-top:16px;border:2px solid #9b7a32" aria-label="Email confirmation">
   <h2>Review email before sending</h2>
-  <p><strong>From:</strong> gerda@tk2m.co.za<br><strong>Reply-To:</strong> gerda@talk-online.co.za<br><strong>To:</strong> <%= pending.to %><br><strong>Subject:</strong> <%= pending.subject %></p>
+  <p><strong>From:</strong> <%= senderIdentity.from %><br><strong>Reply-To:</strong> <%= senderIdentity.replyTo %><br><strong>To:</strong> <%= pending.to %><br><strong>Subject:</strong> <%= pending.subject %></p>
   <div style="white-space:pre-wrap;padding:12px;background:rgba(0,0,0,.04);border-radius:8px"><%= pending.body %></div>
   <% if(pending.attachmentId){const a=documents.find(x=>Number(x.id)===Number(pending.attachmentId)); %>
   <p>Attachment: <%= a?a.filename:'Document not found' %></p>

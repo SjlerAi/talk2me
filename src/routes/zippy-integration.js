@@ -24,7 +24,7 @@ async function ensureBridgeTables(){
 }
 async function requireSignedGerda(req,res,next){
  if(!UAT_ONLY)return fail(res,404,'Not found');
- if(!['preview','confirm','updates','lookup','document-create','document-list','document-read'].includes(String(req.params.action||'')))
+ if(!['preview','confirm','updates','lookup','document-create','document-list','document-read','mail-status','mail-list','mail-read','mail-attachment','mail-mark-read'].includes(String(req.params.action||'')))
   return fail(res,404,'Not found');
  let secret='';
  try{secret=fs.readFileSync(SECRET_FILE,'utf8').trim();}catch(_){return fail(res,503,'The Zippy CRM connection has not been configured.');}
@@ -59,6 +59,25 @@ router.post('/api/integrations/zippy/:action',requireSignedGerda,async(req,res)=
  res.set('Cache-Control','no-store');
  const ownerId=req.zippyOwnerId;
  try{
+  if(req.params.action.startsWith('mail-')){
+   const inbox=require('../services/office-inbox');
+   const owner={id:ownerId,scope:'owner',role:'owner',email:req.zippyOwnerEmail};
+   if(req.params.action==='mail-status')return res.json({ok:true,mailbox:await inbox.status(owner)});
+   if(req.params.action==='mail-list')return res.json({ok:true,...await inbox.list(owner)});
+   if(req.params.action==='mail-read'){
+    const message=await inbox.read(owner,req.body?.message_id);
+    return message?res.json({ok:true,message}):fail(res,404,'Mailbox message not found');
+   }
+   if(req.params.action==='mail-attachment'){
+    const attachment=await inbox.attachment(owner,req.body?.message_id,req.body?.attachment_index);
+    return attachment?res.json({ok:true,filename:attachment.filename,mime:attachment.contentType,
+      base64:attachment.buffer.toString('base64')}):fail(res,404,'Attachment not found');
+   }
+   if(req.params.action==='mail-mark-read'){
+    const updated=await inbox.markSeen(owner,req.body?.message_id);
+    return res.json({ok:true,updated});
+   }
+  }
   if(req.params.action==='document-list'){
    const documents=await require('../services/office-artifacts').list(ownerId);
    return res.json({ok:true,documents});
