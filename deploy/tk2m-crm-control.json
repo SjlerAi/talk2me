@@ -1,0 +1,10 @@
+{
+  "schema": 1,
+  "action": "hold",
+  "environment": "tk2m-staging",
+  "request_id": "initial-hold-20261115",
+  "release_branch": "release/tk2m-staging-one-login-20261115",
+  "release_sha": "1a0e8fffb7d5044b237b0a9656534a2fedfb04c7",
+  "owner_acceptance": false,
+  "production_cutover": false
+}
