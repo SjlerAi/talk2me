@@ -1,10 +1,10 @@
 {
   "schema": 1,
-  "action": "hold",
+  "action": "deploy",
   "environment": "tk2m-staging",
-  "request_id": "tk2m-20261115-login-uat",
-  "release_branch": "release/tk2m-staging-one-login-20261115",
-  "release_sha": "1a0e8fffb7d5044b237b0a9656534a2fedfb04c7",
+  "request_id": "tk2m-20261115-production-cutover",
+  "release_branch": "release/tk2m-live-cutover-20261115",
+  "release_sha": "3786c53096d9073f8358b9aee38c8b920b0aa93f",
   "owner_acceptance": false,
   "production_cutover": false
 }
