@@ -1,0 +1,32 @@
+'use strict';
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const path=require('node:path');
+const root=path.resolve(__dirname,'..');
+const read=name=>fs.readFileSync(path.join(root,name),'utf8');
+const db=read('src/config/db.js');
+const server=read('server.js');
+const launcher=read('passenger-live.js');
+const login=read('views/login.ejs');
+const auth=read('src/middleware/tk2m-staging-login.js');
+assert.match(db,/isTk2mLive/);
+assert.match(db,/talk_crm_stage/);
+assert.match(db,/talk2me_uat_private_uploads/);
+assert.match(db,/TK2M cannot be live and staging simultaneously/);
+assert.match(server,/CRM_LIVE_MODE \? 'production'/);
+assert.match(server,/TK2M_SITE/);
+assert.match(server,/talk2me\.tk2m\.sid/);
+assert.match(server,/CRM_BACKGROUND_WORKERS_ENABLED === 'true'/);
+assert.match(server,/CRM_ZIPPY_INTEGRATION_ENABLED === 'true'/);
+assert.match(server,/res\.locals\.isLive = CRM_LIVE_MODE/);
+assert.match(server,/if \(TK2M_SITE\)/);
+assert.match(server,/if \(TK2M_SITE && typeof stageListener === 'number'\)/);
+assert.match(launcher,/production-runtime\.env/);
+assert.match(launcher,/CRM_LIVE_MODE/);
+assert.match(login,/TALK2ME CONNECT360 · LIVE CRM/);
+assert.match(auth,/protectedTk2m/);
+for(const f of ['src/routes/uat-library.js','src/routes/uat-work-widgets.js']){
+ assert.match(read(f),/CRM_LIVE_MODE/);
+ assert.match(read(f),/crm-live\/uploads/);
+}
+console.log('TK2M_LIVE_MODE_SECURITY_AND_PARITY=PASS');

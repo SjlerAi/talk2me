@@ -150,7 +150,7 @@ async function run(){
  assert.ok(!/UPDATE clients SET|DELETE FROM clients|UPDATE mobile_base_current|UPDATE monthly_import/.test(routes));
  const server=load('server.js');
  assert.ok(server.includes("const mergePlans = require('./src/routes/tk2m-merge-plans')"));
- assert.ok(server.includes('if (CRM_STAGE_MODE)'));
+ assert.ok(server.includes('if (TK2M_SITE)'));
  const schema=load('scripts/install-tk2m-merge-proposal-schema.js');
  for(const table of ['tk2m_merge_case_locks','tk2m_merge_proposals','tk2m_merge_proposal_history'])
   assert.ok(schema.includes(table));

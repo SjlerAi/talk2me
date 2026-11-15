@@ -79,16 +79,16 @@ const originalUat = {
   APP_URL: 'https://uent.co.za/talk2me'
 };
 assert.equal(evaluate(originalUat).database, 'uent_Crm', 'Existing UAT contract must still work');
-assert.match(server, /if \(!CRM_STAGE_MODE\) startAgentDeadlineScheduler\(\);/);
-assert.match(server, /if \(!CRM_STAGE_MODE\) startNightlyLogoutWorker\(\);/);
-assert.match(server, /if \(CRM_STAGE_MODE && typeof stageListener === 'number'\)/);
+assert.match(server, /if \(!CRM_STAGE_MODE && \(!CRM_LIVE_MODE \|\| process\.env\.CRM_BACKGROUND_WORKERS_ENABLED === 'true'\)\) startAgentDeadlineScheduler\(\);/);
+assert.match(server, /if \(!CRM_STAGE_MODE && \(!CRM_LIVE_MODE \|\| process\.env\.CRM_BACKGROUND_WORKERS_ENABLED === 'true'\)\) startNightlyLogoutWorker\(\);/);
+assert.match(server, /if \(TK2M_SITE && typeof stageListener === 'number'\)/);
 assert.match(server, /app\.listen\(stageListener, '127\.0\.0\.1', onListening\)/);
 assert.match(server, /app\.listen\(stageListener, onListening\)/);
 const passenger = fs.readFileSync(path.join(root, 'passenger-staging.js'), 'utf8');
 assert.match(passenger, /CRM_RUNTIME_ENV_FILE/);
 assert.match(passenger, /path\.dirname\(path\.resolve\(runtime\)\) !== protectedParent/);
 assert.match(passenger, /require\('\.\/server'\)/);
-assert.match(server, /if \(!CRM_STAGE_MODE\) \{\s+const zippyIntegration = require/);
-assert.match(server, /CRM_STAGE_MODE \? 'staging'/);
+assert.match(server, /if \(!CRM_STAGE_MODE && \(!CRM_LIVE_MODE \|\| process\.env\.CRM_ZIPPY_INTEGRATION_ENABLED === 'true'\)\) \{\s+const zippyIntegration = require/);
+assert.match(server, /CRM_LIVE_MODE \? 'production' : \(CRM_STAGE_MODE \? 'staging'/);
 
 console.log('PASS: TK2M staging isolation, existing UAT safety, loopback binding, workers and Zippy boundary');

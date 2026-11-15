@@ -376,7 +376,9 @@ router.get('/api/uat/widgets/health', async (req, res) => {
       taskAttachments: names.has('staff_task_attachments'),
       voiceDirectory: privateRoot === '/home/uent/talk2me_uat_private_uploads' ||
         (String(process.env.CRM_STAGE_MODE || '').toLowerCase()==='true' &&
-         privateRoot === '/home/talk/crm-migration/staging-uploads/talk2me_uat_private_uploads')
+         privateRoot === '/home/talk/crm-migration/staging-uploads/talk2me_uat_private_uploads') ||
+        (String(process.env.CRM_LIVE_MODE || '').toLowerCase()==='true' &&
+         privateRoot === '/home/talk/crm-live/uploads/talk2me_uat_private_uploads')
     });
   } catch (error) {
     res.status(503).json({ status: 'error', environment: 'uat' });
