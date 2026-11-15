@@ -1,0 +1,41 @@
+<section class="page-head">
+  <div>
+    <h1>B4S Inbox</h1>
+    <p>Secure incoming email for info@b4s.co.za</p>
+  </div>
+  <a class="btn" href="<%= basePath %>/backoffice/office-tools?inbox=1">← Return to Inbox</a>
+</section>
+<section class="module-card" style="display:block">
+  <h2><%= message.subject %></h2>
+  <p><strong>From:</strong> <%= message.from||'Unknown sender' %></p>
+  <p><strong>Reply-To:</strong> <%= message.replyTo||message.from||'Unknown sender' %></p>
+  <p><strong>Received:</strong> <%= message.date?new Date(message.date).toLocaleString('en-ZA'):'Unknown' %></p>
+  <div style="white-space:pre-wrap;overflow-wrap:anywhere;padding:16px;background:rgba(0,0,0,.04);border-radius:8px"><%= message.text||'(This message has no plain-text body.)' %></div>
+  <% if(message.attachments?.length){ %>
+    <h3>Attachments</h3>
+    <p>Only open attachments you trust. Files are downloaded, never executed on the server.</p>
+    <ul>
+      <% for(const a of message.attachments){ %>
+      <li><a href="<%= basePath %>/backoffice/office-tools/inbox/<%= message.uid %>/attachment/<%= a.index %>"><%= a.filename %></a> (<%= a.size %> bytes)</li>
+      <% } %>
+    </ul>
+  <% } %>
+  <form action="<%= basePath %>/backoffice/office-tools/inbox/<%= message.uid %>/mark-read" method="post">
+    <input type="hidden" name="office_csrf" value="<%= officeCsrf %>">
+    <button class="btn" type="submit">Mark as read in the B4S mailbox</button>
+  </form>
+</section>
+<section class="module-card" style="display:block;margin-top:16px">
+  <h2>Reply to this email</h2>
+  <p>Review the recipient address before sending. This creates a draft; nothing is sent until you approve it in the next screen.</p>
+  <form action="<%= basePath %>/backoffice/office-tools/email/prepare" method="post" style="display:grid;gap:10px">
+    <input type="hidden" name="office_csrf" value="<%= officeCsrf %>">
+    <label for="b4s-reply-to">To</label>
+    <input id="b4s-reply-to" type="email" name="to" required maxlength="254" value="<%= message.replyTo||message.from||'' %>">
+    <label for="b4s-reply-subject">Subject</label>
+    <input id="b4s-reply-subject" name="subject" maxlength="180" required value="<%= message.subject.startsWith('Re:')?message.subject:'Re: '+message.subject %>">
+    <label for="b4s-reply-body">Reply</label>
+    <textarea id="b4s-reply-body" name="body" maxlength="6000" rows="8" required></textarea>
+    <button class="btn primary" type="submit">Preview reply before sending</button>
+  </form>
+</section>
