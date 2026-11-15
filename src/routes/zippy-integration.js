@@ -24,7 +24,7 @@ async function ensureBridgeTables(){
 }
 async function requireSignedGerda(req,res,next){
  if(!UAT_ONLY)return fail(res,404,'Not found');
- if(!['preview','confirm','updates','lookup'].includes(String(req.params.action||'')))
+ if(!['preview','confirm','updates','lookup','document-create','document-list','document-read'].includes(String(req.params.action||'')))
   return fail(res,404,'Not found');
  let secret='';
  try{secret=fs.readFileSync(SECRET_FILE,'utf8').trim();}catch(_){return fail(res,503,'The Zippy CRM connection has not been configured.');}
@@ -59,6 +59,29 @@ router.post('/api/integrations/zippy/:action',requireSignedGerda,async(req,res)=
  res.set('Cache-Control','no-store');
  const ownerId=req.zippyOwnerId;
  try{
+  if(req.params.action==='document-list'){
+   const documents=await require('../services/office-artifacts').list(ownerId);
+   return res.json({ok:true,documents});
+  }
+  if(req.params.action==='document-create'){
+   const docs=require('../services/office-artifacts');
+   const format=String(req.body?.format||'');
+   let rows=[];
+   if(format==='xlsx'){
+    try{rows=JSON.parse(String(req.body?.rows_json||''));}
+    catch(_){return fail(res,400,'Excel rows must be a JSON array of table rows');}
+   }
+   const doc=await docs.create({staffId:ownerId,source:'zippy',title:req.body?.title,
+    format,body:req.body?.body||'',rows});
+   return res.json({ok:true,document:doc});
+  }
+  if(req.params.action==='document-read'){
+   const doc=await require('../services/office-artifacts').find(ownerId,req.body?.document_id);
+   if(!doc)return fail(res,404,'Document not found');
+   if(doc.size_bytes>2000000)return fail(res,413,'Document too large to transfer');
+   return res.json({ok:true,document_id:Number(doc.id),filename:doc.filename,mime:doc.mime,
+    base64:fs.readFileSync(doc.filepath).toString('base64')});
+  }
   if(req.params.action==='lookup'){
    // This operation cannot send messages or change CRM records.
    const intent=String(req.body?.intent||'');

@@ -1,0 +1,98 @@
+<section class="page-head">
+  <div>
+    <h1>Office Communications &amp; Documents</h1>
+    <p>Word and Excel files, controlled email, and secure downloads — all in the live TK2M CRM.</p>
+  </div>
+  <a class="btn" href="<%= basePath %>/backoffice">← Back Office</a>
+</section>
+<% if(message){ %><div class="alert" role="status"><%= message %></div><% } %>
+<div class="module-grid" style="align-items:start;grid-template-columns:repeat(auto-fit,minmax(min(100%,350px),1fr));gap:16px">
+  <section class="module-card" style="display:block">
+    <h2>Generate Word or Excel</h2>
+    <p>Documents are saved privately, audited against your staff account and available in the list below. They are not publicly accessible.</p>
+    <form action="<%= basePath %>/backoffice/office-tools/document" method="post" style="display:grid;gap:10px">
+      <input type="hidden" name="office_csrf" value="<%= officeCsrf %>">
+      <label for="office-format">Format</label>
+      <select id="office-format" name="format" required>
+        <option value="docx">Word document (.docx)</option>
+        <option value="xlsx">Excel spreadsheet (.xlsx)</option>
+      </select>
+      <label for="office-title">Document title</label>
+      <input id="office-title" name="title" maxlength="150" placeholder="Customer follow-up report" required>
+      <label for="office-body">Document content</label>
+      <textarea id="office-body" name="body" rows="8" maxlength="14000" placeholder="Word: write or paste paragraphs here. Excel: paste rows with tab-separated columns, one row per line." required></textarea>
+      <p><small>For Excel, paste a table from Excel or use tabs between columns. The first row becomes your headings.</small></p>
+      <button class="btn primary" type="submit">Generate document</button>
+    </form>
+  </section>
+  <section class="module-card" style="display:block">
+    <h2>Send email from Back Office</h2>
+    <% if(emailAllowed){ %>
+      <p><strong>From:</strong> <%= 'gerda@tk2m.co.za' %><br><strong>Reply-To:</strong> <%= 'gerda@talk-online.co.za' %></p>
+      <p><%= smtp.ready?'TK2M local mail relay verified.':'Mail not ready: '+(smtp.reason||'Check configuration.') %></p>
+      <form action="<%= basePath %>/backoffice/office-tools/email/prepare" method="post" style="display:grid;gap:10px">
+        <input type="hidden" name="office_csrf" value="<%= officeCsrf %>">
+        <label for="email-to">Recipient email address</label>
+        <input id="email-to" name="to" type="email" maxlength="254" placeholder="recipient@example.co.za" required>
+        <label for="email-subject">Subject</label>
+        <input id="email-subject" name="subject" maxlength="180" required>
+        <label for="email-body">Message</label>
+        <textarea id="email-body" name="body" rows="6" maxlength="6000" required></textarea>
+        <label for="email-attachment">Attach a document (optional)</label>
+        <select id="email-attachment" name="attachment_id">
+          <option value="">No attachment</option>
+          <% for(const d of documents){ %>
+          <option value="<%= d.id %>"><%= d.filename %></option>
+          <% } %>
+        </select>
+        <button class="btn primary" type="submit">Preview email — nothing sent yet</button>
+      </form>
+    <% }else{ %>
+      <p>The shared Gerda mailbox is restricted to her verified CRM Owner login. You may still generate your own documents here.</p>
+    <% } %>
+  </section>
+</div>
+<% if(emailAllowed && pending){ %>
+<section class="module-card" style="display:block;margin-top:16px;border:2px solid #9b7a32" aria-label="Email confirmation">
+  <h2>Review email before sending</h2>
+  <p><strong>From:</strong> gerda@tk2m.co.za<br><strong>Reply-To:</strong> gerda@talk-online.co.za<br><strong>To:</strong> <%= pending.to %><br><strong>Subject:</strong> <%= pending.subject %></p>
+  <div style="white-space:pre-wrap;padding:12px;background:rgba(0,0,0,.04);border-radius:8px"><%= pending.body %></div>
+  <% if(pending.attachmentId){const a=documents.find(x=>Number(x.id)===Number(pending.attachmentId)); %>
+  <p>Attachment: <%= a?a.filename:'Document not found' %></p>
+  <% } %>
+  <p>Sending requires one explicit confirmation. Repeating an accepted or uncertain send is blocked.</p>
+  <div style="display:flex;gap:12px;flex-wrap:wrap">
+    <form action="<%= basePath %>/backoffice/office-tools/email/confirm" method="post">
+      <input type="hidden" name="office_csrf" value="<%= officeCsrf %>">
+      <input type="hidden" name="confirmation" value="<%= pending.token %>">
+      <button type="submit" class="btn primary" <%= smtp.ready?'':'disabled' %>>Confirm &amp; Send Email</button>
+    </form>
+    <form action="<%= basePath %>/backoffice/office-tools/email/cancel" method="post">
+      <input type="hidden" name="office_csrf" value="<%= officeCsrf %>">
+      <button class="btn" type="submit">Cancel — do not send</button>
+    </form>
+  </div>
+</section>
+<% } %>
+<section class="module-card" style="display:block;margin-top:16px">
+  <h2>My generated documents</h2>
+  <% if(!documents.length){ %><p>No documents generated yet.</p><% }else{ %>
+    <div style="overflow:auto">
+      <table><thead><tr><th>Document</th><th>Format</th><th>Source</th><th>Created</th><th>Action</th></tr></thead>
+      <tbody><% for(const d of documents){ %>
+        <tr><td><%= d.title %></td><td><%= d.format.toUpperCase() %></td><td><%= d.source %></td><td><%= new Date(d.created_at).toLocaleString('en-ZA') %></td><td><a href="<%= basePath %>/api/office-files/<%= d.id %>">Download</a></td></tr>
+      <% } %></tbody></table>
+    </div>
+  <% } %>
+</section>
+<% if(emailAllowed){ %>
+<section class="module-card" style="display:block;margin-top:16px">
+  <h2>My email delivery log</h2>
+  <p>SMTP acceptance confirms the server accepted the message, not that the recipient read or received it.</p>
+  <% if(!emails.length){ %><p>No Back Office emails have been sent.</p><% }else{ %>
+    <div style="overflow:auto"><table><thead><tr><th>Recipient</th><th>Subject</th><th>State</th><th>When</th></tr></thead><tbody>
+      <% for(const e of emails){ %><tr><td><%= e.to_email %></td><td><%= e.subject %></td><td><%= e.state %></td><td><%= new Date(e.created_at).toLocaleString('en-ZA') %></td></tr><% } %>
+    </tbody></table></div>
+  <% } %>
+</section>
+<% } %>
