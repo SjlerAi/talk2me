@@ -28,7 +28,7 @@ function validToken(req){
   return stored.length===48&&received.length===48&&crypto.timingSafeEqual(stored,received);
 }
 function reviewLink(req,res,id,message=''){
-  const base=res.locals.basePath||'/talk2me';
+  const base=res.locals.basePath??'/talk2me';
   const params=new URLSearchParams({...(String(req.body?.panel||'')==='1'?{panel:'1'}:{}),...(message?{message}:{})});
   return base+'/grouped-upgrade-accounts/line/'+id+'/review?'+params.toString();
 }
@@ -116,7 +116,7 @@ router.post('/grouped-upgrade-accounts/line/:id/review',requireOwner,(req,res)=>
     ...(String(req.body?.panel||'')==='1'?{panel:'1'}:{}),
     error:'The review screen has been updated. Choose the correct record or account and click Update.'
   });
-  return res.redirect(303,(res.locals.basePath||'/talk2me')+'/grouped-upgrade-accounts/line/'+id+'/review?'+params.toString());
+  return res.redirect(303,(res.locals.basePath??'/talk2me')+'/grouped-upgrade-accounts/line/'+id+'/review?'+params.toString());
 });
 
 router.post('/grouped-upgrade-accounts/line/:id/resolve',requireOwner,async(req,res,next)=>{
@@ -138,14 +138,14 @@ router.post('/grouped-upgrade-accounts/line/:id/resolve',requireOwner,async(req,
       mode:'review',...(String(req.body.panel)==='1'?{panel:'1'}:{}),
       message:result.message
     });
-    return res.redirect((res.locals.basePath||'/talk2me')+'/grouped-upgrade-accounts?'+params.toString());
+    return res.redirect((res.locals.basePath??'/talk2me')+'/grouped-upgrade-accounts?'+params.toString());
   }catch(e){
     try{await conn.rollback()}catch(_){}
     if(e instanceof resolver.ResolutionBlocked){
       const params=new URLSearchParams({
         ...(String(req.body.panel)==='1'?{panel:'1'}:{}),error:e.message
       });
-      return res.redirect((res.locals.basePath||'/talk2me')+'/grouped-upgrade-accounts/line/'+id+'/review?'+params.toString());
+      return res.redirect((res.locals.basePath??'/talk2me')+'/grouped-upgrade-accounts/line/'+id+'/review?'+params.toString());
     }
     return next(e);
   }finally{conn.release()}
@@ -177,7 +177,7 @@ async function customerUpdate(req,res,next,fromLine){
   if(!validToken(req))return errorPage(res,'Refresh the page and choose the correction again.',403);
   const userId=positive(req.session.user?.id);
   if(!userId)return errorPage(res,'Your login session has expired.',403);
-  const root=(res.locals.basePath||'/talk2me')+'/grouped-upgrade-accounts';
+  const root=(res.locals.basePath??'/talk2me')+'/grouped-upgrade-accounts';
   const returnPath=fromLine?root+'/line/'+id+'/review':root+'/account/'+id+'/customer';
   const action=inputText(req.body.action,40);
   const conn=await db.getConnection();
