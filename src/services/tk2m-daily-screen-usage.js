@@ -60,7 +60,9 @@ function todaySast(now=new Date()){
 }
 function selection(query={},now=new Date()){
  const today=todaySast(now),day=String(query.day||today);
- if(!/^\d{4}-\d{2}-\d{2}$/.test(day)||isoDay(new Date(day+'T12:00:00Z'))!==day||day<'2025-01-01'||day>today)throw Error('Choose a valid South African reporting day');
+ const candidate=/^\d{4}-\d{2}-\d{2}$/.test(day)?new Date(day+'T12:00:00Z'):null;
+ if(!candidate||Number.isNaN(candidate.getTime())||isoDay(candidate)!==day||
+    day<'2025-01-01'||day>today)throw Error('Choose a valid South African reporting day');
  const days=Number(query.days||1);
  if(![1,7,30].includes(days))throw Error('Choose 1, 7 or 30 days');
  const raw=String(query.staff||'');
