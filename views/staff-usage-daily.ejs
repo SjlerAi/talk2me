@@ -1,0 +1,132 @@
+<style>
+.tk2m-daily-usage{max-width:1480px;margin:0 auto;padding:20px;display:grid;gap:17px;color:#1e3448}
+.tk2m-daily-usage *{box-sizing:border-box}
+.tk2m-daily-usage .heading{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:14px}
+.tk2m-daily-usage h1{font-size:clamp(23px,3vw,32px);margin:5px 0 6px}
+.tk2m-daily-usage h2{font-size:20px;margin:0 0 7px}
+.tk2m-daily-usage p{margin:5px 0;line-height:1.5}
+.tk2m-daily-usage .subtle{color:#5e7387;font-size:13px}
+.tk2m-daily-usage .eyebrow{font-size:12px;text-transform:uppercase;color:#23749c;font-weight:900;letter-spacing:.08em}
+.tk2m-daily-usage .panel{background:#fff;border:1px solid #d7e3ec;border-radius:14px;padding:17px;min-width:0}
+.tk2m-daily-usage .filters{display:flex;gap:10px;flex-wrap:wrap;align-items:end}
+.tk2m-daily-usage label{display:grid;gap:5px;font-size:12px;font-weight:800}
+.tk2m-daily-usage input,.tk2m-daily-usage select{min-height:39px;padding:8px 10px;border:1px solid #b7c8d5;border-radius:8px;background:#fff;color:#153449;font:inherit}
+.tk2m-daily-usage .btn,.tk2m-daily-usage button{display:inline-flex;align-items:center;justify-content:center;border:1px solid #8caec3;border-radius:8px;min-height:39px;padding:8px 13px;background:#fff;color:#155479;text-decoration:none;font-weight:800;cursor:pointer}
+.tk2m-daily-usage .btn.primary,.tk2m-daily-usage button.primary{background:#17698e;color:#fff;border-color:#17698e}
+.tk2m-daily-usage .quick{display:flex;gap:7px;flex-wrap:wrap}
+.tk2m-daily-usage .metrics{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+.tk2m-daily-usage .metric{background:#fff;border:1px solid #d6e3ec;padding:15px;border-radius:12px}
+.tk2m-daily-usage .metric strong{display:block;font-size:clamp(23px,3vw,31px);color:#123f5e}
+.tk2m-daily-usage .metric span{font-size:12px;color:#557083}
+.tk2m-daily-usage .scroll{width:100%;overflow-x:auto}
+.tk2m-daily-usage table{width:100%;border-collapse:collapse;font-size:13px;min-width:860px}
+.tk2m-daily-usage th,.tk2m-daily-usage td{padding:10px 8px;text-align:left;vertical-align:top;border-bottom:1px solid #e5edf3}
+.tk2m-daily-usage th{background:#f2f7fa;font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:#3c596b}
+.tk2m-daily-usage .num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.tk2m-daily-usage .screen-title{font-weight:800}
+.tk2m-daily-usage .pill{display:inline-block;font-size:11px;font-weight:800;border-radius:99px;padding:4px 8px;white-space:nowrap;background:#e9f5ef;color:#17653d}
+.tk2m-daily-usage .pill.missing{background:#f3f5f7;color:#596a78}
+.tk2m-daily-usage a.person{color:#17698e;font-weight:800;text-decoration:none}
+.tk2m-daily-usage .note{border-left:3px solid #86adc7;background:#f5f9fc;padding:12px 15px;border-radius:8px}
+.tk2m-daily-usage .warning{border-left-color:#e1ab52;background:#fffaf1}
+.tk2m-daily-usage .detail{color:#62798a;font-size:12px;margin-top:4px}
+@media(max-width:1000px){.tk2m-daily-usage .metrics{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:700px){.tk2m-daily-usage{padding:8px}.tk2m-daily-usage .metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.tk2m-daily-usage .panel{padding:12px}}
+</style>
+<section class="tk2m-daily-usage">
+  <header class="heading">
+    <div>
+      <div class="eyebrow">TK2M LIVE · Management intelligence</div>
+      <h1>Daily Screen Usage</h1>
+      <p class="subtle"><strong><%= data.filter.first %></strong> to <strong><%= data.filter.last %></strong> · <%= data.filter.days %> day(s) · Africa/Johannesburg time</p>
+    </div>
+    <div class="quick">
+      <a class="btn" href="<%= basePath %>/backoffice">Administration</a>
+      <a class="btn" href="<%= basePath %>/backoffice/staff-usage">Weekly detailed audit</a>
+      <a class="btn primary" href="<%= basePath %>/backoffice/staff-usage/daily.csv?day=<%= data.filter.day %>&days=<%= data.filter.days %><%= data.filter.staffId?'&staff='+data.filter.staffId:'' %>">Export screen usage (CSV)</a>
+    </div>
+  </header>
+  <form class="panel filters" method="get" action="<%= basePath %>/backoffice/staff-usage/daily">
+    <label>Ending date (South Africa)<input name="day" type="date" min="2025-01-01" max="<%= data.filter.today %>" value="<%= data.filter.day %>" required></label>
+    <label>Reporting period
+      <select name="days">
+        <option value="1" <%= data.filter.days===1?'selected':'' %>>Single day</option>
+        <option value="7" <%= data.filter.days===7?'selected':'' %>>Last 7 days</option>
+        <option value="30" <%= data.filter.days===30?'selected':'' %>>Last 30 days</option>
+      </select>
+    </label>
+    <label>Staff member
+      <select name="staff">
+        <option value="">All staff</option>
+        <% data.allStaff.forEach(function(p){ %><option value="<%= p.id %>" <%= data.filter.staffId===p.id?'selected':'' %>><%= p.full_name %> (<%= p.role %>)<%= p.active?'':' · inactive' %></option><% }) %>
+      </select>
+    </label>
+    <button type="submit" class="primary">Show usage</button>
+    <a class="btn" href="<%= basePath %>/backoffice/staff-usage/daily?day=<%= data.filter.today %>&days=1">Today</a>
+    <a class="btn" href="<%= basePath %>/backoffice/staff-usage/daily?day=<%= data.filter.yesterday %>&days=1">Yesterday</a>
+    <a class="btn" href="<%= basePath %>/backoffice/staff-usage/daily?day=<%= data.filter.today %>&days=30">30-day overview</a>
+  </form>
+  <div class="metrics">
+    <div class="metric"><strong><%= data.totalScreens %></strong><span>Tracked screen / launcher categories</span></div>
+    <div class="metric"><strong><%= data.observed %></strong><span>Categories with recorded activity</span></div>
+    <div class="metric"><strong><%= data.unobserved %></strong><span>No activity observed in this period</span></div>
+    <div class="metric"><strong><%= data.summary.views||0 %></strong><span>Page responses recorded</span></div>
+    <div class="metric"><strong><%= data.summary.launches||0 %></strong><span>Launcher selections recorded</span></div>
+  </div>
+  <section class="panel note">
+    <strong>How to make keep/remove decisions</strong>
+    <p class="subtle">A screen with <strong>no recorded use</strong> is not necessarily unused: the person may not have worked, the screen may be hidden by permissions, or older interactions may lack instrumentation. Compare the 30-day view and individual staff before deciding. Never delete a working screen solely because it has zero events in one day.</p>
+    <p class="subtle">Page views = successful CRM HTML responses. Launcher selections = monitored shortcut clicks. Window opens = CRM window-open notifications. Button attempts do not prove a completed action. These categories overlap and should not be added together as work completed.</p>
+  </section>
+  <section class="panel">
+    <h2>Screen and application usage — observed</h2>
+    <p class="subtle">Sorted by measured activity. Choose a staff member above to see which screens that person used.</p>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Screen or launcher</th><th>Category</th><th>Observed status</th><th class="num">Page views</th><th class="num">Launch clicks</th><th class="num">Windows</th><th class="num">Staff</th><th>Who used it</th></tr></thead>
+        <tbody>
+        <% data.screens.filter(function(s){return s.tracked>0}).forEach(function(s){ %>
+          <tr>
+            <td><span class="screen-title"><%= s.label %></span><div class="detail"><%= s.path||'Workspace launcher' %></div></td>
+            <td><%= s.category %></td><td><span class="pill">Observed</span></td>
+            <td class="num"><%= s.views %></td><td class="num"><%= s.launches %></td><td class="num"><%= s.windows %></td><td class="num"><%= s.users %></td>
+            <td><%= s.staffNames.slice(0,5).map(function(u){return u.name+' ('+u.count+')'}).join(', ') %><%= s.staffNames.length>5?' +'+(s.staffNames.length-5)+' more':'' %></td>
+          </tr>
+        <% }) %>
+        <% if(!data.observed){ %><tr><td colspan="8">No measured screen or launcher events in this period.</td></tr><% } %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+  <section class="panel">
+    <h2>Screens with no recorded use</h2>
+    <p class="subtle">These exist in the TK2M screen inventory but generated no matching page, shortcut or window events during the selected period.</p>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Available screen</th><th>Category</th><th>Tracking path / shortcut</th><th>Status</th></tr></thead>
+        <tbody>
+        <% data.screens.filter(function(s){return !s.tracked}).forEach(function(s){ %>
+          <tr><td><strong><%= s.label %></strong></td><td><%= s.category %></td><td><code><%= s.path||('Launcher: '+s.feature) %></code></td><td><span class="pill missing">No recorded use</span></td></tr>
+        <% }) %>
+        <% if(!data.unobserved){ %><tr><td colspan="4">All inventoried categories have a recorded event in this period.</td></tr><% } %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+  <section class="panel">
+    <h2>Staff activity and accountability</h2>
+    <p class="subtle">Business actions are read from their own audit and workflow tables. A request is not the same as a completed or audited change.</p>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Staff member</th><th>Role</th><th class="num">Views</th><th class="num">Launches</th><th class="num">CRM windows</th><th class="num">Button attempts</th><th class="num">Successful requests</th><th class="num">Audited changes</th><th class="num">Tasks seen</th><th class="num">Tasks completed</th><th class="num">Messages sent</th><th class="num">Read receipts</th><th class="num">Linked replies</th></tr></thead>
+        <tbody>
+        <% data.visibleStaff.forEach(function(p){ %><tr>
+          <td><a class="person" href="<%= basePath %>/backoffice/staff-usage/daily?day=<%= data.filter.day %>&days=<%= data.filter.days %>&staff=<%= p.id %>"><%= p.full_name %></a><% if(!p.active){ %><div class="detail">Inactive</div><% } %></td>
+          <td><%= p.role %></td><td class="num"><%= p.views %></td><td class="num"><%= p.launches %></td><td class="num"><%= p.windows %></td><td class="num"><%= p.buttons %></td><td class="num"><%= p.httpRequests %></td><td class="num"><%= p.changes %></td><td class="num"><%= p.tasksSeen %></td><td class="num"><%= p.tasksCompleted %></td><td class="num"><%= p.messagesSent %></td><td class="num"><%= p.reads %></td><td class="num"><%= p.replies %></td>
+        </tr><% }) %>
+        </tbody>
+      </table>
+    </div>
+    <p class="note warning subtle"><strong>Automatic chat polling is excluded from deliberate-use counts.</strong> <%= data.summary.chatRefreshes||0 %> legacy chat-fetch/open events occurred in this reporting period; historical collection may include background refreshes. Empty read/reply values mean no individual receipt or reply-link was recorded, not proof that messages were ignored.</p>
+  </section>
+</section>

@@ -42,6 +42,10 @@ async function ensureUsageSchema() {
 function normaliseRoute(value) {
   let route = clean(value || '/', 255) || '/';
   route = route.split('?')[0].replace(/^\/talk2me(?=\/|$)/, '') || '/';
+  // Customer master-service keys can embed phone/account identifiers. Never
+  // save those keys in screen telemetry or management usage exports.
+  route = route.replace(/^\/master-register\/(service|customer)\/[^/]+/i,
+    '/master-register/$1/:key');
   route = route.replace(/\/[0-9]+(?=\/|$)/g, '/:id');
   route = route.replace(/\/[0-9a-f]{24,64}(?=\/|$)/gi, '/:token');
   return route.slice(0, 255);

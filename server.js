@@ -346,6 +346,10 @@ if (BASE_PATH) app.use(BASE_PATH, usageTelemetry);
 const weeklyStaffUsage = require('./src/routes/staff-usage-weekly').router;
 app.use('/', weeklyStaffUsage);
 if (BASE_PATH) app.use(BASE_PATH, weeklyStaffUsage);
+// Read-only Owner report: daily screens with and without measured usage.
+const dailyScreenUsage = require('./src/routes/staff-usage-daily');
+app.use('/', dailyScreenUsage);
+if (BASE_PATH) app.use(BASE_PATH, dailyScreenUsage);
 
 const nightlyLogoutSettings = require('./src/routes/nightly-logout-settings');
 app.use('/', nightlyLogoutSettings);
