@@ -129,7 +129,7 @@
     <header class="t2m-os-topbar">
       <a class="t2m-os-brand" href="<%= basePath %>/workspace" aria-label="Talk2Me OS home">
         <img src="<%= basePath %>/public/images/talk2me-logo.png" alt="Talk2Me">
-        <span><strong>Talk2Me</strong><small><%= isStaging?'TK2M TEST · ':'' %>OS v<%= appVersion %></small></span>
+        <span><strong>Talk2Me</strong><small><%= isLive?'TK2M LIVE · ':(isStaging?'TK2M TEST · ':'') %>OS v<%= appVersion %></small></span>
       </a>
       <div class="t2m-os-search" role="search">
         <span aria-hidden="true">⌕</span>
