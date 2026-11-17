@@ -278,7 +278,7 @@ router.get('/master-register/service/:key',requireOwner,async(req,res,next)=>{
 // applies to one verified service number at a time.
 router.post('/master-register/service/:key/resolve',requireOwner,async(req,res,next)=>{
  const serviceKey=text(req.params.key,100);
- const root=(res.locals.basePath||'/talk2me');
+ const root=(res.locals.basePath??'/talk2me');
  if(!validCsrf(req))return res.status(403).render('error',{
   title:'Cannot resolve conflict',message:'Refresh the conflict page before applying a decision.'});
  const mode=text(req.body?.mode,36);

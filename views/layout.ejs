@@ -21,7 +21,8 @@
   <link rel="stylesheet" href="<%= basePath %>/public/css/client-assignment-centre.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>">
   <link rel="stylesheet" href="<%= basePath %>/public/css/approval-centre.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>">
   <link rel="stylesheet" href="<%= basePath %>/public/css/legacy-client-claim-reconciliation.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>">
-  <% if(isUat){ %><link rel="stylesheet" href="<%= basePath %>/public/uat-safety.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>"><link rel="stylesheet" href="<%= basePath %>/public/css/uat-mobile-first.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>"><% } %>
+  <% if(isUat && !isLive){ %><link rel="stylesheet" href="<%= basePath %>/public/uat-safety.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>"><% } %>
+  <% if(isUat){ %><link rel="stylesheet" href="<%= basePath %>/public/css/uat-mobile-first.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>"><% } %>
   <% if(isUat && !cudoDisabled && currentUser && String(currentUser.role||'').toLowerCase()==='owner' && !panelMode){ %><link rel="stylesheet" href="<%= basePath %>/public/css/cudo-widget.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>"><% } %>
   <script defer src="<%= basePath %>/public/js/customer-actions.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>"></script>
   <script defer src="<%= basePath %>/public/js/attendance-nightly-settings.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>"></script>
