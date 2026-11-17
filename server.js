@@ -204,6 +204,19 @@ const { dailySessionMiddleware } = require('./src/middleware/auth');
 const { usageMiddleware } = require('./src/services/usage-telemetry');
 app.use(dailySessionMiddleware());
 app.use(usageMiddleware());
+// TK2M domain-root compatibility: pre-cutover links must never load a stale
+// /talk2me customer window. Redirect read-only routes to the canonical root.
+// UENT is untouched; unsafe methods are not replayed into live CRM endpoints.
+if (CRM_LIVE_MODE) {
+  const { legacyRootPath } = require('./src/services/tk2m-legacy-route');
+  app.use('/talk2me', (req, res) => {
+    if (req.method !== 'GET' && req.method !== 'HEAD') return res.sendStatus(404);
+    const destination = legacyRootPath(req.originalUrl);
+    if (!destination) return res.sendStatus(400);
+    res.set('Cache-Control', 'private, no-store');
+    return res.redirect(302, destination);
+  });
+}
 // Keep the independent test CRM safe when the temporary hosting password is removed.
 const tk2mStaffLogin = require('./src/middleware/tk2m-staging-login');
 app.use(tk2mStaffLogin.protectPrivateRoutes);
