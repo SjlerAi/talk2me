@@ -8,6 +8,7 @@ const CATALOG=Object.freeze([
   {key:'workspace',category:'Daily workspace',label:'My Day / Workspace',path:'/workspace',match:/^\/(?:workspace|dashboard|)$/},
   {key:'queue',category:'Workspace tools',label:'Queue launcher',feature:'queue'},
   {key:'work',category:'Workspace tools',label:'Work / Tasks launcher',feature:'work'},
+  {key:'messages',category:'Workspace tools',label:'Messages / chat controls',feature:'messages'},
   {key:'calendar-launcher',category:'Workspace tools',label:'Calendar launcher',feature:'calendar'},
   {key:'notes',category:'Workspace tools',label:'Notes launcher',feature:'notes'},
   {key:'calculator',category:'Workspace tools',label:'Calculator launcher',feature:'calculator'},
