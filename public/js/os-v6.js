@@ -83,8 +83,20 @@
     }
   }
 
+  const tk2mProductionHost = location.hostname.toLowerCase() === 'crm.tk2m.co.za';
   function panelUrl(url) {
     const parsed = new URL(url, location.href);
+    // Links saved before the TK2M migration can still carry the UENT origin
+    // or the old /talk2me prefix. Never load those customer pages externally.
+    if (tk2mProductionHost) {
+      const oldPrefix = new RegExp('^/talk2me(?=/|$)', 'i');
+      const oldCrmHost = ['uent.co.za', 'www.uent.co.za'].includes(parsed.hostname.toLowerCase());
+      if ((parsed.origin === location.origin || oldCrmHost) && oldPrefix.test(parsed.pathname)) {
+        parsed.protocol = location.protocol;
+        parsed.host = location.host;
+        parsed.pathname = parsed.pathname.replace(oldPrefix, '') || '/';
+      }
+    }
     if (parsed.origin === location.origin) parsed.searchParams.set('panel', '1');
     return parsed.href;
   }
@@ -161,6 +173,17 @@
     open(options) {
       const existing = this.windows.get(options.id);
       if (existing) {
+        // Reusing an already-open customer window must not preserve a stale
+        // UENT iframe after the new TK2M route has been resolved.
+        const existingFrame = existing.node.querySelector('iframe');
+        const resolvedUrl = options.url ? panelUrl(options.url) : '';
+        if (resolvedUrl && (!existingFrame || existingFrame.src !== resolvedUrl)) {
+          existing.options = { ...existing.options, ...options };
+          existing.node.setAttribute('aria-label', options.title);
+          existing.node.querySelector('.t2m-os-window-title strong').textContent = options.title;
+          existing.node.querySelector('.t2m-os-window-title small').textContent = options.subtitle || 'Talk2Me OS';
+          this.render(existing);
+        }
         auditWindow('window_reopen', existing.options);
         this.restore(options.id);
         this.focus(options.id);
@@ -474,7 +497,16 @@
   function closeSearch() { searchResults.hidden = true; searchResults.innerHTML = ''; searchInput.setAttribute('aria-expanded', 'false'); }
   function openCustomer(row) {
     if (!row) return; const fixed = row.record_type === 'fixed';
-    windows.open({ id: `${fixed ? 'fixed' : 'customer'}:${row.id}`, appKey: 'customer', title: row.client_name || 'Customer', icon: fixed ? 'T' : 'C', subtitle: [row.account_number, row.cell_number].filter(Boolean).join(' · ') || 'Customer record', url: row.url, width: 1120, height: 700 });
+    let destination;
+    try {
+      destination = panelUrl(row.url);
+      if (tk2mProductionHost && new URL(destination).origin !== location.origin) {
+        throw new Error('Customer link points outside the live CRM');
+      }
+    } catch (_) {
+      return toast('Customer link unavailable', 'This customer must open on crm.tk2m.co.za. Refresh the page and search again.');
+    }
+    windows.open({ id: `${fixed ? 'fixed' : 'customer'}:${row.id}`, appKey: 'customer', title: row.client_name || 'Customer', icon: fixed ? 'T' : 'C', subtitle: [row.account_number, row.cell_number].filter(Boolean).join(' · ') || 'Customer record', url: destination, width: 1120, height: 700 });
     searchInput.value = ''; closeSearch();
   }
   async function search(query) {
