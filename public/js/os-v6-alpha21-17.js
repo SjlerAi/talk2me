@@ -131,6 +131,31 @@
 
   window.Talk2MeUsage = { track };
 
+  // Explicit, allowlisted human button attempts. Never record free text,
+  // search content, customer numbers, message bodies or external URLs.
+  // Completed work is counted separately from server-side task/change records.
+  const trackedWorkButtons = [
+    ['[data-chat-tab]', 'message_tab_clicked', 'messages'],
+    ['[data-chat-send]', 'message_send_clicked', 'messages'],
+    ['[data-chat-voice]', 'voice_record_clicked', 'messages'],
+    ['[data-system-read]', 'system_notice_read_clicked', 'messages'],
+    ['[data-task-status]', 'task_status_clicked', 'work'],
+    ['[data-task-complete]', 'task_complete_clicked', 'work'],
+    ['[data-task-decision]', 'task_review_clicked', 'work'],
+    ['[data-task-back]', 'task_back_clicked', 'work'],
+    ['[data-task-comment-form] button[type="submit"]', 'task_comment_send_clicked', 'work']
+  ];
+  document.addEventListener('click', event => {
+    const target=event.target;
+    if (!target?.closest) return;
+    for (const [selector, action, screen] of trackedWorkButtons) {
+      if (!target.closest(selector)) continue;
+      track({event_type:'ui_action',screen_key:screen,
+        module_name:'work',route_path:'/workspace',action});
+      return;
+    }
+  }, true);
+
   document.addEventListener('click', event => {
     const target = event.target.closest?.('[data-os-app],[data-os-route],[data-os-launch],[data-os-managed-launcher],[data-widget-add],[data-home-add-task],[data-home-add-reminder]');
     if (!target) return;
