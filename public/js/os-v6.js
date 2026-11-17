@@ -119,7 +119,7 @@
       let pseudoContent = '';
       try { pseudoContent = String(frame.contentWindow.getComputedStyle(child.body, '::before').content || ''); }
       catch (_) {}
-      if (!warningStyleLinks.length && !/TALK2ME\\s+UAT\\s*\\/\\s*TEST/i.test(pseudoContent)) return false;
+      if (!warningStyleLinks.length && !pseudoContent.toUpperCase().includes('TALK2ME UAT / TEST')) return false;
       for (const link of warningStyleLinks) link.remove();
       if (!child.getElementById('tk2m-live-remove-stale-uat-banner')) {
         const style = child.createElement('style');
