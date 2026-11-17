@@ -1,0 +1,11 @@
+{
+  "schema": 1,
+  "action": "hold",
+  "environment": "tk2m-production",
+  "request_id": "tk2m-20261117-prod-controller-hold",
+  "release_branch": "release/tk2m-b4s-inbox-20261115",
+  "release_sha": "fc4947c38f18960bdca474be1411fd0f5e2a4563",
+  "expected_previous_sha": "fc4947c38f18960bdca474be1411fd0f5e2a4563",
+  "production_cutover": true,
+  "owner_approved": false
+}
