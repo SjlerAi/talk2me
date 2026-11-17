@@ -89,7 +89,7 @@
     // Links saved before the TK2M migration can still carry the UENT origin
     // or the old /talk2me prefix. Never load those customer pages externally.
     if (tk2mProductionHost) {
-      const oldPrefix = /^\\/talk2me(?=\\/|$)/i;
+      const oldPrefix = new RegExp('^/talk2me(?=/|$)', 'i');
       const oldCrmHost = ['uent.co.za', 'www.uent.co.za'].includes(parsed.hostname.toLowerCase());
       if ((parsed.origin === location.origin || oldCrmHost) && oldPrefix.test(parsed.pathname)) {
         parsed.protocol = location.protocol;
