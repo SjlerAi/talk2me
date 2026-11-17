@@ -53,6 +53,30 @@ assert.match(production, /\/public\/css\/uat-mobile-first\.css/);
 assert.match(uat, /\/public\/uat-safety\.css/);
 assert.match(uat, /\/public\/css\/uat-mobile-first\.css/);
 
+// Production must visually suppress cached old UAT CSS inside customer iframe
+// layouts while preserving the warning in actual legacy test environments.
+assert.match(production, /id="tk2m-production-no-uat-banner"/);
+assert.match(production, /body\.command-body::before\{content:none!important;display:none!important\}/);
+assert.match(production, /body\.command-body\{padding-top:0!important\}/);
+assert.doesNotMatch(uat, /id="tk2m-production-no-uat-banner"/);
+
+const osShell = read('views/os-shell.ejs');
+const match = osShell.match(/(<small><%= isLive\?[^%]+%>OS v<%= appVersion %><\/small>)/);
+assert.ok(match, 'TK2M workspace live-vs-staging identity must be explicit');
+const brand = ({isLive,isStaging}) => ejs.render(match[1],{isLive,isStaging,appVersion:'synthetic'});
+assert.match(brand({isLive:true,isStaging:true}), /TK2M LIVE/);
+assert.doesNotMatch(brand({isLive:true,isStaging:true}), /TEST|NOT LIVE/);
+assert.match(brand({isLive:false,isStaging:true}), /TK2M TEST/);
+
+const appSource = read('server.js');
+const liveNeutralizer = appSource.match(/if \(CRM_LIVE_MODE\) \{\s*app\.get\('\/public\/uat-safety\.css'[\s\S]*?\n\}/);
+assert.ok(liveNeutralizer, 'production-only UAT CSS neutralizer must exist');
+assert.match(liveNeutralizer[0], /res\.type\('text\/css'\)\.send/);
+assert.match(liveNeutralizer[0], /content:none!important;display:none!important/);
+assert.ok(appSource.indexOf("app.get('/public/uat-safety.css'") <
+  appSource.indexOf("app.use('/public', express.static"), 'neutralizer must run before static assets');
+
+
 // The live site must never offer a direct link into the former UENT domain.
 for(const filePath of routeFiles.concat(['views/layout.ejs','views/os-shell.ejs','public/js/os-v6.js'])){
   assert.doesNotMatch(read(filePath), /https?:\/\/uent\.co\.za/i);
