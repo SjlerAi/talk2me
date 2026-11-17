@@ -28,6 +28,6 @@ jobs:
       - name: Verify TK2M inline review and multi-line contract preservation
         run: node scripts/validate-tk2m-selective-merge.js && node scripts/validate-tk2m-inline-pick.js && node scripts/validate-tk2m-staging-safety.js
       - name: Validate shell scripts
-        run: bash -n deploy.sh scripts/setup-elitehost-ssh.sh scripts/install-talk2me-uat-agent.sh scripts/talk2me-uat-agent.sh scripts/deploy-uat-artifact.sh scripts/install-talk2me-ui-uat-agent.sh scripts/talk2me-ui-uat-agent.sh scripts/deploy-ui-uat.sh
+        run: bash -n deploy.sh scripts/setup-elitehost-ssh.sh scripts/install-talk2me-uat-agent.sh scripts/talk2me-uat-agent.sh scripts/deploy-uat-artifact.sh scripts/install-talk2me-ui-uat-agent.sh scripts/talk2me-ui-uat-agent.sh scripts/deploy-ui-uat.sh scripts/tk2m-crm-live-agent.sh
       - name: Validate Deployment Bible V2 lock
         run: node scripts/validate-ui-uat-deployment-v2.js
