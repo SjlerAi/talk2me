@@ -101,6 +101,36 @@
     return parsed.href;
   }
 
+  // Production-only repair for pages already loaded with the historical UAT
+  // stylesheet. An iframe is a separate document: parent CSS cannot override
+  // its body::before pseudo-element. Check every frame navigation on the live
+  // hostname and only touch a same-origin document showing the old warning.
+  function removeLegacyUatBannerFromFrame(frame) {
+    if (!tk2mProductionHost) return false;
+    try {
+      const child = frame.contentDocument;
+      if (!child?.body || new URL(child.URL).origin !== location.origin) return false;
+      const warningStyleLinks = [...child.querySelectorAll('link[rel~="stylesheet"]')].filter(link => {
+        try {
+          const url = new URL(link.href, child.baseURI);
+          return url.origin === location.origin && url.pathname === '/public/uat-safety.css';
+        } catch (_) { return false; }
+      });
+      let pseudoContent = '';
+      try { pseudoContent = String(frame.contentWindow.getComputedStyle(child.body, '::before').content || ''); }
+      catch (_) {}
+      if (!warningStyleLinks.length && !/TALK2ME\\s+UAT\\s*\\/\\s*TEST/i.test(pseudoContent)) return false;
+      for (const link of warningStyleLinks) link.remove();
+      if (!child.getElementById('tk2m-live-remove-stale-uat-banner')) {
+        const style = child.createElement('style');
+        style.id = 'tk2m-live-remove-stale-uat-banner';
+        style.textContent = 'body::before{content:none!important;display:none!important}body{padding-top:0!important}';
+        (child.head || child.documentElement).appendChild(style);
+      }
+      return true;
+    } catch (_) { return false; }
+  }
+
   class WindowManager {
     constructor() {
       this.windows = new Map();
@@ -243,7 +273,12 @@
         const frame = document.createElement('iframe');
         frame.title = record.options.title;
         frame.src = panelUrl(record.options.url);
-        frame.addEventListener('load', () => body.querySelector('.t2m-os-window-loader')?.remove(), { once: true });
+        frame.addEventListener('load', () => {
+          body.querySelector('.t2m-os-window-loader')?.remove();
+          // Run on every navigation, not only the first load: an old Customer
+          // 360 or another work screen can navigate inside this same iframe.
+          removeLegacyUatBannerFromFrame(frame);
+        });
         body.appendChild(frame);
       } else if (record.options.render) {
         record.options.render(body, record);
