@@ -533,43 +533,10 @@ router.post('/inquiries/:id/close', requireAuth, async (req, res, next) => {
 
 router.get('/dashboard/cases', requireAuth, requireOwnerRole, (req, res) => res.redirect(`${res.locals.basePath}/dashboard`));
 
-router.get('/backoffice-old', requireAuth, requireOwnerRole, async (req, res, next) => {
-  try {
-    const status = String(req.query.status || 'open').trim();
-    const statusWhere = status === 'all' ? '1=1' :
-      status === 'completed_today' ? "i.status IN ('resolved','cancelled') AND DATE(COALESCE(i.completed_at, i.updated_at)) = CURRENT_DATE()" :
-      status === 'followups' ? "i.status IN ('open','follow_up','waiting_customer','waiting_network','waiting_supplier') AND i.follow_up_at IS NOT NULL" :
-      "i.status IN ('open','follow_up','waiting_customer','waiting_network','waiting_supplier')";
-
-    const [[stats]] = await db.query(`SELECT
-      SUM(DATE(created_at)=CURRENT_DATE()) today_total,
-      SUM(status IN ('resolved','cancelled') AND DATE(COALESCE(completed_at, updated_at))=CURRENT_DATE()) completed_today,
-      SUM(status IN ('open','follow_up','waiting_customer','waiting_network','waiting_supplier')) open_total,
-      SUM(status IN ('open','follow_up','waiting_customer','waiting_network','waiting_supplier') AND follow_up_at IS NOT NULL AND follow_up_at <= NOW()) overdue_total,
-      COUNT(*) all_total
-      FROM inquiries`);
-
-    const [cases] = await db.query(`SELECT i.id, i.created_at, i.updated_at, i.completed_at, i.follow_up_at, i.status, i.client_name, i.cell_number, i.query_text, i.action_taken, i.owner_note, i.priority,
-      c.category_name, COALESCE(s.full_name,'Unassigned') staff_member, COALESCE(ass.full_name,'') assigned_staff_member
-      FROM inquiries i
-      LEFT JOIN inquiry_categories c ON c.id=i.category_id
-      LEFT JOIN staff_users s ON s.id=i.staff_id
-      LEFT JOIN staff_users ass ON ass.id=i.assigned_staff_id
-      WHERE ${statusWhere}
-      ORDER BY
-        CASE WHEN i.priority = 'urgent' THEN 0 ELSE 1 END,
-        CASE WHEN i.follow_up_at IS NULL THEN 1 ELSE 0 END,
-        i.follow_up_at ASC,
-        i.created_at DESC
-      LIMIT 100`);
-
-    const [categorySummary] = await db.query(`SELECT COALESCE(c.category_name,'Uncategorised') category_name, COUNT(*) total
-      FROM inquiries i LEFT JOIN inquiry_categories c ON c.id=i.category_id
-      WHERE DATE(i.created_at)=CURRENT_DATE()
-      GROUP BY c.category_name ORDER BY total DESC`);
-
-    res.render('backoffice', { title: 'Back Office', stats, cases, categorySummary, activeStatus: status });
-  } catch (e) { next(e); }
+// The historical Back Office landing template was retired. Redirect old
+// bookmarks to the functioning Administration Centre without running queries.
+router.get('/backoffice-old', requireAuth, requireOwnerRole, (req, res) => {
+  res.redirect(302, `${res.locals.basePath}/backoffice`);
 });
 
 router.get('/backoffice/inquiries/:id', requireAuth, requireOwnerRole, (req, res) => res.redirect(`${res.locals.basePath}/dashboard/inquiries/${req.params.id}`));
