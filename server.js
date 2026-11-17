@@ -323,7 +323,7 @@ if (CUDO_DISABLED) {
 if (CRM_LIVE_MODE) {
   app.get('/public/uat-safety.css', (req, res) => {
     res.set('Cache-Control', 'private, no-store, max-age=0');
-    res.type('text/css').send('/* TK2M production: UAT warning retired. */\\nbody.command-body::before{content:none!important;display:none!important}\\nbody.command-body{padding-top:0!important}\\n');
+    res.type('text/css').send('/* TK2M production: UAT warning retired. */ body.command-body::before{content:none!important;display:none!important} body.command-body{padding-top:0!important}');
   });
 }
 app.use('/public', express.static(path.join(__dirname, 'public')));
