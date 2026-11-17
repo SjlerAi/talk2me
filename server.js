@@ -317,6 +317,15 @@ if (CUDO_DISABLED) {
     res.type('text/css').send('.cudo-root{display:none!important}');
   });
 }
+// TK2M production never serves the old UAT warning stylesheet. A browser
+// holding a pre-cutover stylesheet URL must receive an inert replacement;
+// the live layout also overrides any previously cached CSS inside iframes.
+if (CRM_LIVE_MODE) {
+  app.get('/public/uat-safety.css', (req, res) => {
+    res.set('Cache-Control', 'private, no-store, max-age=0');
+    res.type('text/css').send('/* TK2M production: UAT warning retired. */ body.command-body::before{content:none!important;display:none!important} body.command-body{padding-top:0!important}');
+  });
+}
 app.use('/public', express.static(path.join(__dirname, 'public')));
 if (BASE_PATH) app.use(`${BASE_PATH}/public`, express.static(path.join(__dirname, 'public')));
 
