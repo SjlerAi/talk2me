@@ -49,7 +49,7 @@ function safeDiagnostic(error) {
 router.get('/search/all',requireAuth,async(req,res,next)=>{
   try{
     const rows=await searchMaster({
-      query:req.query.q,user:req.session.user,basePath:res.locals.basePath||'/talk2me'
+      query:req.query.q,user:req.session.user,basePath:res.locals.basePath ?? '/talk2me'
     });
     res.set('Cache-Control','private, no-store');
     return res.json(rows);
@@ -113,7 +113,7 @@ router.get('/mobile-base/:id', requireAuth, async (req, res, next) => {
     const management=isManagement(req.session.user);
     if(!management){
       const matches=await searchMaster({query:line.msisdn_normalised,user:req.session.user,
-        basePath:res.locals.basePath||'/talk2me'});
+        basePath:res.locals.basePath ?? '/talk2me'});
       const sourceKey='mobile:'+formatSouthAfricanMobile(line.msisdn_normalised);
       if(!matches.some(row=>row.service_key===sourceKey))
         return res.status(403).render('error',{title:'Not authorised',
