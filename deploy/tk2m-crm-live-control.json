@@ -1,11 +1,11 @@
 {
   "schema": 1,
-  "action": "deploy",
+  "action": "hold",
   "environment": "tk2m-production",
-  "request_id": "tk2m-prod-popup-root-20261117-a1",
+  "request_id": "tk2m-20261117-post-popup-root-hold",
   "release_branch": "release/tk2m-popup-root-normalization-20261117",
   "release_sha": "44699c5aaf5b96130fcd316a7de18aeefe81ce16",
-  "expected_previous_sha": "761b64f20c372bdf177162d7f3452660ec2696d8",
+  "expected_previous_sha": "44699c5aaf5b96130fcd316a7de18aeefe81ce16",
   "production_cutover": true,
-  "owner_approved": true
+  "owner_approved": false
 }
