@@ -866,3 +866,34 @@ body.command-body .table-wrap :is(th,td) {
   body.command-body .report-filters>.btn {justify-self:stretch;text-align:center;}
   body.command-body .report-stats .stat-card {padding:11px !important;}
 }
+
+/* Narrow two-window CRM: keep the inquiry report search form compact rather
+   than one very tall column. A wrapping flex row is robust to legacy grid
+   media rules from app.css and does not touch customer-search behaviour. */
+body.command-body .report-filters:has(> .form-grid) {
+  display:block !important;
+}
+body.command-body .report-filters>.form-grid {
+  display:flex !important;flex-direction:row !important;flex-wrap:wrap !important;
+  align-items:flex-end !important;justify-content:flex-start !important;
+  gap:10px 12px !important;min-width:0 !important;width:100% !important;
+  max-width:100% !important;
+}
+body.command-body .report-filters>.form-grid>label {
+  display:flex !important;flex-direction:column !important;
+  flex:1 1 195px !important;min-width:160px !important;
+  max-width:none !important;width:auto !important;
+  margin:0 !important;gap:5px !important;
+  grid-column:auto !important;
+}
+body.command-body .report-filters>.form-grid>label :is(input,select) {
+  width:100% !important;max-width:100% !important;min-width:0 !important;
+}
+body.command-body .report-filters>.btn {
+  display:inline-flex !important;margin-top:10px !important;
+}
+@media(max-width:520px) {
+  body.command-body .report-filters>.form-grid>label {
+    flex-basis:100% !important;min-width:0 !important;
+  }
+}
