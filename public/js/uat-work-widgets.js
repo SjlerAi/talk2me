@@ -205,7 +205,7 @@
   }
 
   const workWidgetKey=`t2m-work-widget-v2-${user.id}`;
-  const workWidget=makeWidget({id:'t2m-task-widget',title:'Communications',subtitle:'Messages, actions and follow-ups',icon:'✓',key:workWidgetKey,size:{width:840,height:700,minWidth:560,minHeight:420}});
+  const workWidget=makeWidget({id:'t2m-task-widget',title:'Work',subtitle:'Messages, actions and follow-ups',icon:'✓',key:workWidgetKey,size:{width:840,height:700,minWidth:560,minHeight:420}});
   const workBody=workWidget.querySelector('[data-widget-body]');
   const chatWidget=workWidget;
   const chatBody=workBody;
