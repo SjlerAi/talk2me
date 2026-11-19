@@ -52,6 +52,7 @@ async function main(){
       }
       if(sql.includes('FROM staff_task_notifications n')){
         assert.match(sql,/n\.event_type<>'assigned'/);
+        assert.match(sql,/t\.created_at >= DATE_SUB\(NOW\(\), INTERVAL 2 DAY\)/);
         assert.match(sql,/n\.created_at >= DATE_SUB\(NOW\(\), INTERVAL 2 DAY\)/);
         return [[{id:13,task_id:12,sender_name:'Anzel',notification_text:'Progress',action_required:1,created_at:'2026-11-19T09:00:00Z'}]];
       }
@@ -90,7 +91,7 @@ async function main(){
   assert.match(read('public/js/calendar-home-uat.js'),/state\.focus\.openWork/);
   assert.match(read('public/css/tk2m-workspace-preview.css'),/t2m-home-attention-actions/);
   assert.match(ui,/Red alert connection failed/);
-  assert.match(ui,/last 7 days/);
+  assert.match(ui,/last 2 days/);
   const ejs=require('ejs');
   const html=ejs.render(shell,{
     title:'Talk2Me OS',basePath:'',appVersion:'6.0-test',assetVersion:'6.0-test-merged',

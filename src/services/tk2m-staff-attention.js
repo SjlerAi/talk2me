@@ -109,6 +109,7 @@ async function pendingAlerts(db, userId) {
          ON a.staff_id=:staffId AND a.source_kind='update' AND a.source_id=n.id
       WHERE n.recipient_staff_id=:staffId AND n.resolved_at IS NULL
         AND n.created_at >= DATE_SUB(NOW(), INTERVAL 2 DAY)
+        AND t.created_at >= DATE_SUB(NOW(), INTERVAL 2 DAY)
         AND n.id>:archivedWorkflowId
         -- A new task has its own red alert; suppress the redundant
         -- 'assigned' workflow event so staff do not get two pop-ups.

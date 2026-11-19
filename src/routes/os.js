@@ -126,7 +126,10 @@ router.get('/os/my-work/:section', requireAuth, async (req, res, next) => {
     let rows = [];
 
     if (section === 'overdue-tasks' || section === 'tasks-today' || section === 'unread-messages') {
+      const live=String(process.env.CRM_LIVE_MODE||'').toLowerCase()==='true';
+      const archive=live?await getArchiveCutoffs(db,userId):{notificationTaskId:0};
       const filters = ["t.assigned_to=:userId", `t.status IN ${ACTIVE_TASK_STATUSES}`];
+      if(live)filters.push("t.created_at>=DATE_SUB(NOW(),INTERVAL 2 DAY) AND (t.type<>'notification' OR t.id>:archivedTaskId)");
       if (section === 'overdue-tasks') {
         title = 'Overdue Tasks'; emptyMessage = 'No overdue tasks.'; filters.push('t.due_at IS NOT NULL AND t.due_at<NOW()');
       } else if (section === 'tasks-today') {
@@ -139,7 +142,7 @@ router.get('/os/my-work/:section', requireAuth, async (req, res, next) => {
         FROM staff_tasks t JOIN staff_users creator ON creator.id=t.created_by
         LEFT JOIN clients cl ON cl.id=t.related_client_id
         WHERE ${filters.join(' AND ')}
-        ORDER BY CASE t.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 ELSE 2 END,t.due_at IS NULL,t.due_at,t.created_at DESC`, { userId });
+        ORDER BY CASE t.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 ELSE 2 END,t.due_at IS NULL,t.due_at,t.created_at DESC`, { userId,archivedTaskId:archive.notificationTaskId });
       columns = ['title','client_name','priority','due_at','created_by_name'];
       rows = rows.map(row => ({ ...row, url: `${res.locals.basePath}/tasks/${row.id}` }));
     } else if (section === 'follow-ups' || section === 'callbacks') {
