@@ -744,7 +744,13 @@
   }
   async function openTaskWidget(prefill={}){renderWorkHeader(prefill.new?'new':'inbox');clearInterval(chatPoll);showWidget(workWidget);try{const requestedView=prefill.view||'latest';const requestedFilter=prefill.filter||'all';const requestedScope=prefill.scope||'mine';const query=new URLSearchParams({scope:requestedScope,view:requestedView,filter:requestedFilter});const data=await jsonFetch(`/api/uat/tasks?${query.toString()}`);taskState={...taskState,...data,scope:data.scope||requestedScope,view:data.view||requestedView,filter:data.filter||requestedFilter};if(prefill.new)renderTaskNew(prefill);else renderTaskList();}catch(error){taskBody.innerHTML=`<div class="t2m-chat-empty"><strong>Could not open Work</strong><span>${esc(error.message)}</span></div>`;}}
 
-  window.Talk2MeWidgets={openWork:()=>window.Talk2MeOperatingModel?.openWork?.()||openTaskWidget(),openChat,openTasks:openTaskWidget,openTask};
+  async function openConversation(token){
+    if(token!=='office' && !/^direct:\d+$/.test(String(token||'')))return;
+    chatConversation=token;
+    chatTab=token==='office'?'office':'people';
+    await openChat();
+  }
+  window.Talk2MeWidgets={openConversation,openWork:()=>window.Talk2MeOperatingModel?.openWork?.()||openTaskWidget(),openChat,openTasks:openTaskWidget,openTask};
   window.addEventListener('click',event=>{
     const taskAdd=event.target.closest?.('[data-home-add-task]');if(taskAdd){event.preventDefault();event.stopImmediatePropagation();openTaskWidget({new:true});return;}
     const openCalendarTask=event.target.closest?.('[data-open-calendar-item]');if(openCalendarTask&&String(openCalendarTask.dataset.openCalendarItem||'').startsWith('task:')){event.preventDefault();event.stopImmediatePropagation();openTask(Number(String(openCalendarTask.dataset.openCalendarItem).split(':')[1]));return;}

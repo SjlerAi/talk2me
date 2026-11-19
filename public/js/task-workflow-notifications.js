@@ -12,7 +12,7 @@
     document.querySelectorAll('[data-badge="notifications"]').forEach(node=>{node.textContent=String(count||0);node.hidden=!count;});
   }
   function show(item){
-    if(!item)return;
+    if(!item||window.location.hostname==='crm.tk2m.co.za')return;
     document.querySelector('.task-notification-toast')?.remove();
     const toast=document.createElement('button');
     toast.type='button';toast.className='task-notification-toast';
