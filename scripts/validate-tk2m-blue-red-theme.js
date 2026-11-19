@@ -112,4 +112,6 @@ assert.match(css,/tk2m-fixed-list-table tbody tr/,'narrow fixed cards missing');
 assert.match(css,/content:attr\(data-label\)/,'fixed card label missing');
 assert.ok(css.includes('width:calc(100vw - 100px)!important'),'fixed table must be constrained to split-screen viewport');
 assert.match(css,/body\.command-body \.login-greeting \{[\s\S]*?display:none !important;/,'classic welcome overlay must not cover management screens');
+assert.match(css,/@media\(min-width:900px\) and \(max-width:1100px\)/,'classic desktop split-screen action bar must be responsive');
+assert.match(css,/grid-template-columns:44px minmax\(150px,1fr\) auto auto auto auto!important;/,'classic action bar must fit six controls in one row');
 console.log('TK2M_APPROVED_BLUE_RED_THEME_GATE_PASS full_documents='+full.length+' all_templates='+templates.length);
