@@ -469,3 +469,71 @@ body:not(.t2m-os-body):not(.command-body) :where(
 @media (prefers-reduced-motion: reduce) {
   :where(.panel,.module-card,.stat,.t2m-os-window,.library-app,.deals-app) { transition: none; }
 }
+
+/* Rare standalone CRM workflows share the same branding as the daily shell. */
+body.tk2m-agent-page {
+  --ink:#18324d;--muted:#65788c;--paper:#f3f8fd;--card:#fff;
+  --line:#d6e4f0;--orange:#22649d;--orange2:#e7f2fc;
+  --shadow:0 7px 22px rgba(28,78,124,.09);
+  background:#f3f8fd !important;color:var(--tk2m-ink) !important;
+}
+body.tk2m-agent-page :where(.command,.staff-strip,.section,.metric,.subpanel,.daily-item) {
+  background:#fff !important;border-color:#d6e4f0 !important;
+  box-shadow:var(--tk2m-elevation) !important;
+}
+body.tk2m-agent-page .command input:focus {border-color:#22649d !important;box-shadow:0 0 0 3px rgba(34,100,157,.12) !important}
+body.tk2m-agent-page .command button,
+body.tk2m-agent-page .instruction button {background:#22649d !important;color:#fff !important}
+body.tk2m-agent-page .brand span,
+body.tk2m-agent-page .staff-link {color:#22649d !important}
+body.tk2m-agent-page .quick a,
+body.tk2m-agent-page .staff-chip.active,
+body.tk2m-agent-page .metric.active,
+body.tk2m-agent-page .mini,
+body.tk2m-agent-page .instruction,
+body.tk2m-agent-page .empty {
+  background:#edf5fc !important;border-color:#c7e0f2 !important;color:#21496e !important;
+}
+body.tk2m-agent-page .metric em,
+body.tk2m-agent-page .mini span,
+body.tk2m-agent-page .instruction label {color:#356a92 !important}
+body.tk2m-agent-page .live {background:#edf6fe !important;color:#225d8a !important}
+body.tk2m-agent-page .live i {background:#2d80b6 !important;box-shadow:0 0 0 5px rgba(34,100,157,.11) !important}
+body.tk2m-agent-page .markdone {background:#edf5fc !important;border-color:#b7d8ee !important;color:#214d75 !important}
+body.tk2m-agent-page .table th {background:#eaf4fc !important;color:#315b7b !important}
+body.tk2m-agent-login {
+  background:linear-gradient(145deg,#edf6fe,#f9fcff) !important;
+  color:#18324d !important;
+}
+body.tk2m-agent-login .brand strong {color:#153b64 !important}
+body.tk2m-agent-login .brand span {color:#22649d !important}
+body.tk2m-agent-login .mark {
+  background:#e8f3fe !important;color:#22649d !important;
+  box-shadow:0 4px 14px rgba(28,78,124,.08) !important;
+}
+body.tk2m-agent-login .card {
+  background:#fff !important;color:#18324d !important;border:1px solid #ccdeed !important;
+  box-shadow:0 18px 44px rgba(28,78,124,.11) !important;
+}
+body.tk2m-agent-login .eyebrow {color:#225c8b !important}
+body.tk2m-agent-login .intro,
+body.tk2m-agent-login label,
+body.tk2m-agent-login .security {color:#667c91 !important}
+body.tk2m-agent-login input {
+  background:#fff !important;border:1px solid #bdd5e7 !important;color:#18324d !important;
+}
+body.tk2m-agent-login input:focus {border-color:#22649d !important;box-shadow:0 0 0 3px rgba(34,100,157,.12) !important}
+body.tk2m-agent-login button {
+  background:#22649d !important;color:#fff !important;
+  box-shadow:0 8px 18px rgba(34,100,157,.15) !important;
+}
+body.tk2m-agent-login .dot {background:#2478ad !important;box-shadow:0 0 0 5px rgba(34,100,157,.11) !important}
+body.tk2m-reminder-page {background:#f3f8fd !important;color:#18324d !important}
+body.tk2m-reminder-page .reminder-card {
+  border-color:#cbdfea !important;box-shadow:var(--tk2m-elevation) !important;
+}
+body.tk2m-reminder-page .reminder-head {background:#edf6fe !important;border-color:#d6e4f0 !important}
+body.tk2m-reminder-page .eyebrow {color:#356e9c !important}
+body.tk2m-reminder-page .note {background:#f7fbff !important;border-color:#dae8f3 !important}
+body.tk2m-reminder-page .detail button {background:#22649d !important;color:#fff !important;border-color:#22649d !important}
+body.tk2m-reminder-page .detail button.secondary {background:#fff !important;color:#22649d !important;border-color:#bdd5e7 !important}
