@@ -94,4 +94,21 @@ assert.doesNotMatch(stageClass,/t2m-approved-home-shell/,'staging must not claim
 assert.match(stageClass,/t2m-tk2m-test-shell/,'staging preview class must remain');
 const liveOnlyClass=require('ejs').render(shellClassTemplate,{isStaging:false,isLive:true});
 assert.match(liveOnlyClass,/t2m-approved-home-shell/);
+// Fixed-line lists must retain their service/account fields and Open actions
+// when the same CRM is used beside the Desktop app at actual 970px width.
+for(const [file,labels] of [
+  ['fixed-accounts.ejs',['Customer','Account','Contact','Fixed services','Mobile lines','Assigned','Status','Actions']],
+  ['fixed-services.ejs',['Customer / account','Branch','Solution / order','Router / MAC','SIM','Package','Activated','Status','Actions']]
+]){
+ const fixedSrc=fs.readFileSync(path.join(root,'views',file),'utf8');
+ assert.match(fixedSrc,/tk2m-fixed-listing/,'scoped fixed-listing wrapper '+file);
+ assert.match(fixedSrc,/tk2m-fixed-list-table/,'responsive fixed-listing table '+file);
+ for(const label of labels){
+  assert.ok(fixedSrc.includes('data-label="'+label+'"'),'missing fixed-line field '+label+' in '+file);
+ }
+ assert.match(fixedSrc,/\bOpen<\/a>/,'fixed record link must remain available '+file);
+}
+assert.match(css,/tk2m-fixed-list-table tbody tr/,'narrow fixed cards missing');
+assert.match(css,/content:attr\(data-label\)/,'fixed card label missing');
+assert.ok(css.includes('width:calc(100vw - 100px)!important'),'fixed table must be constrained to split-screen viewport');
 console.log('TK2M_APPROVED_BLUE_RED_THEME_GATE_PASS full_documents='+full.length+' all_templates='+templates.length);
