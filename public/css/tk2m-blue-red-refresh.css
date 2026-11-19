@@ -1020,3 +1020,88 @@ body.command-body .report-filters>.btn {
     overflow-wrap:anywhere;
   }
 }
+
+/* Fixed Accounts & Fixed Services: no hidden final column in split-screen CRM.
+   At narrow widths each physical account/service is a readable card, retaining
+   every field, status, data-quality note, and the original authorized Open link.
+   Desktop at >1150px keeps the familiar full-width table. */
+@media (max-width:1150px) {
+ body.command-body .tk2m-fixed-listing {
+   box-sizing:border-box!important;
+   width:calc(100vw - 100px)!important;
+   max-width:calc(100vw - 100px)!important;
+   min-width:0!important;
+   padding:12px!important;
+   overflow:visible!important;
+ }
+ body.command-body .tk2m-fixed-listing .table-wrap {
+   display:block!important;
+   width:100%!important;max-width:100%!important;
+   min-width:0!important;overflow:visible!important;
+ }
+ body.command-body .tk2m-fixed-list-table {
+   box-sizing:border-box!important;
+   display:block!important;
+   width:100%!important;max-width:100%!important;min-width:0!important;
+   table-layout:auto!important;
+ }
+ body.command-body .tk2m-fixed-list-table thead {display:none!important;}
+ body.command-body .tk2m-fixed-list-table tbody {
+   display:grid!important;
+   width:100%!important;max-width:100%!important;min-width:0!important;
+   grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr))!important;
+   align-items:start;gap:12px;
+ }
+ body.command-body .tk2m-fixed-list-table tbody tr {
+   box-sizing:border-box!important;
+   display:grid!important;grid-template-columns:minmax(0,1fr)!important;
+   align-content:start;min-width:0!important;max-width:100%!important;
+   padding:12px 14px!important;border:1px solid #cfe1ef!important;
+   border-left:4px solid #6caad5!important;border-radius:13px!important;
+   background:#fff!important;box-shadow:0 3px 12px rgba(21,72,120,.05);
+ }
+ body.command-body .tk2m-fixed-list-table tbody td {
+   display:grid!important;grid-template-columns:88px minmax(0,1fr)!important;
+   gap:9px!important;align-items:start;
+   box-sizing:border-box!important;
+   width:100%!important;min-width:0!important;max-width:100%!important;
+   padding:7px 0!important;overflow-wrap:anywhere!important;
+   word-break:normal!important;
+   border:0!important;border-bottom:1px solid #e8f0f7!important;
+   font-size:12px;line-height:1.4!important;
+   text-align:left!important;
+ }
+ body.command-body .tk2m-fixed-list-table tbody td::before {
+   content:attr(data-label)!important;
+   color:#527394!important;font-size:11px!important;
+   font-weight:850!important;line-height:1.3!important;
+   white-space:normal!important;
+ }
+ body.command-body .tk2m-fixed-list-table tbody td:first-child {
+   border-bottom:1px solid #cadfec!important;
+   padding:1px 0 10px!important;
+   font-size:13px!important;color:#143d67!important;
+ }
+ body.command-body .tk2m-fixed-list-table tbody td:last-child {
+   border-bottom:0!important;padding-bottom:0!important;
+ }
+ body.command-body .tk2m-fixed-list-table tbody td :is(strong,small,span) {
+   max-width:100%!important;overflow-wrap:anywhere!important;
+ }
+ body.command-body .tk2m-fixed-list-table tbody td a.btn {
+   display:inline-flex!important;align-items:center!important;
+   justify-content:center!important;justify-self:start!important;
+   min-height:33px!important;padding:5px 14px!important;
+   white-space:normal!important;max-width:100%!important;
+   background:#22649d!important;color:#fff!important;
+   border:1px solid #22649d!important;border-radius:8px!important;
+ }
+}
+@media(max-width:680px) {
+ body.command-body .tk2m-fixed-list-table tbody {
+   grid-template-columns:minmax(0,1fr)!important;
+ }
+ body.command-body .tk2m-fixed-list-table tbody td {
+   grid-template-columns:76px minmax(0,1fr)!important;
+ }
+}
