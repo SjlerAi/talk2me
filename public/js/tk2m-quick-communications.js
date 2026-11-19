@@ -129,13 +129,13 @@
   '<section class="tk2m-brief-card">'+
   '<header class="tk2m-brief-red"><span data-tk2m-brief-time></span><h2 id="tk2m-brief-heading"></h2></header>'+
   '<p class="tk2m-brief-intro" data-tk2m-brief-intro></p>'+
-  '<div class="tk2m-brief-numbers"><article><strong data-tk2m-brief-messages>0</strong><span>Unread messages</span></article><article><strong data-tk2m-brief-tasks>0</strong><span>Open tasks</span></article></div>'+
+  '<div class="tk2m-brief-numbers"><article><strong data-tk2m-brief-messages>0</strong><span>Received & unfinished</span></article><article><strong data-tk2m-brief-tasks>0</strong><span>Sent & unfinished</span></article></div>'+
   '<p class="tk2m-brief-carry" data-tk2m-brief-carry></p>'+
   '<div class="tk2m-brief-list" data-tk2m-brief-list></div>'+
   '<p class="tk2m-brief-error" data-tk2m-brief-error role="alert" hidden></p>'+
-  '<footer class="tk2m-brief-actions"><button type="button" data-tk2m-brief-open="messages">Open messages</button>'+
-  '<button type="button" data-tk2m-brief-open="tasks">Open tasks</button>'+
-  '<button type="button" class="primary" data-tk2m-brief-open="dismiss">Acknowledge & continue</button></footer>'+
+  '<footer class="tk2m-brief-actions"><button type="button" data-tk2m-brief-open="communications">Open Communications</button>'+
+
+  '<button type="button" class="primary" data-tk2m-brief-open="dismiss">Received — continue</button></footer>'+
   '</section>';
  document.body.appendChild(brief);
  const morningOrAfternoon=()=>briefOpen;
@@ -145,21 +145,21 @@
    brief.querySelector('[data-tk2m-brief-time]').textContent=morning?'DAILY START-UP REVIEW':'16:30 DAILY FOLLOW-UP';
    brief.querySelector('#tk2m-brief-heading').textContent=morning?'OUTSTANDING FROM PREVIOUS DAYS':'STILL OUTSTANDING TODAY';
    brief.querySelector('[data-tk2m-brief-intro]').textContent=morning
-    ?'Review yesterday’s unfinished messages and tasks before starting your day.'
-    :'Your single end-of-day reminder. Review what is still unanswered or incomplete.';
+    ?'Yesterday’s communications remain unfinished. Both sender and recipient can review them.'
+    :'Unfinished communications are shown for both sender and recipient.';
    const counts=data.counts||{};
-   brief.querySelector('[data-tk2m-brief-messages]').textContent=String(morning?counts.carriedMessages:counts.unreadMessages||0);
-   brief.querySelector('[data-tk2m-brief-tasks]').textContent=String(morning?counts.carriedTasks:counts.tasks||0);
+   brief.querySelector('[data-tk2m-brief-messages]').textContent=String(morning?(counts.receivedCarried||0):(counts.received||0));
+   brief.querySelector('[data-tk2m-brief-tasks]').textContent=String(morning?(counts.sentCarried||0):(counts.sent||0));
    brief.querySelector('[data-tk2m-brief-carry]').textContent=morning
-    ?'Older items remain in your work lists until actioned.'
-    :'Today: '+(counts.todayMessages||0)+' new unread messages · '+(counts.todayTasks||0)+' new open tasks. Older unfinished work is included above.';
+    ?'Outstanding communications remain in your combined list until completed.'
+    :'Received and sent items requiring attention appear in one Communications list.';
    const list=brief.querySelector('[data-tk2m-brief-list]');
    list.replaceChildren();
    const cutoff=data.day||'';
    const tasks=(data.tasks||[]).filter(x=>!morning||String(x.createdAt||'').slice(0,10)<cutoff).slice(0,4);
    const messages=(data.messages||[]).filter(x=>!morning||String(x.createdAt||'').slice(0,10)<cutoff).slice(0,3);
-   for(const item of tasks)list.appendChild(briefListItem('TASK',item.title,item.sender));
-   for(const item of messages)list.appendChild(briefListItem('MESSAGE',item.preview,item.sender));
+   for(const item of tasks)list.appendChild(briefListItem(item.direction==='sent'?'SENT':'RECEIVED',item.title,item.direction==='sent'?'To '+item.recipient:'From '+item.sender));
+   for(const item of messages)list.appendChild(briefListItem('RECEIVED',item.preview,item.sender));
    brief.querySelector('[data-tk2m-brief-error]').hidden=true;
    brief.hidden=false;
    document.body.classList.add('tk2m-brief-active');

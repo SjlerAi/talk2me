@@ -32,6 +32,8 @@ async function main(){
  const start=await dailyBrief(x.db,9,morning);
  assert.equal(start.counts.carriedTasks,2);
  assert.equal(start.counts.carriedMessages,1);
+ assert.equal(start.counts.sent,0);
+ assert.match(read('src/services/tk2m-communications-brief.js'),/t\.created_by=:staffId/);
  assert.equal(start.prompts.morning.pending,true);
  assert.equal(start.prompts.afternoon.pending,false);
  assert.equal(start.tasks[0].title,'Call client');
@@ -67,6 +69,8 @@ async function main(){
  assert.match(client,/data-tk2m-quick-text/);
  assert.doesNotMatch(client,/data-tk2m-quick-action/);
  assert.match(client,/SEND COMMUNICATION/);
+ assert.match(client,/Open Communications/);
+ assert.doesNotMatch(client,/data-tk2m-brief-open="tasks"/);
  assert.match(client,/new FormData/);
  assert.doesNotMatch(client,/api\/uat\/chat\/messages/);
  assert.match(read('src/routes/tk2m-communications-brief.js'),/communications\/inbox/);
