@@ -76,7 +76,7 @@ async function main(){
   assert.match(route,/requireAuth/);
   assert.match(route,/if\(!live\) return res\.sendStatus\(404\)/);
   assert.match(widgets,/async function openConversation\(token\)/);
-  assert.doesNotMatch(read('public/js/task-workflow-notifications.js'),/setTimeout\(\(\)=>toast\.remove\(\),9000\)/);
+  assert.match(read('public/js/task-workflow-notifications.js'),/window\.location\.hostname==='crm\.tk2m\.co\.za'/);
   const sql=read('migrations/038_tk2m_staff_attention_acknowledgments_20261119.sql');
   assert.match(sql,/UNIQUE KEY uq_staff_attention_source/);
   console.log('TK2M_STAFF_ATTENTION_REGRESSION_PASS');
