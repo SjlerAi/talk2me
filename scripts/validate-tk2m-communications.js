@@ -82,6 +82,10 @@ async function main(){
  assert.match(read('public/js/calendar-home-uat.js'),/data-home-quick-send/);
  assert.match(read('public/js/uat-work-widgets.js'),/Talk2MeCommunications/);
  assert.match(read('public/js/uat-work-widgets.js'),/<strong>\+ Send<\/strong>/);
+ assert.match(read('public/js/tk2m-staff-attention.js'),/completeNow/);
+ assert.match(read('public/js/tk2m-staff-attention.js'),/Complete Task/);
+ assert.match(read('src/routes/tk2m-staff-attention.js'),/work_alert_acknowledged/);
+ assert.match(read('src/routes/tk2m-communications-brief.js'),/communications_brief_reviewed/);
  const ejs=require('ejs'),shell=read('views/os-shell.ejs');
  const html=ejs.render(shell,{
    title:'Talk2Me OS',basePath:'',appVersion:'6',assetVersion:'6-test',
