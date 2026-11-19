@@ -83,7 +83,13 @@ async function searchCrmLines({q,canon,userId,management,basePath}){
                  WHEN :phoneSuffix IS NOT NULL AND c.cell_number LIKE :phoneSuffix THEN 1
                  WHEN c.client_name LIKE :starts THEN 2 ELSE 3 END,
             c.client_name,c.id LIMIT 40`,params);
- return clients.map(c=>({
+ // A view or later schema revision must never duplicate one physical line.
+ const seen=new Set();
+ return clients.filter(c=>{
+  const id=Number(c.id);
+  if(!Number.isSafeInteger(id)||seen.has(id))return false;
+  seen.add(id);return true;
+ }).map(c=>({
   id:c.id,linked_crm_client_id:c.id,record_type:'crm',service_type:'mobile',
   service_key:c.master_service_key||'crm:'+c.id,
   verification_status:c.master_link_state==='needs_conflict_review'
