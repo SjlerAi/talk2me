@@ -1,11 +1,11 @@
 {
   "schema": 1,
-  "action": "deploy",
+  "action": "hold",
   "environment": "tk2m-production",
-  "request_id": "tk2m-worker-runtime-proof-20261119-a1",
+  "request_id": "tk2m-worker-runtime-proof-20261119-postrelease-hold",
   "release_branch": "release/tk2m-worker-runtime-proof-20261119",
   "release_sha": "19ae21ed59da3afa48f6511d735c1c26509aa57c",
-  "expected_previous_sha": "319a385605e4fea853caea255262cca336941130",
+  "expected_previous_sha": "19ae21ed59da3afa48f6511d735c1c26509aa57c",
   "production_cutover": true,
-  "owner_approved": true
+  "owner_approved": false
 }
