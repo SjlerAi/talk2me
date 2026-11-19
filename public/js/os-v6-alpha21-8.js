@@ -27,8 +27,8 @@
 
     searchResults.innerHTML = `<div class="t2m-search-empty-action">
       <div>
-        <strong>No existing customer found</strong>
-        <span>Choose whether “${esc(query)}” is only an enquiry prospect or a potential client who must be added to the customer database.</span>
+        <strong>No customer available in your permitted records</strong>
+        <span>If this customer is already registered under another staff assignment, ask a manager before creating a new record. Otherwise choose a prospect inquiry or a new potential client for “${esc(query)}”.</span>
       </div>
       <div class="t2m-search-empty-buttons">
         <button type="button" class="t2m-os-secondary-button" data-search-add-prospect>Add Prospect Inquiry</button>
