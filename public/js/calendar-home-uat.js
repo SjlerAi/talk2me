@@ -504,10 +504,9 @@
             ${item.kind==='task'&&item.canComplete?`<button type="button" class="is-done" data-priority-done="${index}">Done</button>`:''}
           </div>
           ${item.kind==='task'?`<form class="t2m-home-priority-reply" data-priority-form="${index}" hidden>
-            <label for="priority-reply-${index}">Quick reply</label>
-            <textarea id="priority-reply-${index}" maxlength="4000" rows="2" required></textarea>
-            <div><button type="button" data-priority-cancel="${index}">Cancel</button>
-              <button type="submit">Send reply</button></div>
+            <input id="priority-reply-${index}" type="text" maxlength="4000"
+              aria-label="Reply to ${esc(who)}" placeholder="Type reply…" required>
+            <button type="submit">Send</button>
           </form>`:''}
           <small class="t2m-home-priority-feedback" data-priority-feedback="${index}" role="status" hidden></small>
         </article>`;
@@ -527,12 +526,8 @@
           if(!item)return;
           if(item.kind!=='task'){openCommunications(item);return;}
           const form=priorityForm(index);
-          if(form){form.hidden=!form.hidden;if(!form.hidden)form.querySelector('textarea')?.focus();}
+          if(form){form.hidden=false;form.querySelector('input')?.focus();}
         };
-      });
-      panel.querySelectorAll('[data-priority-cancel]').forEach(button=>{
-        button.onclick=()=>{const form=priorityForm(button.dataset.priorityCancel);
-          if(form){form.hidden=true;form.reset();}};
       });
       panel.querySelectorAll('[data-priority-form]').forEach(form=>{
         form.addEventListener('submit',async event=>{
@@ -540,7 +535,7 @@
           if(state.carryBusy)return;
           const index=Number(form.dataset.priorityForm),item=latest[index];
           if(!item||item.kind!=='task')return;
-          const reply=String(form.querySelector('textarea')?.value||'').trim();
+          const reply=String(form.querySelector('input')?.value||'').trim();
           if(!reply){priorityFeedback(index,'Enter a reply first.');return;}
           state.carryBusy=true;
           try{
