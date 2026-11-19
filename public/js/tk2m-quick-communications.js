@@ -116,6 +116,10 @@
  form.addEventListener('submit',async event=>{
    event.preventDefault();
    if(sending)return;
+   if(!options.hidden){
+     error.textContent='Use Confirm schedule to deliver this later, or Back for immediate Send.';
+     error.hidden=false;return;
+   }
    const person=Number(select.value),text=String(message.value||'').trim();
    if(!person||!text){error.textContent='Select a staff member and enter a message.';error.hidden=false;return;}
    if(text.length>4000){error.textContent='Message is too long.';error.hidden=false;return;}
