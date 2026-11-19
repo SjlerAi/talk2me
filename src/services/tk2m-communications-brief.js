@@ -3,6 +3,7 @@
 // their own open items. Recipients alone acknowledge the original red alert.
 const {positiveId}=require('./tk2m-staff-attention');
 const {getArchiveCutoffs}=require('./tk2m-communications-archive');
+const CARRYOVER_CUTOVER='2026-11-17';
 const TZ='Africa/Johannesburg';
 function saClock(now=new Date()){
   const parts=new Intl.DateTimeFormat('en-GB',{
@@ -27,7 +28,7 @@ async function dailyBrief(db,staff,now=new Date()){
  if(!staffId)throw new Error('Invalid staff identity');
  const clock=saClock(now);
  const archive=await getArchiveCutoffs(db,staffId);
- const params={staffId,today:clock.day,archivedChatId:archive.chatId};
+ const params={staffId,today:clock.day,archivedChatId:archive.chatId,cutover:CARRYOVER_CUTOVER};
  const [[tasks]]=await db.execute(
   `SELECT COUNT(*) total,
     COALESCE(SUM(CASE WHEN t.created_at<:today THEN 1 ELSE 0 END),0) carryover,
@@ -39,7 +40,7 @@ async function dailyBrief(db,staff,now=new Date()){
    FROM staff_tasks t
    WHERE (t.assigned_to=:staffId OR t.created_by=:staffId)
      AND ${activeSql} AND t.type='task'
-     AND t.created_at>=DATE_SUB(NOW(),INTERVAL 2 DAY)`,params);
+     AND t.created_at>=:cutover`,params);
  const [[messages]]=await db.execute(
   `SELECT COUNT(*) total,
     COALESCE(SUM(CASE WHEN m.created_at<:today THEN 1 ELSE 0 END),0) carryover,
@@ -61,7 +62,7 @@ async function dailyBrief(db,staff,now=new Date()){
    JOIN staff_users recipient ON recipient.id=t.assigned_to
    WHERE (t.assigned_to=:staffId OR t.created_by=:staffId)
      AND ${activeSql} AND t.type='task'
-     AND t.created_at>=DATE_SUB(NOW(),INTERVAL 2 DAY)
+     AND t.created_at>=:cutover
    ORDER BY t.created_at DESC,t.id DESC LIMIT 8`,params);
  const [messageRows]=await db.execute(
   `SELECT m.id,m.body,m.created_at,s.full_name sender

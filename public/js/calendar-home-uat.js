@@ -306,17 +306,17 @@
       ${tk2mPreview ? `<section class="t2m-home-focus" aria-label="Daily priorities">
         <section class="t2m-home-attention-strip" data-home-attention-strip aria-label="Communications">
           <div class="t2m-home-attention-copy">
-            <strong>COMMUNICATIONS</strong>
-            <span data-home-attention-summary>Checking recent communications...</span>
+            <strong>TODAY'S COMMUNICATIONS</strong>
+            <span data-home-attention-summary>Checking today's communications...</span>
             <small data-home-alert-status>Checking red alerts...</small>
           </div>
           <div class="t2m-home-attention-actions">
             <button type="button" data-home-quick-send aria-label="Send communication">+ Send</button>
             <button type="button" data-os-app="messages" aria-label="Open all recent communications">Communications</button>
           </div>
-          <div class="t2m-home-priority-carousel" data-home-priority-carousel aria-label="Browse outstanding communications">
+          <div class="t2m-home-priority-carousel" data-home-priority-carousel aria-label="Browse today's communications">
             <button type="button" class="t2m-home-priority-arrow" data-home-priority-prev aria-label="Previous communications" title="Previous communications" hidden>‹</button>
-            <div class="t2m-home-priority-list" data-home-priority-list role="list" aria-label="Recent outstanding communications" aria-live="polite">
+            <div class="t2m-home-priority-list" data-home-priority-list role="list" aria-label="Today's communications" aria-live="polite">
               <span class="t2m-home-priority-loading">Loading current instructions...</span>
             </div>
             <button type="button" class="t2m-home-priority-arrow" data-home-priority-next aria-label="Next communications" title="Next communications" hidden>›</button>
@@ -329,10 +329,10 @@
           <span>Reminders</span><strong data-home-focus-count="reminders">—</strong><small>Tap to add · selected date</small>
         </button>
         <button type="button" data-home-focus="messages" data-os-app="messages" aria-label="Open recent communications">
-          <span>Communications</span><strong data-home-focus-count="messages">—</strong><small>Last 48 hours · open list</small>
+          <span>Today</span><strong data-home-focus-count="messages">—</strong><small>Today's communication history</small>
         </button>
-        <button type="button" data-home-focus="overdue" aria-label="Open my overdue tasks">
-          <span>My overdue</span><strong data-home-focus-count="overdue">—</strong><small>Needs your attention</small>
+        <button type="button" data-home-focus="overdue" aria-label="Open outstanding work from previous days">
+          <span>Outstanding Work</span><strong data-home-focus-count="overdue">—</strong><small>Previous days · unfinished</small>
         </button>
       </section>` : ''}
       <div class="t2m-home-calendar-controls">
@@ -348,9 +348,22 @@
           <div class="t2m-home-weekdays"><span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span></div>
           <div class="t2m-home-grid" data-home-grid></div>
         </section>
-        <aside class="t2m-home-agenda">
-          <header><div><span>Selected date</span><strong data-home-agenda-date></strong></div><b data-home-agenda-count>0</b></header>
-          <div class="t2m-home-agenda-list" data-home-agenda></div>
+        <aside class="t2m-home-agenda${tk2mPreview?' t2m-home-carry-panel':''}">
+          ${tk2mPreview ? `
+            <header class="t2m-home-carry-header">
+              <div><span>Unfinished instructions from previous days</span><strong>Outstanding Work</strong></div>
+              <b data-home-carry-count>0</b>
+            </header>
+            <div data-home-carry-feedback class="t2m-home-carry-feedback" role="status" aria-live="polite" hidden></div>
+            <div class="t2m-home-carry-list" data-home-carry-list aria-label="Outstanding work that requires a reply or completion"></div>
+            <details class="t2m-home-calendar-fold" data-home-calendar-fold>
+              <summary>Selected date · <strong data-home-agenda-date></strong> (<b data-home-agenda-count>0</b>)</summary>
+              <div class="t2m-home-agenda-list" data-home-agenda></div>
+            </details>
+          ` : `
+            <header><div><span>Selected date</span><strong data-home-agenda-date></strong></div><b data-home-agenda-count>0</b></header>
+            <div class="t2m-home-agenda-list" data-home-agenda></div>
+          `}
         </aside>
       </div>
       <dialog class="t2m-home-reminder-dialog" data-home-reminder-dialog>
@@ -375,6 +388,10 @@
       error: '',
       focus: { messages: null, overdue: null, openWork: null },
       communications: [],
+      outstanding: [],
+      outstandingTotal: 0,
+      carryExpanded: false,
+      carryBusy: false,
       attentionError: null,
       agendaExpanded: false,
       priorityPage: 0
@@ -385,6 +402,9 @@
     const agendaDate = workspace.querySelector('[data-home-agenda-date]');
     const agendaCount = workspace.querySelector('[data-home-agenda-count]');
     const agenda = workspace.querySelector('[data-home-agenda]');
+    const carryList = workspace.querySelector('[data-home-carry-list]');
+    const carryCount = workspace.querySelector('[data-home-carry-count]');
+    const carryFeedback = workspace.querySelector('[data-home-carry-feedback]');
     const teamFilter = workspace.querySelector('[data-home-team-filter]');
     const dialog = workspace.querySelector('[data-home-reminder-dialog]');
     const reminderForm = workspace.querySelector('[data-home-reminder-form]');
@@ -426,8 +446,8 @@
       });
     }
 
-    function openCommunications(item=null) {
-      const options={scope:isManagement&&state.scope==='team'?'team':'mine'};
+    function openCommunications(item=null,view='today') {
+      const options={scope:isManagement&&state.scope==='team'?'team':'mine',view};
       if(item?.kind==='task')options.focusTaskId=Number(item.id);
       if(window.Talk2MeUnifiedInbox?.open)return window.Talk2MeUnifiedInbox.open(options);
       document.querySelector('[data-os-app="work"]')?.click();
@@ -461,7 +481,7 @@
         next.onclick=()=>{state.priorityPage=(state.priorityPage+1)%pages;renderPriority();};
       }
       if(!latest.length){
-        panel.innerHTML='<div class="t2m-home-priority-empty">No outstanding communications in the last 48 hours.</div>';
+        panel.innerHTML='<div class="t2m-home-priority-empty">No communications sent or received today.</div>';
         return;
       }
       panel.innerHTML=latest.map(item=>{
@@ -472,6 +492,7 @@
         const title=String((item.kind==='task'?item.subject:'')||item.text||'Communication')
           .replace(/\s+/g,' ').trim();
         const stateLabel=item.kind==='legacy_chat'?'Message'
+          :item.status==='completed'?'Completed'
           :item.acknowledged?'Received · outstanding':'Awaiting receipt';
         const color=item.kind==='task'
           ?staffColor({assignedTo:item.assignedTo,assignedName:item.recipient})
@@ -486,6 +507,118 @@
       }).join('');
       panel.querySelectorAll('[data-home-priority-open]').forEach((button,index)=>{
         button.onclick=()=>openCommunications(latest[index]);
+      });
+    }
+    function showCarryFeedback(message,isError=false){
+      if(!carryFeedback)return;
+      carryFeedback.hidden=false;
+      carryFeedback.textContent=String(message||'');
+      carryFeedback.classList.toggle('is-error',!!isError);
+    }
+    function renderCarry(){
+      if(!tk2mPreview||!carryList||!carryCount)return;
+      const filtered=state.staffFilter&&isManagement&&state.scope==='team';
+      const all=filtered?state.outstanding.filter(item=>
+        staffKey({assignedTo:item.assignedTo,assignedName:item.recipient})===state.staffFilter)
+        :state.outstanding;
+      const total=filtered?all.length:state.outstandingTotal;
+      carryCount.textContent=String(total);
+      if(state.attentionError){
+        carryList.innerHTML='<div class="t2m-home-carry-empty">Outstanding work could not load. Open Communications to retry.</div>';
+        return;
+      }
+      if(!all.length){
+        carryList.innerHTML='<div class="t2m-home-carry-empty">Nothing carried over from previous days.</div>';
+        return;
+      }
+      const shown=state.carryExpanded?all:all.slice(0,5);
+      carryList.innerHTML=shown.map(item=>{
+        const id=Number(item.id);
+        const sender=shortStaffName(item.sender);
+        const recipient=shortStaffName(item.recipient);
+        const title=String(item.subject||item.text||'Instruction').trim();
+        const created=new Date(item.createdAt);
+        const when=Number.isNaN(created.getTime())?'Earlier':created.toLocaleDateString('en-ZA',{day:'numeric',month:'short'});
+        const received=item.acknowledged?'Received':'Awaiting receipt';
+        const color=staffColor({assignedTo:item.assignedTo,assignedName:item.recipient});
+        return `<article class="t2m-home-carry-item" style="--staff-color:${color}" data-home-carry-id="${id}">
+          <strong class="t2m-home-carry-people">${esc(sender)} → ${esc(recipient)}</strong>
+          <span class="t2m-home-carry-subject" title="${esc(title)}">${esc(title)}</span>
+          <small>${esc(when)} · ${esc(received)} · Outstanding</small>
+          <div class="t2m-home-carry-actions">
+            <button type="button" data-carry-reply="${id}">Reply</button>
+            ${item.canComplete?`<button type="button" class="is-done" data-carry-done="${id}">Done</button>`:''}
+          </div>
+          <form class="t2m-home-carry-reply" data-carry-form="${id}" hidden>
+            <label for="carry-reply-${id}">Quick reply</label>
+            <textarea id="carry-reply-${id}" rows="2" maxlength="4000" required placeholder="Type a short update…"></textarea>
+            <div class="t2m-home-carry-reply-controls">
+              <button type="button" data-carry-cancel="${id}">Cancel</button>
+              <button type="submit" class="is-send">Send reply</button>
+            </div>
+          </form>
+        </article>`;
+      }).join('')+(all.length>5
+        ?`<button type="button" class="t2m-home-carry-more" data-carry-expand>${state.carryExpanded?'Show fewer':'View all '+total+' outstanding'}</button>`
+        :'');
+      carryList.querySelector('[data-carry-expand]')?.addEventListener('click',()=>{
+        state.carryExpanded=!state.carryExpanded;
+        renderCarry();
+      });
+      carryList.querySelectorAll('[data-carry-reply]').forEach(button=>{
+        button.onclick=()=>{
+          const item=button.closest('.t2m-home-carry-item');
+          const form=item?.querySelector('[data-carry-form]');
+          if(!form||state.carryBusy)return;
+          form.hidden=!form.hidden;
+          if(!form.hidden)form.querySelector('textarea')?.focus();
+        };
+      });
+      carryList.querySelectorAll('[data-carry-cancel]').forEach(button=>{
+        button.onclick=()=>{
+          const form=button.closest('[data-carry-form]');
+          if(form){form.hidden=true;form.reset();}
+        };
+      });
+      carryList.querySelectorAll('[data-carry-form]').forEach(form=>{
+        form.addEventListener('submit',async event=>{
+          event.preventDefault();
+          if(state.carryBusy)return;
+          const taskId=Number(form.dataset.carryForm);
+          const reply=String(form.querySelector('textarea')?.value||'').trim();
+          if(!reply){showCarryFeedback('Enter a short reply first.',true);return;}
+          state.carryBusy=true;
+          try{
+            const body=new FormData();body.set('comment',reply);
+            const response=await fetch(`${basePath}/api/uat/tasks/${taskId}/comments`,{
+              method:'POST',credentials:'same-origin',headers:{Accept:'application/json'},body});
+            const result=await response.json().catch(()=>({}));
+            if(!response.ok||result.ok===false)throw Error(result.error||'Could not send reply');
+            showCarryFeedback('Reply recorded and sent to the staff involved.');
+            form.hidden=true;form.reset();
+            window.dispatchEvent(new Event('workspace:refresh'));
+          }catch(error){showCarryFeedback(error.message,true);}
+          finally{state.carryBusy=false;}
+        });
+      });
+      carryList.querySelectorAll('[data-carry-done]').forEach(button=>{
+        button.onclick=async()=>{
+          if(state.carryBusy)return;
+          const taskId=Number(button.dataset.carryDone);
+          state.carryBusy=true;button.disabled=true;
+          try{
+            await jsonFetch(`/api/uat/tasks/${taskId}/status`,{
+              method:'POST',body:JSON.stringify({
+                status:'completed',completion_note:'Completed via My Day Outstanding Work'
+              })
+            });
+            showCarryFeedback('Work completed. The instruction is removed from Outstanding Work.');
+            window.dispatchEvent(new Event('workspace:refresh'));
+          }catch(error){
+            showCarryFeedback(error.message,true);
+            button.disabled=false;
+          }finally{state.carryBusy=false;}
+        };
       });
     }
     function renderFocus() {
@@ -510,12 +643,13 @@
         node.closest('[data-home-focus]')?.classList.toggle('has-attention', Number(count) > 0);
       }
       renderPriority();
+      renderCarry();
       const summary = workspace.querySelector('[data-home-attention-summary]');
       if(summary){
         const count=state.focus.messages,overdue=state.focus.overdue;
         summary.textContent = count===null || overdue===null
-          ? 'Checking recent communications...'
-          : count+' recent communications · '+overdue+' overdue';
+          ? 'Checking today\'s communications...'
+          : count+' communications today · '+overdue+' outstanding from previous days';
       }
     }
 
@@ -668,24 +802,23 @@
     }
 
     async function loadAttention() {
-      if (!tk2mPreview) return;
-      const [messagesResult, statusResult] = await Promise.allSettled([
-        jsonFetch('/api/tk2m/communications/inbox'+
-          (isManagement&&state.scope==='team'?'?scope=team':'')),
-        jsonFetch('/api/os/status')
-      ]);
-      state.communications=messagesResult.status==='fulfilled' && Array.isArray(messagesResult.value.items)
-        ?messagesResult.value.items:[];
-      state.attentionError=messagesResult.status==='rejected'?String(messagesResult.reason?.message||'Unavailable'):null;
-      state.focus.messages = messagesResult.status === 'fulfilled'
-        ? state.communications.length
-        : null;
-      state.focus.overdue = statusResult.status === 'fulfilled'
-        ? Math.max(0, Number(statusResult.value.status?.overdueTaskCount || 0))
-        : null;
-      state.focus.openWork = statusResult.status === 'fulfilled'
-        ? Math.max(0, Number(statusResult.value.status?.taskCount || 0))
-        : null;
+      if(!tk2mPreview)return;
+      try{
+        const data=await jsonFetch('/api/tk2m/communications/myday'+
+          (isManagement&&state.scope==='team'?'?scope=team':''));
+        state.communications=Array.isArray(data.today)?data.today:[];
+        state.outstanding=Array.isArray(data.outstanding)?data.outstanding:[];
+        state.outstandingTotal=Math.max(0,Number(data.counts?.outstanding||0));
+        state.attentionError=null;
+        state.focus.messages=state.communications.length;
+        state.focus.overdue=state.outstandingTotal;
+        state.focus.openWork=state.outstandingTotal;
+      }catch(error){
+        state.attentionError=String(error.message||'Communications unavailable');
+        state.communications=[];state.outstanding=[];
+        state.outstandingTotal=0;
+        state.focus.messages=null;state.focus.overdue=null;
+      }
       renderFocus();
     }
 
@@ -717,6 +850,8 @@
     workspace.querySelector('[data-home-add-task]').onclick = openTask;
     workspace.querySelector('[data-home-add-reminder]').onclick = openReminder;
     workspace.querySelector('[data-home-focus="tasks"]')?.addEventListener('click', () => {
+      const details=workspace.querySelector('[data-home-calendar-fold]');
+      if(details)details.open=true;
       const agenda=workspace.querySelector('.t2m-home-agenda');
       agenda?.scrollIntoView({block:'nearest',behavior:'smooth'});
       agenda?.classList.add('is-highlighted');
@@ -728,8 +863,11 @@
       panel?.scrollIntoView({block:'nearest',behavior:'smooth'});
     });
     workspace.querySelector('[data-home-focus="overdue"]')?.addEventListener('click', () => {
-      if(tk2mPreview && window.Talk2MeUnifiedInbox?.open){
-        window.Talk2MeUnifiedInbox.open();return;
+      if(tk2mPreview){
+        const panel=workspace.querySelector('.t2m-home-carry-panel');
+        panel?.scrollIntoView({block:'nearest',behavior:'smooth'});
+        panel?.classList.add('is-highlighted');
+        window.setTimeout(()=>panel?.classList.remove('is-highlighted'),900);return;
       }
       openWorkWindow({
         id: 'myday:overdue', appKey: 'overdue-work', title: 'My overdue tasks',
@@ -789,6 +927,15 @@
 
     window.addEventListener('workspace:refresh', () => {
       setTimeout(() => { load(); loadAttention(); }, 100);
+    });
+    // Refresh remote staff instructions without closing an active quick-reply box.
+    window.setInterval(()=>{
+      if(!tk2mPreview||document.hidden||state.carryBusy||
+         workspace.querySelector('[data-carry-form]:not([hidden])'))return;
+      void loadAttention();
+    },30000);
+    document.addEventListener('visibilitychange',()=>{
+      if(tk2mPreview&&!document.hidden&&!state.carryBusy)void loadAttention();
     });
 
     load();

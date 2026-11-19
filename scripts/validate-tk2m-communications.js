@@ -103,6 +103,12 @@ async function main(){
  assert.match(read('public/css/tk2m-workspace-preview.css'),/t2m-home-calendar-head\{display:none/);
  assert.match(myDay,/\.slice\(state\.priorityPage\*3,\(state\.priorityPage\+1\)\*3\)/);
  assert.match(myDay,/state\.communications/);
+ assert.match(myDay,/data-home-carry-list/);
+ assert.match(myDay,/data-carry-reply/);
+ assert.match(myDay,/data-carry-done/);
+ assert.match(myDay,/data-home-calendar-fold/);
+ assert.match(myDay,/Completed via My Day Outstanding Work/);
+ assert.match(myDay,/communications\/myday/);
  assert.match(myDay,/data-home-agenda-more/);
  assert.match(myDay,/items\.slice\(0,4\)/);
  assert.match(myDay,/!tk2mPreview && item\.details/);
@@ -116,7 +122,9 @@ async function main(){
  require('node:vm').compileFunction(unified,[]);
  assert.match(unified,/Communications/);
  assert.match(unified,/data-tk2m-unified-list/);
- assert.match(unified,/api\/tk2m\/communications\/inbox/);
+ assert.match(unified,/api\/tk2m\/communications\/myday/);
+ assert.match(unified,/data-tk2m-unified-view="today"/);
+ assert.match(unified,/data-tk2m-unified-view="outstanding"/);
  assert.match(unified,/api\/tk2m\/communications\/clear/);
  assert.match(unified,/actionButton\('Clear','clear',item\)/);
  assert.match(read('src/routes/tk2m-communications-brief.js'),/VALUES \(:staffId,'hide_chat',:id,:key,'clear'\)/);
@@ -154,6 +162,50 @@ async function main(){
  assert.match(inboxQueries[1],/m\.conversation_key='office'/);
  assert.match(inboxQueries[1],/source_kind='hide_chat'/);
  assert.match(read('src/services/tk2m-communications-brief.js'),/source_kind='hide_chat'/);
+ const {myDayCommunications,CUTOVER_DAY}=require('../src/services/tk2m-myday-communications');
+ assert.equal(CUTOVER_DAY,'2026-11-17');
+ const myDayQueries=[];
+ const myDayDb={async execute(sql,args){
+   myDayQueries.push({sql,args});
+   if(sql.includes('MAX(CASE WHEN source_kind='))return [[{chatId:0,notificationTaskId:0,workflowId:0}]];
+   if(sql.includes('COUNT(*) total FROM staff_tasks t'))return [[{total:1}]];
+   if(sql.includes('FROM staff_tasks t')&&sql.includes('t.created_at>=:today'))return [[{
+     id:360,title:'Instruction completed today',message:'It is done',
+     created_at:'2026-11-19T12:30:00Z',status:'completed',
+     assigned_to:9,created_by:15,sender_name:'ChatGPT CRM Test',
+     recipient_name:'Stephan',receipt_at:'2026-11-19T12:35:00Z'
+   }]];
+   if(sql.includes('FROM staff_tasks t')&&sql.includes('t.created_at>=:cutover'))return [[{
+     id:352,title:'New Lines HelpU',message:'Previous day instruction',
+     created_at:'2026-11-18T18:36:00Z',status:'seen',
+     assigned_to:5,created_by:1,sender_name:'Gerda',
+     recipient_name:'Brabant',receipt_at:'2026-11-19T05:00:00Z'
+   }]];
+   if(sql.includes('FROM staff_chat_messages m'))return [[]];
+   throw Error('Unexpected My Day SQL: '+sql.slice(0,130));
+ }};
+ const split=await myDayCommunications(myDayDb,9,{
+   scope:'team',now:new Date('2026-11-19T11:00:00Z')
+ });
+ assert.equal(split.day,'2026-11-19');
+ assert.equal(split.scope,'team');
+ assert.equal(split.counts.today,1);
+ assert.equal(split.counts.outstanding,1);
+ assert.equal(split.today[0].status,'completed');
+ assert.equal(split.today[0].canComplete,false);
+ assert.equal(split.outstanding[0].id,352);
+ assert.equal(split.outstanding[0].canComplete,false);
+ assert.equal(split.outstanding[0].canReply,true);
+ assert.equal(split.outstanding[0].direction,'team');
+ assert.ok(myDayQueries.some(q=>q.sql.includes('t.created_at>=:cutover')&&q.sql.includes('t.created_at<:today')));
+ assert.ok(myDayQueries.some(q=>q.sql.includes("t.status IN ('unread','seen','in_progress')")));
+ assert.match(read('src/routes/tk2m-communications-brief.js'),/communications\/myday/);
+ const assigneeView=await myDayCommunications(myDayDb,5,{
+   scope:'mine',now:new Date('2026-11-19T11:00:00Z')
+ });
+ assert.equal(assigneeView.outstanding[0].canComplete,true);
+ assert.ok(myDayQueries.some(q=>q.sql.includes('(t.created_by=:staffId OR t.assigned_to=:staffId)')));
+ assert.match(read('src/services/tk2m-communications-brief.js'),/t.created_at>=:cutover/);
  assert.match(read('public/js/uat-work-widgets.js'),/<strong>\+ Send<\/strong>/);
  assert.match(read('public/js/tk2m-staff-attention.js'),/completeNow/);
  assert.match(read('public/js/tk2m-staff-attention.js'),/Received/);
