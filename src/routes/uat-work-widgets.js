@@ -653,7 +653,8 @@ router.get('/api/uat/tasks', requireAuth, async (req, res, next) => {
       ? 't.created_by=:userId'
       : scope === 'team'
         ? '1=1'
-        : `t.assigned_to=:userId AND (t.type<>'notification' OR t.id>:archiveTaskId)`;
+        : 't.assigned_to=:userId';
+    const archiveWhere=scope==='mine' ? "AND (t.type<>'notification' OR t.id>:archiveTaskId)" : '';
 
     const activeStatusWhere = `(t.status IN ${ACTIVE_TASKS} OR (t.status='completed' AND w.workflow_state='awaiting_sender_ack'))`;
     const historyFilter = ['new','old','7days','14days','month','history_all'].includes(filter);
@@ -764,7 +765,7 @@ router.get('/api/uat/tasks', requireAuth, async (req, res, next) => {
       CASE WHEN ${attentionExpr} THEN 1 ELSE 0 END needs_attention
       FROM staff_tasks t
       ${joins}
-      WHERE ${where} AND ${statusWhere} AND (${viewWhere}) AND (${filterWhere})
+      WHERE ${where} ${archiveWhere} AND ${statusWhere} AND (${viewWhere}) AND (${filterWhere})
       ORDER BY ${orderBy}
       LIMIT 160`, { userId,archiveTaskId:archive.notificationTaskId });
 
@@ -791,7 +792,7 @@ router.get('/api/uat/tasks', requireAuth, async (req, res, next) => {
         FROM staff_task_notifications
         GROUP BY task_id
       ) an ON an.task_id=t.id
-      WHERE ${where} AND ${activeStatusWhere}`, { userId,archiveTaskId:archive.notificationTaskId });
+      WHERE ${where} ${archiveWhere} AND ${activeStatusWhere}`, { userId,archiveTaskId:archive.notificationTaskId });
 
     const counts = {
       latest: Number(countRows?.[0]?.latest || 0),
