@@ -1112,3 +1112,40 @@ body.command-body .login-greeting {
   visibility:hidden !important;
   pointer-events:none !important;
 }
+/* Keep the classic CRM action bar in a single row at the actual 970px split
+   screen. Before this, Clock Out wrapped to a lonely second row on every
+   customer, fixed, report and management screen, wasting working space. */
+@media(min-width:900px) and (max-width:1100px) {
+ body.command-body .command-topbar {
+   box-sizing:border-box!important;
+   display:grid!important;
+   grid-template-columns:44px minmax(150px,1fr) auto auto auto auto!important;
+   align-items:center!important;align-content:center!important;
+   gap:7px!important;min-height:64px!important;
+   padding:8px 12px!important;
+ }
+ body.command-body .command-topbar .icon-button {
+   box-sizing:border-box!important;min-width:0!important;width:42px!important;
+   padding:8px!important;min-height:37px!important;
+ }
+ body.command-body .command-topbar .command-search {
+   min-width:0!important;width:100%!important;max-width:none!important;
+   flex:none!important;
+ }
+ body.command-body .command-topbar .live-status,
+ body.command-body .command-topbar .top-task-link {
+   min-width:0!important;max-width:100%!important;
+   padding:8px 9px!important;
+   min-height:37px!important;
+   font-size:11px!important;
+   white-space:nowrap!important;
+ }
+ body.command-body .command-topbar>form {
+   display:block!important;min-width:0!important;margin:0!important;
+ }
+ body.command-body .command-topbar .logout-button {
+   min-width:0!important;max-width:100%!important;
+   padding:8px 10px!important;min-height:37px!important;
+   white-space:nowrap!important;font-size:11px!important;
+ }
+}
