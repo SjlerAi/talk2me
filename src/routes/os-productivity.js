@@ -1,6 +1,7 @@
 const express = require('express');
 const db = require('../config/db');
 const { requireAuth } = require('../middleware/auth');
+const {getArchiveCutoffs}=require('../services/tk2m-communications-archive');
 
 const router = express.Router();
 const OPEN_INQUIRY_STATUSES = "('open','follow_up','waiting_customer','waiting_network','waiting_supplier')";
@@ -32,26 +33,35 @@ function validDateTime(value) {
 }
 
 async function loadOsStatus(userId) {
+  const live=String(process.env.CRM_LIVE_MODE||'').toLowerCase()==='true';
+  const archive=live?await getArchiveCutoffs(db,userId):{chatId:0,notificationTaskId:0};
+  const recent=live?"AND created_at>=DATE_SUB(NOW(), INTERVAL 2 DAY) AND (type<>'notification' OR id>:archivedTaskId)":"";
+  const unreadChat=live?`(SELECT COUNT(*) FROM staff_chat_messages m
+      LEFT JOIN staff_chat_reads r ON r.staff_id=:userId AND r.conversation_key=m.conversation_key
+      WHERE m.sender_staff_id<>:userId AND m.created_at>=DATE_SUB(NOW(), INTERVAL 2 DAY)
+      AND m.id>GREATEST(COALESCE(r.last_read_message_id,0),:archivedChatId)
+      AND (m.conversation_key='office' OR m.conversation_key IN (
+       SELECT CONCAT('direct:',LEAST(s.id,:userId),':',GREATEST(s.id,:userId))
+       FROM staff_users s WHERE s.is_active=1 AND s.id<>:userId)))`:
+      `(SELECT COUNT(*) FROM staff_tasks WHERE assigned_to=:userId AND status='unread')`;
   const [[row]] = await db.execute(`SELECT
     (SELECT COUNT(*) FROM inquiries
       WHERE COALESCE(assigned_staff_id, staff_id) = :userId
         AND status IN ${OPEN_INQUIRY_STATUSES}) AS queue_count,
     (SELECT COUNT(*) FROM staff_tasks
       WHERE assigned_to = :userId
-        AND status IN ${ACTIVE_TASK_STATUSES}) AS task_count,
-    (SELECT COUNT(*) FROM staff_tasks
-      WHERE assigned_to = :userId
-        AND status = 'unread') AS unread_message_count,
-    (SELECT COUNT(*) FROM staff_tasks
-      WHERE assigned_to = :userId
-        AND status IN ${ACTIVE_TASK_STATUSES}
-        AND due_at IS NOT NULL
-        AND due_at < NOW()) AS overdue_task_count,
+        AND status IN ${ACTIVE_TASK_STATUSES} ${recent}) AS task_count,
+    ${unreadChat} AS unread_message_count,
     (SELECT COUNT(*) FROM staff_tasks
       WHERE assigned_to = :userId
         AND status IN ${ACTIVE_TASK_STATUSES}
         AND due_at IS NOT NULL
-        AND DATE(due_at) = CURRENT_DATE()) AS due_today_task_count,
+        AND due_at < NOW() ${recent}) AS overdue_task_count,
+    (SELECT COUNT(*) FROM staff_tasks
+      WHERE assigned_to = :userId
+        AND status IN ${ACTIVE_TASK_STATUSES}
+        AND due_at IS NOT NULL
+        AND DATE(due_at) = CURRENT_DATE() ${recent}) AS due_today_task_count,
     ((SELECT COUNT(*) FROM inquiries
       WHERE COALESCE(assigned_staff_id, staff_id) = :userId
         AND status IN ${OPEN_INQUIRY_STATUSES}
@@ -94,7 +104,7 @@ async function loadOsStatus(userId) {
         AND lifecycle_status = 'prospect'
         AND COALESCE(lead_status,'new') IN ('new','contacted','qualified'))
       + (SELECT COUNT(*) FROM sales_prospects
-        WHERE assigned_to = :userId AND status IN ('new','contacted','qualified'))) AS new_prospects_count`, { userId });
+        WHERE assigned_to = :userId AND status IN ('new','contacted','qualified'))) AS new_prospects_count`, { userId,archivedChatId:archive.chatId,archivedTaskId:archive.notificationTaskId });
 
   return {
     queueCount: Number(row?.queue_count || 0),

@@ -34,7 +34,7 @@ async function dailyBrief(db,staff,now=new Date()){
      COALESCE(SUM(CASE WHEN t.created_at<:today THEN 1 ELSE 0 END),0) carryover,
      COALESCE(SUM(CASE WHEN t.created_at>=:today THEN 1 ELSE 0 END),0) received_today
    FROM staff_tasks t
-   WHERE t.assigned_to=:staffId AND ${activeSql}
+   WHERE t.assigned_to=:staffId AND ${activeSql} AND t.created_at>=DATE_SUB(NOW(),INTERVAL 2 DAY)
      AND (t.type<>'notification' OR t.id>:archivedTaskId)`,params);
  const [[messages]]=await db.execute(
   `SELECT COUNT(*) total,
@@ -43,11 +43,11 @@ async function dailyBrief(db,staff,now=new Date()){
    FROM staff_chat_messages m
    LEFT JOIN staff_chat_reads r
      ON r.staff_id=:staffId AND r.conversation_key=m.conversation_key
-   WHERE ${visibleMessageSql} AND m.id>:archivedChatId`,params);
+   WHERE ${visibleMessageSql} AND m.id>:archivedChatId AND m.created_at>=DATE_SUB(NOW(),INTERVAL 2 DAY)`,params);
  const [taskRows]=await db.execute(
   `SELECT t.id,t.title,t.created_at,t.due_at,t.status,s.full_name sender
    FROM staff_tasks t JOIN staff_users s ON s.id=t.created_by
-   WHERE t.assigned_to=:staffId AND ${activeSql}
+   WHERE t.assigned_to=:staffId AND ${activeSql} AND t.created_at>=DATE_SUB(NOW(),INTERVAL 2 DAY)
      AND (t.type<>'notification' OR t.id>:archivedTaskId)
    ORDER BY t.created_at DESC,t.id DESC LIMIT 6`,params);
  const [messageRows]=await db.execute(
@@ -56,7 +56,7 @@ async function dailyBrief(db,staff,now=new Date()){
    JOIN staff_users s ON s.id=m.sender_staff_id
    LEFT JOIN staff_chat_reads r
      ON r.staff_id=:staffId AND r.conversation_key=m.conversation_key
-   WHERE ${visibleMessageSql} AND m.id>:archivedChatId
+   WHERE ${visibleMessageSql} AND m.id>:archivedChatId AND m.created_at>=DATE_SUB(NOW(),INTERVAL 2 DAY)
    ORDER BY m.created_at DESC,m.id DESC LIMIT 6`,params);
  const [ackRows]=await db.execute(
   `SELECT source_kind FROM staff_attention_acknowledgments

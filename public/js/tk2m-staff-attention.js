@@ -79,7 +79,7 @@
       if (!response.ok) throw new Error('Alert service unavailable');
       const data = await response.json();
       const alerts = Array.isArray(data.alerts) ? data.alerts : [];
-      alertStatus(alerts.length ? alerts.length+' recent red alerts (last 7 days) waiting' : 'No unacknowledged red alerts from the last 7 days');
+      alertStatus(alerts.length ? alerts.length+' recent red alerts (last 2 days) waiting' : 'No unacknowledged red alerts from the last 2 days');
       if (current) {
         if (alerts.some(item => item.kind === current.kind && Number(item.id) === Number(current.id))) return;
         // A read/acknowledgment on another device should clear this duplicate.

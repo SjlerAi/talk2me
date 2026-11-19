@@ -2,9 +2,9 @@
 
 // Popup receipt != read receipt != task completion.
 const {getArchiveCutoffs}=require('./tk2m-communications-archive');
-// Only delivery events from the last seven rolling days may interrupt staff.
-// Older work remains in the existing CRM inboxes and is NEVER auto-acknowledged.
-const RECENT_ALERT_DAYS = 7;
+// Only work created within the last two rolling days may interrupt staff.
+// Older records remain in history/audit, but are excluded from everyday work screens.
+const RECENT_ALERT_DAYS = 2;
 const positiveId = value => {
   const n = Number(value);
   return Number.isSafeInteger(n) && n > 0 ? n : null;
@@ -73,7 +73,7 @@ async function pendingAlerts(db, userId) {
        LEFT JOIN staff_chat_reads r
          ON r.staff_id=:staffId AND r.conversation_key=m.conversation_key
       WHERE m.sender_staff_id<>:staffId
-        AND m.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+        AND m.created_at >= DATE_SUB(NOW(), INTERVAL 2 DAY)
         AND m.id>GREATEST(COALESCE(r.last_read_message_id,0),:archivedChatId)
         AND (m.conversation_key='office'
              OR m.conversation_key IN (
@@ -93,7 +93,7 @@ async function pendingAlerts(db, userId) {
        LEFT JOIN staff_attention_acknowledgments a
          ON a.staff_id=:staffId AND a.source_kind='task' AND a.source_id=t.id
       WHERE t.assigned_to=:staffId AND t.created_by<>:staffId
-        AND t.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+        AND t.created_at >= DATE_SUB(NOW(), INTERVAL 2 DAY)
         AND (t.type<>'notification' OR t.id>:archivedTaskId)
         AND t.status='unread' AND a.id IS NULL
       ORDER BY t.created_at DESC,t.id DESC LIMIT 20`, {staffId,archivedTaskId:archive.notificationTaskId}
@@ -108,7 +108,7 @@ async function pendingAlerts(db, userId) {
        LEFT JOIN staff_attention_acknowledgments a
          ON a.staff_id=:staffId AND a.source_kind='update' AND a.source_id=n.id
       WHERE n.recipient_staff_id=:staffId AND n.resolved_at IS NULL
-        AND n.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+        AND n.created_at >= DATE_SUB(NOW(), INTERVAL 2 DAY)
         AND n.id>:archivedWorkflowId
         -- A new task has its own red alert; suppress the redundant
         -- 'assigned' workflow event so staff do not get two pop-ups.
