@@ -897,3 +897,30 @@ body.command-body .report-filters>.btn {
     flex-basis:100% !important;min-width:0 !important;
   }
 }
+
+/* Two-window review: do not let the five inquiry KPI cards or dual report
+   tables overflow the available CRM half-screen at 970px viewport width. */
+@media (max-width: 1150px) {
+  body.command-body .report-filters:has(> .form-grid),
+  body.command-body .stats-grid.report-stats,
+  body.command-body .two-col:has(> .card .table-wrap) {
+    box-sizing:border-box !important;
+    width:calc(100vw - 110px) !important;
+    max-width:100% !important;
+    min-width:0 !important;
+  }
+  body.command-body .stats-grid.report-stats {
+    grid-template-columns:repeat(3,minmax(0,1fr)) !important;
+  }
+  body.command-body .two-col:has(> .card .table-wrap) {
+    grid-template-columns:minmax(0,1fr) !important;
+  }
+  body.command-body .report-filters>.form-grid>label {
+    flex-basis:210px !important;
+  }
+}
+@media (max-width: 680px) {
+  body.command-body .stats-grid.report-stats {
+    grid-template-columns:repeat(2,minmax(0,1fr)) !important;
+  }
+}
