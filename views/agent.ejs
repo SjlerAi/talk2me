@@ -22,7 +22,7 @@
   </style>
   <link rel="stylesheet" data-tk2m-blue-refresh href="<%= basePath %>/public/css/tk2m-blue-red-refresh.css?v=blue20261119a">
 </head>
-<body>
+<body class="tk2m-agent-page">
 <% const fmt = value => value ? new Date(value).toLocaleString('en-ZA',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : '—';
    const shortName = value => { const raw=String(value||'').trim(); if(!raw)return ''; const source=raw.includes('@')?raw.split('@')[0]:raw; const parts=source.split(/[\\s._-]+/).filter(Boolean); return String(parts[0]||'').toLowerCase()==='van'&&String(parts[1]||'').toLowerCase()==='zyl'?'Van Zyl':(parts[0]||raw); }; %>
   <main class="app">
