@@ -91,6 +91,7 @@
        actions.append(actionButton('Reply','reply',item));
      }else if(item.direction==='team'){
        actions.append(actionButton('Reply','reply',item));
+       if(item.canComplete)actions.append(actionButton('Done','complete',item));
        if(item.status!=='completed')actions.append(actionButton('Hide from my view','hide-team',item));
      }
    }else{
@@ -142,6 +143,11 @@
      if(form){form.hidden=!form.hidden;if(!form.hidden)form.querySelector('textarea')?.focus();}
      return;
    }
+   if(type==='complete'&&item.completeOnBehalf && !window.confirm(
+     'Mark "'+String(item.subject||'this instruction')+'" Done on behalf of '+
+     String(item.recipient||'the employee')+
+     '? This records you as completing it and notifies the sender.'
+   ))return;
    busy=true;button.disabled=true;
    try{
      if(type==='hide-team'){
@@ -158,7 +164,9 @@
        status.textContent='Received and recorded';
      }else if(type==='complete'){
        await api('/api/uat/tasks/'+item.id+'/status',{method:'POST',
-         body:JSON.stringify({status:'completed',completion_note:'Completed via Communications'})});
+         body:JSON.stringify({status:'completed',completion_note:item.completeOnBehalf
+           ?'Management confirmed completion on behalf in Communications'
+           :'Completed via Communications'})});
        status.textContent='Completed and recorded';
      }
      await load();

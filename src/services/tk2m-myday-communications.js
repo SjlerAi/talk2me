@@ -16,7 +16,7 @@ const TASK_COLUMNS=`SELECT t.id,t.title,t.message,t.created_at,t.status,
  JOIN staff_users recipient ON recipient.id=t.assigned_to
  LEFT JOIN staff_attention_acknowledgments ack ON
    ack.staff_id=t.assigned_to AND ack.source_kind='task' AND ack.source_id=t.id`;
-function taskItem(t,staffId){
+function taskItem(t,staffId,isManagementTeam){
  const assignedTo=Number(t.assigned_to),createdBy=Number(t.created_by);
  return {
   kind:'task',id:Number(t.id),createdAt:t.created_at,
@@ -25,7 +25,9 @@ function taskItem(t,staffId){
   assignedTo,createdBy,subject:str(t.title,170),
   text:str(t.message||t.title),acknowledged:Boolean(t.receipt_at),
   acknowledgedAt:t.receipt_at||null,status:str(t.status,30),
-  canComplete:assignedTo===staffId && ['unread','seen','in_progress'].includes(String(t.status)),
+  canComplete:(assignedTo===staffId||isManagementTeam) && ['unread','seen','in_progress'].includes(String(t.status)),
+  completeOnBehalf:isManagementTeam && assignedTo!==staffId &&
+    ['unread','seen','in_progress'].includes(String(t.status)),
   canReply:true
  };
 }
@@ -89,8 +91,12 @@ async function myDayCommunications(db,viewer,options={}){
      conversation:key==='office'?'office':'direct:'+other
    };
  });
- const todayItems=[...currentTasks.map(t=>taskItem(t,staffId)),...chats].sort(byCreated).slice(0,150);
- const outstanding=carryTasks.map(t=>taskItem(t,staffId));
+ // Live work gets the first three headline slots; completed items remain
+ // available in Today's history via the left/right arrows.
+ const prioritizeActive=(a,b)=>(a.status==='completed'?1:0)-(b.status==='completed'?1:0)||byCreated(a,b);
+ const todayItems=[...currentTasks.map(t=>taskItem(t,staffId,isTeam)),...chats]
+   .sort(prioritizeActive).slice(0,150);
+ const outstanding=carryTasks.map(t=>taskItem(t,staffId,isTeam));
  return {ok:true,day:today,scope:isTeam?'team':'mine',cutover:CUTOVER_DAY,
    today:todayItems,outstanding,
    counts:{today:todayItems.length,outstanding:Number(total?.total||0)}};
