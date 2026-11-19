@@ -65,3 +65,43 @@
 @media(max-width:620px){.tk2m-quick-overlay,.tk2m-brief-overlay{padding:10px!important}.tk2m-brief-actions{justify-content:stretch!important}
  .tk2m-brief-actions button{flex:1!important}.tk2m-brief-red h2{font-size:18px!important}
  .tk2m-brief-numbers strong{font-size:28px!important}}
+
+/* Scheduled delivery is optional and does not change instant Send. */
+.tk2m-quick-actions{display:flex!important;justify-content:flex-end!important;gap:8px!important;align-items:center!important;margin-left:auto!important}
+.tk2m-quick-schedule{min-width:100px!important;min-height:43px!important;border:1px solid #347bb3!important;
+ border-radius:9px!important;padding:9px 12px!important;background:#e8f2fb!important;color:#185884!important;
+ cursor:pointer!important;font-size:14px!important;font-weight:900!important}
+.tk2m-quick-schedule[aria-expanded="true"]{background:#1f5e96!important;color:#fff!important}
+.tk2m-quick-schedule:disabled{opacity:.55!important}
+.tk2m-quick-schedule-options[hidden],.tk2m-quick-scheduled-list[hidden]{display:none!important}
+.tk2m-quick-schedule-options{display:grid!important;gap:10px!important;border:1px solid #bed4e6!important;
+ border-radius:10px!important;padding:12px!important;background:#f6faff!important}
+.tk2m-quick-schedule-options p{font-size:12px!important;font-weight:750!important;color:#33506d!important;margin:0!important}
+.tk2m-quick-schedule-datetime{display:grid!important;grid-template-columns:1fr 1fr!important;gap:8px!important}
+.tk2m-quick-schedule-datetime label{display:grid!important;gap:5px!important;font-size:12px!important;font-weight:800!important;color:#344054!important}
+.tk2m-quick-schedule-datetime input{box-sizing:border-box!important;width:100%!important;border:1px solid #bfcbd9!important;
+ border-radius:8px!important;padding:9px!important;background:#fff!important;color:#1f2937!important;font-size:15px!important}
+.tk2m-quick-schedule-footer{display:flex!important;justify-content:flex-end!important;gap:8px!important}
+.tk2m-quick-schedule-footer button{min-height:36px!important;padding:8px 12px!important;border:1px solid #a8bdcf!important;
+ border-radius:8px!important;background:#fff!important;color:#1d456a!important;font-weight:850!important;cursor:pointer!important}
+.tk2m-quick-schedule-footer .tk2m-quick-schedule-confirm{background:#1c699f!important;border-color:#1c699f!important;color:#fff!important}
+.tk2m-quick-scheduled-link{justify-self:start!important;border:0!important;background:transparent!important;color:#225f96!important;
+ text-decoration:underline!important;cursor:pointer!important;font-size:12px!important;padding:3px 0!important;font-weight:700!important}
+.tk2m-quick-scheduled-list{max-height:175px!important;overflow-y:auto!important;border:1px solid #dde5ef!important;
+ background:#f9fbfe!important;padding:10px!important;border-radius:8px!important;display:grid!important;gap:8px!important}
+.tk2m-quick-scheduled-list>strong{font-size:12px!important}
+.tk2m-quick-scheduled-list p{margin:0!important;color:#475569!important;font-size:12px!important}
+.tk2m-scheduled-item{display:flex!important;gap:8px!important;align-items:center!important;justify-content:space-between!important;
+ border-bottom:1px solid #e5e7eb!important;padding-bottom:8px!important}
+.tk2m-scheduled-item span{min-width:0!important;display:grid!important;gap:3px!important}
+.tk2m-scheduled-item strong{font-size:11px!important;color:#263548!important}
+.tk2m-scheduled-item small{font-size:11px!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;color:#667085!important}
+.tk2m-scheduled-item button{padding:6px 9px!important;border:1px solid #b91c1c!important;background:#fff!important;
+ border-radius:7px!important;color:#b91c1c!important;font-size:11px!important;font-weight:800!important;cursor:pointer!important}
+.tk2m-quick-bottom{flex-wrap:wrap!important}
+.tk2m-quick-attachment{flex:1 1 auto!important}
+@media(max-width:420px){
+ .tk2m-quick-actions{width:100%!important}
+ .tk2m-quick-actions>button{flex:1!important;min-width:0!important}
+ .tk2m-quick-schedule-datetime{grid-template-columns:1fr!important}
+}
