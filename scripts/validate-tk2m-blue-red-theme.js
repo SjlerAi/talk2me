@@ -111,4 +111,9 @@ for(const [file,labels] of [
 assert.match(css,/tk2m-fixed-list-table tbody tr/,'narrow fixed cards missing');
 assert.match(css,/content:attr\(data-label\)/,'fixed card label missing');
 assert.ok(css.includes('width:calc(100vw - 100px)!important'),'fixed table must be constrained to split-screen viewport');
+// Management routes run on the live CRM. Never reintroduce UAT-only copy.
+for(const file of ['management-intelligence.ejs','agent.ejs']){
+ const managementView=fs.readFileSync(path.join(root,'views',file),'utf8');
+ assert.doesNotMatch(managementView,/\\bUAT\\b/i,'obsolete UAT wording on live screen: '+file);
+}
 console.log('TK2M_APPROVED_BLUE_RED_THEME_GATE_PASS full_documents='+full.length+' all_templates='+templates.length);
