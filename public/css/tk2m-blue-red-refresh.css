@@ -1020,3 +1020,104 @@ body.command-body .report-filters>.btn {
     overflow-wrap:anywhere;
   }
 }
+
+/* My Day at a TRUE 970px browser width, with the user's expanded 220px
+   sidebar kept intact. The three priority messages must remain a horizontal
+   paged ribbon with Reply / Done, not three tall stacked panels. The calendar
+   and outstanding work reflow vertically within the remaining workspace.
+   Do not force or overwrite the user's manually chosen sidebar preference. */
+@media (min-width:761px) and (max-width:1100px) {
+  #talk2me-os .t2m-os-workspace,
+  #talk2me-os .t2m-home-calendar {
+    box-sizing:border-box!important;
+    min-width:0!important;max-width:100%!important;
+    width:100%!important;
+  }
+  #talk2me-os .t2m-home-calendar {
+    grid-template-rows:auto auto auto auto minmax(0,1fr)!important;
+    overflow-y:auto!important;overflow-x:hidden!important;
+    gap:7px!important;padding:8px 10px 10px!important;
+  }
+  #talk2me-os .t2m-home-focus {
+    box-sizing:border-box!important;
+    display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;
+    gap:6px!important;min-width:0!important;max-width:100%;
+  }
+  #talk2me-os .t2m-home-focus>.t2m-home-attention-strip {
+    box-sizing:border-box!important;
+    display:grid!important;
+    grid-template-columns:minmax(0,1fr) auto!important;
+    grid-column:1/-1!important;gap:7px!important;
+    align-items:center;min-width:0!important;max-width:100%;
+  }
+  #talk2me-os .t2m-home-attention-copy {
+    min-width:0!important;overflow-wrap:anywhere;
+  }
+  #talk2me-os .t2m-home-attention-actions {
+    display:flex!important;flex-wrap:wrap!important;
+    align-items:center;justify-content:flex-end;
+    gap:5px!important;min-width:0;max-width:100%;
+  }
+  #talk2me-os .t2m-home-attention-actions>button {
+    min-width:0!important;white-space:normal;
+    padding:7px 10px!important;
+  }
+  #talk2me-os .t2m-home-priority-carousel {
+    display:grid!important;grid-column:1/-1!important;
+    grid-template-columns:minmax(0,1fr)!important;
+    min-width:0!important;max-width:100%;gap:5px!important;
+  }
+  #talk2me-os .t2m-home-priority-carousel.has-pages {
+    grid-template-columns:29px minmax(0,1fr) 29px!important;
+  }
+  #talk2me-os .t2m-home-priority-carousel>.t2m-home-priority-list {
+    grid-column:1/-1!important;
+  }
+  #talk2me-os .t2m-home-priority-carousel.has-pages>.t2m-home-priority-list {
+    grid-column:2!important;
+  }
+  #talk2me-os .t2m-home-priority-list {
+    display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;
+    min-width:0!important;max-width:100%!important;
+    gap:6px!important;
+  }
+  #talk2me-os .t2m-home-priority-item {
+    box-sizing:border-box!important;display:grid!important;
+    grid-template-columns:minmax(0,1fr)!important;
+    min-width:0!important;max-width:100%!important;
+    padding:7px 8px!important;gap:4px!important;
+  }
+  #talk2me-os .t2m-home-priority-open,
+  #talk2me-os .t2m-home-priority-reply {min-width:0!important;max-width:100%;}
+  #talk2me-os .t2m-home-focus>button {
+    min-width:0!important;max-width:100%;height:auto!important;min-height:42px!important;
+    padding:6px!important;gap:4px!important;
+    grid-template-columns:minmax(0,1fr) auto!important;
+  }
+  #talk2me-os .t2m-home-focus>button>span {
+    min-width:0!important;overflow-wrap:anywhere;font-size:11px!important;
+  }
+  #talk2me-os .t2m-home-focus>button>strong {font-size:18px!important;}
+  #talk2me-os .t2m-home-calendar-controls {
+    box-sizing:border-box!important;
+    display:grid!important;
+    grid-template-columns:36px 68px minmax(0,1fr) 36px!important;
+    gap:5px!important;min-width:0!important;max-width:100%;
+  }
+  #talk2me-os .t2m-home-calendar-controls>strong {
+    min-width:0!important;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  #talk2me-os .t2m-home-scope {grid-column:1/-1!important;}
+  #talk2me-os .t2m-home-calendar-layout {
+    box-sizing:border-box!important;
+    display:grid!important;grid-template-columns:minmax(0,1fr)!important;
+    min-width:0!important;width:100%!important;max-width:100%!important;
+    gap:8px!important;
+  }
+  #talk2me-os .t2m-home-month,
+  #talk2me-os .t2m-home-agenda {
+    box-sizing:border-box!important;
+    min-width:0!important;width:100%!important;max-width:100%!important;
+  }
+  #talk2me-os .t2m-home-day {min-width:0!important;}
+}
