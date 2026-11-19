@@ -13,9 +13,14 @@
   <main class="t2m-quick-card">
     <header><div><span>Quick action</span><h1><%= title %></h1></div><small>Saved securely in Talk2Me</small></header>
 
-    <% if (error) { %><div class="t2m-quick-error"><strong>Could not save</strong><span><%= error %></span></div><% } %>
+    <% if (error) { %><div class="t2m-quick-error"><strong>Could not save</strong><span><%= error %></span>
+      <% if(typeof existingClientId!=='undefined' && existingClientId){ %><a href="<%= basePath %>/customers/<%= existingClientId %>/360">Open matching CRM customer</a><% } %>
+    </div><% } %>
     <% if (saved) { %>
-      <div class="t2m-quick-success"><strong>Saved successfully</strong><span>The dashboard and related work list are being refreshed.</span></div>
+      <div class="t2m-quick-success"><strong>Saved successfully</strong><span>The dashboard and related work list are being refreshed.</span>
+      <% if(type==='prospect' && typeof savedClientId!=='undefined' && savedClientId){ %>
+        <a href="<%= basePath %>/customers/<%= savedClientId %>/360">Open the searchable CRM prospect</a>
+      <% } %></div>
       <script>
         window.parent.postMessage({ type:'talk2me:quick-action-saved', action:<%- JSON.stringify(type) %> }, window.location.origin);
       </script>

@@ -2,6 +2,7 @@ const express = require('express');
 const db = require('../config/db');
 const { requireAuth } = require('../middleware/auth');
 const {getArchiveCutoffs}=require('../services/tk2m-communications-archive');
+const {createQuickProspect,convertLegacyProspect}=require('../services/tk2m-prospect-to-client');
 
 const router = express.Router();
 const OPEN_INQUIRY_STATUSES = "('open','follow_up','waiting_customer','waiting_network','waiting_supplier')";
@@ -237,6 +238,7 @@ router.post('/os/quick-add/:type', requireAuth, async (req, res) => {
   const userId = req.session.user.id;
   if (!QUICK_ACTIONS.has(type)) return res.status(404).render('error', { title: 'Not found', message: 'This quick action does not exist.' });
   const title = { task: 'Add Task', 'follow-up': 'Add Customer Follow-up', callback: 'Schedule Callback', birthday: 'Add or Update Birthday', upgrade: 'Add or Update Upgrade', prospect: 'Add Prospect' }[type];
+  let savedClientId=null;
   try {
     const clientId = numberOrNull(req.body.client_id);
     if (type === 'task') {
@@ -294,19 +296,16 @@ router.post('/os/quick-add/:type', requireAuth, async (req, res) => {
         next_upgrade_date=DATE_ADD(:previous,INTERVAL :term MONTH),upgrade_date=DATE_ADD(:previous,INTERVAL :term MONTH),updated_at=NOW()
         WHERE id=:clientId`, { previous, term, clientId });
     } else if (type === 'prospect') {
-      const prospectName = text(req.body.prospect_name, 200);
-      if (!prospectName) throw new Error('Enter the prospect name.');
-      await db.execute(`INSERT INTO sales_prospects
-        (prospect_name,cell_number,email,city_town,lead_source,interest,next_action_at,assigned_to,created_by)
-        VALUES (:prospectName,:cellNumber,:email,:cityTown,:leadSource,:interest,:nextActionAt,:userId,:userId)`, {
-        prospectName, cellNumber: nullable(req.body.cell_number, 40), email: nullable(req.body.email, 255),
-        cityTown: nullable(req.body.city_town, 150), leadSource: nullable(req.body.lead_source, 150),
-        interest: nullable(req.body.interest), nextActionAt: validDateTime(req.body.next_action_at), userId
-      });
+      // Use the same searchable CRM client store as Customer Administration.
+      // The record remains lifecycle_status=prospect until explicitly converted.
+      savedClientId=await createQuickProspect({db,data:req.body,userId});
     }
-    res.render('os-quick-add', { layout: false, title, type, error: null, saved: true, values: req.body });
+    res.render('os-quick-add', { layout: false, title, type, error: null, saved: true, savedClientId, values: req.body });
   } catch (error) {
-    res.status(400).render('os-quick-add', { layout: false, title, type, error: error.message, saved: false, values: req.body });
+    res.status(error.code==='TK2M_PROSPECT_DUPLICATE'?409:400).render('os-quick-add', {
+      layout: false, title, type, error: error.message, saved: false,
+      existingClientId:error.existingClientId||null,values:req.body
+    });
   }
 });
 
@@ -335,9 +334,20 @@ router.post('/os/productivity/:kind/:id/status', requireAuth, async (req, res, n
     if (!table || !Number.isInteger(id) || !allowed.includes(status)) throw new Error('Invalid status update.');
     const ownerClause = isManagementRole(req.session.user) ? '' : ' AND assigned_to=:userId';
     if (kind === 'prospect') {
+      if(status==='converted'){
+        try{
+          const clientId=await convertLegacyProspect({db,prospectId:id,user:req.session.user});
+          return res.redirect(`${res.locals.basePath}/customers/${clientId}/360?converted=1`);
+        }catch(error){
+          if(error.code==='TK2M_PROSPECT_DUPLICATE' || error.code==='TK2M_NOT_FOUND' || !error.code){
+            return res.status(error.code==='TK2M_PROSPECT_DUPLICATE'?409:422).render('error',{
+              title:'Prospect conversion needs review',message:error.message
+            });
+          }
+          throw error;
+        }
+      }
       await db.execute(`UPDATE sales_prospects SET status=:status,
-        converted_at=CASE WHEN :status='converted' THEN NOW() ELSE converted_at END,
-        converted_by=CASE WHEN :status='converted' THEN :userId ELSE converted_by END,
         archived_at=CASE WHEN :status='archived' THEN NOW() ELSE archived_at END
         WHERE id=:id${ownerClause}`, { status, userId, id });
     } else {
