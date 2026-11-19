@@ -304,6 +304,17 @@
         </div>
       </header>
       ${tk2mPreview ? `<section class="t2m-home-focus" aria-label="Daily priorities">
+        <section class="t2m-home-attention-strip" data-home-attention-strip aria-label="Messages and outstanding work">
+          <div class="t2m-home-attention-copy">
+            <strong>MESSAGES &amp; OUTSTANDING WORK</strong>
+            <span data-home-attention-summary>Checking your inbox and tasks...</span>
+            <small data-home-alert-status>Checking red alerts...</small>
+          </div>
+          <div class="t2m-home-attention-actions">
+            <button type="button" data-os-app="messages" aria-label="Open all staff messages">Open messages</button>
+            <button type="button" data-os-app="tasks" aria-label="Open outstanding tasks">Open tasks</button>
+          </div>
+        </section>
         <button type="button" data-home-focus="tasks" data-os-app="tasks" aria-label="Open tasks and follow-ups">
           <span>Tasks &amp; follow-ups</span><strong data-home-focus-count="tasks">—</strong><small>Selected day · open Work</small>
         </button>
@@ -355,7 +366,7 @@
       events: [],
       loading: false,
       error: '',
-      focus: { messages: null, overdue: null }
+      focus: { messages: null, overdue: null, openWork: null }
     };
 
     const grid = workspace.querySelector('[data-home-grid]');
@@ -423,6 +434,13 @@
         if (!node) continue;
         node.textContent = count === null ? '—' : String(count);
         node.closest('[data-home-focus]')?.classList.toggle('has-attention', Number(count) > 0);
+      }
+      const summary = workspace.querySelector('[data-home-attention-summary]');
+      if(summary){
+        const unread=state.focus.messages, work=state.focus.openWork, overdue=state.focus.overdue;
+        summary.textContent = unread===null || work===null || overdue===null
+          ? 'Checking your inbox and outstanding work...'
+          : unread+' unread messages · '+work+' active tasks · '+overdue+' overdue';
       }
     }
 
@@ -572,6 +590,9 @@
         : null;
       state.focus.overdue = statusResult.status === 'fulfilled'
         ? Math.max(0, Number(statusResult.value.status?.overdueTaskCount || 0))
+        : null;
+      state.focus.openWork = statusResult.status === 'fulfilled'
+        ? Math.max(0, Number(statusResult.value.status?.taskCount || 0))
         : null;
       renderFocus();
     }

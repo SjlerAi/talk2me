@@ -238,6 +238,9 @@
     })();
   </script>
   <% } %>
+  <% if(isLive){ %>
+  <script id="tk2m-attention-inline-bootstrap"><%- include('../public/js/tk2m-staff-attention.js') %></script>
+  <% } %>
   <script defer src="<%= basePath %>/public/js/tk2m-staff-attention.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>"></script>
 </body>
 </html>

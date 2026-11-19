@@ -72,7 +72,25 @@ async function main(){
   assert.match(css,/z-index:2147483000/);
   assert.match(css,/backdrop\[hidden\]/);
   assert.match(layout,/tk2m-staff-attention\.js/);
-  assert.match(shell,/tk2m-staff-attention\.js/);
+  assert.match(shell,/tk2m-attention-inline-bootstrap/);
+  assert.match(shell,/include\('\.\.\/public\/js\/tk2m-staff-attention\.js'\)/);
+  assert.match(read('public/js/calendar-home-uat.js'),/data-home-attention-strip/);
+  assert.match(read('public/js/calendar-home-uat.js'),/state\.focus\.openWork/);
+  assert.match(read('public/css/tk2m-workspace-preview.css'),/t2m-home-attention-actions/);
+  assert.match(ui,/Red alert connection failed/);
+  const ejs=require('ejs');
+  const html=ejs.render(shell,{
+    title:'Talk2Me OS',basePath:'',appVersion:'6.0-test',assetVersion:'6.0-test-merged',
+    currentUser:{id:9,full_name:'Owner Demo',role:'owner'},
+    isLive:true,isStaging:true,isUat:true,isManagement:true,cudoDisabled:true,
+    status:{queueCount:0,taskCount:57,unreadMessageCount:18,overdueTaskCount:55,dueTodayTaskCount:1,
+      followUpTodayCount:0,birthdaysTodayCount:0,upgradesDueCount:0,callbacksTodayCount:0,newProspectsCount:0},
+    osLaunchers:[],approvalCentreCount:10,unassignedClientCount:0,attendanceState:null
+  },{filename:path.join(root,'views/os-shell.ejs')});
+  assert.match(html,/tk2m-attention-backdrop/);
+  assert.match(html,/api\/staff-attention\/pending/);
+  assert.match(html,/TK2M LIVE/);
+  assert.doesNotMatch(html,/tk2m-uat-myday/);
   assert.match(route,/requireAuth/);
   assert.match(route,/if\(!live\) return res\.sendStatus\(404\)/);
   assert.match(widgets,/async function openConversation\(token\)/);
