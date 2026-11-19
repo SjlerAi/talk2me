@@ -3,10 +3,11 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
 const root=path.resolve(__dirname,'..');
-const {chatToken,composeAlerts,positiveId,pendingAlerts,acknowledgeAlert}=
+const {RECENT_ALERT_DAYS,chatToken,composeAlerts,positiveId,pendingAlerts,acknowledgeAlert}=
   require('../src/services/tk2m-staff-attention');
 
 async function main(){
+  assert.equal(RECENT_ALERT_DAYS,7);
   assert.equal(positiveId(4),4);
   assert.equal(positiveId(0),null);
   assert.equal(chatToken(4,'direct:4:7'),'direct:7');
@@ -40,9 +41,18 @@ async function main(){
         insertCount++;
         return [{affectedRows:1}];
       }
-      if(sql.includes('FROM staff_chat_messages m'))return [[{id:9,conversation_key:'direct:4:7',sender_name:'Gerda',message_type:'text',body:'Phone',created_at:'2026-11-19T08:00:00Z'}]];
-      if(sql.includes('FROM staff_tasks t'))return [[{id:12,type:'task',sender_name:'Johnny',message:'Task',priority:'urgent',created_at:'2026-11-19T06:00:00Z'}]];
-      if(sql.includes('FROM staff_task_notifications n'))return [[{id:13,task_id:12,sender_name:'Anzel',notification_text:'Progress',action_required:1,created_at:'2026-11-19T09:00:00Z'}]];
+      if(sql.includes('FROM staff_chat_messages m')){
+        assert.match(sql,/m\.created_at >= DATE_SUB\(NOW\(\), INTERVAL 7 DAY\)/);
+        return [[{id:9,conversation_key:'direct:4:7',sender_name:'Gerda',message_type:'text',body:'Phone',created_at:'2026-11-19T08:00:00Z'}]];
+      }
+      if(sql.includes('FROM staff_tasks t')){
+        assert.match(sql,/t\.created_at >= DATE_SUB\(NOW\(\), INTERVAL 7 DAY\)/);
+        return [[{id:12,type:'task',sender_name:'Johnny',message:'Task',priority:'urgent',created_at:'2026-11-19T06:00:00Z'}]];
+      }
+      if(sql.includes('FROM staff_task_notifications n')){
+        assert.match(sql,/n\.created_at >= DATE_SUB\(NOW\(\), INTERVAL 7 DAY\)/);
+        return [[{id:13,task_id:12,sender_name:'Anzel',notification_text:'Progress',action_required:1,created_at:'2026-11-19T09:00:00Z'}]];
+      }
       throw Error('Unexpected SQL: '+sql.slice(0,90));
     }
   };
@@ -78,6 +88,7 @@ async function main(){
   assert.match(read('public/js/calendar-home-uat.js'),/state\.focus\.openWork/);
   assert.match(read('public/css/tk2m-workspace-preview.css'),/t2m-home-attention-actions/);
   assert.match(ui,/Red alert connection failed/);
+  assert.match(ui,/last 7 days/);
   const ejs=require('ejs');
   const html=ejs.render(shell,{
     title:'Talk2Me OS',basePath:'',appVersion:'6.0-test',assetVersion:'6.0-test-merged',
