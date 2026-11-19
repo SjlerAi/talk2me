@@ -66,9 +66,18 @@
     }
     history.scrollTop=history.scrollHeight;
   }
+  function trackChatOpen(){
+    fetch(base+'/api/usage/events',{
+      method:'POST',credentials:'same-origin',keepalive:true,
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({event_type:'ui_action',screen_key:'communications-chat-reply',
+        module_name:'communications',route_path:'/workspace',action:'open_chat_reply'})
+    }).catch(()=>{});
+  }
   async function open(value){
     if(value!=='office'&&!/^direct:\d+$/.test(String(value||'')))return false;
     if(busy)return false;
+    trackChatOpen();
     token=String(value);overlay.hidden=false;
     document.body.classList.add('tk2m-thread-active');
     error.hidden=true;history.textContent='Loading conversation…';

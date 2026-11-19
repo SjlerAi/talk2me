@@ -19,6 +19,7 @@ const db={
     {id:2,full_name:'Synthetic Staff',role:'staff',is_active:1}
   ]];
   if(sql.includes('FROM crm_usage_events'))return [sample];
+  if(sql.includes('FROM staff_login_sessions'))return [[{staff_id:2,logins:2,logouts:1,firstLoginAt:'2026-11-17 07:35:00',lastLoginAt:'2026-11-17 10:55:00',lastLogoutAt:'2026-11-17 16:30:00'}]];
   if(sql.includes('FROM audit_log'))return [[{staff_id:1,n:2}]];
   if(sql.includes('FROM staff_chat_messages'))return [[{staff_id:2,n:1}]];
   if(sql.includes('FROM staff_chat_read_receipts'))return [[{staff_id:2,n:0}]];
@@ -53,6 +54,9 @@ const now=new Date('2026-11-17T13:00:00Z');
  assert.equal(all.summary.chatRefreshes,25,'polling retained separately');
  assert.equal(all.summary.views,10);
  assert.equal(all.summary.launches,2);
+ assert.equal(all.summary.logins,2);
+ assert.equal(all.summary.logouts,1);
+ assert.equal(all.visibleStaff.find(p=>p.id===2).logins,2);
  assert.equal(all.summary.httpRequests,5);
  const customer=all.screens.find(x=>x.key==='customer-360');
  assert.equal(customer.views,5);
@@ -71,6 +75,10 @@ const now=new Date('2026-11-17T13:00:00Z');
  assert.match(html,/Daily Screen Usage/);
  assert.match(html,/Screens with no recorded use/);
  assert.match(html,/Synthetic Staff/);
+ assert.match(html,/First login \(SAST\)/);
+ assert.match(html,/Last logout \(SAST\)/);
+ assert.match(html,/Alerts acknowledged/);
+ assert.equal(service.CATALOG.filter(c=>c.key.startsWith('communications-')).length,3);
  assert.match(html,/automatic chat polling is excluded/i);
  const routes=read('src/routes/staff-usage-daily.js');
  assert.match(routes,/requireOwner/);

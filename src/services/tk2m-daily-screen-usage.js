@@ -9,6 +9,9 @@ const CATALOG=Object.freeze([
   {key:'queue',category:'Workspace tools',label:'Queue launcher',feature:'queue'},
   {key:'work',category:'Workspace tools',label:'Work / Tasks launcher',feature:'work'},
   {key:'messages',category:'Workspace tools',label:'Messages / chat controls',feature:'messages'},
+  {key:'communications-quick-send',category:'Tasks and messages',label:'Quick Send composer',feature:'communications-quick-send'},
+  {key:'communications-task-reply',category:'Tasks and messages',label:'Quick task reply',feature:'communications-task-reply'},
+  {key:'communications-chat-reply',category:'Tasks and messages',label:'Quick message reply',feature:'communications-chat-reply'},
   {key:'calendar-launcher',category:'Workspace tools',label:'Calendar launcher',feature:'calendar'},
   {key:'notes',category:'Workspace tools',label:'Notes launcher',feature:'notes'},
   {key:'calculator',category:'Workspace tools',label:'Calculator launcher',feature:'calculator'},
@@ -91,7 +94,9 @@ function safeNumber(x){return Number(x)||0;}
 function makeOverviewRow(staff){
  return {...staff,id:Number(staff.id),active:Number(staff.is_active)===1,
   views:0,launches:0,windows:0,external:0,buttons:0,httpRequests:0,
-  chatRefreshes:0,changes:0,messagesSent:0,reads:0,replies:0,tasksSeen:0,tasksCompleted:0};
+  chatRefreshes:0,alertsAcknowledged:0,briefsReviewed:0,
+  logins:0,logouts:0,firstLoginAt:null,lastLoginAt:null,lastLogoutAt:null,
+  changes:0,messagesSent:0,reads:0,replies:0,tasksSeen:0,tasksCompleted:0};
 }
 function newest(a,b){return a&&b?(new Date(a)>new Date(b)?a:b):(a||b||null);}
 async function report(input={},options={}){
@@ -104,11 +109,11 @@ async function report(input={},options={}){
  const [events]=await db.query(
   "SELECT staff_id,event_type,COALESCE(route_path,'') route_path,COALESCE(screen_key,'') screen_key,"+
   "COUNT(*) n,MAX(occurred_at) last_at FROM crm_usage_events WHERE occurred_at>=? AND occurred_at<? "+
-  "AND event_type IN ('screen_view','feature_open','window_open','external_open','ui_action','http_action','work_chat_opened') "+
+  "AND event_type IN ('screen_view','feature_open','window_open','external_open','ui_action','http_action','work_chat_opened','work_alert_acknowledged','communications_brief_reviewed') "+
   "GROUP BY staff_id,event_type,route_path,screen_key",
   [filter.from,filter.to]);
  const screenMap=new Map(CATALOG.map(c=>[c.key,{...c,views:0,launches:0,windows:0,buttons:0,lastAt:null,users:new Map()}]));
- const fields={screen_view:'views',feature_open:'launches',window_open:'windows',external_open:'external',ui_action:'buttons',http_action:'httpRequests',work_chat_opened:'chatRefreshes'};
+ const fields={screen_view:'views',feature_open:'launches',window_open:'windows',external_open:'external',ui_action:'buttons',http_action:'httpRequests',work_chat_opened:'chatRefreshes',work_alert_acknowledged:'alertsAcknowledged',communications_brief_reviewed:'briefsReviewed'};
  for(const event of events){
   const staff=byId.get(Number(event.staff_id));
   if(!staff)continue;
@@ -122,6 +127,23 @@ async function report(input={},options={}){
   screen[metric]+=count;
   screen.lastAt=newest(screen.lastAt,event.last_at);
   screen.users.set(staff.id,(screen.users.get(staff.id)||0)+count);
+ }
+ // Signed-in sessions are authoritative for login/logout times.
+ // A missing logout timestamp means no explicit logout was recorded; it does
+ // not prove that a person remained active.
+ const [sessions]=await db.query(
+  "SELECT staff_id,COUNT(*) logins,SUM(logout_at IS NOT NULL) logouts,"+
+  "MIN(login_at) firstLoginAt,MAX(login_at) lastLoginAt,MAX(logout_at) lastLogoutAt "+
+  "FROM staff_login_sessions WHERE login_at>=? AND login_at<? GROUP BY staff_id",
+  [filter.from,filter.to]);
+ for(const entry of sessions){
+   const staff=byId.get(Number(entry.staff_id));
+   if(!staff)continue;
+   staff.logins=safeNumber(entry.logins);
+   staff.logouts=safeNumber(entry.logouts);
+   staff.firstLoginAt=entry.firstLoginAt;
+   staff.lastLoginAt=entry.lastLoginAt;
+   staff.lastLogoutAt=entry.lastLogoutAt;
  }
  // These tables are authoritative for actions. No rows are inserted/updated.
  const lookups=[
@@ -148,7 +170,7 @@ async function report(input={},options={}){
   unobserved:screens.filter(s=>s.tracked===0).length,
   totalScreens:screens.length,
   summary:visibleStaff.reduce((acc,p)=>{
-   for(const key of ['views','launches','windows','external','buttons','httpRequests','chatRefreshes','changes','messagesSent','reads','replies','tasksSeen','tasksCompleted'])acc[key]=(acc[key]||0)+p[key];
+   for(const key of ['views','launches','windows','external','buttons','httpRequests','chatRefreshes','alertsAcknowledged','briefsReviewed','logins','logouts','changes','messagesSent','reads','replies','tasksSeen','tasksCompleted'])acc[key]=(acc[key]||0)+p[key];
    return acc;
   },{})
  };

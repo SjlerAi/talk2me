@@ -77,11 +77,17 @@ async function main(){
  assert.match(thread,/completion_note:reply\|\|'Completed'/);
  assert.match(thread,/api\/uat\/tasks\//);
  assert.match(read('public/js/tk2m-staff-attention.js'),/Talk2MeQuickTaskThread\.open/);
+ assert.match(read('public/js/tk2m-quick-task-thread.js'),/open_task_reply/);
+ assert.match(read('public/js/tk2m-quick-chat-reply.js'),/open_chat_reply/);
  assert.match(read('public/js/uat-work-widgets.js'),/return window\.Talk2MeQuickTaskThread\.open\(id\)/);
  assert.doesNotMatch(client,/data\.set\('due_at'/);
  assert.match(read('public/js/calendar-home-uat.js'),/data-home-quick-send/);
  assert.match(read('public/js/uat-work-widgets.js'),/Talk2MeCommunications/);
  assert.match(read('public/js/uat-work-widgets.js'),/<strong>\+ Send<\/strong>/);
+ assert.match(read('public/js/tk2m-staff-attention.js'),/completeNow/);
+ assert.match(read('public/js/tk2m-staff-attention.js'),/Complete Task/);
+ assert.match(read('src/routes/tk2m-staff-attention.js'),/work_alert_acknowledged/);
+ assert.match(read('src/routes/tk2m-communications-brief.js'),/communications_brief_reviewed/);
  const ejs=require('ejs'),shell=read('views/os-shell.ejs');
  const html=ejs.render(shell,{
    title:'Talk2Me OS',basePath:'',appVersion:'6',assetVersion:'6-test',

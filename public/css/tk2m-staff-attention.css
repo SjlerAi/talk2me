@@ -40,3 +40,16 @@
 .tk2m-attention-open:hover{background:#a91420!important}
 .tk2m-attention-open:disabled,.tk2m-attention-close:disabled{opacity:.65!important;cursor:wait!important}
 @media(max-width:600px){.tk2m-attention-backdrop{padding:12px!important}.tk2m-attention-card{max-height:calc(100dvh - 24px)!important}.tk2m-attention-head h2{font-size:15px!important}.tk2m-attention-body{padding:18px!important}}
+
+/* Task can be completed directly from the alert in one tap. */
+.tk2m-attention-actions{display:flex!important;gap:9px!important;flex-wrap:wrap!important}
+.tk2m-attention-actions .tk2m-attention-open{width:auto!important;flex:1!important;min-width:120px!important}
+.tk2m-attention-complete[hidden]{display:none!important}
+.tk2m-attention-complete{
+ display:block!important;flex:1!important;min-height:44px!important;min-width:142px!important;
+ border-radius:9px!important;background:#176a41!important;border:0!important;color:#fff!important;
+ cursor:pointer!important;font:800 15px Arial,Helvetica,sans-serif!important;padding:11px!important
+}
+.tk2m-attention-complete:hover{background:#0e5130!important}
+.tk2m-attention-complete:disabled{opacity:.6!important;cursor:wait!important}
+.tk2m-attention-complete:focus-visible{outline:3px solid #0d6efd!important;outline-offset:3px!important}

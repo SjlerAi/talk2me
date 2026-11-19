@@ -15,7 +15,7 @@ async function build(req,res,next,format){
   const data=await daily.report(req.query);
   res.set('Cache-Control','private, no-store');
   if(format==='csv'){
-   const rows=[['Section','Category','Screen','Tracking route / launcher','Status','Page views','Launcher clicks','Window opens','Button attempts','Staff with observations','Users observed']];
+   const rows=[['Section','Category','Screen','Tracking route / launcher','Status','Page views','Launcher clicks','Window opens','Button attempts','Staff with observations','Users observed','Logins','Logouts','First login (SAST)','Last login (SAST)','Last logout (SAST)','Alerts acknowledged','Briefings reviewed','Messages sent','Read receipts','Linked replies','Tasks seen','Tasks completed']];
    for(const s of data.screens){
     rows.push(['Screens',s.category,s.label,s.path||('Launcher: '+s.feature),s.status,
       s.views,s.launches,s.windows,s.buttons,s.users,
@@ -23,7 +23,10 @@ async function build(req,res,next,format){
    }
    rows.push(['Summary','Period',data.filter.first+' to '+data.filter.last,'SAST','','','','','','','']);
    for(const p of data.visibleStaff){
-    rows.push(['Staff',p.role,p.full_name,'','',p.views,p.launches,p.windows,p.buttons,'',p.active?'Active':'Inactive']);
+    const at=v=>v?new Date(v).toLocaleString('en-ZA',{timeZone:'Africa/Johannesburg',hour12:false}):'';
+    rows.push(['Staff',p.role,p.full_name,'','',p.views,p.launches,p.windows,p.buttons,'',p.active?'Active':'Inactive',
+     p.logins||0,p.logouts||0,at(p.firstLoginAt),at(p.lastLoginAt),at(p.lastLogoutAt),
+     p.alertsAcknowledged||0,p.briefsReviewed||0,p.messagesSent,p.reads,p.replies,p.tasksSeen,p.tasksCompleted]);
    }
    const body=rows.map(row=>row.map(csvCell).join(',')).join('\r\n')+'\r\n';
    res.set('Content-Type','text/csv; charset=utf-8');

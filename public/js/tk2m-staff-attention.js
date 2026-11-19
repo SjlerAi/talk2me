@@ -30,7 +30,10 @@
     '<p class="tk2m-attention-preview" id="tk2m-attention-preview"></p>' +
     '<p class="tk2m-attention-meta" id="tk2m-attention-meta"></p>' +
     '<p class="tk2m-attention-error" id="tk2m-attention-error" aria-live="assertive" hidden></p>' +
-    '<button type="button" class="tk2m-attention-open">Open message or task</button>' +
+    '<div class="tk2m-attention-actions">' +
+    '<button type="button" class="tk2m-attention-open">Reply / Open</button>' +
+    '<button type="button" class="tk2m-attention-complete" hidden>✓ Complete Task</button>' +
+    '</div>' +
     '</div></section>';
   document.body.appendChild(backdrop);
   const heading = backdrop.querySelector('#tk2m-attention-heading');
@@ -40,6 +43,7 @@
   const errorNode = backdrop.querySelector('#tk2m-attention-error');
   const closeButton = backdrop.querySelector('.tk2m-attention-close');
   const openButton = backdrop.querySelector('.tk2m-attention-open');
+  const completeButton = backdrop.querySelector('.tk2m-attention-complete');
   let current = null, busy = false, polling = false;
 
   function alertStatus(message,offline=false){
@@ -63,7 +67,8 @@
     preview.textContent = String(item.preview || 'Open to see the details.');
     const stamp = item.createdAt && new Date(item.createdAt);
     meta.textContent = stamp && !Number.isNaN(stamp.getTime()) ? 'Received: ' + stamp.toLocaleString('en-ZA') : 'New work received';
-    openButton.textContent = message ? 'Open message' : 'Open task';
+    openButton.textContent = message ? 'Reply' : 'Reply / Details';
+    completeButton.hidden = item.kind !== 'task';
     errorNode.hidden = true;
     backdrop.hidden = false;
     document.body.classList.add('tk2m-attention-active');
@@ -79,7 +84,7 @@
       if (!response.ok) throw new Error('Alert service unavailable');
       const data = await response.json();
       const alerts = Array.isArray(data.alerts) ? data.alerts : [];
-      alertStatus(alerts.length ? alerts.length+' recent red alerts (last 7 days) waiting' : 'No unacknowledged red alerts from the last 7 days');
+      alertStatus(alerts.length ? alerts.length+' recent red alerts (last 2 days) waiting' : 'No unacknowledged red alerts from the last 2 days');
       if (current) {
         if (alerts.some(item => item.kind === current.kind && Number(item.id) === Number(current.id))) return;
         // A read/acknowledgment on another device should clear this duplicate.
@@ -123,6 +128,7 @@
     busy = true;
     closeButton.disabled = true;
     openButton.disabled = true;
+    completeButton.disabled = true;
     errorNode.hidden = true;
     try {
       const response = await fetch(base + '/api/staff-attention/ack', {
@@ -143,9 +149,50 @@
       busy = false;
       closeButton.disabled = false;
       openButton.disabled = false;
+      completeButton.disabled = false;
       refresh();
     }
   }
+  async function completeNow() {
+    if (!current || busy || current.kind !== 'task') return;
+    const item = current, taskId = Number(item.taskId);
+    if (!Number.isSafeInteger(taskId) || taskId <= 0) return;
+    busy = true;
+    closeButton.disabled = true;
+    openButton.disabled = true;
+    completeButton.disabled = true;
+    errorNode.hidden = true;
+    try {
+      const response = await fetch(base+'/api/uat/tasks/'+taskId+'/status', {
+        method:'POST',credentials:'same-origin',cache:'no-store',
+        headers:{'Content-Type':'application/json',Accept:'application/json'},
+        body:JSON.stringify({status:'completed',completion_note:'Completed via quick alert'})
+      });
+      const result = await response.json().catch(()=>({}));
+      if (!response.ok || result.ok === false) throw new Error(result.error||'Could not complete this task.');
+      // Completion is a real task change. The separate red alert receipt
+      // is best-effort; a failed receipt must never undo a completed task.
+      try {
+        await fetch(base+'/api/staff-attention/ack', {
+          method:'POST',credentials:'same-origin',cache:'no-store',
+          headers:{'Content-Type':'application/json',Accept:'application/json'},
+          body:JSON.stringify({kind:item.kind,id:item.id,method:'dismiss'})
+        });
+      } catch (_) {}
+      hide();
+      window.dispatchEvent(new Event('workspace:refresh'));
+    } catch (error) {
+      errorNode.textContent=String(error.message||'Completion failed. Please open the task.');
+      errorNode.hidden=false;
+    } finally {
+      busy=false;
+      closeButton.disabled=false;
+      openButton.disabled=false;
+      completeButton.disabled=false;
+      refresh();
+    }
+  }
+  completeButton.addEventListener('click',completeNow);
   closeButton.addEventListener('click', () => acknowledge('dismiss'));
   openButton.addEventListener('click', () => acknowledge('open'));
   document.addEventListener('keydown', event => {
@@ -154,7 +201,9 @@
       event.preventDefault(); event.stopImmediatePropagation(); closeButton.focus();
     } else if (event.key === 'Tab') {
       event.preventDefault();
-      (document.activeElement === closeButton ? openButton : closeButton).focus();
+      const controls=[closeButton,openButton,...(completeButton.hidden?[]:[completeButton])];
+      const i=controls.indexOf(document.activeElement);
+      controls[(i+1)%controls.length].focus();
     } else if (!backdrop.contains(event.target)) {
       event.stopImmediatePropagation(); closeButton.focus();
     }

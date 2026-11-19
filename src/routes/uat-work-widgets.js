@@ -10,6 +10,10 @@ const {prepareNaturalCommand,chooseNaturalCommand,continueNaturalPronoun,natural
 const {sendNaturalCommand}=require('../services/cudo-natural-send');
 const { trackEvent } = require('../services/usage-telemetry');
 const chatAudit = require('../services/staff-chat-audit');
+const tk2mCommsLive=String(process.env.CRM_LIVE_MODE||'').toLowerCase()==='true';
+const tk2mChatWindow=tk2mCommsLive?'AND created_at>=DATE_SUB(NOW(),INTERVAL 2 DAY)':'';
+const tk2mMessageWindow=tk2mCommsLive?'AND m.created_at>=DATE_SUB(NOW(),INTERVAL 2 DAY)':'';
+const tk2mTaskWindow=tk2mCommsLive?'AND t.created_at>=DATE_SUB(NOW(),INTERVAL 2 DAY)':'';
 const {getArchiveCutoffs}=require('../services/tk2m-communications-archive');
 const { getTaskAttachmentDownload } = require('../services/work-dispatch');
 const { ensureWorkOperatingSchema, getMyWorkOverview, getOfficeScorecard, getTargetCentre, saveTargetGoal, getMonthlyImportSummary } = require('../services/work-operating-model');
@@ -317,10 +321,10 @@ async function conversationSummary(userId, token, name, staffId = null, archiveC
   const resolved = staffId ? { key: directKey(userId, staffId) } : { key: 'office' };
   const [[latest]] = await db.execute(`SELECT m.id,m.message_type,m.body,m.created_at,m.sender_staff_id,s.full_name sender_name
     FROM staff_chat_messages m JOIN staff_users s ON s.id=m.sender_staff_id
-    WHERE m.conversation_key=:key AND m.id>:archiveChatId ORDER BY m.id DESC LIMIT 1`, { key: resolved.key, archiveChatId });
+    WHERE m.conversation_key=:key AND m.id>:archiveChatId ${tk2mMessageWindow} ORDER BY m.id DESC LIMIT 1`, { key: resolved.key, archiveChatId });
   const [[read]] = await db.execute('SELECT last_read_message_id FROM staff_chat_reads WHERE staff_id=:userId AND conversation_key=:key LIMIT 1', { userId, key: resolved.key });
   const [[count]] = await db.execute(`SELECT COUNT(*) total FROM staff_chat_messages
-    WHERE conversation_key=:key AND id>GREATEST(:lastRead,:archiveChatId) AND sender_staff_id<>:userId`, {
+    WHERE conversation_key=:key AND id>GREATEST(:lastRead,:archiveChatId) AND sender_staff_id<>:userId ${tk2mChatWindow}`, {
     key: resolved.key, lastRead: Number(read?.last_read_message_id || 0), archiveChatId, userId
   });
   return {
@@ -466,7 +470,7 @@ router.get('/api/uat/chat/bootstrap', requireAuth, async (req, res, next) => {
       conversations.push(await conversationSummary(userId, `direct:${person.id}`, person.full_name, person.id, archive.chatId));
     }
     const [[system]] = await db.execute(`SELECT COUNT(*) total FROM staff_task_notifications
-      WHERE recipient_staff_id=:userId AND id>:archivedWorkflowId AND resolved_at IS NULL AND (is_read=0 OR action_required=1)`, { userId,archivedWorkflowId:archive.workflowId });
+      WHERE recipient_staff_id=:userId AND id>:archivedWorkflowId AND resolved_at IS NULL AND (is_read=0 OR action_required=1) ${tk2mChatWindow}`, { userId,archivedWorkflowId:archive.workflowId });
     res.json({
       ok: true,
       user: { id: userId, name: req.session.user.full_name, role: req.session.user.role },
@@ -487,7 +491,7 @@ router.get('/api/uat/chat/messages', requireAuth, async (req, res, next) => {
     const archive=await getArchiveCutoffs(db,userId);
     const [rows] = await db.execute(`SELECT m.*,s.full_name sender_name
       FROM staff_chat_messages m JOIN staff_users s ON s.id=m.sender_staff_id
-      WHERE m.conversation_key=:key AND m.id>:archivedChatId ORDER BY m.id DESC LIMIT 120`, { key: conversation.key,archivedChatId:archive.chatId });
+      WHERE m.conversation_key=:key AND m.id>:archivedChatId ${tk2mMessageWindow} ORDER BY m.id DESC LIMIT 120`, { key: conversation.key,archivedChatId:archive.chatId });
     const messages = rows.reverse().map(row => ({
       id: row.id,
       senderId: row.sender_staff_id,
@@ -608,7 +612,7 @@ router.get('/api/uat/chat/system', requireAuth, async (req, res, next) => {
     const archive=await getArchiveCutoffs(db,userId);
     const [alerts] = await db.execute(`SELECT n.id,n.task_id,n.event_type,n.notification_text,n.action_required,n.is_read,n.created_at,t.title,t.priority,t.status
       FROM staff_task_notifications n JOIN staff_tasks t ON t.id=n.task_id
-      WHERE n.recipient_staff_id=:userId AND n.id>:archivedWorkflowId AND n.resolved_at IS NULL AND (n.is_read=0 OR n.action_required=1)
+      WHERE n.recipient_staff_id=:userId AND n.id>:archivedWorkflowId AND n.resolved_at IS NULL AND (n.is_read=0 OR n.action_required=1) ${tk2mCommsLive?'AND n.created_at>=DATE_SUB(NOW(),INTERVAL 2 DAY)':''}
       ORDER BY n.action_required DESC,n.created_at DESC,n.id DESC LIMIT 80`, { userId, archivedWorkflowId:archive.workflowId });
     res.json({ ok: true, alerts: alerts.map(row => ({
       id: row.id, taskId: row.task_id, type: row.event_type, text: row.notification_text,
@@ -765,7 +769,7 @@ router.get('/api/uat/tasks', requireAuth, async (req, res, next) => {
       CASE WHEN ${attentionExpr} THEN 1 ELSE 0 END needs_attention
       FROM staff_tasks t
       ${joins}
-      WHERE ${where} ${archiveWhere} AND ${statusWhere} AND (${viewWhere}) AND (${filterWhere})
+      WHERE ${where} ${archiveWhere} ${tk2mTaskWindow} AND ${statusWhere} AND (${viewWhere}) AND (${filterWhere})
       ORDER BY ${orderBy}
       LIMIT 160`, { userId,archiveTaskId:archive.notificationTaskId });
 
@@ -792,7 +796,7 @@ router.get('/api/uat/tasks', requireAuth, async (req, res, next) => {
         FROM staff_task_notifications
         GROUP BY task_id
       ) an ON an.task_id=t.id
-      WHERE ${where} ${archiveWhere} AND ${activeStatusWhere}`, { userId,archiveTaskId:archive.notificationTaskId });
+      WHERE ${where} ${archiveWhere} ${tk2mTaskWindow} AND ${activeStatusWhere}`, { userId,archiveTaskId:archive.notificationTaskId });
 
     const counts = {
       latest: Number(countRows?.[0]?.latest || 0),

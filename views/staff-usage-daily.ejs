@@ -72,6 +72,7 @@
     <div class="metric"><strong><%= data.unobserved %></strong><span>No activity observed in this period</span></div>
     <div class="metric"><strong><%= data.summary.views||0 %></strong><span>Page responses recorded</span></div>
     <div class="metric"><strong><%= data.summary.launches||0 %></strong><span>Launcher selections recorded</span></div>
+    <div class="metric"><strong><%= data.summary.logins||0 %></strong><span>Staff login sessions</span></div>
   </div>
   <section class="panel note">
     <strong>How to make keep/remove decisions</strong>
@@ -118,15 +119,21 @@
     <p class="subtle">Business actions are read from their own audit and workflow tables. A request is not the same as a completed or audited change.</p>
     <div class="scroll">
       <table>
-        <thead><tr><th>Staff member</th><th>Role</th><th class="num">Views</th><th class="num">Launches</th><th class="num">CRM windows</th><th class="num">Button attempts</th><th class="num">Successful requests</th><th class="num">Audited changes</th><th class="num">Tasks seen</th><th class="num">Tasks completed</th><th class="num">Messages sent</th><th class="num">Read receipts</th><th class="num">Linked replies</th></tr></thead>
+        <thead><tr><th>Staff member</th><th>Role</th><th class="num">Logins</th><th>First login (SAST)</th><th>Last login (SAST)</th><th class="num">Logouts</th><th>Last logout (SAST)</th><th class="num">Views</th><th class="num">Launches</th><th class="num">CRM windows</th><th class="num">Button attempts</th><th class="num">Successful requests</th><th class="num">Audited changes</th><th class="num">Alerts acknowledged</th><th class="num">Briefings reviewed</th><th class="num">Tasks seen</th><th class="num">Tasks completed</th><th class="num">Messages sent</th><th class="num">Read receipts</th><th class="num">Linked replies</th></tr></thead>
         <tbody>
         <% data.visibleStaff.forEach(function(p){ %><tr>
           <td><a class="person" href="<%= basePath %>/backoffice/staff-usage/daily?day=<%= data.filter.day %>&days=<%= data.filter.days %>&staff=<%= p.id %>"><%= p.full_name %></a><% if(!p.active){ %><div class="detail">Inactive</div><% } %></td>
-          <td><%= p.role %></td><td class="num"><%= p.views %></td><td class="num"><%= p.launches %></td><td class="num"><%= p.windows %></td><td class="num"><%= p.buttons %></td><td class="num"><%= p.httpRequests %></td><td class="num"><%= p.changes %></td><td class="num"><%= p.tasksSeen %></td><td class="num"><%= p.tasksCompleted %></td><td class="num"><%= p.messagesSent %></td><td class="num"><%= p.reads %></td><td class="num"><%= p.replies %></td>
+          <td><%= p.role %></td>
+          <td class="num"><%= p.logins||0 %></td>
+          <td><%= p.firstLoginAt?new Date(p.firstLoginAt).toLocaleString('en-ZA',{timeZone:'Africa/Johannesburg',hour12:false}):'—' %></td>
+          <td><%= p.lastLoginAt?new Date(p.lastLoginAt).toLocaleString('en-ZA',{timeZone:'Africa/Johannesburg',hour12:false}):'—' %></td>
+          <td class="num"><%= p.logouts||0 %></td>
+          <td><%= p.lastLogoutAt?new Date(p.lastLogoutAt).toLocaleString('en-ZA',{timeZone:'Africa/Johannesburg',hour12:false}):'—' %></td>
+          <td class="num"><%= p.views %></td><td class="num"><%= p.launches %></td><td class="num"><%= p.windows %></td><td class="num"><%= p.buttons %></td><td class="num"><%= p.httpRequests %></td><td class="num"><%= p.changes %></td><td class="num"><%= p.alertsAcknowledged||0 %></td><td class="num"><%= p.briefsReviewed||0 %></td><td class="num"><%= p.tasksSeen %></td><td class="num"><%= p.tasksCompleted %></td><td class="num"><%= p.messagesSent %></td><td class="num"><%= p.reads %></td><td class="num"><%= p.replies %></td>
         </tr><% }) %>
         </tbody>
       </table>
     </div>
-    <p class="note warning subtle"><strong>Automatic chat polling is excluded from deliberate-use counts.</strong> <%= data.summary.chatRefreshes||0 %> legacy chat-fetch/open events occurred in this reporting period; historical collection may include background refreshes. Empty read/reply values mean no individual receipt or reply-link was recorded, not proof that messages were ignored.</p>
+    <p class="note warning subtle"><strong>Automatic chat polling is excluded from deliberate-use counts.</strong> Login and logout times are taken from recorded sessions; absent logout times do not establish that someone remained working. <%= data.summary.chatRefreshes||0 %> legacy chat-fetch/open events occurred in this reporting period; historical collection may include background refreshes. Empty read/reply values mean no individual receipt or reply-link was recorded, not proof that messages were ignored.</p>
   </section>
 </section>

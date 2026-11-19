@@ -70,8 +70,16 @@
    recipients=Array.isArray(data.staff)?data.staff:[];
    return recipients;
  }
+ async function trackComposeOpen(){
+   try{await fetch(base+'/api/usage/events',{method:'POST',credentials:'same-origin',
+     headers:{'Content-Type':'application/json'},
+     body:JSON.stringify({event_type:'ui_action',screen_key:'communications-quick-send',
+       module_name:'communications',action:'open_compose',route_path:'/workspace'})});}
+   catch(_){}
+ }
  async function openQuick(options={}){
    if(briefOpen||sending)return;
+   void trackComposeOpen();
    modal.hidden=false;
    form.reset();error.hidden=true;action.checked=options.actionRequired!==false;
    toggleFiles();

@@ -78,10 +78,20 @@
     holder.hidden=true;selected=null;text.value='';error.hidden=true;
     document.body.classList.remove('tk2m-thread-active');
   }
+  function trackTaskOpen(){
+    // Browser intent is separate from the server's task read/complete audit.
+    fetch(base+'/api/usage/events',{
+      method:'POST',credentials:'same-origin',keepalive:true,
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({event_type:'ui_action',screen_key:'communications-task-reply',
+        module_name:'communications',route_path:'/workspace',action:'open_task_reply'})
+    }).catch(()=>{});
+  }
   async function open(id){
     const taskId=Number(id);
     if(!Number.isSafeInteger(taskId)||taskId<=0)return false;
     if(busy)return false;
+    trackTaskOpen();
     holder.hidden=false;document.body.classList.add('tk2m-thread-active');
     selected=null;text.value='';error.hidden=true;
     heading.textContent='Opening task…';from.textContent='TASK';
