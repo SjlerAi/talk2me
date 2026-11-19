@@ -58,10 +58,12 @@ for(const marker of ['.stats-grid.report-stats','.report-stats .stat-card','.rep
 // A half-width Owner window must show every staff field and its action buttons.
 const staffRoster=fs.readFileSync(path.join(root,'views/staff-list.ejs'),'utf8');
 assert.match(staffRoster,/class="card table-card tk2m-staff-roster"/);
+assert.match(staffRoster,/class="page-head tk2m-staff-roster-head"/);
 for(const label of ['Staff member','Login','Role','Contact','Status','Last login','Actions']){
   assert.ok(staffRoster.includes('data-label="'+label+'"'),'staff roster missing '+label);
 }
 assert.ok(css.includes('body.command-body .tk2m-staff-roster tbody'),'missing staff card layout');
 assert.ok(css.includes('content:attr(data-label)'),'missing visible staff field labels');
+assert.ok(css.includes('width:calc(100vw - 100px) !important'),'split-screen Staff width must be viewport capped');
 assert.ok(css.includes('grid-template-columns:repeat(auto-fit,minmax(min(360px,100%),1fr))'),'staff cards must fit narrow windows');
 console.log('TK2M_APPROVED_BLUE_RED_THEME_GATE_PASS full_documents='+full.length+' all_templates='+templates.length);
