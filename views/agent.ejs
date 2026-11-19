@@ -67,7 +67,7 @@
             <% const topPackage=management.commercial.packages[0]; const topTown=management.commercial.towns[0]; %>
             <div class="item"><strong>Top package</strong><small><%= topPackage ? topPackage.package_name+' · '+topPackage.client_lines+' active lines' : 'No package data' %></small></div>
             <div class="item"><strong>Largest client town</strong><small><%= topTown ? topTown.city_town+' · '+topTown.clients+' clients' : 'No town data' %></small></div>
-            <div class="item"><strong>Mailbox / dealsheets</strong><small><%= management.mailbox.length %> recent items · <%= management.automations.mailbox.connected?'automatic mailbox connected':'manual UAT import mode' %></small></div>
+            <div class="item"><strong>Mailbox / dealsheets</strong><small><%= management.mailbox.length %> recent items · <%= management.automations.mailbox.connected?'automatic mailbox connected':'manual email import mode' %></small></div>
             <div class="item"><strong>Automation</strong><small>09:00 attendance · 16:00 unfinished tasks · Wed 15:30 stats · Wed 17:00 report</small></div>
           </div>
         </div>
