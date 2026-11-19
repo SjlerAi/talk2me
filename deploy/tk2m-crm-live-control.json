@@ -1,11 +1,11 @@
 {
   "schema": 1,
-  "action": "hold",
+  "action": "deploy",
   "environment": "tk2m-production",
-  "request_id": "tk2m-grouped-review-modern-20261119-postrelease-hold-recovery",
-  "release_branch": "release/tk2m-grouped-review-modern-20261119",
-  "release_sha": "c48bdafb1f897776d34b2ef0ae9c253f1976f2ed",
+  "request_id": "tk2m-inquiry-report-blue-cards-20261119-a1",
+  "release_branch": "release/tk2m-inquiry-report-blue-cards-20261119",
+  "release_sha": "9926d369e0333f588bdc27458921464ad6281ca7",
   "expected_previous_sha": "c48bdafb1f897776d34b2ef0ae9c253f1976f2ed",
   "production_cutover": true,
-  "owner_approved": false
+  "owner_approved": true
 }
