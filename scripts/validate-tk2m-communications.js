@@ -126,6 +126,11 @@ async function main(){
  assert.equal(inbox.items.length,1);
  assert.equal(inbox.items[0].kind,'task');
  assert.equal(inbox.items[0].direction,'received');
+ const teamInbox=await listInbox(inboxDb,9,{scope:'team'});
+ assert.equal(teamInbox.scope,'team');
+ assert.match(inboxQueries[2],/WHERE 1=1/);
+ assert.equal(inbox.scope,'mine');
+ assert.match(read('src/routes/tk2m-communications-brief.js'),/canSeeTeam/);
  assert.equal(inbox.items[0].canComplete,true);
  assert.match(inboxQueries[0],/t\.created_by=:staffId/);
  assert.match(inboxQueries[0],/t\.assigned_to=:staffId/);

@@ -36,7 +36,7 @@
  document.body.appendChild(overlay);
  const list=overlay.querySelector('[data-tk2m-unified-list]');
  const status=overlay.querySelector('[data-tk2m-unified-status]');
- let busy=false,loading=false,lastItems=[],refreshTimer=null;
+ let busy=false,loading=false,lastItems=[],refreshTimer=null,activeScope='mine';
  const node=(tag,cls,text)=>{
    const n=document.createElement(tag);if(cls)n.className=cls;
    if(text!==undefined)n.textContent=String(text);return n;
@@ -55,6 +55,7 @@
    refreshTimer=null;
  }
  const label=record=>{
+   if(record.direction==='team')return record.sender+' → '+record.recipient;
    if(record.direction==='sent')return 'To '+record.recipient;
    return 'From '+record.sender;
  };
@@ -73,8 +74,9 @@
    const strip=node('div','tk2m-unified-strip');
    const state=item.kind==='legacy_chat'
      ?(item.direction==='sent'?'Sent':'Received')
-     :(item.direction==='sent'?(item.acknowledged?'Received by '+item.recipient:'Waiting for '+item.recipient)
-        :(item.acknowledged?'Received — outstanding':'Not yet acknowledged'));
+     :(item.direction==='team'?(item.acknowledged?'Received by '+item.recipient:'Waiting for '+item.recipient)
+        :(item.direction==='sent'?(item.acknowledged?'Received by '+item.recipient:'Waiting for '+item.recipient)
+        :(item.acknowledged?'Received — outstanding':'Not yet acknowledged')));
    strip.append(node('small','',state));
    const actions=node('div','tk2m-unified-entry-actions');
    if(item.kind==='task'){
@@ -82,7 +84,7 @@
        if(!item.acknowledged)actions.append(actionButton('Received','receipt',item));
        actions.append(actionButton('Done','complete',item));
        actions.append(actionButton('Reply','reply',item));
-     }else{
+     }else if(item.direction==='sent'){
        actions.append(actionButton('Reply','reply',item));
      }
    }else{
@@ -159,12 +161,12 @@
    loading=true;
    const focus=Number(focusTaskId||0);
    try{
-     const data=await api('/api/tk2m/communications/inbox');
+     const data=await api('/api/tk2m/communications/inbox'+(activeScope==='team'?'?scope=team':''));
      lastItems=Array.isArray(data.items)?data.items:[];
      list.replaceChildren();
      for(const item of lastItems)list.appendChild(entry(item));
      if(!lastItems.length)list.append(node('div','tk2m-unified-empty','Nothing outstanding. You are up to date.'));
-     status.textContent=lastItems.length+' recent communications';
+     status.textContent=lastItems.length+(activeScope==='team'?' team':'')+' recent communications';
      if(focus)list.querySelector('[data-communication-kind="task"][data-communication-id="'+focus+'"]')?.scrollIntoView({block:'nearest'});
    }catch(error){status.textContent='Could not load Communications: '+error.message;}
    finally{loading=false;}
@@ -178,6 +180,7 @@
    }).catch(()=>{});
  }
  function open(options={}){
+   activeScope=options.scope==='mine'?'mine':options.scope==='team'?'team':(cfg.isManagement?'team':'mine');
    labelLauncher();
    trackInboxOpen();
    // The old floating Work window must never sit on top of this one.

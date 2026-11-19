@@ -36,7 +36,12 @@ router.post('/api/tk2m/communications/clear',requireAuth,async(req,res,next)=>{
 router.get('/api/tk2m/communications/inbox',requireAuth,async(req,res,next)=>{
  if(!enabled)return res.sendStatus(404);
  res.set('Cache-Control','private, no-store');
- try{res.json(await listInbox(db,req.session.user.id));}catch(error){next(error);}
+ try{
+   const role=String(req.session.user.role||'').toLowerCase();
+   const canSeeTeam=['owner','admin','manager'].includes(role);
+   const scope=req.query.scope==='team'&&canSeeTeam?'team':'mine';
+   res.json(await listInbox(db,req.session.user.id,{scope}));
+ }catch(error){next(error);}
 });
 router.get('/api/tk2m/communications/people',requireAuth,async(req,res,next)=>{
  if(!enabled)return res.sendStatus(404);
