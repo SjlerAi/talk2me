@@ -73,7 +73,7 @@ router.get('/data-review',protectedPage,reviewSession,authorize,async(req,res,ne
       basePath:res.locals.basePath||'',assetVersion:res.locals.assetVersion,
       listing,totals,kinds:TYPES,kind,view,q:term,page,pages:Math.max(1,Math.ceil(count/limit)),
       listTotal:count,csrf:csrf(req),selected:null,history:null,
-      notice:req.query.saved==='1'?'Review saved. The next outstanding cases remain in the queue.':'',
+      notice:[req.query.saved==='1'?'Review saved. The next outstanding cases remain in the queue.':'', all.sourceComparisonAvailable?'':'Source-vs-test comparison is unavailable until a verified source snapshot is installed. Duplicate, identity and import reviews remain available.'].filter(Boolean).join(' '),
       canManage:canManage(req.session.user)});
   }catch(error){next(error);}
 });
@@ -86,7 +86,7 @@ router.get('/data-review/history',protectedPage,reviewSession,authorize,async(re
     res.render('tk2m-review-portal',{layout:false,title:'Review History',currentUser:req.session.user,
       basePath:res.locals.basePath||'',assetVersion:res.locals.assetVersion,
       listing:[],totals:null,kinds:TYPES,kind:'all',view:'all',q:'',page:1,pages:1,listTotal:0,
-      csrf:csrf(req),selected:null,history,notice:'',canManage:owner});
+      csrf:csrf(req),selected:null,history,notice:all.sourceComparisonAvailable?'':'Source-vs-test comparison is unavailable until a verified source snapshot is installed.',canManage:owner});
   }catch(error){next(error);}
 });
 router.get('/data-review/case/:id',protectedPage,reviewSession,authorize,async(req,res,next)=>{
