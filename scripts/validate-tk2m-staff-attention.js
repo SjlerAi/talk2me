@@ -33,6 +33,7 @@ async function main(){
   const db={
     async execute(sql,values){
       if(sql.includes('FROM staff_chat_messages WHERE id='))return [[{conversation_key:'direct:4:7',sender_staff_id:7}]];
+      if(sql.includes('MAX(CASE WHEN source_kind='))return [[{chatId:0,notificationTaskId:0,workflowId:0}]];
       if(sql.includes('FROM staff_tasks WHERE id='))return [[{id:12}]];
       if(sql.includes('FROM staff_task_notifications WHERE id='))return [[{id:13}]];
       if(sql.includes('INSERT IGNORE INTO staff_attention_acknowledgments')) {

@@ -10,6 +10,7 @@ function dbMock(options={}){
  const seen=[],writes=[],commits=[];
  const db={async execute(sql,values){
    seen.push(sql);
+   if(sql.includes('MAX(CASE WHEN source_kind='))return [[{chatId:0,notificationTaskId:0,workflowId:0}]];
    if(sql.includes('FROM staff_tasks t')&&sql.includes('COUNT(*) total'))return [[{total:options.taskCount??3,carryover:options.carryTasks??2,received_today:1}]];
    if(sql.includes('FROM staff_chat_messages m')&&sql.includes('COUNT(*) total'))return [[{total:options.messageCount??2,carryover:options.carryMessages??1,received_today:1}]];
    if(sql.includes('FROM staff_tasks t')&&sql.includes('ORDER BY t.created_at'))return [[{id:31,title:'Call client',created_at:'2026-11-18 16:00:00',due_at:null,status:'unread',sender:'Gerda'}]];
@@ -35,7 +36,7 @@ async function main(){
  assert.equal(start.prompts.afternoon.pending,false);
  assert.equal(start.tasks[0].title,'Call client');
  assert.equal(start.messages[0].sender,'Johnny');
- assert.equal(x.seen.length,5);
+ assert.equal(x.seen.length,6);
  const evening=await dailyBrief(x.db,9,afternoon);
  assert.equal(evening.prompts.afternoon.pending,true);
  assert.equal(evening.prompts.morning.pending,false);
