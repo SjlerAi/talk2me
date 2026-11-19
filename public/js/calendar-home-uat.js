@@ -306,17 +306,17 @@
       ${tk2mPreview ? `<section class="t2m-home-focus" aria-label="Daily priorities">
         <section class="t2m-home-attention-strip" data-home-attention-strip aria-label="Communications">
           <div class="t2m-home-attention-copy">
-            <strong>COMMUNICATIONS</strong>
-            <span data-home-attention-summary>Checking recent communications...</span>
+            <strong>TODAY'S COMMUNICATIONS</strong>
+            <span data-home-attention-summary>Checking today's communications...</span>
             <small data-home-alert-status>Checking red alerts...</small>
           </div>
           <div class="t2m-home-attention-actions">
             <button type="button" data-home-quick-send aria-label="Send communication">+ Send</button>
             <button type="button" data-os-app="messages" aria-label="Open all recent communications">Communications</button>
           </div>
-          <div class="t2m-home-priority-carousel" data-home-priority-carousel aria-label="Browse outstanding communications">
+          <div class="t2m-home-priority-carousel" data-home-priority-carousel aria-label="Browse today's communications">
             <button type="button" class="t2m-home-priority-arrow" data-home-priority-prev aria-label="Previous communications" title="Previous communications" hidden>‹</button>
-            <div class="t2m-home-priority-list" data-home-priority-list role="list" aria-label="Recent outstanding communications" aria-live="polite">
+            <div class="t2m-home-priority-list" data-home-priority-list role="list" aria-label="Today's communications" aria-live="polite">
               <span class="t2m-home-priority-loading">Loading current instructions...</span>
             </div>
             <button type="button" class="t2m-home-priority-arrow" data-home-priority-next aria-label="Next communications" title="Next communications" hidden>›</button>
@@ -329,10 +329,10 @@
           <span>Reminders</span><strong data-home-focus-count="reminders">—</strong><small>Tap to add · selected date</small>
         </button>
         <button type="button" data-home-focus="messages" data-os-app="messages" aria-label="Open recent communications">
-          <span>Communications</span><strong data-home-focus-count="messages">—</strong><small>Last 48 hours · open list</small>
+          <span>Today</span><strong data-home-focus-count="messages">—</strong><small>Today's communication history</small>
         </button>
-        <button type="button" data-home-focus="overdue" aria-label="Open my overdue tasks">
-          <span>My overdue</span><strong data-home-focus-count="overdue">—</strong><small>Needs your attention</small>
+        <button type="button" data-home-focus="overdue" aria-label="Open outstanding work from previous days">
+          <span>Outstanding Work</span><strong data-home-focus-count="overdue">—</strong><small>Previous days · unfinished</small>
         </button>
       </section>` : ''}
       <div class="t2m-home-calendar-controls">
@@ -348,9 +348,22 @@
           <div class="t2m-home-weekdays"><span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span></div>
           <div class="t2m-home-grid" data-home-grid></div>
         </section>
-        <aside class="t2m-home-agenda">
-          <header><div><span>Selected date</span><strong data-home-agenda-date></strong></div><b data-home-agenda-count>0</b></header>
-          <div class="t2m-home-agenda-list" data-home-agenda></div>
+        <aside class="t2m-home-agenda${tk2mPreview?' t2m-home-carry-panel':''}">
+          ${tk2mPreview ? `
+            <header class="t2m-home-carry-header">
+              <div><span>Unfinished instructions from previous days</span><strong>Outstanding Work</strong></div>
+              <b data-home-carry-count>0</b>
+            </header>
+            <div data-home-carry-feedback class="t2m-home-carry-feedback" role="status" aria-live="polite" hidden></div>
+            <div class="t2m-home-carry-list" data-home-carry-list aria-label="Outstanding work that requires a reply or completion"></div>
+            <details class="t2m-home-calendar-fold" data-home-calendar-fold>
+              <summary>Selected date · <strong data-home-agenda-date></strong> (<b data-home-agenda-count>0</b>)</summary>
+              <div class="t2m-home-agenda-list" data-home-agenda></div>
+            </details>
+          ` : `
+            <header><div><span>Selected date</span><strong data-home-agenda-date></strong></div><b data-home-agenda-count>0</b></header>
+            <div class="t2m-home-agenda-list" data-home-agenda></div>
+          `}
         </aside>
       </div>
       <dialog class="t2m-home-reminder-dialog" data-home-reminder-dialog>
@@ -375,6 +388,10 @@
       error: '',
       focus: { messages: null, overdue: null, openWork: null },
       communications: [],
+      outstanding: [],
+      outstandingTotal: 0,
+      carryExpanded: false,
+      carryBusy: false,
       attentionError: null,
       agendaExpanded: false,
       priorityPage: 0
@@ -385,6 +402,9 @@
     const agendaDate = workspace.querySelector('[data-home-agenda-date]');
     const agendaCount = workspace.querySelector('[data-home-agenda-count]');
     const agenda = workspace.querySelector('[data-home-agenda]');
+    const carryList = workspace.querySelector('[data-home-carry-list]');
+    const carryCount = workspace.querySelector('[data-home-carry-count]');
+    const carryFeedback = workspace.querySelector('[data-home-carry-feedback]');
     const teamFilter = workspace.querySelector('[data-home-team-filter]');
     const dialog = workspace.querySelector('[data-home-reminder-dialog]');
     const reminderForm = workspace.querySelector('[data-home-reminder-form]');
