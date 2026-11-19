@@ -12,14 +12,14 @@ const cal = read('public/js/calendar-home-uat.js');
 
 const common = {
   title:'Talk2Me OS',appVersion:'6.0.0',appBuild:'qa',assetVersion:'release-qa',basePath:'',
-  isUat:true,cudoDisabled:true,loginCsrf:'0'.repeat(64),
+  isUat:true,isLive:false,cudoDisabled:true,loginCsrf:'0'.repeat(64),
   isManagement:true,panelMode:false,
   currentUser:{id:1,role:'owner',full_name:'Test Owner',username:'qa'},
   status:{taskCount:0,queueCount:0,dueTodayTaskCount:0,overdueTaskCount:0},
   osLaunchers:[{slot_key:'test',display_name:'Test',icon_text:'T',is_enabled:1}]
 };
 const stage=ejs.render(template,{...common,isStaging:true});
-const live=ejs.render(template,{...common,isStaging:false});
+const live=ejs.render(template,{...common,isStaging:false,isLive:true});
 assert.match(stage,/class="t2m-os-shell t2m-tk2m-test-shell t2m-calendar-home-shell" id="talk2me-os"/);
 assert.match(stage,/data-tk2m-preview="1"/);
 assert.ok(stage.indexOf('t2m-tk2m-test-shell') < stage.indexOf('public/js/calendar-home-uat.js'), 'Shell class must be rendered before calendar JavaScript');
