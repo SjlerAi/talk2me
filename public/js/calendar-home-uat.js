@@ -605,11 +605,20 @@
         button.onclick=async()=>{
           if(state.carryBusy)return;
           const taskId=Number(button.dataset.carryDone);
+          const item=all.find(x=>Number(x.id)===taskId);
+          if(!item||!item.canComplete)return;
+          if(item.completeOnBehalf && !window.confirm(
+            'Mark "'+String(item.subject||'this instruction')+'" Done on behalf of '+
+            String(item.recipient||'the employee')+
+            '? This records you as completing it and notifies the sender.'
+          ))return;
           state.carryBusy=true;button.disabled=true;
           try{
             await jsonFetch(`/api/uat/tasks/${taskId}/status`,{
               method:'POST',body:JSON.stringify({
-                status:'completed',completion_note:'Completed via My Day Outstanding Work'
+                status:'completed',completion_note:item.completeOnBehalf
+                  ?'Manager confirmed completion on behalf via My Day Outstanding Work'
+                  :'Completed via My Day Outstanding Work'
               })
             });
             showCarryFeedback('Work completed. The instruction is removed from Outstanding Work.');
