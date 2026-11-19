@@ -111,4 +111,5 @@ for(const [file,labels] of [
 assert.match(css,/tk2m-fixed-list-table tbody tr/,'narrow fixed cards missing');
 assert.match(css,/content:attr\(data-label\)/,'fixed card label missing');
 assert.ok(css.includes('width:calc(100vw - 100px)!important'),'fixed table must be constrained to split-screen viewport');
+assert.match(css,/body\.command-body \.login-greeting \{[\s\S]*?display:none !important;/,'classic welcome overlay must not cover management screens');
 console.log('TK2M_APPROVED_BLUE_RED_THEME_GATE_PASS full_documents='+full.length+' all_templates='+templates.length);
