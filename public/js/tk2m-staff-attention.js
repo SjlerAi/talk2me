@@ -42,6 +42,14 @@
   const openButton = backdrop.querySelector('.tk2m-attention-open');
   let current = null, busy = false, polling = false;
 
+  function alertStatus(message,offline=false){
+    const node=document.querySelector('[data-home-alert-status]');
+    if(!node)return;
+    node.textContent=message;
+    node.dataset.offline=offline?'1':'0';
+  }
+  window.Talk2MeAttention={refresh:()=>refresh(),isReady:()=>Boolean(document.getElementById('tk2m-attention-backdrop'))};
+
   function hide() {
     backdrop.hidden = true;
     document.body.classList.remove('tk2m-attention-active');
@@ -71,13 +79,17 @@
       if (!response.ok) throw new Error('Alert service unavailable');
       const data = await response.json();
       const alerts = Array.isArray(data.alerts) ? data.alerts : [];
+      alertStatus(alerts.length ? alerts.length+' red alerts waiting for acknowledgment' : 'All red alerts acknowledged');
       if (current) {
         if (alerts.some(item => item.kind === current.kind && Number(item.id) === Number(current.id))) return;
         // A read/acknowledgment on another device should clear this duplicate.
         hide();
       }
       if (alerts.length) display(alerts[0]);
-    } catch (_) {
+    } catch (error) {
+      // The visible My Day banner must not silently pretend alerts are working.
+      alertStatus('Red alert connection failed — open messages manually',true);
+      console.error('Talk2Me red alert polling failed:',error);
       // Never discard an already shown alert because polling failed.
     } finally { polling = false; }
   }
