@@ -1,11 +1,11 @@
 {
   "schema": 1,
-  "action": "hold",
+  "action": "deploy",
   "environment": "tk2m-production",
-  "request_id": "tk2m-staff-roster-viewport-20261119-postrelease-hold",
-  "release_branch": "release/tk2m-staff-roster-viewport-20261119",
-  "release_sha": "fd6f3dc826837ace04aca8c26106c8b9f6bd17da",
+  "request_id": "tk2m-myday-live-responsive-20261119-a1",
+  "release_branch": "release/tk2m-myday-live-responsive-20261119",
+  "release_sha": "d9f264be10816de918b6123cc4d5fcedc5070b1d",
   "expected_previous_sha": "fd6f3dc826837ace04aca8c26106c8b9f6bd17da",
   "production_cutover": true,
-  "owner_approved": false
+  "owner_approved": true
 }
