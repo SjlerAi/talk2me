@@ -62,8 +62,8 @@ async function validate(){
  assert.equal(atMidnight.month,'2026-12');
  assert.equal(atMidnight.archived,44);
  assert.deepEqual(history.slice(0,3),['begin','commit','release']);
- assert.ok(queries.some(q=>q.sql.includes('status=\'active\' AND d.updated_at<:cutoff')));
- assert.ok(queries.some(q=>q.sql.includes("SET status='archived'")));
+ assert.ok(queries.some(q=>q.sql.includes("d.status='active' AND COALESCE(v.created_at,d.created_at)<:cutoff")));
+ assert.ok(queries.some(q=>q.sql.includes("SET d.status='archived'")));
  assert.ok(queries.some(q=>q.sql.includes('COALESCE(v.created_at,d.created_at)<:cutoff')));
  assert.ok(queries.some(q=>q.params?.cutoff==='2026-11-07 00:00:02'));
  firstRun=false;
