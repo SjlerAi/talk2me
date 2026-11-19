@@ -99,8 +99,8 @@ fi
 # is NOT proof of loaded code; prove_live verifies the worker's boot SHA.
 for trial in 1 2 3; do
   if prove_live; then
-    printf 'TK2M_PRODUCTION_DEPLOY_PROVEN request=%s sha=%s\\n' "$request" "$sha"
-    printf 'TK2M_PRODUCTION_DEPLOY_REQUIRES_CONTROL_HOLD\\n'
+    printf 'TK2M_PRODUCTION_DEPLOY_PROVEN request=%s sha=%s\n' "$request" "$sha"
+    printf 'TK2M_PRODUCTION_DEPLOY_REQUIRES_CONTROL_HOLD\n'
     exit 0
   fi
   sleep 5
@@ -112,8 +112,8 @@ cloudlinux-selector restart --json --interpreter nodejs --user talk --app-root "
   fail "scoped CloudLinux CRM restart refused"
 for trial in 1 2 3; do
   if prove_live; then
-    printf 'TK2M_PRODUCTION_DEPLOY_PROVEN request=%s sha=%s\\n' "$request" "$sha"
-    printf 'TK2M_PRODUCTION_DEPLOY_REQUIRES_CONTROL_HOLD\\n'
+    printf 'TK2M_PRODUCTION_DEPLOY_PROVEN request=%s sha=%s\n' "$request" "$sha"
+    printf 'TK2M_PRODUCTION_DEPLOY_REQUIRES_CONTROL_HOLD\n'
     exit 0
   fi
   sleep 5
@@ -138,8 +138,8 @@ fi
 
 for trial in 1 2 3 4 5 6; do
   if prove_live; then
-    printf 'TK2M_PRODUCTION_DEPLOY_PROVEN request=%s sha=%s\\n' "$request" "$sha"
-    printf 'TK2M_PRODUCTION_DEPLOY_REQUIRES_CONTROL_HOLD\\n'
+    printf 'TK2M_PRODUCTION_DEPLOY_PROVEN request=%s sha=%s\n' "$request" "$sha"
+    printf 'TK2M_PRODUCTION_DEPLOY_REQUIRES_CONTROL_HOLD\n'
     exit 0
   fi
   sleep 5
