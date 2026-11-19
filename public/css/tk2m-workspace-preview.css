@@ -206,7 +206,7 @@
   color:#273448;font-size:11px;font-weight:750;padding:4px 10px;cursor:pointer;
 }
 .t2m-tk2m-test-shell .t2m-home-priority-actions button.is-done{
-  background:#e9f8ef;border-color:#93d5ab;color:#17643b;
+  background:#f1f3f6;border-color:#aeb6c2;color:#374151;
 }
 .t2m-tk2m-test-shell .t2m-home-priority-reply{
   display:flex!important;flex-direction:row!important;align-items:center!important;
@@ -222,7 +222,7 @@
 .t2m-tk2m-test-shell .t2m-home-priority-reply button{
   box-sizing:border-box!important;flex:0 0 auto!important;width:auto!important;
   min-height:32px!important;padding:5px 11px!important;border-radius:7px!important;
-  background:#137342!important;color:#fff!important;border:1px solid #137342!important;
+  background:#374151!important;color:#fff!important;border:1px solid #374151!important;
   font-size:12px!important;font-weight:850!important;line-height:1.25!important;
 }
 .t2m-tk2m-test-shell .t2m-home-priority-feedback{color:#8f2432;white-space:normal!important}
@@ -258,7 +258,7 @@
   box-shadow:none!important;cursor:pointer!important;
 }
 .t2m-tk2m-test-shell .t2m-home-focus .t2m-home-priority-actions button.is-done{
-  background:#137342!important;color:#fff!important;border-color:#137342!important;
+  background:#374151!important;color:#fff!important;border-color:#374151!important;
 }
 .t2m-tk2m-test-shell .t2m-home-priority-actions button:disabled{opacity:.5!important}
 
@@ -407,7 +407,7 @@
 }
 .t2m-tk2m-test-shell .t2m-home-carry-actions .is-done,
 .t2m-tk2m-test-shell .t2m-home-carry-reply-controls .is-send{
- background:#137342;color:#fff;border-color:#137342;
+ background:#374151;color:#fff;border-color:#374151;
 }
 .t2m-tk2m-test-shell .t2m-home-carry-actions button:disabled{opacity:.45}
 .t2m-tk2m-test-shell .t2m-home-carry-reply[hidden],
@@ -423,7 +423,7 @@
 }
 .t2m-tk2m-test-shell .t2m-home-carry-feedback{
  padding:8px 11px;flex:none;font-size:11px;
- background:#f3fbf4;color:#166534;border-bottom:1px solid #d8e7da;
+ background:#f1f3f6;color:#374151;border-bottom:1px solid #d4dae3;
 }
 .t2m-tk2m-test-shell .t2m-home-carry-feedback.is-error{background:#fff3f3;color:#b91c1c}
 .t2m-tk2m-test-shell .t2m-home-carry-empty{padding:16px 9px;font-size:12px;color:#64748b;line-height:1.4}
