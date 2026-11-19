@@ -1,11 +1,11 @@
 {
   "schema": 1,
-  "action": "hold",
+  "action": "deploy",
   "environment": "tk2m-production",
-  "request_id": "tk2m-20261119-unified-navigation-final-hold",
-  "release_branch": "release/tk2m-one-communications-final-20261119",
-  "release_sha": "2640383554be1da28a9ac1ad7ee86abab7c60f13",
+  "request_id": "tk2m-20261119-no-legacy-chat-overlay-a1",
+  "release_branch": "release/tk2m-no-legacy-chat-overlay-20261119",
+  "release_sha": "5d97727c0259f532dbe52680be9e45b68def006b",
   "expected_previous_sha": "2640383554be1da28a9ac1ad7ee86abab7c60f13",
   "production_cutover": true,
-  "owner_approved": false
+  "owner_approved": true
 }
