@@ -1,11 +1,11 @@
 {
   "schema": 1,
-  "action": "deploy",
+  "action": "hold",
   "environment": "tk2m-production",
-  "request_id": "tk2m-20261119-myday-three-line-final-a1",
+  "request_id": "tk2m-20261119-myday-three-line-final-hold",
   "release_branch": "release/tk2m-myday-three-line-final-20261119",
   "release_sha": "1e42c7adda073ca194b125647a8070b720f817ba",
-  "expected_previous_sha": "78daa5402af93bb257754c616b84ee53dd307d38",
+  "expected_previous_sha": "1e42c7adda073ca194b125647a8070b720f817ba",
   "production_cutover": true,
-  "owner_approved": true
+  "owner_approved": false
 }
