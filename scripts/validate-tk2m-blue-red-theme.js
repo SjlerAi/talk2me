@@ -52,4 +52,7 @@ assert.match(css, /t2m-home-priority-reply button/,'Send theme');
 assert.match(css, /:focus-visible/,'keyboard focus styling');
 assert.match(css,/\.t2m-home-day\.is-selected/,'selected date styling');
 assert.match(css,/\.t2m-home-priority-open strong/,'message preview');
+for(const marker of ['.stats-grid.report-stats','.report-stats .stat-card','.report-filters>.form-grid','.two-col:has(> .card .table-wrap)']) {
+  assert.ok(css.includes(marker),'missing responsive inquiry/report styling '+marker);
+}
 console.log('TK2M_APPROVED_BLUE_RED_THEME_GATE_PASS full_documents='+full.length+' all_templates='+templates.length);
