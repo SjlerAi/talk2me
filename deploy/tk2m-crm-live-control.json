@@ -1,11 +1,11 @@
 {
   "schema": 1,
-  "action": "hold",
+  "action": "deploy",
   "environment": "tk2m-production",
-  "request_id": "tk2m-20261119-7day-popup-postrelease-hold",
-  "release_branch": "release/tk2m-7day-popup-20261119",
-  "release_sha": "d895ff70bab6eb6aee2e6308d17e94fcaa44a9ba",
+  "request_id": "tk2m-20261119-fast-communications-a1",
+  "release_branch": "release/tk2m-fast-communications-20261119",
+  "release_sha": "3dd952b91f7e9e2c018168bf03ca1ac3b7d512c5",
   "expected_previous_sha": "d895ff70bab6eb6aee2e6308d17e94fcaa44a9ba",
   "production_cutover": true,
-  "owner_approved": false
+  "owner_approved": true
 }
