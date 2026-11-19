@@ -108,7 +108,7 @@ done
 
 # The application-scoped CloudLinux restart is preferred and never targets
 # Zippy, UENT or the whole hosting account.
-cloudlinux-selector restart --json --interpreter nodejs --user talk --app-root "$APP" ||
+/usr/sbin/cloudlinux-selector restart --json --interpreter nodejs --user talk --app-root "$APP" ||
   fail "scoped CloudLinux CRM restart refused"
 for trial in 1 2 3; do
   if prove_live; then

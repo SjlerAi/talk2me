@@ -30,6 +30,7 @@ assert.match(poller, /"\$current_pid" == "\$pre_deploy_pid"/);
 assert.match(poller, /"\$owner" == talk && "\$actual_cwd" == "\$APP"/);
 assert.match(poller, /"\$command" == "lsnode:\$APP\/"/);
 assert.match(poller, /kill -TERM "\$current_pid"/);
+assert.match(poller, /\/usr\/sbin\/cloudlinux-selector restart/,'cron requires the exact selector path');
 assert.doesNotMatch(poller, /kill\s+-9|pkill|killall/);
 const syntax = spawnSync('bash', ['-n', pollerPath], {encoding:'utf8'});
 assert.equal(syntax.status, 0, 'poller shell syntax: '+syntax.stderr);
