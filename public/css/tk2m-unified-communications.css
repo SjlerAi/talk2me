@@ -62,3 +62,13 @@
 /* Management may hide an unrelated team task from their own overview only. */
 .tk2m-unified-hide-team{font-weight:750!important;font-size:12px!important;
  color:#475569!important;background:#f8fafc!important;border-color:#cbd5e1!important}
+
+/* Today/Outstanding switch within the one Communications dialog. */
+.tk2m-unified-views{display:flex!important;gap:8px!important;padding:9px 12px!important;
+ background:#fff!important;border-bottom:1px solid #eadadd!important}
+.tk2m-unified-views button{flex:1!important;min-height:38px!important;border:1px solid #d9dee6!important;
+ border-radius:8px!important;background:#f8fafc!important;color:#344054!important;
+ font-size:13px!important;font-weight:850!important;cursor:pointer!important}
+.tk2m-unified-views button[aria-pressed="true"]{background:#aa1d2c!important;
+ border-color:#aa1d2c!important;color:#fff!important}
+.tk2m-unified-views button:focus-visible{outline:3px solid #ad1e2b!important;outline-offset:2px!important}
