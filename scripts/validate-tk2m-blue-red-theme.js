@@ -66,4 +66,20 @@ assert.ok(css.includes('body.command-body .tk2m-staff-roster tbody'),'missing st
 assert.ok(css.includes('content:attr(data-label)'),'missing visible staff field labels');
 assert.ok(css.includes('width:calc(100vw - 100px) !important'),'split-screen Staff width must be viewport capped');
 assert.ok(css.includes('grid-template-columns:repeat(auto-fit,minmax(min(360px,100%),1fr))'),'staff cards must fit narrow windows');
+// Real 970px split-window GUI review: My Day must retain 3 horizontal
+// paged Reply / Done cards and fit its calendar with the sidebar still open.
+assert.ok(css.includes('My Day at a TRUE 970px browser width'),'missing split-screen My Day correction');
+const compactMyDay=css.slice(css.indexOf('My Day at a TRUE 970px browser width'));
+for(const marker of [
+  '#talk2me-os .t2m-home-priority-list',
+  'grid-template-columns:repeat(3,minmax(0,1fr))!important',
+  '#talk2me-os .t2m-home-priority-carousel.has-pages',
+  '#talk2me-os .t2m-home-calendar-layout',
+  'grid-template-columns:minmax(0,1fr)!important',
+  '#talk2me-os .t2m-home-calendar-controls',
+  '#talk2me-os .t2m-home-focus>button'
+]){
+  assert.ok(compactMyDay.includes(marker),'missing compact My Day surface '+marker);
+}
+assert.doesNotMatch(compactMyDay,/\.is-sidebar-collapsed\s*\{/,'compact view must not force saved sidebar state');
 console.log('TK2M_APPROVED_BLUE_RED_THEME_GATE_PASS full_documents='+full.length+' all_templates='+templates.length);
