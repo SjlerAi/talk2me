@@ -67,7 +67,11 @@ const environment = ({isLive,isStaging}) => ejs.render(match[1],{isLive,isStagin
 assert.match(environment({isLive:true,isStaging:true}), /TK2M LIVE/);
 assert.doesNotMatch(environment({isLive:true,isStaging:true}), /TEST|NOT LIVE/);
 assert.match(environment({isLive:false,isStaging:true}), /TK2M TEST/);
-assert.match(osShell, /Cellular CRM<\/small>/,'new branding does not show the legacy version stripe');
+const taglineMatch = osShell.match(/(<small><%= isLive\?[^%]+%>Cellular CRM<\/small>)/);
+assert.ok(taglineMatch, 'visual CRM tagline requires LIVE-first display logic');
+const tagline = ({isLive,isStaging}) => ejs.render(taglineMatch[1],{isLive,isStaging});
+assert.doesNotMatch(tagline({isLive:true,isStaging:true}), /TEST|NOT LIVE|OS v/);
+assert.match(tagline({isLive:false,isStaging:true}), /TEST · Cellular CRM/);
 
 const appSource = read('server.js');
 const liveNeutralizer = appSource.match(/if \(CRM_LIVE_MODE\) \{\s*app\.get\('\/public\/uat-safety\.css'[\s\S]*?\n\}/);

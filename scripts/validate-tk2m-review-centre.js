@@ -25,9 +25,9 @@ assert.equal(safeReviewReturn('/data-review','',false),null);
 assert.equal(safeLoginReturn('/data-review','',true),'/data-review');
 assert.equal(safeLoginReturn('https://evil.com','',true),null);
 assert.equal(safeCleanupReturn('/temporary-cleanup',''),'/temporary-cleanup');
-assert.ok(loginRoute.includes("const reviewAllowed=res.locals.isStaging && returnTo===res.locals.basePath+'/data-review'"));
+assert.match(loginRoute,/const reviewAllowed\s*=\s*res\.locals\.isStaging\s*&&\s*returnTo\s*===\s*res\.locals\.basePath\s*\+\s*['"]\/data-review['"]/);
 assert.ok(loginView.includes("returnTo.endsWith('/data-review')"));
-assert.match(server,/if \(CRM_STAGE_MODE\) \{\s+const dataReview = require\('\.\/src\/routes\/tk2m-data-review'\)/);
+assert.match(server,/if \(TK2M_SITE\) \{\s+const dataReview = require\('\.\/src\/routes\/tk2m-data-review'\)/);
 assert.match(calendar,/data-os-route="\$\{basePath\}\/data-review"/);
 assert.match(read('views/backoffice-home.ejs'),/Data Review Centre/);
 assert.match(routes,/function reviewSession\(req,res,next\)/);
@@ -69,12 +69,19 @@ const imports=[
 ];
 const deltas=[{entity_type:'client',entity_id:2,field_key:'is_active',source_value:'active',stage_value:'inactive',
  source_hash:'d'.repeat(64),checked_at:'2026-10-27 10:00:00'}];
-function conn(rows){
+function conn(rows,{missingSource=false,wrongSourceError=false}={}){
  return {query:async sql=>{
   if(sql.includes('FROM clients c LEFT JOIN client_assignments'))return [rows];
   if(sql.includes('FROM temporary_duplicate_triage'))return [triage];
   if(sql.includes('FROM monthly_import_matches m INNER JOIN'))return [imports];
-  if(sql.includes('FROM tk2m_review_source_deltas'))return [deltas];
+  if(sql.includes('FROM tk2m_review_source_deltas')){
+   if(missingSource||wrongSourceError){
+    const table=wrongSourceError?'unrelated_table':'tk2m_review_source_deltas';
+    const msg=`Table 'talk_crm_stage.${table}' doesn't exist`;
+    throw Object.assign(new Error(msg),{code:'ER_NO_SUCH_TABLE',sqlMessage:msg});
+   }
+   return [deltas];
+  }
   if(sql.includes('FROM tk2m_review_decisions'))return [[]];
   throw Error('Unexpected test SQL: '+sql.slice(0,100));
  }};
@@ -88,6 +95,14 @@ function conn(rows){
  assert.deepEqual(Object.entries(summarize(all).kinds).map(([k,v])=>[k,v.total]),
   [['migration',1],['duplicate_phone',1],['identity',1],['import_conflict',1],['import_possible',1]]);
  assert.equal(all.length,5);
+ assert.equal(all.sourceComparisonAvailable,true);
+ const noSnapshot=await loadCases(owner,conn(fixture,{missingSource:true}));
+ assert.equal(noSnapshot.sourceComparisonAvailable,false);
+ assert.equal(noSnapshot.length,4,'missing optional comparison must not hide core review cases');
+ assert.equal(summarize(noSnapshot).kinds.migration.total,0);
+ assert.equal(summarize(noSnapshot).kinds.duplicate_phone.total,1);
+ await assert.rejects(loadCases(owner,conn(fixture,{wrongSourceError:true})),/unrelated_table/);
+ assert.match(routes,/Source-vs-test comparison is unavailable/);
  assert.equal(canManage(owner),true);assert.equal(canManage(manager),true);assert.equal(canManage(staff),false);
  assert.equal((await loadCases(staff,conn(fixture))).length,4);
  assert.equal((await loadCases(unassigned,conn(fixture))).length,0);

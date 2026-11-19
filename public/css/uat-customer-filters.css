@@ -9,19 +9,19 @@
 .customer-filter-heading strong{display:block;font-size:16px;margin-bottom:4px}
 .customer-clear-filters{text-decoration:none;white-space:nowrap}
 .customer-filter-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px 14px;align-items:end}
-.customer-filter-grid label{display:flex;flex-direction:column;gap:6px;margin:0;color:#283f4f;font-size:13px;font-weight:700}
+.customer-filter-grid label{display:flex;flex-direction:column;gap:6px;margin:0;color:#21435f;font-size:13px;font-weight:700}
 .customer-filter-grid select,.customer-filter-grid input{font:inherit;font-size:14px;min-height:42px;padding:8px 10px;width:100%;min-width:0;border:1px solid #cbd7df;border-radius:9px;background:#fff;color:#182b39}
-.customer-filter-grid select:focus-visible,.customer-filter-grid input:focus-visible{outline:2px solid #e91b26;outline-offset:2px}
+.customer-filter-grid select:focus-visible,.customer-filter-grid input:focus-visible{outline:2px solid #2879b5;outline-offset:2px}
 .customer-filter-grid select:disabled{opacity:.55;background:#ecf0f3}
 .customer-date-custom[hidden]{display:none!important}
 .customer-filter-search{margin-top:16px}
-.customer-filter-search>label{display:block;font-size:13px;font-weight:700;color:#283f4f;margin-bottom:6px}
+.customer-filter-search>label{display:block;font-size:13px;font-weight:700;color:#21435f;margin-bottom:6px}
 .customer-filter-search .search-row{display:flex;gap:8px;flex-wrap:wrap}
 .customer-filter-search .search-row input{min-width:200px;flex:1 1 250px}
 .customer-filter-search .search-row button{min-height:42px;white-space:nowrap}
 .customer-filter-error{padding:10px 12px;margin:0 0 14px;background:#fff0f0;border:1px solid #eaa4a4;border-radius:8px;color:#932323}
 .customer-list-filter-help{display:block;margin-top:7px;color:#6a7887;font-size:12px}
-.customer-results-summary{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:10px 2px 12px;color:#283f4f}
+.customer-results-summary{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:10px 2px 12px;color:#21435f}
 .customer-results-summary strong{font-size:15px}
 .customer-results-summary span{color:#657584;font-size:13px}
 .customer-results-card{overflow-x:auto;max-width:100%}
@@ -64,14 +64,14 @@
 /* Daily customer action launcher — compact desktop, touch-friendly mobile. */
 .customer-attention-launcher{margin:14px 0 18px}
 .customer-attention-intro{display:grid;gap:3px;margin:0 2px 12px}
-.customer-attention-intro strong{font-size:17px;color:#203545}
+.customer-attention-intro strong{font-size:17px;color:#173e65}
 .customer-attention-intro small{font-size:13px;color:#657585}
 .customer-attention-actions{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
-.customer-attention-action{display:flex;flex-direction:column;justify-content:center;min-height:86px;gap:6px;padding:14px 15px;border:1px solid #cbd9e3;border-left:4px solid #d4e0e8;border-radius:12px;background:#fff;color:#203545;text-decoration:none;transition:box-shadow .12s ease,border-color .12s ease}
+.customer-attention-action{display:flex;flex-direction:column;justify-content:center;min-height:86px;gap:6px;padding:14px 15px;border:1px solid #cbd9e3;border-left:4px solid #d4e0e8;border-radius:12px;background:#fff;color:#173e65;text-decoration:none;transition:box-shadow .12s ease,border-color .12s ease}
 .customer-attention-action strong{font-size:14px;line-height:1.25}
 .customer-attention-action small{font-size:12px;line-height:1.3;color:#667785}
-.customer-attention-action:hover,.customer-attention-action:focus-visible{border-color:#e71d2a;box-shadow:0 3px 14px rgba(18,33,48,.09)}
-.customer-attention-action.active{border-left-color:#e71d2a;border-top-color:#e71d2a;border-bottom-color:#e71d2a;border-right-color:#e71d2a;background:#fff7f8}
+.customer-attention-action:hover,.customer-attention-action:focus-visible{border-color:#2879b5;box-shadow:0 3px 14px rgba(18,33,48,.09)}
+.customer-attention-action.active{border-left-color:#2879b5;border-top-color:#2879b5;border-bottom-color:#2879b5;border-right-color:#2879b5;background:#edf6ff}
 .customer-attention-field[hidden]{display:none!important}
 .customer-attention-explanation:not(:empty){margin-top:12px;color:#586f7e;font-size:12px;line-height:1.5}
 .customer-filter-warning{padding:10px 12px;margin-top:14px;border:1px solid #e2c69b;border-radius:9px;background:#fff8e9;color:#694c18;font-size:13px}

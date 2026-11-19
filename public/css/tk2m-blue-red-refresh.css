@@ -537,3 +537,246 @@ body.tk2m-reminder-page .eyebrow {color:#356e9c !important}
 body.tk2m-reminder-page .note {background:#f7fbff !important;border-color:#dae8f3 !important}
 body.tk2m-reminder-page .detail button {background:#22649d !important;color:#fff !important;border-color:#22649d !important}
 body.tk2m-reminder-page .detail button.secondary {background:#fff !important;color:#22649d !important;border-color:#bdd5e7 !important}
+
+/* Review after opening Customers and Fixed Services at a 1130px split-screen.
+ * Keep controls and important actions visible; only wide data tables scroll.
+ */
+body.command-body .command-app,
+body.command-body .command-page {
+  box-sizing:border-box;max-width:100%;min-width:0;
+}
+body.command-body .command-topbar {
+  height:auto;min-height:68px;
+  display:flex;flex-wrap:wrap;align-content:center;
+  gap:8px !important;padding:8px 14px !important;
+}
+body.command-body .command-topbar .icon-button {
+  background:#22649d !important;color:#fff !important;
+  border-color:#22649d !important;
+}
+body.command-body .command-topbar .command-search {
+  flex:1 1 240px;min-width:160px;margin:0;
+}
+body.command-body .command-topbar .top-task-link {
+  background:#f3f8fd !important;color:#224d73 !important;
+  border:1px solid #d5e4f0 !important;
+  white-space:normal;min-width:0;
+}
+body.command-body .command-topbar .approval-top-link {
+  background:#fff5f2 !important;color:#864b35 !important;
+  border-color:#edc8b3 !important;
+}
+body.command-body .command-page {
+  padding:clamp(12px,2vw,26px) !important;
+}
+body.command-body .page-head {
+  display:flex;justify-content:space-between;align-items:center;
+  flex-wrap:wrap;gap:12px;min-width:0;
+}
+body.command-body .page-head>div {min-width:0;flex:1 1 320px;}
+body.command-body .page-head>div p {max-width:78ch;overflow-wrap:anywhere;}
+body.command-body .page-head>.btn {
+  max-width:100%;white-space:normal;flex:0 1 auto;
+}
+body.command-body .report-filters {
+  display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px;
+}
+body.command-body .report-filters>label {
+  min-width:0;flex:1 1 190px;margin:0;
+}
+body.command-body .report-filters>label :is(input,select) {
+  display:block;width:100%;max-width:100%;
+}
+body.command-body .report-filters>.btn {
+  flex:0 0 auto;max-width:100%;min-height:42px;
+}
+body.command-body .command-page>.panel,
+body.command-body .command-page>.card,
+body.command-body .command-page>.customer-results-card {
+  box-sizing:border-box;max-width:100%;min-width:0;
+}
+body.command-body .table-wrap {
+  display:block;box-sizing:border-box;
+  width:100%;max-width:100%;min-width:0;
+  overflow-x:auto;overscroll-behavior-x:contain;
+}
+body.command-body .table-wrap table {width:100%;min-width:780px;}
+body.command-body .customer-visibility-card,
+body.command-body .customer-advanced-filter {
+  background:#fff !important;border:1px solid #d6e4f0 !important;
+  border-radius:12px !important;box-shadow:var(--tk2m-elevation);
+}
+body.command-body .customer-attention-launcher {
+  border-radius:12px;
+}
+body.command-body .customer-attention-action {
+  border-color:#c8ddeb;border-left-color:#4090ca;
+  box-shadow:0 2px 8px rgba(24,67,108,.045);
+}
+body.command-body .customer-attention-action.active {
+  border-color:#4090ca;background:#edf6fe;
+}
+body.command-body .customer-filter-grid {
+  grid-template-columns:repeat(auto-fit,minmax(min(185px,100%),1fr));
+}
+body.command-body .customer-filter-heading,
+body.command-body .customer-visibility-card {
+  min-width:0;
+}
+body.command-body .customer-visibility-actions {
+  min-width:0;max-width:100%;gap:8px;
+}
+@media(max-width:1250px){
+  body.command-body .command-topbar {
+    position:relative;
+  }
+  body.command-body .command-page {padding:14px !important}
+  body.command-body .command-topbar .top-task-link {padding:8px 10px;}
+}
+@media(max-width:740px){
+  body.command-body .command-topbar .command-search {flex-basis:100%;}
+  body.command-body .report-filters>.btn {width:100%;}
+  body.command-body .page-head>.btn {width:100%;text-align:center;}
+}
+
+/* Command Centre reviewed at split-screen width: grids adapt to available
+ * content width, not to full browser viewport (which still includes sidebar).
+ */
+body.command-body .command-hero {
+  display:flex;flex-wrap:wrap;align-items:flex-start;gap:12px;
+}
+body.command-body .command-hero>div:first-child {
+  min-width:0;flex:1 1 340px;
+}
+body.command-body .command-hero .hero-actions {
+  display:flex;flex:0 1 auto;flex-wrap:wrap;gap:8px;
+  align-items:center;max-width:100%;min-width:0;
+}
+body.command-body .command-hero .hero-actions .btn {
+  min-width:0;white-space:normal;
+}
+body.command-body .command-stats {
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(min(156px,100%),1fr)) !important;
+  gap:11px;max-width:100%;min-width:0;
+}
+body.command-body .command-stats>a {
+  min-width:0;border:1px solid #d6e4f0;
+  border-radius:12px;background:#fff;
+  box-shadow:var(--tk2m-elevation);
+  padding:13px;
+}
+body.command-body .command-stats>a span {color:#5d7891;}
+body.command-body .command-stats>a strong {
+  color:#153b64;font-size:clamp(21px,2.4vw,30px);
+}
+body.command-body .command-stats>a.opportunity {
+  border-left:4px solid #348cc3;
+}
+body.command-body .command-stats>a.danger {
+  border-left:4px solid #bd4954;
+}
+body.command-body .command-stats>a.warning {
+  border-left:4px solid #d19547;
+}
+body.command-body .command-grid {
+  grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr)) !important;
+  gap:13px;min-width:0;max-width:100%;
+}
+body.command-body .command-grid>.panel {min-width:0;max-width:100%;}
+body.command-body .global-search {
+  border:1px solid #d6e4f0 !important;
+  border-radius:12px !important;
+}
+body.command-body .command-search-row {
+  display:flex;flex-wrap:wrap;gap:8px;
+}
+body.command-body .command-search-row input {
+  flex:1 1 230px;min-width:0;font-size:14px;
+}
+body.command-body .command-search-row button {
+  flex:0 0 auto;max-width:100%;
+}
+body.command-body .panel-heading-row {display:flex;flex-wrap:wrap;gap:9px;}
+body.command-body .panel-heading-row>div {min-width:0;flex:1 1 190px;}
+
+/* Approval Centre: remove unreadable dark hero and split-width overflow. */
+body.command-body .approval-centre {min-width:0;max-width:100%;gap:14px}
+body.command-body .approval-centre-hero {
+  display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;
+  gap:12px;padding:clamp(14px,2vw,24px);
+  border:1px solid #bfdaee;border-radius:14px;
+  background:linear-gradient(110deg,#e4f1fc,#f7fbff) !important;
+  color:#173e65 !important;box-shadow:var(--tk2m-elevation) !important;
+}
+body.command-body .approval-centre-hero>div:first-child {flex:1 1 250px;min-width:0}
+body.command-body .approval-centre-hero h1 {color:#153b64 !important}
+body.command-body .approval-centre-hero p {color:#456784 !important}
+body.command-body .approval-centre-hero .eyebrow {color:#a34355 !important}
+body.command-body .approval-centre-total {
+  min-width:0;flex:0 1 auto;max-width:100%;background:#fff !important;
+  border:1px solid #bed9ed !important;color:#214a70 !important;
+}
+body.command-body .approval-centre-total.has-work {
+  background:#fff9ed !important;border-color:#e7cea0 !important;
+}
+body.command-body .approval-centre-total.has-work :is(span,small,strong) {color:#805917 !important}
+body.command-body .approval-centre-tabs {min-width:0;max-width:100%}
+body.command-body .approval-centre-tabs a.active {background:#215e94 !important;border-color:#215e94 !important}
+body.command-body .approval-card {max-width:100%;min-width:0;border-radius:12px}
+body.command-body .approval-card>header,
+body.command-body .approval-card>footer {flex-wrap:wrap}
+body.command-body .approval-summary-grid {grid-template-columns:repeat(auto-fit,minmax(min(180px,100%),1fr))}
+body.command-body .approval-decision-form {min-width:0;max-width:100%}
+
+/* Library and Deals standalone windows: same usable split-screen proportions. */
+.library-app,.deals-app {min-width:0;max-width:100vw}
+.library-topbar,.deals-head {
+  box-sizing:border-box;display:flex;flex-wrap:wrap;
+  align-items:center;gap:12px;
+}
+.library-topbar>div:first-child,.deals-title {
+  min-width:0;flex:1 1 260px;max-width:100%;
+}
+.library-top-actions,.deals-head-actions {
+  display:flex;flex:1 1 auto;flex-wrap:wrap;
+  justify-content:flex-end;align-items:center;
+  gap:8px;min-width:0;max-width:100%;margin-left:0;
+}
+.library-toolbar,.deals-toolbar {
+  display:grid;min-width:0;max-width:100%;
+  grid-template-columns:minmax(0,1fr);gap:10px;
+}
+.library-search,.deals-search {width:100%;min-width:0;max-width:100%}
+.library-filter-row {
+  display:flex;flex-wrap:wrap;gap:7px;
+  overflow-x:visible;align-items:center;max-width:100%;
+}
+.library-filter-row button {
+  flex:0 0 auto;min-width:0;min-height:34px;
+  white-space:nowrap;padding:6px 11px;
+  border-radius:9px;
+}
+.deals-type-tabs {
+  display:flex;flex-wrap:wrap;gap:7px;
+  justify-content:flex-start;max-width:100%;min-width:0;
+}
+.deals-type-tabs button {
+  min-width:94px;min-height:37px;padding:7px 11px;
+}
+.deals-count {min-width:66px;flex:0 0 auto}
+.library-results,.deals-results {min-width:0;max-width:100%;overflow:auto}
+.library-content {max-width:100%;min-width:0}
+@media(max-width:1199px) {
+  .library-app,.deals-app {padding:10px}
+  .library-topbar,.deals-head {padding:13px}
+  .library-top-actions,.deals-head-actions {justify-content:flex-start}
+  .deals-type-tabs {width:auto;flex:1 1 320px}
+}
+@media(max-width:600px) {
+  .library-app,.deals-app {padding:8px}
+  .library-toolbar,.deals-toolbar {padding:9px}
+  .library-filter-row {justify-content:flex-start}
+  .deals-type-tabs {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));width:100%}
+  .deals-type-tabs button {width:100%;min-width:0;white-space:normal}
+}
