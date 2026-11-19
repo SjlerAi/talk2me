@@ -113,8 +113,13 @@
    if(!body){status.textContent='Type a reply first.';return;}
    busy=true;
    try{
-     const payload=new FormData();payload.set('comment',body);
-     await api('/api/uat/tasks/'+item.id+'/comments',{method:'POST',body:payload});
+     if(item.kind==='legacy_chat'){
+       await api('/api/uat/chat/messages',{method:'POST',
+         body:JSON.stringify({conversation:item.conversation,body})});
+     }else{
+       const payload=new FormData();payload.set('comment',body);
+       await api('/api/uat/tasks/'+item.id+'/comments',{method:'POST',body:payload});
+     }
      status.textContent='Reply sent';form.hidden=true;
      await load();
    }catch(error){status.textContent=error.message;}
@@ -122,13 +127,7 @@
  }
  async function act(type,item,button){
    if(busy)return;
-   if(type==='legacy'){
-     if(typeof window.Talk2MeQuickChat?.open==='function'){
-       close();window.Talk2MeQuickChat.open(item.conversation);
-     }else status.textContent='Conversation temporarily unavailable. Refresh your CRM.';
-     return;
-   }
-   if(type==='reply'){
+   if(type==='legacy'||type==='reply'){
      const el=button.closest('.tk2m-unified-entry');
      const form=el?.querySelector('.tk2m-unified-inline-reply');
      if(form){form.hidden=!form.hidden;if(!form.hidden)form.querySelector('textarea')?.focus();}
