@@ -497,3 +497,52 @@
    grid-column:1/-1!important;justify-content:flex-start!important;
  }
 }
+
+/* Live 970px measured-window acceptance: retain the three concise messages
+   in one horizontal carousel row and never collapse the month grid to zero
+   height when the sidebar is expanded. The calendar remains vertically
+   scrollable, with Outstanding Work still directly below it. */
+@media (min-width: 761px) and (max-width: 1250px) {
+  #talk2me-os.t2m-approved-home-shell .t2m-home-priority-list {
+    grid-template-columns:repeat(3,minmax(0,1fr))!important;
+    min-width:0!important;max-width:100%!important;
+  }
+  #talk2me-os.t2m-approved-home-shell .t2m-home-priority-item {
+    min-width:0!important;max-width:100%!important;
+    overflow:hidden;
+  }
+  #talk2me-os.t2m-approved-home-shell .t2m-home-priority-open strong {
+    overflow:hidden!important;text-overflow:ellipsis!important;
+    white-space:nowrap!important;
+  }
+  #talk2me-os.t2m-approved-home-shell .t2m-home-calendar {
+    grid-template-rows:auto auto auto auto auto!important;
+    overflow-y:auto!important;overflow-x:hidden!important;
+  }
+  #talk2me-os.t2m-approved-home-shell .t2m-home-calendar-layout {
+    height:auto!important;min-height:610px!important;
+    grid-template-columns:minmax(0,1fr)!important;
+    grid-template-rows:minmax(380px,auto) minmax(210px,auto)!important;
+    align-items:stretch;
+  }
+  #talk2me-os.t2m-approved-home-shell .t2m-home-month {
+    min-height:380px!important;min-width:0!important;
+  }
+  #talk2me-os.t2m-approved-home-shell .t2m-home-agenda {
+    min-height:210px!important;min-width:0!important;
+  }
+}
+@media (max-width: 760px) {
+  #talk2me-os.t2m-approved-home-shell .t2m-home-calendar {
+    grid-template-rows:auto auto auto auto auto!important;
+    overflow-y:auto!important;overflow-x:hidden!important;
+  }
+  #talk2me-os.t2m-approved-home-shell .t2m-home-calendar-layout {
+    height:auto!important;min-height:540px!important;
+    grid-template-columns:minmax(0,1fr)!important;
+    grid-template-rows:minmax(320px,auto) minmax(200px,auto)!important;
+  }
+  #talk2me-os.t2m-approved-home-shell .t2m-home-month {
+    min-height:320px!important;min-width:0!important;
+  }
+}

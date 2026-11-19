@@ -79,4 +79,7 @@ assert.match(approvedCss,/#talk2me-os\.t2m-approved-home-shell \.t2m-home-priori
 assert.match(approvedCss,/grid-template-columns:minmax\(0,1fr\)!important;/,'priority cards/calendar must fit narrow OS workspace');
 assert.match(approvedCss,/grid-template-rows:auto auto auto auto minmax\(0,1fr\)!important;/,'My Day five content rows required');
 assert.match(approvedShell,/if\(isStaging\)\{ %>data-tk2m-preview="1"/,'only staging receives preview data flag');
+assert.ok(approvedCss.includes('grid-template-columns:repeat(3,minmax(0,1fr))!important;'),'3 concise communication cards must stay on a horizontal row');
+assert.match(approvedCss,/grid-template-rows:minmax\(380px,auto\) minmax\(210px,auto\)!important;/,'month and outstanding panel must not collapse at 970px');
+assert.ok(approvedCss.includes('min-height:380px!important;'),'visible month required in desktop split-screen');
 console.log('TK2M_APPROVED_BLUE_RED_THEME_GATE_PASS full_documents='+full.length+' all_templates='+templates.length);
