@@ -780,3 +780,89 @@ body.command-body .approval-decision-form {min-width:0;max-width:100%}
   .deals-type-tabs {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));width:100%}
   .deals-type-tabs button {width:100%;min-width:0;white-space:normal}
 }
+
+/* Inquiry and new-contact reports: the old unstyled totals row was displaying
+   "Total30 Open5" rather than five readable metric cards at split-screen widths. */
+body.command-body .stats-grid.report-stats {
+  display:grid !important;
+  grid-template-columns:repeat(auto-fit,minmax(min(145px,100%),1fr)) !important;
+  align-items:stretch !important;
+  gap:10px !important;
+  margin:13px 0 18px !important;
+  width:100%;max-width:100%;min-width:0;
+}
+body.command-body .report-stats .stat-card {
+  display:grid !important;
+  grid-template-columns:minmax(0,1fr) auto;
+  align-items:center;
+  gap:8px;
+  padding:12px 14px !important;
+  min-width:0;
+  background:#fff !important;
+  border:1px solid #cddfee !important;
+  border-left:4px solid #4092c9 !important;
+  border-radius:12px !important;
+  box-shadow:0 3px 12px rgba(28,78,124,.055);
+}
+body.command-body .report-stats .stat-card span {
+  display:block;color:#486986;font-size:12px;font-weight:800;
+  letter-spacing:0;line-height:1.25;
+}
+body.command-body .report-stats .stat-card strong {
+  display:block;color:#215b8e;font-size:clamp(20px,2vw,28px);
+  line-height:1.1;font-weight:900;
+}
+body.command-body .report-stats .stat-card:nth-child(4) {
+  border-left-color:#b64b59 !important;
+}
+body.command-body .report-stats .stat-card:nth-child(4) strong {
+  color:#ad4051;
+}
+body.command-body .report-filters:has(> .form-grid) {
+  display:grid !important;
+  gap:12px !important;
+  margin:0 0 12px !important;
+  padding:16px !important;
+  border:1px solid #d6e4f0 !important;
+  border-radius:12px !important;
+  background:#fff !important;
+}
+body.command-body .report-filters>.form-grid {
+  display:grid !important;
+  grid-template-columns:repeat(auto-fit,minmax(min(190px,100%),1fr)) !important;
+  width:100%;gap:12px !important;min-width:0;
+}
+body.command-body .report-filters>.form-grid>label {
+  display:grid;gap:5px;min-width:0;color:#244c72;
+  font-size:12px;font-weight:800;
+}
+body.command-body .report-filters>.form-grid>label :is(input,select) {
+  width:100%;max-width:100%;min-width:0;
+  background:#fff;border:1px solid #c9dded;border-radius:9px;
+  color:#1c3e5d;padding:9px 11px;min-height:39px;
+}
+body.command-body .report-filters>.btn {justify-self:start;}
+body.command-body .two-col:has(> .card .table-wrap) {
+  display:grid !important;
+  grid-template-columns:repeat(auto-fit,minmax(min(310px,100%),1fr)) !important;
+  align-items:start;gap:14px !important;
+  min-width:0;max-width:100%;
+}
+body.command-body .two-col>.card {
+  min-width:0;max-width:100%;
+  background:#fff;border:1px solid #d6e4f0;border-radius:12px;
+  padding:14px !important;
+}
+body.command-body .table-wrap {max-width:100%;min-width:0;overflow-x:auto;}
+body.command-body .table-wrap table {min-width:0;width:100%;border-collapse:collapse;}
+body.command-body .table-wrap th {
+  background:#eaf3fb;color:#244b70;font-weight:850;
+}
+body.command-body .table-wrap :is(th,td) {
+  padding:9px 10px;border-bottom:1px solid #e1e9f1;
+  text-align:left;vertical-align:top;
+}
+@media(max-width:740px) {
+  body.command-body .report-filters>.btn {justify-self:stretch;text-align:center;}
+  body.command-body .report-stats .stat-card {padding:11px !important;}
+}
