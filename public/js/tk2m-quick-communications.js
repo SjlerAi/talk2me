@@ -37,26 +37,24 @@
  modal.setAttribute('aria-labelledby','tk2m-quick-title');
  modal.innerHTML=
   '<section class="tk2m-quick-box">'+
-  '<header class="tk2m-quick-red"><h2 id="tk2m-quick-title">SEND MESSAGE / TASK</h2><button type="button" data-tk2m-quick-close aria-label="Close message">×</button></header>'+
+  '<header class="tk2m-quick-red"><h2 id="tk2m-quick-title">SEND COMMUNICATION</h2><button type="button" data-tk2m-quick-close aria-label="Close message">×</button></header>'+
   '<form data-tk2m-quick-form><label class="tk2m-quick-label">To'+
   '<select name="assigned_to" required data-tk2m-quick-recipient><option value="">Choose staff member</option></select></label>'+
-  '<label class="tk2m-quick-label"><span>Message or instruction</span><textarea required maxlength="4000" rows="3" name="message" placeholder="e.g. Bel my asseblief" data-tk2m-quick-text></textarea></label>'+
-  '<label class="tk2m-quick-check"><input type="checkbox" name="action_required" data-tk2m-quick-action><span>Action required (track until complete)</span></label>'+
+  '<label class="tk2m-quick-label"><span>What needs to be done?</span><textarea required maxlength="4000" rows="3" name="message" placeholder="e.g. Bel my asseblief" data-tk2m-quick-text></textarea></label>'+
+
   '<div class="tk2m-quick-bottom"><label class="tk2m-quick-attachment"><span>📎 Attach file (optional)</span><input type="file" data-tk2m-quick-files name="attachments" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv,.txt,.jpg,.jpeg,.png,.webp"></label>'+
   '<button type="submit" class="tk2m-quick-send" data-tk2m-quick-send>Send <span aria-hidden="true">➤</span></button></div>'+
-  '<p class="tk2m-quick-hint">Sends immediately. No automatic deadline. Tasks remain open until completed.</p>'+
+  '<p class="tk2m-quick-hint">Sends immediately. No deadline, priority or extra forms. Follow-up is automatic.</p>'+
   '<p class="tk2m-quick-error" role="alert" data-tk2m-quick-error hidden></p></form></section>';
  document.body.appendChild(modal);
  const form=modal.querySelector('[data-tk2m-quick-form]');
  const select=form.querySelector('[data-tk2m-quick-recipient]');
  const message=form.querySelector('[data-tk2m-quick-text]');
- const action=form.querySelector('[data-tk2m-quick-action]');
  const files=form.querySelector('[data-tk2m-quick-files]');
  const error=form.querySelector('[data-tk2m-quick-error]');
  const send=form.querySelector('[data-tk2m-quick-send]');
  function toggleFiles(){
    const count=files.files?.length||0;
-   if(count)action.checked=true;
    files.closest('.tk2m-quick-attachment')?.classList.toggle('has-files',count>0);
    const text=files.closest('.tk2m-quick-attachment')?.querySelector('span');
    if(text)text.textContent=count?(count+' file'+(count===1?'':'s')+' attached'):'📎 Attach file (optional)';
@@ -81,7 +79,7 @@
    if(briefOpen||sending)return;
    void trackComposeOpen();
    modal.hidden=false;
-   form.reset();error.hidden=true;action.checked=options.actionRequired!==false;
+   form.reset();error.hidden=true;
    toggleFiles();
    const previous=select.value;
    select.innerHTML='<option value="">Choose staff member</option>';
@@ -100,28 +98,23 @@
  form.addEventListener('submit',async event=>{
    event.preventDefault();
    if(sending)return;
-   const person=Number(select.value),text=String(message.value||'').trim(),needsAction=action.checked||(files.files?.length||0)>0;
+   const person=Number(select.value),text=String(message.value||'').trim();
    if(!person||!text){error.textContent='Select a staff member and enter a message.';error.hidden=false;return;}
    if(text.length>4000){error.textContent='Message is too long.';error.hidden=false;return;}
    sending=true;send.disabled=true;send.textContent='Sending…';error.hidden=true;
    try{
-     if(needsAction){
-       const data=new FormData();
-       data.set('assigned_to',String(person));
-       data.set('message',text);
-       const title=text.split(/\r?\n/)[0].trim().slice(0,180)||text.slice(0,180);
-       data.set('title',title);
-       data.set('priority','high');
-       // Intentionally no due_at: an automatic "deadline missed" would be false.
-       for(const file of files.files||[])data.append('attachments',file,file.name);
-       await api('/api/uat/tasks',{method:'POST',body:data});
-     }else{
-       await api('/api/uat/chat/messages',{method:'POST',
-         body:JSON.stringify({conversation:'direct:'+person,body:text})});
-     }
+     // Every new communication uses ONE actionable task record. No optional
+     // message/task distinction and no automatic deadline.
+     const data=new FormData();
+     data.set('assigned_to',String(person));
+     data.set('message',text);
+     data.set('title',text.split(/\r?\n/)[0].trim().slice(0,180)||text.slice(0,180));
+     data.set('priority','high');
+     for(const file of files.files||[])data.append('attachments',file,file.name);
+     await api('/api/uat/tasks',{method:'POST',body:data});
      const name=recipients?.find(p=>p.id===person)?.name||'staff';
      modal.hidden=true;form.reset();toggleFiles();
-     say((needsAction?'Task':'Message')+' sent to '+name);
+     say('Communication sent to '+name);
      window.dispatchEvent(new Event('workspace:refresh'));
    }catch(e){error.textContent=e.message;error.hidden=false;}finally{
      sending=false;send.disabled=false;send.textContent='Send ➤';
@@ -136,13 +129,13 @@
   '<section class="tk2m-brief-card">'+
   '<header class="tk2m-brief-red"><span data-tk2m-brief-time></span><h2 id="tk2m-brief-heading"></h2></header>'+
   '<p class="tk2m-brief-intro" data-tk2m-brief-intro></p>'+
-  '<div class="tk2m-brief-numbers"><article><strong data-tk2m-brief-messages>0</strong><span>Unread messages</span></article><article><strong data-tk2m-brief-tasks>0</strong><span>Open tasks</span></article></div>'+
+  '<div class="tk2m-brief-numbers"><article><strong data-tk2m-brief-messages>0</strong><span>Received & unfinished</span></article><article><strong data-tk2m-brief-tasks>0</strong><span>Sent & unfinished</span></article></div>'+
   '<p class="tk2m-brief-carry" data-tk2m-brief-carry></p>'+
   '<div class="tk2m-brief-list" data-tk2m-brief-list></div>'+
   '<p class="tk2m-brief-error" data-tk2m-brief-error role="alert" hidden></p>'+
-  '<footer class="tk2m-brief-actions"><button type="button" data-tk2m-brief-open="messages">Open messages</button>'+
-  '<button type="button" data-tk2m-brief-open="tasks">Open tasks</button>'+
-  '<button type="button" class="primary" data-tk2m-brief-open="dismiss">Acknowledge & continue</button></footer>'+
+  '<footer class="tk2m-brief-actions"><button type="button" data-tk2m-brief-open="communications">Open Communications</button>'+
+
+  '<button type="button" class="primary" data-tk2m-brief-open="dismiss">Received — continue</button></footer>'+
   '</section>';
  document.body.appendChild(brief);
  const morningOrAfternoon=()=>briefOpen;
@@ -152,21 +145,21 @@
    brief.querySelector('[data-tk2m-brief-time]').textContent=morning?'DAILY START-UP REVIEW':'16:30 DAILY FOLLOW-UP';
    brief.querySelector('#tk2m-brief-heading').textContent=morning?'OUTSTANDING FROM PREVIOUS DAYS':'STILL OUTSTANDING TODAY';
    brief.querySelector('[data-tk2m-brief-intro]').textContent=morning
-    ?'Review yesterday’s unfinished messages and tasks before starting your day.'
-    :'Your single end-of-day reminder. Review what is still unanswered or incomplete.';
+    ?'Yesterday’s communications remain unfinished. Both sender and recipient can review them.'
+    :'Unfinished communications are shown for both sender and recipient.';
    const counts=data.counts||{};
-   brief.querySelector('[data-tk2m-brief-messages]').textContent=String(morning?counts.carriedMessages:counts.unreadMessages||0);
-   brief.querySelector('[data-tk2m-brief-tasks]').textContent=String(morning?counts.carriedTasks:counts.tasks||0);
+   brief.querySelector('[data-tk2m-brief-messages]').textContent=String(morning?(counts.receivedCarried||0):(counts.received||0));
+   brief.querySelector('[data-tk2m-brief-tasks]').textContent=String(morning?(counts.sentCarried||0):(counts.sent||0));
    brief.querySelector('[data-tk2m-brief-carry]').textContent=morning
-    ?'Older items remain in your work lists until actioned.'
-    :'Today: '+(counts.todayMessages||0)+' new unread messages · '+(counts.todayTasks||0)+' new open tasks. Older unfinished work is included above.';
+    ?'Outstanding communications remain in your combined list until completed.'
+    :'Received and sent items requiring attention appear in one Communications list.';
    const list=brief.querySelector('[data-tk2m-brief-list]');
    list.replaceChildren();
    const cutoff=data.day||'';
    const tasks=(data.tasks||[]).filter(x=>!morning||String(x.createdAt||'').slice(0,10)<cutoff).slice(0,4);
    const messages=(data.messages||[]).filter(x=>!morning||String(x.createdAt||'').slice(0,10)<cutoff).slice(0,3);
-   for(const item of tasks)list.appendChild(briefListItem('TASK',item.title,item.sender));
-   for(const item of messages)list.appendChild(briefListItem('MESSAGE',item.preview,item.sender));
+   for(const item of tasks)list.appendChild(briefListItem(item.direction==='sent'?'SENT':'RECEIVED',item.title,item.direction==='sent'?'To '+item.recipient:'From '+item.sender));
+   for(const item of messages)list.appendChild(briefListItem('RECEIVED',item.preview,item.sender));
    brief.querySelector('[data-tk2m-brief-error]').hidden=true;
    brief.hidden=false;
    document.body.classList.add('tk2m-brief-active');
@@ -188,8 +181,7 @@
      await api('/api/tk2m/communications/brief/ack',{method:'POST',body:JSON.stringify({kind})});
      briefOpen=null;brief.hidden=true;document.body.classList.remove('tk2m-brief-active');
      if(where!=='dismiss'){
-       if(where==='messages')window.Talk2MeWidgets?.openChat?.()||document.querySelector('[data-os-app="messages"]')?.click();
-       else window.Talk2MeWidgets?.openTasks?.({scope:'mine',view:'latest'})||document.querySelector('[data-os-app="tasks"]')?.click();
+       window.Talk2MeUnifiedInbox?.open?.();
      }
    }catch(e){errorEl.textContent='Could not record the review: '+e.message;errorEl.hidden=false;}
    finally{

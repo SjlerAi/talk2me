@@ -21,7 +21,7 @@
   <link rel="stylesheet" href="<%= basePath %>/public/css/os-window-geometry.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>">
   <link rel="stylesheet" data-calendar-home-uat href="<%= basePath %>/public/css/calendar-home-uat.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>">
   <% if(isStaging){ %><link rel="stylesheet" href="<%= basePath %>/public/css/tk2m-workspace-preview.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>"><% } %>
-  <% if(isLive){ %><link rel="stylesheet" href="<%= basePath %>/public/css/tk2m-quick-communications.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>"><link rel="stylesheet" href="<%= basePath %>/public/css/tk2m-quick-task-thread.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>"><% } %>
+  <% if(isLive){ %><link rel="stylesheet" href="<%= basePath %>/public/css/tk2m-quick-communications.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>"><link rel="stylesheet" href="<%= basePath %>/public/css/tk2m-unified-communications.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>"><% } %>
   <% if(isStaging){ %>
   <style id="tk2m-myday-focus-critical">
     /* Inline with My Day to keep calendar controls and priority cards aligned
@@ -150,7 +150,7 @@
       <button class="t2m-os-sidebar-toggle" id="os-sidebar-toggle" type="button" aria-label="Collapse application sidebar" aria-expanded="true" title="Collapse application sidebar"><span aria-hidden="true">«</span><strong>Collapse sidebar</strong></button>
       <div class="t2m-os-sidebar-section"><span class="t2m-os-sidebar-label">Work</span>
         <button type="button" data-os-app="queue" aria-label="Queue" title="Queue"><span>▤</span><strong>Queue</strong><b data-badge="queue" <%= status.queueCount ? '' : 'hidden' %>><%= status.queueCount %></b></button>
-        <button type="button" data-os-app="work" aria-label="Work" title="Work"><span>✓</span><strong>Work</strong><b data-badge="work" <%= status.taskCount ? '' : 'hidden' %>><%= status.taskCount %></b></button>
+        <button type="button" data-os-app="work" aria-label="<%= isLive ? 'Communications' : 'Work' %>" title="<%= isLive ? 'Communications' : 'Work' %>"><span>✓</span><strong><%= isLive ? 'Communications' : 'Work' %></strong><b data-badge="work" <%= status.taskCount ? '' : 'hidden' %>><%= status.taskCount %></b></button>
         <button type="button" data-os-route="<%= basePath %>/clients/assignment-centre?view=unassigned" data-route-title="Client Assignment Centre" data-route-icon="◇" aria-label="Unassigned Clients" title="Unassigned Clients"><span>◇</span><strong>Unassigned Clients</strong><b data-badge="unassignedClients" <%= unassignedCount ? '' : 'hidden' %>><%= unassignedCount %></b></button>
         <button type="button" data-os-app="calendar" aria-label="Calendar" title="Calendar"><span>□</span><strong>Calendar</strong></button><button type="button" data-os-app="notes" aria-label="Notes" title="Notes"><span>✎</span><strong>Notes</strong></button><button type="button" data-os-app="calculator" aria-label="Calculator" title="Calculator"><span>#</span><strong>Calculator</strong></button>
       </div>
@@ -241,6 +241,7 @@
   <% } %>
   <% if(isLive){ %>
   <script id="tk2m-quick-communications-inline-bootstrap"><%- include('../public/js/tk2m-quick-communications.js') %></script>
+  <script id="tk2m-unified-communications-inline-bootstrap"><%- include('../public/js/tk2m-unified-communications.js') %></script>
   <script id="tk2m-quick-task-thread-inline-bootstrap"><%- include('../public/js/tk2m-quick-task-thread.js') %></script>
   <script id="tk2m-quick-chat-inline-bootstrap"><%- include('../public/js/tk2m-quick-chat-reply.js') %></script>
   <script id="tk2m-attention-inline-bootstrap"><%- include('../public/js/tk2m-staff-attention.js') %></script>

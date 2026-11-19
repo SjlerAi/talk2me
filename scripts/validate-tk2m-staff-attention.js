@@ -78,7 +78,8 @@ async function main(){
   const route=read('src/routes/tk2m-staff-attention.js');
   const widgets=read('public/js/uat-work-widgets.js');
   assert.match(ui,/acknowledge\('dismiss'\)/);
-  assert.match(ui,/acknowledge\('open'\)/);
+  assert.match(ui,/openButton\.addEventListener\('click', \(\) => acknowledge\('dismiss'\)\)/);
+  assert.match(ui,/Received/);
   assert.match(ui,/window\.setInterval\(refresh, 8000\)/);
   assert.match(ui,/window\.top !== window/);
   assert.match(ui,/event\.key === 'Escape'/);

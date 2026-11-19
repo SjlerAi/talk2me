@@ -312,8 +312,7 @@
           </div>
           <div class="t2m-home-attention-actions">
             <button type="button" data-home-quick-send aria-label="Send a message or task">+ Send</button>
-            <button type="button" data-os-app="messages" aria-label="Open all staff messages">Messages</button>
-            <button type="button" data-os-app="tasks" aria-label="Open outstanding tasks">Tasks</button>
+            <button type="button" data-os-app="messages" aria-label="Open all recent communications">Communications</button>
           </div>
         </section>
         <button type="button" data-home-focus="tasks" data-os-app="tasks" aria-label="Open tasks and follow-ups">

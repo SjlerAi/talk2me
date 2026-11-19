@@ -3,9 +3,15 @@ const express=require('express');
 const db=require('../config/db');
 const {requireAuth}=require('../middleware/auth');
 const {dailyBrief,acknowledgeDailyBrief}=require('../services/tk2m-communications-brief');
+const {listInbox}=require('../services/tk2m-unified-inbox');
 const {trackEvent}=require('../services/usage-telemetry');
 const router=express.Router();
 const enabled=String(process.env.CRM_LIVE_MODE||'').toLowerCase()==='true';
+router.get('/api/tk2m/communications/inbox',requireAuth,async(req,res,next)=>{
+ if(!enabled)return res.sendStatus(404);
+ res.set('Cache-Control','private, no-store');
+ try{res.json(await listInbox(db,req.session.user.id));}catch(error){next(error);}
+});
 router.get('/api/tk2m/communications/people',requireAuth,async(req,res,next)=>{
  if(!enabled)return res.sendStatus(404);
  res.set('Cache-Control','private, no-store');

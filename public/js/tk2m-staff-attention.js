@@ -31,7 +31,7 @@
     '<p class="tk2m-attention-meta" id="tk2m-attention-meta"></p>' +
     '<p class="tk2m-attention-error" id="tk2m-attention-error" aria-live="assertive" hidden></p>' +
     '<div class="tk2m-attention-actions">' +
-    '<button type="button" class="tk2m-attention-open">Reply / Open</button>' +
+    '<button type="button" class="tk2m-attention-open">Received</button>' +
     '<button type="button" class="tk2m-attention-complete" hidden>✓ Complete Task</button>' +
     '</div>' +
     '</div></section>';
@@ -62,13 +62,13 @@
   function display(item) {
     current = item;
     const message = item.kind === 'chat' || item.title === 'New message';
-    heading.textContent = (message ? 'MESSAGE FROM ' : 'TASK FROM ') + String(item.sender || 'Colleague');
+    heading.textContent = 'COMMUNICATION FROM ' + String(item.sender || 'Colleague');
     category.textContent = String(item.title || 'New work').toUpperCase();
     preview.textContent = String(item.preview || 'Open to see the details.');
     const stamp = item.createdAt && new Date(item.createdAt);
     meta.textContent = stamp && !Number.isNaN(stamp.getTime()) ? 'Received: ' + stamp.toLocaleString('en-ZA') : 'New work received';
-    openButton.textContent = message ? 'Reply' : 'Reply / Details';
-    completeButton.hidden = item.kind !== 'task';
+    openButton.textContent = 'Received';
+    completeButton.hidden = true;
     errorNode.hidden = true;
     backdrop.hidden = false;
     document.body.classList.add('tk2m-attention-active');
@@ -194,7 +194,7 @@
   }
   completeButton.addEventListener('click',completeNow);
   closeButton.addEventListener('click', () => acknowledge('dismiss'));
-  openButton.addEventListener('click', () => acknowledge('open'));
+  openButton.addEventListener('click', () => acknowledge('dismiss'));
   document.addEventListener('keydown', event => {
     if (backdrop.hidden) return;
     if (event.key === 'Escape') {

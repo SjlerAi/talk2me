@@ -307,7 +307,11 @@
   function cancelVoice(){if(recorder&&recorder.state==='recording'){cancelRecording=true;recorder.stop();}}
   function updateRecordingUI(){const bar=chatBody.querySelector('[data-recording]'),button=chatBody.querySelector('[data-chat-voice]');if(!recorder||recorder.state!=='recording'){if(bar)bar.hidden=true;if(button)button.classList.remove('is-recording');return;}if(bar)bar.hidden=false;if(button)button.classList.add('is-recording');const elapsed=Math.floor((Date.now()-voiceStarted)/1000),label=chatBody.querySelector('[data-recording-time]');if(label)label.textContent=`Recording ${Math.floor(elapsed/60)}:${String(elapsed%60).padStart(2,'0')} · tap mic to send`;if(elapsed>=180){cancelRecording=false;recorder.stop();}else setTimeout(updateRecordingUI,500);}
 
-  async function openChat(){renderWorkHeader('messages');showWidget(workWidget);try{await refreshBootstrap();chatMessages=[];renderChatShell();if(chatTab==='system')await loadSystem();else await loadConversation(chatConversation);}catch(error){chatBody.innerHTML=`<div class="t2m-chat-empty"><strong>Could not open chat</strong><span>${esc(error.message)}</span></div>`;}clearInterval(chatPoll);chatPoll=setInterval(async()=>{if(chatWidget.hidden||workMode!=='messages')return;try{await refreshBootstrap();if(chatTab!=='system')await loadConversation(chatConversation);else{renderChatShell();await loadSystem();}}catch(_){}},12000);}
+  async function openChat(){
+    if(retireCudoInTk2m && window.Talk2MeUnifiedInbox?.open){
+      workWidget.hidden=true;return window.Talk2MeUnifiedInbox.open();
+    }
+    renderWorkHeader('messages');showWidget(workWidget);try{await refreshBootstrap();chatMessages=[];renderChatShell();if(chatTab==='system')await loadSystem();else await loadConversation(chatConversation);}catch(error){chatBody.innerHTML=`<div class="t2m-chat-empty"><strong>Could not open chat</strong><span>${esc(error.message)}</span></div>`;}clearInterval(chatPoll);chatPoll=setInterval(async()=>{if(chatWidget.hidden||workMode!=='messages')return;try{await refreshBootstrap();if(chatTab!=='system')await loadConversation(chatConversation);else{renderChatShell();await loadSystem();}}catch(_){}},12000);}
 
 
   function formatTaskBytes(bytes){
@@ -698,6 +702,9 @@
   }
 
   async function openTask(id){
+    if(retireCudoInTk2m && window.Talk2MeUnifiedInbox?.open){
+      workWidget.hidden=true;return window.Talk2MeUnifiedInbox.open({focusTaskId:id});
+    }
     if(retireCudoInTk2m && typeof window.Talk2MeQuickTaskThread?.open==='function')
       return window.Talk2MeQuickTaskThread.open(id);
     renderWorkHeader('inbox');clearInterval(chatPoll);showWidget(workWidget);try{const data=await jsonFetch(`/api/uat/tasks/${id}`);taskState.mode='detail';taskState.selected=data;renderTaskDetail(data);}catch(error){taskBody.innerHTML=`<div class="t2m-chat-empty"><strong>Could not open task</strong><span>${esc(error.message)}</span></div>`;}}
@@ -751,7 +758,10 @@
   }
   async function openTaskWidget(prefill={}){
     if(prefill.new && retireCudoInTk2m && window.Talk2MeCommunications?.open)
-      return window.Talk2MeCommunications.open({actionRequired:true});
+      return window.Talk2MeCommunications.open();
+    if(retireCudoInTk2m && window.Talk2MeUnifiedInbox?.open){
+      workWidget.hidden=true;return window.Talk2MeUnifiedInbox.open();
+    }
     renderWorkHeader(prefill.new?'new':'inbox');clearInterval(chatPoll);showWidget(workWidget);try{const requestedView=prefill.view||'latest';const requestedFilter=prefill.filter||'all';const requestedScope=prefill.scope||'mine';const query=new URLSearchParams({scope:requestedScope,view:requestedView,filter:requestedFilter});const data=await jsonFetch(`/api/uat/tasks?${query.toString()}`);taskState={...taskState,...data,scope:data.scope||requestedScope,view:data.view||requestedView,filter:data.filter||requestedFilter};if(prefill.new)renderTaskNew(prefill);else renderTaskList();}catch(error){taskBody.innerHTML=`<div class="t2m-chat-empty"><strong>Could not open Work</strong><span>${esc(error.message)}</span></div>`;}}
 
   async function openConversation(token){
@@ -760,7 +770,13 @@
     chatTab=token==='office'?'office':'people';
     await openChat();
   }
-  window.Talk2MeWidgets={openConversation,openWork:()=>window.Talk2MeOperatingModel?.openWork?.()||openTaskWidget(),openChat,openTasks:openTaskWidget,openTask};
+  window.Talk2MeWidgets={
+    openConversation,
+    openWork:()=>retireCudoInTk2m&&window.Talk2MeUnifiedInbox?.open
+      ?window.Talk2MeUnifiedInbox.open()
+      :window.Talk2MeOperatingModel?.openWork?.()||openTaskWidget(),
+    openChat,openTasks:openTaskWidget,openTask
+  };
   window.addEventListener('click',event=>{
     const taskAdd=event.target.closest?.('[data-home-add-task],[data-home-quick-send]');
     if(taskAdd){event.preventDefault();event.stopImmediatePropagation();
@@ -769,7 +785,7 @@
       else openTaskWidget({new:true});
       return;}
     const openCalendarTask=event.target.closest?.('[data-open-calendar-item]');if(openCalendarTask&&String(openCalendarTask.dataset.openCalendarItem||'').startsWith('task:')){event.preventDefault();event.stopImmediatePropagation();openTask(Number(String(openCalendarTask.dataset.openCalendarItem).split(':')[1]));return;}
-    const taskApp=event.target.closest?.('[data-os-app="work"],[data-os-app="tasks"],[data-os-app="messages"]');if(taskApp){event.preventDefault();event.stopImmediatePropagation();if(taskApp.dataset.osApp==='messages')openChat();else if(taskApp.dataset.osApp==='tasks')openTaskWidget();else if(window.Talk2MeOperatingModel?.openWork)window.Talk2MeOperatingModel.openWork();else openTaskWidget();}
+    const taskApp=event.target.closest?.('[data-os-app="work"],[data-os-app="tasks"],[data-os-app="messages"]');if(taskApp){event.preventDefault();event.stopImmediatePropagation();if(taskApp.dataset.osApp==='messages')openChat();else if(taskApp.dataset.osApp==='tasks')openTaskWidget();else if(retireCudoInTk2m&&window.Talk2MeUnifiedInbox?.open)window.Talk2MeUnifiedInbox.open();else if(window.Talk2MeOperatingModel?.openWork)window.Talk2MeOperatingModel.openWork();else openTaskWidget();}
   },true);
 
   refreshBootstrap().catch(()=>{});
