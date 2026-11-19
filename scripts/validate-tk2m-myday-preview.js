@@ -26,11 +26,12 @@ for (const name of ['tasks','reminders','messages','overdue']) {
   assert.ok(calendar.includes('data-home-focus-count="'+name+'"'), 'Missing count '+name);
 }
 assert.match(calendar, /item\.date === state\.selected/, 'Selected-day information must follow calendar selection.');
-assert.match(calendar, /jsonFetch\('\/api\/uat\/chat\/bootstrap'\)/, 'Unread staff messages must use real, permission-gated chat data.');
-assert.match(calendar, /jsonFetch\('\/api\/os\/status'\)/, 'Overdue counts must use logged-in user status.');
+assert.match(calendar, /jsonFetch\('\/api\/tk2m\/communications\/myday'/, 'My Day must use permission-gated unified communications data.');
+assert.match(calendar, /state\.focus\.messages=state\.communications\.length/, 'Daily communication counters must use the authenticated API response.');
+assert.match(calendar, /state\.focus\.overdue=state\.outstandingTotal/, 'Outstanding work must use the unified communications response.');
 assert.ok(calendar.includes('/api/calendar/events?start='), 'Calendar dates must use current CRM events.');
 assert.match(calendar, /data-os-app="messages"/, 'Messages must open the existing Work chat.');
-assert.match(calendar, /data-os-app="tasks"/, 'Tasks must open the existing Work inbox.');
+assert.match(calendar, /window\.Talk2MeCommunications\?\.open/, 'Task creation must launch the existing unified Work communication panel.');
 assert.match(calendar, /data-home-add-reminder/, 'Existing reminder creation must remain.');
 assert.match(calendar, /data-home-add-task/, 'Existing task creation must remain.');
 assert.match(calendar, /openWorkWindow\(\{/, 'Overdue tasks must remain actionable.');
