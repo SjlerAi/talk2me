@@ -9,7 +9,7 @@
 
   const requestedCategory=new URLSearchParams(window.location.search).get('category');
   const initialCategory=String(requestedCategory||'').trim().slice(0,80)||'all';
-  const state={documents:[],categories:[],suggestedCategories:[],canManage:false,category:initialCategory,search:'',status:'active',selected:null};
+  const state={documents:[],categories:[],suggestedCategories:[],canManage:false,canRestore:false,category:initialCategory,search:'',status:'active',selected:null};
   const grid=app.querySelector('[data-library-grid]');
   const count=app.querySelector('[data-library-count]');
   const resultTitle=app.querySelector('[data-library-result-title]');
@@ -30,6 +30,8 @@
   const adminDialog=document.querySelector('[data-library-admin-dialog]');
   const uploadForm=document.querySelector('[data-library-upload-form]');
   const adminDocuments=document.querySelector('[data-admin-documents]');
+  const archiveTab=document.querySelector('[data-library-archive-tab]');
+  const archiveList=document.querySelector('[data-library-archive-list]');
   const snapshotsList=document.querySelector('[data-snapshot-list]');
   const snapshotMonth=document.querySelector('[data-snapshot-month]');
   const replaceDialog=document.querySelector('[data-library-replace-dialog]');
@@ -135,7 +137,9 @@
     state.categories=data.categories||[];
     state.suggestedCategories=data.suggestedCategories||[];
     state.canManage=Boolean(data.canManage);
+    state.canRestore=Boolean(data.canRestore);
     adminButton.hidden=!state.canManage;
+    if(archiveTab)archiveTab.hidden=!state.canRestore;
     renderFilters();
     render();
     if(state.canManage)renderAdminDocuments();
@@ -210,6 +214,19 @@
     </article>`).join(''):'<div class="library-empty">No documents yet.</div>';
   }
 
+  async function loadArchive(){
+    if(!state.canRestore||!archiveList)return;
+    archiveList.innerHTML='<div class="library-empty">Loading archived files…</div>';
+    const data=await request('/api/uat/library/bootstrap?status=archived');
+    const archived=(data.documents||[]).filter(doc=>doc.status==='archived');
+    archiveList.innerHTML=archived.length?archived.map(doc=>`<article class="library-admin-row">
+      <div><strong>${esc(doc.title)}</strong><small>${esc(doc.category)} · V${doc.versionNumber} · ${esc(doc.originalName)} · ${esc(formatDate(doc.versionCreatedAt))}</small></div>
+      <div class="library-admin-row-actions">
+        ${doc.versionId?`<a href="${esc(fileUrl(doc.versionId,true))}" target="_blank" rel="noopener">Download</a>`:''}
+        <button type="button" class="library-archive-restore" data-library-restore="${doc.id}">Restore for staff</button>
+      </div>
+    </article>`).join(''):'<div class="library-empty">No archived documents. New files will appear here after the next monthly archive.</div>';
+  }
   async function loadSnapshots(){
     if(!state.canManage)return;
     const data=await request('/api/uat/library/snapshots');
@@ -292,6 +309,8 @@
     document.querySelectorAll('[data-admin-tab]').forEach(item=>item.classList.toggle('is-active',item===button));
     document.querySelectorAll('[data-admin-panel]').forEach(panel=>panel.hidden=panel.dataset.adminPanel!==button.dataset.adminTab);
     if(button.dataset.adminTab==='snapshots')loadSnapshots().catch(error=>alert(error.message));
+    if(button.dataset.adminTab==='archive'&&state.canRestore)
+      loadArchive().catch(error=>{archiveList.innerHTML='<div class="library-empty">'+esc(error.message)+'</div>';});
   });
 
   function renderSelectedFiles(){
@@ -332,6 +351,22 @@
     finally{submit.disabled=false;}
   };
 
+  archiveList?.addEventListener('click',async event=>{
+    const restore=event.target.closest('[data-library-restore]');
+    if(!restore||!state.canRestore)return;
+    const id=Number(restore.dataset.libraryRestore);
+    if(!window.confirm('Restore this archived file to the staff Library?'))return;
+    restore.disabled=true;
+    try{
+      await request('/api/uat/library/documents/'+id+'/archive',{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({status:'active',share_with_staff:true})
+      });
+      await load('active');
+      await loadArchive();
+    }catch(error){alert(error.message);}
+    finally{restore.disabled=false;}
+  });
   adminDocuments.addEventListener('click',async event=>{
     const remove=event.target.closest('[data-library-delete]');
     if(remove){await deleteDocument(Number(remove.dataset.libraryDelete)).catch(error=>alert(error.message));return;}
@@ -349,7 +384,7 @@
     if(archive){
       try{
         await request(`/api/uat/library/documents/${archive.dataset.adminArchive}/archive`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:archive.dataset.status})});
-        await load('all');
+        await load('active');
         renderAdminDocuments();
       }catch(error){alert(error.message);}
       return;
@@ -365,7 +400,7 @@
         await request(`/api/uat/library/documents/${doc.id}/meta`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
           title,category,description,access_level:doc.accessLevel,company_favourite:doc.companyFavourite?'1':'0'
         })});
-        await load('all');
+        await load('active');
       }catch(error){alert(error.message);}
     }
   });
@@ -379,7 +414,7 @@
     try{
       await request(`/api/uat/library/documents/${id}/version`,{method:'POST',body:form});
       status.textContent='✓ New version published';
-      await load('all');
+      await load('active');
       setTimeout(()=>replaceDialog.close(),500);
     }catch(error){status.textContent=error.message;}
   };

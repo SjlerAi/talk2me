@@ -90,7 +90,7 @@ assert(ui.includes("method:'DELETE'"), 'Library Delete control must call the per
 assert(ui.includes('Delete "${doc.title}" permanently?'), 'Permanent deletion must require confirmation');
 assert(css.includes('.library-delete{'), 'Library card Delete control must be visibly styled');
 assert(css.includes('.library-admin-row-actions .danger'), 'Admin-list Delete control must use danger styling');
-assert(view.includes('-deals1'), 'Library assets must be cache-busted for the Deals release');
+assert(view.includes('-monthly-archive1'), 'Library assets must be cache-busted for monthly archive release');
 assert(css.includes('@media(max-width:760px)'), 'Library must have phone layout rules');
 assert(css.includes('height:100dvh'), 'Library viewers must be mobile full-screen capable');
 assert(dealsView.includes('data-deals-grid'), 'Dedicated Deals window must expose its own deal grid');
