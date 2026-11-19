@@ -95,7 +95,9 @@
   }
   function openItem(item) {
     if (item.kind === 'chat') {
-      if (typeof window.Talk2MeWidgets?.openConversation === 'function') {
+      if (typeof window.Talk2MeQuickChat?.open === 'function') {
+        window.Talk2MeQuickChat.open(item.conversation);
+      } else if (typeof window.Talk2MeWidgets?.openConversation === 'function') {
         window.Talk2MeWidgets.openConversation(item.conversation);
       } else if (typeof window.Talk2MeWidgets?.openChat === 'function') {
         window.Talk2MeWidgets.openChat();

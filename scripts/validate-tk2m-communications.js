@@ -96,6 +96,11 @@ async function main(){
  assert.match(html,/api\/tk2m\/communications\/brief/);
  assert.match(html,/tk2m-attention-inline-bootstrap/);
  assert.match(html,/tk2m-quick-task-thread-inline-bootstrap/);
+ assert.match(html,/tk2m-quick-chat-inline-bootstrap/);
+ assert.match(read('public/js/tk2m-staff-attention.js'),/Talk2MeQuickChat\.open/);
+ const chatSource=read('public/js/tk2m-quick-chat-reply.js');
+ require('node:vm').compileFunction(chatSource,[]);
+ assert.match(chatSource,/Talk2MeQuickChat=/);
  assert.match(html,/tk2m-quick-task-thread/);
  assert.match(html,/tk2m-quick-communications\.css/);
  assert.match(read('server.js'),/require\('\.\/src\/routes\/tk2m-communications-brief'\)/);

@@ -110,6 +110,9 @@ async function pendingAlerts(db, userId) {
       WHERE n.recipient_staff_id=:staffId AND n.resolved_at IS NULL
         AND n.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
         AND n.id>:archivedWorkflowId
+        -- A new task has its own red alert; suppress the redundant
+        -- 'assigned' workflow event so staff do not get two pop-ups.
+        AND n.event_type<>'assigned'
         AND n.is_read=0 AND a.id IS NULL
       ORDER BY n.created_at DESC,n.id DESC LIMIT 20`, {staffId,archivedWorkflowId:archive.workflowId}
   );

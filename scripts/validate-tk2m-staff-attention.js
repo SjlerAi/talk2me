@@ -51,6 +51,7 @@ async function main(){
         return [[{id:12,type:'task',sender_name:'Johnny',message:'Task',priority:'urgent',created_at:'2026-11-19T06:00:00Z'}]];
       }
       if(sql.includes('FROM staff_task_notifications n')){
+        assert.match(sql,/n\.event_type<>'assigned'/);
         assert.match(sql,/n\.created_at >= DATE_SUB\(NOW\(\), INTERVAL 7 DAY\)/);
         return [[{id:13,task_id:12,sender_name:'Anzel',notification_text:'Progress',action_required:1,created_at:'2026-11-19T09:00:00Z'}]];
       }
