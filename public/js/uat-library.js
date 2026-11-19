@@ -123,7 +123,9 @@
     const docs=visibleDocs();
     count.textContent=String(docs.length);
     resultTitle.textContent=state.category==='all'?'All files':state.category==='favourites'?'My favourites':state.category;
-    grid.innerHTML=docs.length?docs.map(doc=>cardHtml(doc)).join(''):`<div class="library-empty"><strong>No documents here yet</strong><span>Try another category or search.</span></div>`;
+    const emptyHeading=state.search?'No matching documents':state.category!=='all'?'No published files in this section':'No published documents available';
+    const emptyHelp=state.search?'Try another search.':state.category!=='all'?'Choose All files to see other published documents.':'New uploads appear automatically. Files archived on the 7th are hidden from staff; only Gerda can republish them from Manage Library → Archive.';
+    grid.innerHTML=docs.length?docs.map(doc=>cardHtml(doc)).join(''):`<div class="library-empty"><strong>${emptyHeading}</strong><span>${emptyHelp}</span></div>`;
     const company=state.documents.filter(doc=>doc.companyFavourite&&doc.status==='active').slice(0,8);
     featured.hidden=!company.length;
     featuredGrid.innerHTML=company.map(doc=>cardHtml(doc,{compact:true})).join('');
