@@ -283,3 +283,16 @@
 .t2m-tk2m-test-shell .t2m-home-priority-carousel .t2m-home-priority-arrow[hidden]{
  display:none!important
 }
+
+/* One compact horizontal row for the four My Day metric counters. */
+.t2m-tk2m-test-shell .t2m-home-focus>button{
+ min-height:43px!important;height:43px!important;
+ padding:5px 10px!important;gap:5px!important;
+ grid-template-columns:minmax(0,1fr) auto!important;
+ grid-template-rows:1fr!important;
+}
+.t2m-tk2m-test-shell .t2m-home-focus>button>small{display:none!important}
+.t2m-tk2m-test-shell .t2m-home-focus>button>strong{font-size:20px!important}
+@media(max-width:650px){
+ .t2m-tk2m-test-shell .t2m-home-focus>button{height:45px!important;min-height:45px!important}
+}
