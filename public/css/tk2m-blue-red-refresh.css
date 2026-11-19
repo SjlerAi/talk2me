@@ -990,3 +990,33 @@ body.command-body .report-filters>.btn {
     min-height:34px;white-space:normal;
   }
 }
+
+/* Second signed-in Edge visual pass: the legacy Command container can be wider
+   than a 970px split-screen. Explicitly cap only the Staff heading and roster
+   to the available viewport so both card columns and Owner actions remain visible. */
+@media (max-width: 1100px) {
+  body.command-body .tk2m-staff-roster-head,
+  body.command-body .tk2m-staff-roster.table-card {
+    box-sizing:border-box !important;
+    width:calc(100vw - 100px) !important;
+    max-width:calc(100vw - 100px) !important;
+    min-width:0 !important;
+  }
+  body.command-body .tk2m-staff-roster-head {
+    display:flex !important;flex-wrap:wrap !important;
+    align-items:flex-start !important;gap:10px !important;
+  }
+  body.command-body .tk2m-staff-roster-head>div {
+    min-width:0;flex:1 1 330px;
+  }
+  body.command-body .tk2m-staff-roster-head>a {
+    flex:0 1 auto;min-width:0;max-width:100%;
+    white-space:normal;text-align:center;
+  }
+  body.command-body .tk2m-staff-roster tbody {
+    grid-template-columns:repeat(auto-fit,minmax(min(310px,100%),1fr)) !important;
+  }
+  body.command-body .tk2m-staff-roster .staff-cell strong {
+    overflow-wrap:anywhere;
+  }
+}
