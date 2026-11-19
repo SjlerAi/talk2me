@@ -638,3 +638,64 @@ body.command-body .customer-visibility-actions {
   body.command-body .report-filters>.btn {width:100%;}
   body.command-body .page-head>.btn {width:100%;text-align:center;}
 }
+
+/* Command Centre reviewed at split-screen width: grids adapt to available
+ * content width, not to full browser viewport (which still includes sidebar).
+ */
+body.command-body .command-hero {
+  display:flex;flex-wrap:wrap;align-items:flex-start;gap:12px;
+}
+body.command-body .command-hero>div:first-child {
+  min-width:0;flex:1 1 340px;
+}
+body.command-body .command-hero .hero-actions {
+  display:flex;flex:0 1 auto;flex-wrap:wrap;gap:8px;
+  align-items:center;max-width:100%;min-width:0;
+}
+body.command-body .command-hero .hero-actions .btn {
+  min-width:0;white-space:normal;
+}
+body.command-body .command-stats {
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(min(156px,100%),1fr)) !important;
+  gap:11px;max-width:100%;min-width:0;
+}
+body.command-body .command-stats>a {
+  min-width:0;border:1px solid #d6e4f0;
+  border-radius:12px;background:#fff;
+  box-shadow:var(--tk2m-elevation);
+  padding:13px;
+}
+body.command-body .command-stats>a span {color:#5d7891;}
+body.command-body .command-stats>a strong {
+  color:#153b64;font-size:clamp(21px,2.4vw,30px);
+}
+body.command-body .command-stats>a.opportunity {
+  border-left:4px solid #348cc3;
+}
+body.command-body .command-stats>a.danger {
+  border-left:4px solid #bd4954;
+}
+body.command-body .command-stats>a.warning {
+  border-left:4px solid #d19547;
+}
+body.command-body .command-grid {
+  grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr)) !important;
+  gap:13px;min-width:0;max-width:100%;
+}
+body.command-body .command-grid>.panel {min-width:0;max-width:100%;}
+body.command-body .global-search {
+  border:1px solid #d6e4f0 !important;
+  border-radius:12px !important;
+}
+body.command-body .command-search-row {
+  display:flex;flex-wrap:wrap;gap:8px;
+}
+body.command-body .command-search-row input {
+  flex:1 1 230px;min-width:0;font-size:14px;
+}
+body.command-body .command-search-row button {
+  flex:0 0 auto;max-width:100%;
+}
+body.command-body .panel-heading-row {display:flex;flex-wrap:wrap;gap:9px;}
+body.command-body .panel-heading-row>div {min-width:0;flex:1 1 190px;}
