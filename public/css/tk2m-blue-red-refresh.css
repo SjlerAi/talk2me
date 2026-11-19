@@ -924,3 +924,69 @@ body.command-body .report-filters>.btn {
     grid-template-columns:repeat(2,minmax(0,1fr)) !important;
   }
 }
+
+/* Staff roster: keep all seven fields and Owner actions visible in a half-width
+   Edge window instead of sending Open / Deactivate / Delete off the screen. */
+@media (max-width: 1150px) {
+  body.command-body .tk2m-staff-roster.table-card {
+    overflow:visible !important;
+    padding:12px !important;
+    min-width:0;max-width:100%;
+  }
+  body.command-body .tk2m-staff-roster .data-table {
+    display:block !important;
+    width:100% !important;min-width:0 !important;max-width:100% !important;
+  }
+  body.command-body .tk2m-staff-roster thead {display:none !important;}
+  body.command-body .tk2m-staff-roster tbody {
+    display:grid !important;
+    grid-template-columns:repeat(auto-fit,minmax(min(360px,100%),1fr)) !important;
+    align-items:start;gap:12px;width:100%;min-width:0;
+  }
+  body.command-body .tk2m-staff-roster tbody tr {
+    display:grid !important;
+    grid-template-columns:minmax(0,1fr) !important;
+    gap:0;padding:12px 14px;
+    border:1px solid #cadfec !important;
+    border-radius:13px !important;
+    background:#fff !important;
+    box-shadow:0 3px 12px rgba(21,72,120,.055);
+    min-width:0;max-width:100%;
+  }
+  body.command-body .tk2m-staff-roster tbody td {
+    display:flex !important;align-items:flex-start;
+    gap:8px;padding:7px 0 !important;
+    border-bottom:1px solid #e9f0f6 !important;
+    width:100%;min-width:0;
+    overflow-wrap:anywhere;word-break:normal;
+  }
+  body.command-body .tk2m-staff-roster tbody td:first-child {
+    border-bottom:1px solid #d7e6f3 !important;
+    padding-bottom:11px !important;
+  }
+  body.command-body .tk2m-staff-roster tbody td:not(:first-child)::before {
+    content:attr(data-label);
+    flex:0 0 76px;
+    color:#5e7690;font-size:11px;font-weight:850;line-height:1.4;
+    text-transform:none;
+  }
+  body.command-body .tk2m-staff-roster tbody td:last-child {
+    display:block !important;border-bottom:0 !important;
+    padding-bottom:0 !important;
+  }
+  body.command-body .tk2m-staff-roster tbody td:last-child::before {
+    display:block !important;margin-bottom:7px;
+  }
+  body.command-body .tk2m-staff-roster tbody td:last-child>div {
+    max-width:100%;min-width:0;justify-content:flex-start;
+  }
+  body.command-body .tk2m-staff-roster .staff-cell {
+    min-width:0;align-items:center;
+  }
+  body.command-body .tk2m-staff-roster .staff-cell>div {
+    min-width:0;
+  }
+  body.command-body .tk2m-staff-roster .btn.small {
+    min-height:34px;white-space:normal;
+  }
+}
