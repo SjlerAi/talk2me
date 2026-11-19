@@ -697,7 +697,10 @@
     taskBody.querySelector('[data-task-cancel]').onclick=()=>openTaskWidget();
   }
 
-  async function openTask(id){renderWorkHeader('inbox');clearInterval(chatPoll);showWidget(workWidget);try{const data=await jsonFetch(`/api/uat/tasks/${id}`);taskState.mode='detail';taskState.selected=data;renderTaskDetail(data);}catch(error){taskBody.innerHTML=`<div class="t2m-chat-empty"><strong>Could not open task</strong><span>${esc(error.message)}</span></div>`;}}
+  async function openTask(id){
+    if(retireCudoInTk2m && typeof window.Talk2MeQuickTaskThread?.open==='function')
+      return window.Talk2MeQuickTaskThread.open(id);
+    renderWorkHeader('inbox');clearInterval(chatPoll);showWidget(workWidget);try{const data=await jsonFetch(`/api/uat/tasks/${id}`);taskState.mode='detail';taskState.selected=data;renderTaskDetail(data);}catch(error){taskBody.innerHTML=`<div class="t2m-chat-empty"><strong>Could not open task</strong><span>${esc(error.message)}</span></div>`;}}
   function renderTaskDetail(data){
     renderWorkHeader('inbox');
     fitWidgetMode(taskWidget,taskWidgetKey,{width:840,height:700,minWidth:560,minHeight:420});

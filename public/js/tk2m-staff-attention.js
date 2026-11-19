@@ -105,7 +105,9 @@
       return;
     }
     const id = Number(item.taskId);
-    if (typeof window.Talk2MeWidgets?.openTask === 'function') {
+    if (typeof window.Talk2MeQuickTaskThread?.open === 'function') {
+      window.Talk2MeQuickTaskThread.open(id);
+    } else if (typeof window.Talk2MeWidgets?.openTask === 'function') {
       window.Talk2MeWidgets.openTask(id);
     } else if (typeof window.Talk2MeOS?.openRoute === 'function') {
       window.Talk2MeOS.openRoute(base + '/tasks/' + id, 'Task ' + id, '✓');

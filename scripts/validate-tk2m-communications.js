@@ -36,7 +36,7 @@ async function main(){
  assert.equal(start.prompts.afternoon.pending,false);
  assert.equal(start.tasks[0].title,'Call client');
  assert.equal(start.messages[0].sender,'Johnny');
- assert.equal(x.seen.length,6);
+ assert.equal(x.seen.length,process.env.CRM_LIVE_MODE==='true'?6:5);
  const evening=await dailyBrief(x.db,9,afternoon);
  assert.equal(evening.prompts.afternoon.pending,true);
  assert.equal(evening.prompts.morning.pending,false);
@@ -71,6 +71,13 @@ async function main(){
  assert.match(client,/api\/uat\/tasks/);
  assert.match(client,/api\/tk2m\/communications\/brief\/ack/);
  assert.match(client,/window\.setInterval\(pollBrief,30000\)/);
+ const thread=read('public/js/tk2m-quick-task-thread.js');
+ assert.match(thread,/Talk2MeQuickTaskThread/);
+ assert.match(thread,/status:'completed'/);
+ assert.match(thread,/completion_note:reply\|\|'Completed'/);
+ assert.match(thread,/api\/uat\/tasks\//);
+ assert.match(read('public/js/tk2m-staff-attention.js'),/Talk2MeQuickTaskThread\.open/);
+ assert.match(read('public/js/uat-work-widgets.js'),/return window\.Talk2MeQuickTaskThread\.open\(id\)/);
  assert.doesNotMatch(client,/data\.set\('due_at'/);
  assert.match(read('public/js/calendar-home-uat.js'),/data-home-quick-send/);
  assert.match(read('public/js/uat-work-widgets.js'),/Talk2MeCommunications/);
@@ -88,6 +95,8 @@ async function main(){
  assert.match(html,/tk2m-quick-communication-modal/);
  assert.match(html,/api\/tk2m\/communications\/brief/);
  assert.match(html,/tk2m-attention-inline-bootstrap/);
+ assert.match(html,/tk2m-quick-task-thread-inline-bootstrap/);
+ assert.match(html,/tk2m-quick-task-thread/);
  assert.match(html,/tk2m-quick-communications\.css/);
  assert.match(read('server.js'),/require\('\.\/src\/routes\/tk2m-communications-brief'\)/);
  console.log('TK2M_FAST_COMMUNICATIONS_AND_BRIEFINGS_PASS');
