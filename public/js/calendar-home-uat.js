@@ -446,7 +446,7 @@
       panel.innerHTML=latest.map(item=>{
         const sender=shortStaffName(item.sender);
         const recipient=shortStaffName(item.recipient);
-        const who=item.direction==='team' ? sender+' → '+recipient
+        const who=item.kind==='task' ? sender+' → '+recipient
           :item.direction==='sent' ? 'To '+recipient : 'From '+sender;
         const title=String((item.kind==='task'?item.subject:'')||item.text||'Communication')
           .replace(/\s+/g,' ').trim();
