@@ -147,3 +147,10 @@
   .t2m-tk2m-test-shell .t2m-home-attention-actions{width:100%}
   .t2m-tk2m-test-shell .t2m-home-attention-actions button{flex:1}
 }
+
+/* Small sender starts a single red quick-send dialog; no multi-field task form. */
+.t2m-tk2m-test-shell .t2m-home-attention-actions button[data-home-quick-send]{
+  background:#a41828!important;border-color:#a41828!important;color:#fff!important;
+}
+.t2m-tk2m-test-shell .t2m-home-attention-actions{flex-wrap:wrap}
+@media(max-width:760px){.t2m-tk2m-test-shell .t2m-home-attention-actions{width:100%;flex-wrap:wrap}}
