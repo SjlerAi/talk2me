@@ -8,6 +8,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const db = require('./src/config/db');
 const packageInfo = require('./package.json');
+const workerReleaseIdentity = require('./src/services/worker-release-identity');
 const { startNightlyLogoutWorker, ensureNightlyLogoutSchema } = require('./src/services/nightly-logout');
 
 const app = express();
@@ -101,7 +102,7 @@ registerPublicGet('/api/release', (req, res) => {
   const releasePath = path.join(__dirname, '.talk2me-release.json');
   try {
     const release = JSON.parse(fs.readFileSync(releasePath, 'utf8'));
-    res.json({ ...release, environment: APP_ENVIRONMENT });
+    res.json({ ...release, environment: APP_ENVIRONMENT, ...workerReleaseIdentity });
   } catch (error) {
     res.status(503).json({
       service: 'talk2me-crm',
