@@ -2,6 +2,7 @@
 // Persistent daily briefing receipts: reuse the existing recipient-scoped
 // staff_attention_acknowledgments table; do not modify task/message status.
 const {positiveId}=require('./tk2m-staff-attention');
+const {getArchiveCutoffs}=require('./tk2m-communications-archive');
 const TZ='Africa/Johannesburg';
 function saClock(now=new Date()){
   const parts=new Intl.DateTimeFormat('en-GB',{
@@ -25,13 +26,16 @@ const visibleMessageSql=`
 async function dailyBrief(db,staff,now=new Date()){
  const staffId=positiveId(staff);
  if(!staffId)throw new Error('Invalid staff identity');
- const clock=saClock(now),params={staffId,today:clock.day};
+ const clock=saClock(now);
+ const archive=await getArchiveCutoffs(db,staffId);
+ const params={staffId,today:clock.day,archivedChatId:archive.chatId,archivedTaskId:archive.notificationTaskId};
  const [[tasks]]=await db.execute(
   `SELECT COUNT(*) total,
      COALESCE(SUM(CASE WHEN t.created_at<:today THEN 1 ELSE 0 END),0) carryover,
      COALESCE(SUM(CASE WHEN t.created_at>=:today THEN 1 ELSE 0 END),0) received_today
    FROM staff_tasks t
-   WHERE t.assigned_to=:staffId AND ${activeSql}`,params);
+   WHERE t.assigned_to=:staffId AND ${activeSql}
+     AND (t.type<>'notification' OR t.id>:archivedTaskId)`,params);
  const [[messages]]=await db.execute(
   `SELECT COUNT(*) total,
      COALESCE(SUM(CASE WHEN m.created_at<:today THEN 1 ELSE 0 END),0) carryover,
@@ -39,11 +43,12 @@ async function dailyBrief(db,staff,now=new Date()){
    FROM staff_chat_messages m
    LEFT JOIN staff_chat_reads r
      ON r.staff_id=:staffId AND r.conversation_key=m.conversation_key
-   WHERE ${visibleMessageSql}`,params);
+   WHERE ${visibleMessageSql} AND m.id>:archivedChatId`,params);
  const [taskRows]=await db.execute(
   `SELECT t.id,t.title,t.created_at,t.due_at,t.status,s.full_name sender
    FROM staff_tasks t JOIN staff_users s ON s.id=t.created_by
    WHERE t.assigned_to=:staffId AND ${activeSql}
+     AND (t.type<>'notification' OR t.id>:archivedTaskId)
    ORDER BY t.created_at DESC,t.id DESC LIMIT 6`,params);
  const [messageRows]=await db.execute(
   `SELECT m.id,m.body,m.created_at,s.full_name sender
@@ -51,7 +56,7 @@ async function dailyBrief(db,staff,now=new Date()){
    JOIN staff_users s ON s.id=m.sender_staff_id
    LEFT JOIN staff_chat_reads r
      ON r.staff_id=:staffId AND r.conversation_key=m.conversation_key
-   WHERE ${visibleMessageSql}
+   WHERE ${visibleMessageSql} AND m.id>:archivedChatId
    ORDER BY m.created_at DESC,m.id DESC LIMIT 6`,params);
  const [ackRows]=await db.execute(
   `SELECT source_kind FROM staff_attention_acknowledgments

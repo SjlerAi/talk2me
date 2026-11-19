@@ -1,0 +1,48 @@
+.tk2m-thread-overlay[hidden]{display:none!important}
+.tk2m-thread-overlay{
+ position:fixed!important;inset:0!important;z-index:2147483200!important;
+ display:flex!important;align-items:center!important;justify-content:center!important;
+ padding:12px!important;background:rgba(15,23,42,.55)!important;
+ font:14px Arial,Helvetica,sans-serif!important;color:#202939!important
+}
+.tk2m-thread-window{
+ display:flex!important;flex-direction:column!important;width:min(480px,100%)!important;
+ max-height:calc(100dvh - 24px)!important;border:2px solid #b91c1c!important;
+ background:white!important;border-radius:15px!important;
+ box-shadow:0 22px 80px rgba(0,0,0,.35)!important;overflow:hidden!important
+}
+.tk2m-thread-red{display:flex!important;gap:12px!important;align-items:center!important;justify-content:space-between!important;
+ background:#b91c2a!important;color:white!important;padding:12px 16px!important}
+.tk2m-thread-red h2{font-size:16px!important;line-height:1.3!important;margin:4px 0 0!important;color:white!important;font-weight:900!important}
+.tk2m-thread-red small{color:#fff!important;font-size:11px!important;letter-spacing:.06em!important;font-weight:750!important}
+.tk2m-thread-x{flex:none!important;width:44px!important;height:44px!important;border:0!important;border-radius:9px!important;
+ cursor:pointer!important;font-size:30px!important;line-height:1!important;font-weight:900!important;background:white!important;color:#a71925!important}
+.tk2m-thread-body{padding:13px!important;flex:1!important;min-height:0!important;overflow:auto!important}
+.tk2m-thread-original{background:#fff5f5!important;border:1px solid #fecaca!important;border-radius:10px!important;padding:12px!important}
+.tk2m-thread-original strong{display:block!important;font-size:16px!important;font-weight:800!important;overflow-wrap:anywhere!important}
+.tk2m-thread-original p{font-size:15px!important;margin:7px 0!important;white-space:pre-wrap!important;overflow-wrap:anywhere!important;line-height:1.4!important}
+.tk2m-thread-original small{color:#64748b!important;font-size:11px!important}
+.tk2m-thread-history{display:grid!important;gap:7px!important;margin:12px 0!important}
+.tk2m-thread-entry{background:#f5f7fa!important;border-radius:9px!important;padding:9px 11px!important}
+.tk2m-thread-entry p{margin:0 0 6px!important;font-size:14px!important;white-space:pre-wrap!important;overflow-wrap:anywhere!important}
+.tk2m-thread-entry small{color:#667085!important;font-size:11px!important}
+.tk2m-thread-files{display:flex!important;flex-wrap:wrap!important;gap:8px!important}
+.tk2m-thread-files a{display:block!important;font-size:12px!important;color:#184788!important}
+.tk2m-thread-form{display:grid!important;gap:9px!important;padding:13px!important;border-top:1px solid #e6e9ee!important}
+.tk2m-thread-form label{font-size:12px!important;color:#344054!important;font-weight:750!important}
+.tk2m-thread-form textarea{width:100%!important;box-sizing:border-box!important;min-height:61px!important;max-height:150px!important;
+ border:1px solid #cbd5e1!important;border-radius:9px!important;padding:10px!important;resize:vertical!important;color:#1f2937!important;
+ background:white!important;font:14px Arial,sans-serif!important}
+.tk2m-thread-actions{display:flex!important;gap:8px!important;flex-wrap:wrap!important;justify-content:flex-end!important}
+.tk2m-thread-actions button{border:1px solid #b91c2a!important;border-radius:9px!important;min-height:43px!important;
+ padding:9px 13px!important;font:800 13px Arial,sans-serif!important;cursor:pointer!important}
+.tk2m-thread-send{background:#fff!important;color:#b91c2a!important}
+.tk2m-thread-complete,.tk2m-thread-accept{background:#b91c2a!important;color:#fff!important}
+.tk2m-thread-return{background:#fff!important;color:#b91c2a!important}
+.tk2m-thread-actions button[hidden]{display:none!important}
+.tk2m-thread-actions button:disabled{opacity:.6!important;cursor:wait!important}
+.tk2m-thread-error{color:#b91c1c!important;font-weight:700!important;margin:0!important;font-size:12px!important}
+.tk2m-thread-error[hidden]{display:none!important}
+@media(max-width:600px){.tk2m-thread-overlay{padding:7px!important}.tk2m-thread-window{max-height:calc(100dvh - 14px)!important}
+.tk2m-thread-body{padding:10px!important}.tk2m-thread-form{padding:10px!important}
+.tk2m-thread-actions button{flex:1!important;padding:10px 8px!important}}

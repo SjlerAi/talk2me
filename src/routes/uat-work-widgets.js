@@ -10,6 +10,7 @@ const {prepareNaturalCommand,chooseNaturalCommand,continueNaturalPronoun,natural
 const {sendNaturalCommand}=require('../services/cudo-natural-send');
 const { trackEvent } = require('../services/usage-telemetry');
 const chatAudit = require('../services/staff-chat-audit');
+const {getArchiveCutoffs}=require('../services/tk2m-communications-archive');
 const { getTaskAttachmentDownload } = require('../services/work-dispatch');
 const { ensureWorkOperatingSchema, getMyWorkOverview, getOfficeScorecard, getTargetCentre, saveTargetGoal, getMonthlyImportSummary } = require('../services/work-operating-model');
 
@@ -312,15 +313,15 @@ async function markConversationRead(userId, key, messageId) {
   });
 }
 
-async function conversationSummary(userId, token, name, staffId = null) {
+async function conversationSummary(userId, token, name, staffId = null, archiveChatId = 0) {
   const resolved = staffId ? { key: directKey(userId, staffId) } : { key: 'office' };
   const [[latest]] = await db.execute(`SELECT m.id,m.message_type,m.body,m.created_at,m.sender_staff_id,s.full_name sender_name
     FROM staff_chat_messages m JOIN staff_users s ON s.id=m.sender_staff_id
-    WHERE m.conversation_key=:key ORDER BY m.id DESC LIMIT 1`, { key: resolved.key });
+    WHERE m.conversation_key=:key AND m.id>:archiveChatId ORDER BY m.id DESC LIMIT 1`, { key: resolved.key, archiveChatId });
   const [[read]] = await db.execute('SELECT last_read_message_id FROM staff_chat_reads WHERE staff_id=:userId AND conversation_key=:key LIMIT 1', { userId, key: resolved.key });
   const [[count]] = await db.execute(`SELECT COUNT(*) total FROM staff_chat_messages
-    WHERE conversation_key=:key AND id>:lastRead AND sender_staff_id<>:userId`, {
-    key: resolved.key, lastRead: Number(read?.last_read_message_id || 0), userId
+    WHERE conversation_key=:key AND id>GREATEST(:lastRead,:archiveChatId) AND sender_staff_id<>:userId`, {
+    key: resolved.key, lastRead: Number(read?.last_read_message_id || 0), archiveChatId, userId
   });
   return {
     token,
@@ -458,13 +459,14 @@ router.get('/api/uat/chat/bootstrap', requireAuth, async (req, res, next) => {
     await ensureSchema();
     const userId = Number(req.session.user.id);
     const [staff] = await db.execute('SELECT id,full_name,role FROM staff_users WHERE is_active=1 ORDER BY full_name');
-    const conversations = [await conversationSummary(userId, 'office', 'Office')];
+    const archive=await getArchiveCutoffs(db,userId);
+    const conversations = [await conversationSummary(userId, 'office', 'Office', null, archive.chatId)];
     for (const person of staff) {
       if (Number(person.id) === userId) continue;
-      conversations.push(await conversationSummary(userId, `direct:${person.id}`, person.full_name, person.id));
+      conversations.push(await conversationSummary(userId, `direct:${person.id}`, person.full_name, person.id, archive.chatId));
     }
     const [[system]] = await db.execute(`SELECT COUNT(*) total FROM staff_task_notifications
-      WHERE recipient_staff_id=:userId AND resolved_at IS NULL AND (is_read=0 OR action_required=1)`, { userId });
+      WHERE recipient_staff_id=:userId AND id>:archivedWorkflowId AND resolved_at IS NULL AND (is_read=0 OR action_required=1)`, { userId,archivedWorkflowId:archive.workflowId });
     res.json({
       ok: true,
       user: { id: userId, name: req.session.user.full_name, role: req.session.user.role },
@@ -482,9 +484,10 @@ router.get('/api/uat/chat/messages', requireAuth, async (req, res, next) => {
     const userId = Number(req.session.user.id);
     const conversation = await resolveConversation(userId, req.query.conversation);
     if (!conversation) return res.status(400).json({ ok: false, error: 'Invalid conversation.' });
+    const archive=await getArchiveCutoffs(db,userId);
     const [rows] = await db.execute(`SELECT m.*,s.full_name sender_name
       FROM staff_chat_messages m JOIN staff_users s ON s.id=m.sender_staff_id
-      WHERE m.conversation_key=:key ORDER BY m.id DESC LIMIT 120`, { key: conversation.key });
+      WHERE m.conversation_key=:key AND m.id>:archivedChatId ORDER BY m.id DESC LIMIT 120`, { key: conversation.key,archivedChatId:archive.chatId });
     const messages = rows.reverse().map(row => ({
       id: row.id,
       senderId: row.sender_staff_id,
@@ -602,10 +605,11 @@ router.get('/api/uat/chat/system', requireAuth, async (req, res, next) => {
   try {
     await ensureSchema();
     const userId = Number(req.session.user.id);
+    const archive=await getArchiveCutoffs(db,userId);
     const [alerts] = await db.execute(`SELECT n.id,n.task_id,n.event_type,n.notification_text,n.action_required,n.is_read,n.created_at,t.title,t.priority,t.status
       FROM staff_task_notifications n JOIN staff_tasks t ON t.id=n.task_id
-      WHERE n.recipient_staff_id=:userId AND n.resolved_at IS NULL AND (n.is_read=0 OR n.action_required=1)
-      ORDER BY n.action_required DESC,n.created_at DESC,n.id DESC LIMIT 80`, { userId });
+      WHERE n.recipient_staff_id=:userId AND n.id>:archivedWorkflowId AND n.resolved_at IS NULL AND (n.is_read=0 OR n.action_required=1)
+      ORDER BY n.action_required DESC,n.created_at DESC,n.id DESC LIMIT 80`, { userId, archivedWorkflowId:archive.workflowId });
     res.json({ ok: true, alerts: alerts.map(row => ({
       id: row.id, taskId: row.task_id, type: row.event_type, text: row.notification_text,
       actionRequired: Boolean(row.action_required), isRead: Boolean(row.is_read), createdAt: row.created_at,
@@ -628,6 +632,7 @@ router.get('/api/uat/tasks', requireAuth, async (req, res, next) => {
     await ensureSchema();
     const userId = Number(req.session.user.id);
     const isManager = management(req.session.user);
+    const archive=await getArchiveCutoffs(db,userId);
     const requestedScope = String(req.query.scope || 'mine').toLowerCase();
     const requestedView = String(req.query.view || 'latest').toLowerCase();
     const requestedFilter = String(req.query.filter || 'all').toLowerCase();
@@ -649,6 +654,7 @@ router.get('/api/uat/tasks', requireAuth, async (req, res, next) => {
       : scope === 'team'
         ? '1=1'
         : 't.assigned_to=:userId';
+    const archiveWhere=scope==='mine' ? "AND (t.type<>'notification' OR t.id>:archiveTaskId)" : '';
 
     const activeStatusWhere = `(t.status IN ${ACTIVE_TASKS} OR (t.status='completed' AND w.workflow_state='awaiting_sender_ack'))`;
     const historyFilter = ['new','old','7days','14days','month','history_all'].includes(filter);
@@ -759,9 +765,9 @@ router.get('/api/uat/tasks', requireAuth, async (req, res, next) => {
       CASE WHEN ${attentionExpr} THEN 1 ELSE 0 END needs_attention
       FROM staff_tasks t
       ${joins}
-      WHERE ${where} AND ${statusWhere} AND (${viewWhere}) AND (${filterWhere})
+      WHERE ${where} ${archiveWhere} AND ${statusWhere} AND (${viewWhere}) AND (${filterWhere})
       ORDER BY ${orderBy}
-      LIMIT 160`, { userId });
+      LIMIT 160`, { userId,archiveTaskId:archive.notificationTaskId });
 
     const [countRows] = await db.execute(`SELECT
       COUNT(*) latest,
@@ -786,7 +792,7 @@ router.get('/api/uat/tasks', requireAuth, async (req, res, next) => {
         FROM staff_task_notifications
         GROUP BY task_id
       ) an ON an.task_id=t.id
-      WHERE ${where} AND ${activeStatusWhere}`, { userId });
+      WHERE ${where} ${archiveWhere} AND ${activeStatusWhere}`, { userId,archiveTaskId:archive.notificationTaskId });
 
     const counts = {
       latest: Number(countRows?.[0]?.latest || 0),

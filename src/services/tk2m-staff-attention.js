@@ -1,6 +1,7 @@
 'use strict';
 
 // Popup receipt != read receipt != task completion.
+const {getArchiveCutoffs}=require('./tk2m-communications-archive');
 // Only delivery events from the last seven rolling days may interrupt staff.
 // Older work remains in the existing CRM inboxes and is NEVER auto-acknowledged.
 const RECENT_ALERT_DAYS = 7;
@@ -63,6 +64,7 @@ function composeAlerts(userId, chatRows = [], taskRows = [], updateRows = []) {
 async function pendingAlerts(db, userId) {
   const staffId = positiveId(userId);
   if (!staffId) throw new Error('Invalid staff identity');
+  const archive=await getArchiveCutoffs(db,staffId);
   const [chatRows] = await db.execute(
     `SELECT m.id,m.conversation_key,m.message_type,m.body,m.created_at,
             sender.full_name sender_name
@@ -72,7 +74,7 @@ async function pendingAlerts(db, userId) {
          ON r.staff_id=:staffId AND r.conversation_key=m.conversation_key
       WHERE m.sender_staff_id<>:staffId
         AND m.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
-        AND m.id>COALESCE(r.last_read_message_id,0)
+        AND m.id>GREATEST(COALESCE(r.last_read_message_id,0),:archivedChatId)
         AND (m.conversation_key='office'
              OR m.conversation_key IN (
                SELECT CONCAT('direct:',LEAST(other.id,:staffId),':',GREATEST(other.id,:staffId))
@@ -81,7 +83,7 @@ async function pendingAlerts(db, userId) {
           SELECT 1 FROM staff_attention_acknowledgments a
            WHERE a.staff_id=:staffId AND a.source_kind='chat'
              AND a.source_key=m.conversation_key AND a.source_id>=m.id)
-      ORDER BY m.id DESC LIMIT 40`, {staffId}
+      ORDER BY m.id DESC LIMIT 40`, {staffId,archivedChatId:archive.chatId}
   );
   const [taskRows] = await db.execute(
     `SELECT t.id,t.type,t.title,t.message,t.priority,t.created_at,
@@ -92,8 +94,9 @@ async function pendingAlerts(db, userId) {
          ON a.staff_id=:staffId AND a.source_kind='task' AND a.source_id=t.id
       WHERE t.assigned_to=:staffId AND t.created_by<>:staffId
         AND t.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+        AND (t.type<>'notification' OR t.id>:archivedTaskId)
         AND t.status='unread' AND a.id IS NULL
-      ORDER BY t.created_at DESC,t.id DESC LIMIT 20`, {staffId}
+      ORDER BY t.created_at DESC,t.id DESC LIMIT 20`, {staffId,archivedTaskId:archive.notificationTaskId}
   );
   const [updateRows] = await db.execute(
     `SELECT n.id,n.task_id,n.notification_text,n.action_required,n.created_at,
@@ -106,8 +109,9 @@ async function pendingAlerts(db, userId) {
          ON a.staff_id=:staffId AND a.source_kind='update' AND a.source_id=n.id
       WHERE n.recipient_staff_id=:staffId AND n.resolved_at IS NULL
         AND n.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+        AND n.id>:archivedWorkflowId
         AND n.is_read=0 AND a.id IS NULL
-      ORDER BY n.created_at DESC,n.id DESC LIMIT 20`, {staffId}
+      ORDER BY n.created_at DESC,n.id DESC LIMIT 20`, {staffId,archivedWorkflowId:archive.workflowId}
   );
   return composeAlerts(staffId, chatRows, taskRows, updateRows);
 }

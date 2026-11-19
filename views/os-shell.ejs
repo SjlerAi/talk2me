@@ -21,7 +21,7 @@
   <link rel="stylesheet" href="<%= basePath %>/public/css/os-window-geometry.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>">
   <link rel="stylesheet" data-calendar-home-uat href="<%= basePath %>/public/css/calendar-home-uat.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>">
   <% if(isStaging){ %><link rel="stylesheet" href="<%= basePath %>/public/css/tk2m-workspace-preview.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>"><% } %>
-  <% if(isLive){ %><link rel="stylesheet" href="<%= basePath %>/public/css/tk2m-quick-communications.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>"><% } %>
+  <% if(isLive){ %><link rel="stylesheet" href="<%= basePath %>/public/css/tk2m-quick-communications.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>"><link rel="stylesheet" href="<%= basePath %>/public/css/tk2m-quick-task-thread.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>"><% } %>
   <% if(isStaging){ %>
   <style id="tk2m-myday-focus-critical">
     /* Inline with My Day to keep calendar controls and priority cards aligned
@@ -241,6 +241,7 @@
   <% } %>
   <% if(isLive){ %>
   <script id="tk2m-quick-communications-inline-bootstrap"><%- include('../public/js/tk2m-quick-communications.js') %></script>
+  <script id="tk2m-quick-task-thread-inline-bootstrap"><%- include('../public/js/tk2m-quick-task-thread.js') %></script>
   <script id="tk2m-attention-inline-bootstrap"><%- include('../public/js/tk2m-staff-attention.js') %></script>
   <% } %>
   <script defer src="<%= basePath %>/public/js/tk2m-staff-attention.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>"></script>
