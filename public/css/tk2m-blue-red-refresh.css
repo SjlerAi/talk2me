@@ -1105,3 +1105,10 @@ body.command-body .report-filters>.btn {
    grid-template-columns:76px minmax(0,1fr)!important;
  }
 }
+/* Classic screens should never overlay Staff, Admin, fixed-line or approvals
+   with the old login greeting. My Day's own notification system is unaffected. */
+body.command-body .login-greeting {
+  display:none !important;
+  visibility:hidden !important;
+  pointer-events:none !important;
+}
