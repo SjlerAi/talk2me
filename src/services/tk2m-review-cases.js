@@ -84,7 +84,18 @@ async function loadCases(user,conn=db) {
         version:[m.row_fingerprint,m.source_row_number,m.classification,m.review_status,m.match_domain,
           m.match_reason,m.proposed_client_id,m.proposed_account_id,text(m.updated_at),m.warning_text]}));
   }
-  const [deltas]=await conn.query('SELECT entity_type,entity_id,field_key,source_value,stage_value,source_hash,checked_at FROM tk2m_review_source_deltas WHERE is_current=1 ORDER BY entity_type,entity_id,field_key');
+  // The optional UENT-vs-TK2M snapshot is installed only after a controlled
+  // source reconciliation. Its absence must not take down CRM duplicate,
+  // identity and import reviews or fabricate "no differences" proof.
+  let deltas=[];
+  let sourceComparisonAvailable=true;
+  try {
+    [deltas]=await conn.query('SELECT entity_type,entity_id,field_key,source_value,stage_value,source_hash,checked_at FROM tk2m_review_source_deltas WHERE is_current=1 ORDER BY entity_type,entity_id,field_key');
+  } catch(error) {
+    if(error?.code!=='ER_NO_SUCH_TABLE' ||
+       !String(error.sqlMessage||error.message||'').includes('tk2m_review_source_deltas'))throw error;
+    sourceComparisonAvailable=false;
+  }
   for(const d of deltas) {
     const related=d.entity_type==='client'?byId.get(Number(d.entity_id)):null;
     const members=related?[related]:[];
@@ -104,6 +115,8 @@ async function loadCases(user,conn=db) {
       c.state=c.review?(c.review.source_hash===c.fingerprint?c.review.status:'stale'):'pending';
     }
   }
+  // Route uses this to visibly state when migration parity cannot be certified.
+  visible.sourceComparisonAvailable=sourceComparisonAvailable;
   return visible;
 }
 function summarize(cases) {
