@@ -1,11 +1,11 @@
 {
   "schema": 1,
-  "action": "hold",
+  "action": "deploy",
   "environment": "tk2m-production",
-  "request_id": "tk2m-review-decisions-schema-20261119-postrelease-hold",
-  "release_branch": "release/tk2m-review-decisions-schema-20261119",
-  "release_sha": "f2b10e01da98a0757e9f1c042a2d92ada10a60fb",
+  "request_id": "tk2m-data-review-safe-20261119-a1",
+  "release_branch": "release/tk2m-data-review-safe-20261119",
+  "release_sha": "5c99ba954ad2c7c20dedc54d1e671e2b26f96aba",
   "expected_previous_sha": "f2b10e01da98a0757e9f1c042a2d92ada10a60fb",
   "production_cutover": true,
-  "owner_approved": false
+  "owner_approved": true
 }
