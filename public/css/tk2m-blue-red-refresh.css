@@ -728,3 +728,55 @@ body.command-body .approval-card>header,
 body.command-body .approval-card>footer {flex-wrap:wrap}
 body.command-body .approval-summary-grid {grid-template-columns:repeat(auto-fit,minmax(min(180px,100%),1fr))}
 body.command-body .approval-decision-form {min-width:0;max-width:100%}
+
+/* Library and Deals standalone windows: same usable split-screen proportions. */
+.library-app,.deals-app {min-width:0;max-width:100vw}
+.library-topbar,.deals-head {
+  box-sizing:border-box;display:flex;flex-wrap:wrap;
+  align-items:center;gap:12px;
+}
+.library-topbar>div:first-child,.deals-title {
+  min-width:0;flex:1 1 260px;max-width:100%;
+}
+.library-top-actions,.deals-head-actions {
+  display:flex;flex:1 1 auto;flex-wrap:wrap;
+  justify-content:flex-end;align-items:center;
+  gap:8px;min-width:0;max-width:100%;margin-left:0;
+}
+.library-toolbar,.deals-toolbar {
+  display:grid;min-width:0;max-width:100%;
+  grid-template-columns:minmax(0,1fr);gap:10px;
+}
+.library-search,.deals-search {width:100%;min-width:0;max-width:100%}
+.library-filter-row {
+  display:flex;flex-wrap:wrap;gap:7px;
+  overflow-x:visible;align-items:center;max-width:100%;
+}
+.library-filter-row button {
+  flex:0 0 auto;min-width:0;min-height:34px;
+  white-space:nowrap;padding:6px 11px;
+  border-radius:9px;
+}
+.deals-type-tabs {
+  display:flex;flex-wrap:wrap;gap:7px;
+  justify-content:flex-start;max-width:100%;min-width:0;
+}
+.deals-type-tabs button {
+  min-width:94px;min-height:37px;padding:7px 11px;
+}
+.deals-count {min-width:66px;flex:0 0 auto}
+.library-results,.deals-results {min-width:0;max-width:100%;overflow:auto}
+.library-content {max-width:100%;min-width:0}
+@media(max-width:1199px) {
+  .library-app,.deals-app {padding:10px}
+  .library-topbar,.deals-head {padding:13px}
+  .library-top-actions,.deals-head-actions {justify-content:flex-start}
+  .deals-type-tabs {width:auto;flex:1 1 320px}
+}
+@media(max-width:600px) {
+  .library-app,.deals-app {padding:8px}
+  .library-toolbar,.deals-toolbar {padding:9px}
+  .library-filter-row {justify-content:flex-start}
+  .deals-type-tabs {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));width:100%}
+  .deals-type-tabs button {width:100%;min-width:0;white-space:normal}
+}
