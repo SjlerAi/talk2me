@@ -1,11 +1,11 @@
 {
   "schema": 1,
-  "action": "hold",
+  "action": "deploy",
   "environment": "tk2m-production",
-  "request_id": "tk2m-20261119-compact-myday-arrows-postrelease-hold",
-  "release_branch": "release/tk2m-compact-myday-arrows-20261119",
-  "release_sha": "c943369d9814e022647bc217bae72c69cdb5956e",
+  "request_id": "tk2m-20261119-today-outstanding-action-buttons-a1",
+  "release_branch": "release/tk2m-today-vs-outstanding-20261119",
+  "release_sha": "b2a50b7882637ffcadb078c37b162eb64a969e6a",
   "expected_previous_sha": "c943369d9814e022647bc217bae72c69cdb5956e",
   "production_cutover": true,
-  "owner_approved": false
+  "owner_approved": true
 }
