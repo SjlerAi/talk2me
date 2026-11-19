@@ -85,6 +85,15 @@ async function main(){
  assert.doesNotMatch(client,/data\.set\('due_at'/);
  assert.match(read('public/js/calendar-home-uat.js'),/data-home-quick-send/);
  assert.match(read('public/js/uat-work-widgets.js'),/Talk2MeCommunications/);
+ assert.match(read('public/js/uat-work-widgets.js'),/Talk2MeUnifiedInbox/);
+ assert.match(read('public/js/calendar-home-uat.js'),/Communications<\/button>/);
+ assert.match(html,/tk2m-unified-communications-inline-bootstrap/);
+ assert.match(html,/tk2m-unified-communications\.css/);
+ const unified=read('public/js/tk2m-unified-communications.js');
+ require('node:vm').compileFunction(unified,[]);
+ assert.match(unified,/Communications/);
+ assert.match(unified,/data-tk2m-unified-list/);
+ assert.match(unified,/api\/tk2m\/communications\/inbox/);
  assert.match(read('public/js/uat-work-widgets.js'),/<strong>\+ Send<\/strong>/);
  assert.match(read('public/js/tk2m-staff-attention.js'),/completeNow/);
  assert.match(read('public/js/tk2m-staff-attention.js'),/Received/);

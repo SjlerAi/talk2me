@@ -181,8 +181,7 @@
      await api('/api/tk2m/communications/brief/ack',{method:'POST',body:JSON.stringify({kind})});
      briefOpen=null;brief.hidden=true;document.body.classList.remove('tk2m-brief-active');
      if(where!=='dismiss'){
-       if(where==='messages')window.Talk2MeWidgets?.openChat?.()||document.querySelector('[data-os-app="messages"]')?.click();
-       else window.Talk2MeWidgets?.openTasks?.({scope:'mine',view:'latest'})||document.querySelector('[data-os-app="tasks"]')?.click();
+       window.Talk2MeUnifiedInbox?.open?.();
      }
    }catch(e){errorEl.textContent='Could not record the review: '+e.message;errorEl.hidden=false;}
    finally{
