@@ -78,6 +78,11 @@ const owner={id:1,role:'owner'},manager={id:9,role:'manager'},staff={id:2,role:'
  assert.equal(results[0].verification_status,'crm_unmapped');
  assert.equal(results[0].url,'/customers/101/360');
 
+ // Do not repeat a physical line if the master-aware view yields duplicates.
+ crmRows=[line(101,'SYNTHETIC EXISTING CUSTOMER'),line(101,'SYNTHETIC EXISTING CUSTOMER')];
+ results=await searchMaster({query:'SYNTHETIC EXISTING CUSTOMER',user:owner,basePath:''});
+ assert.equal(results.length,1);
+
  // Keep every legitimate line, even when one person has multiple account lines.
  crmRows=[line(101,'SYNTHETIC TWO LINES'),line(102,'SYNTHETIC TWO LINES',
    {cell_number:'0720000000'})];
