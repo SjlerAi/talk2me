@@ -26,7 +26,7 @@ const samples = [
 const sandbox = {
   module:{exports:{}},
   require(name) {
-    if(name==='../config/db') return {execute:async()=>[samples]};
+    if(name==='../config/db') return {execute:async(sql)=>sql.includes('FROM crm_v_master_clients c')?[[]]:[samples]};
     throw new Error('Unexpected dependency '+name);
   }
 };
