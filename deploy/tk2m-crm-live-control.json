@@ -1,11 +1,11 @@
 {
   "schema": 1,
-  "action": "deploy",
+  "action": "hold",
   "environment": "tk2m-production",
-  "request_id": "tk2m-grouped-review-modern-20261119-a1",
+  "request_id": "tk2m-grouped-review-modern-20261119-postrelease-hold-recovery",
   "release_branch": "release/tk2m-grouped-review-modern-20261119",
   "release_sha": "c48bdafb1f897776d34b2ef0ae9c253f1976f2ed",
-  "expected_previous_sha": "2f00c7915ca7304b4194285295eb46c401015c99",
+  "expected_previous_sha": "c48bdafb1f897776d34b2ef0ae9c253f1976f2ed",
   "production_cutover": true,
-  "owner_approved": true
+  "owner_approved": false
 }
