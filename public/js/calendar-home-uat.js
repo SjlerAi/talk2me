@@ -325,8 +325,8 @@
         <button type="button" data-home-focus="tasks" aria-label="View selected-day calendar actions">
           <span>Calendar actions</span><strong data-home-focus-count="tasks">—</strong><small>Selected day · agenda</small>
         </button>
-        <button type="button" data-home-focus="reminders" aria-label="View reminders for selected day">
-          <span>Reminders</span><strong data-home-focus-count="reminders">—</strong><small>Selected day · calendar</small>
+        <button type="button" data-home-focus="reminders" aria-label="Add a reminder for the selected date">
+          <span>Reminders</span><strong data-home-focus-count="reminders">—</strong><small>Tap to add · selected date</small>
         </button>
         <button type="button" data-home-focus="messages" data-os-app="messages" aria-label="Open recent communications">
           <span>Communications</span><strong data-home-focus-count="messages">—</strong><small>Last 48 hours · open list</small>
@@ -723,10 +723,9 @@
       window.setTimeout(()=>agenda?.classList.remove('is-highlighted'),900);
     });
     workspace.querySelector('[data-home-focus="reminders"]')?.addEventListener('click', () => {
-      const panel = workspace.querySelector('.t2m-home-agenda');
-      panel?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-      panel?.classList.add('is-highlighted');
-      window.setTimeout(() => panel?.classList.remove('is-highlighted'), 900);
+      if(tk2mPreview){openReminder();return;}
+      const panel=workspace.querySelector('.t2m-home-agenda');
+      panel?.scrollIntoView({block:'nearest',behavior:'smooth'});
     });
     workspace.querySelector('[data-home-focus="overdue"]')?.addEventListener('click', () => {
       if(tk2mPreview && window.Talk2MeUnifiedInbox?.open){
