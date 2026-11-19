@@ -416,6 +416,12 @@ const osCustomerActions = require('./src/routes/os-customer-actions');
 app.use('/', osCustomerActions);
 if (BASE_PATH) app.use(BASE_PATH, osCustomerActions);
 
+if (CRM_LIVE_MODE) {
+  const staffAttention = require('./src/routes/tk2m-staff-attention');
+  app.use('/', staffAttention);
+  if (BASE_PATH) app.use(BASE_PATH, staffAttention);
+}
+
 const staffWorkAccess = require('./src/routes/staff-work-access');
 app.use('/', staffWorkAccess);
 if (BASE_PATH) app.use(BASE_PATH, staffWorkAccess);
