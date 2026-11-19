@@ -82,4 +82,16 @@ assert.match(approvedShell,/if\(isStaging\)\{ %>data-tk2m-preview="1"/,'only sta
 assert.ok(approvedCss.includes('grid-template-columns:repeat(3,minmax(0,1fr))!important;'),'3 concise communication cards must stay on a horizontal row');
 assert.match(approvedCss,/grid-template-rows:minmax\(380px,auto\) minmax\(210px,auto\)!important;/,'month and outstanding panel must not collapse at 970px');
 assert.ok(approvedCss.includes('min-height:380px!important;'),'visible month required in desktop split-screen');
+// The running TK2M production config sets BOTH isStaging and isLive.
+// Render the real shell class expression to prevent a ternary silently
+// dropping the production layout when isStaging takes precedence.
+const shellClassTemplate=approvedShell.match(/class="t2m-os-shell[^"]*"/)?.[0];
+assert.ok(shellClassTemplate,'My Day OS shell class declaration missing');
+const liveClass=require('ejs').render(shellClassTemplate,{isStaging:true,isLive:true});
+assert.match(liveClass,/t2m-approved-home-shell/,'running live configuration must receive approved layout');
+const stageClass=require('ejs').render(shellClassTemplate,{isStaging:true,isLive:false});
+assert.doesNotMatch(stageClass,/t2m-approved-home-shell/,'staging must not claim live class');
+assert.match(stageClass,/t2m-tk2m-test-shell/,'staging preview class must remain');
+const liveOnlyClass=require('ejs').render(shellClassTemplate,{isStaging:false,isLive:true});
+assert.match(liveOnlyClass,/t2m-approved-home-shell/);
 console.log('TK2M_APPROVED_BLUE_RED_THEME_GATE_PASS full_documents='+full.length+' all_templates='+templates.length);
