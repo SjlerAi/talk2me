@@ -529,7 +529,7 @@
   });
 
   let results = [], timer, controller;
-  function closeSearch() { searchResults.hidden = true; searchResults.innerHTML = ''; searchInput.setAttribute('aria-expanded', 'false'); }
+  function closeSearch() { controller?.abort(); results = []; searchResults.hidden = true; searchResults.innerHTML = ''; searchInput.setAttribute('aria-expanded', 'false'); }
   function openCustomer(row) {
     if (!row) return; const fixed = row.record_type === 'fixed';
     let destination;
@@ -549,11 +549,11 @@
     try {
       const response = await fetch(`${basePath}/search/all?q=${encodeURIComponent(query)}`, { signal: controller.signal, headers: { Accept: 'application/json' } });
       if (!response.ok) throw new Error('Search failed'); results = await response.json(); searchInput.setAttribute('aria-expanded', 'true');
-      searchResults.innerHTML = results.length ? results.map((row, index) => `<button type="button" class="t2m-os-search-result" data-result="${index}"><span>${row.service_type === 'voip' ? 'V' : row.service_type === 'fixed' ? 'T' : 'C'}</span><span class="t2m-os-search-result-copy"><strong>${esc(row.client_name || 'Unnamed customer')}</strong><span>${esc([row.cell_number || row.branch_name, row.account_number, row.solution_id || row.handset].filter(Boolean).join(' · '))}</span></span><small>${row.service_type === 'voip' ? 'VOIP' : row.service_type === 'fixed' ? 'FIXED' : row.verification_status === 'needs_conflict_review' ? 'REVIEW' : 'MOBILE'}</small></button>`).join('') : `<div class="t2m-os-search-message"><strong>No customer found</strong><br>${esc(query)}</div>`;
+      searchResults.innerHTML = results.length ? results.map((row, index) => `<button type="button" class="t2m-os-search-result" data-result="${index}"><span>${row.service_type === 'voip' ? 'V' : row.service_type === 'fixed' ? 'T' : 'C'}</span><span class="t2m-os-search-result-copy"><strong>${esc(row.client_name || 'Unnamed customer')}</strong><span>${esc([row.cell_number || row.branch_name, row.account_number, row.solution_id || row.handset].filter(Boolean).join(' · '))}</span></span><small>${row.service_type === 'voip' ? 'VOIP' : row.service_type === 'fixed' ? 'FIXED' : row.verification_status === 'needs_conflict_review' || row.verification_status === 'crm_unmapped' ? 'REVIEW' : row.record_type === 'crm' ? 'CRM' : 'MOBILE'}</small></button>`).join('') : `<div class="t2m-os-search-message"><strong>No customer found in your permitted records</strong><br>${esc(query)}</div>`;
       if (results.length === 1 && query.replace(/\D/g, '').length >= 10) openCustomer(results[0]);
     } catch (error) { if (error.name !== 'AbortError') searchResults.innerHTML = '<div class="t2m-os-search-message">Search temporarily unavailable.</div>'; }
   }
-  searchInput.oninput = () => { clearTimeout(timer); const value = searchInput.value.trim(); if (value.length < 2) return closeSearch(); timer = setTimeout(() => search(value), 160); };
+  searchInput.oninput = () => { clearTimeout(timer); closeSearch(); const value = searchInput.value.trim(); if (value.length < 2) return; timer = setTimeout(() => search(value), 160); };
   searchInput.onkeydown = event => { if (event.key === 'Escape') closeSearch(); if (event.key === 'Enter' && results.length) { event.preventDefault(); openCustomer(results[0]); } };
   searchResults.onclick = event => { const node = event.target.closest('[data-result]'); if (node) openCustomer(results[Number(node.dataset.result)]); };
   document.addEventListener('keydown', event => { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); searchInput.focus(); } });
