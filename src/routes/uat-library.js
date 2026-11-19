@@ -781,9 +781,10 @@ router.post('/api/uat/library/documents/:id/archive',requireAuth,requireManager,
     if(status==='active'&&!canRestoreArchived(req.session.user))
       return res.status(403).json({ok:false,error:'Only Gerda can restore archived files.'});
     const [result]=await db.execute(`UPDATE library_documents
-      SET status=:status,updated_by=:userId,updated_at=NOW()
+      SET status=:status,access_level=IF(:shareWithStaff=1,'all',access_level),updated_by=:userId,updated_at=NOW()
       WHERE id=:id AND (status='active' OR :canRestore=1)`,{
       status,userId:Number(req.session.user.id),id,
+      shareWithStaff:status==='active'&&req.body.share_with_staff===true?1:0,
       canRestore:canRestoreArchived(req.session.user)?1:0
     });
     if(!result.affectedRows) return res.sendStatus(404);
