@@ -19,6 +19,15 @@ for(const name of full){
   assert.ok(src.indexOf('data-tk2m-blue-refresh')>src.lastIndexOf('<link rel="stylesheet"'),'theme must follow existing CSS: '+name);
   require('ejs').compile(src,{filename:path.join(root,'views',name)});
 }
+// A full-screen visual release cannot silently leave a broken partial or a
+// stylesheet URL outside the express.static('/public') mount.
+for(const name of templates){
+  const src=fs.readFileSync(path.join(root,'views',name),'utf8');
+  require('ejs').compile(src,{filename:path.join(root,'views',name)});
+  assert.doesNotMatch(src, /<%= basePath %>\/(?:css|js)\//,'broken static asset mount in '+name);
+}
+const clients=fs.readFileSync(path.join(root,'views/clients-admin.ejs'),'utf8');
+assert.match(clients,/\/public\/css\/uat-customer-filters\.css/,'Customers responsive layout CSS required');
 for(const [key,marker] of Object.entries({
   shell:'#talk2me-os .t2m-os-topbar',
   sidebar:'#talk2me-os .t2m-os-sidebar',
