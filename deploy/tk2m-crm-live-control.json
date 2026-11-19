@@ -1,11 +1,11 @@
 {
   "schema": 1,
-  "action": "deploy",
+  "action": "hold",
   "environment": "tk2m-production",
-  "request_id": "tk2m-20261119-two-day-staff-audit-a1",
+  "request_id": "tk2m-20261119-two-day-staff-audit-postrelease-hold",
   "release_branch": "release/tk2m-two-day-staff-audit-20261119",
   "release_sha": "073c4ccf5242f0e4cee5bee6101ea1874d531529",
-  "expected_previous_sha": "1eb5c6297964da8e437332608d6ab8ef5e370415",
+  "expected_previous_sha": "073c4ccf5242f0e4cee5bee6101ea1874d531529",
   "production_cutover": true,
-  "owner_approved": true
+  "owner_approved": false
 }
