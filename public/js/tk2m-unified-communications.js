@@ -29,14 +29,17 @@
   '<small>One place for everything sent and received</small></div>'+
   '<div class="tk2m-unified-head-actions"><button type="button" data-tk2m-unified-send>+ Send</button>'+
   '<button type="button" data-tk2m-unified-close aria-label="Close Communications">×</button></div></header>'+
+  '<nav class="tk2m-unified-views" aria-label="Communication timeframe">'+
+  '<button type="button" data-tk2m-unified-view="today" aria-pressed="true">Today</button>'+
+  '<button type="button" data-tk2m-unified-view="outstanding" aria-pressed="false">Outstanding Work</button></nav>'+
   '<div class="tk2m-unified-status" data-tk2m-unified-status aria-live="polite"></div>'+
   '<div class="tk2m-unified-list" data-tk2m-unified-list></div>'+
-  '<footer class="tk2m-unified-foot">Showing the last 48 hours. Older records remain in the CRM audit.</footer>'+
+  '<footer class="tk2m-unified-foot">Today: communications sent or received today. Outstanding: unfinished instructions from previous days, since 17 Nov 2026. Older records remain in the CRM audit.</footer>'+
   '</section>';
  document.body.appendChild(overlay);
  const list=overlay.querySelector('[data-tk2m-unified-list]');
  const status=overlay.querySelector('[data-tk2m-unified-status]');
- let busy=false,loading=false,lastItems=[],refreshTimer=null,activeScope='mine';
+ let busy=false,loading=false,lastItems=[],refreshTimer=null,activeScope='mine',activeView='today';
  const node=(tag,cls,text)=>{
    const n=document.createElement(tag);if(cls)n.className=cls;
    if(text!==undefined)n.textContent=String(text);return n;
@@ -72,8 +75,8 @@
    const body=node('p','tk2m-unified-message',item.text||item.subject||'Communication');
    wrap.append(header,body);
    const strip=node('div','tk2m-unified-strip');
-   const state=item.kind==='legacy_chat'
-     ?(item.direction==='sent'?'Sent':'Received')
+   const state=item.status==='completed'?'Completed'
+     :item.kind==='legacy_chat'?(item.direction==='sent'?'Sent':'Received')
      :(item.direction==='team'?(item.acknowledged?'Received by '+item.recipient:'Waiting for '+item.recipient)
         :(item.direction==='sent'?(item.acknowledged?'Received by '+item.recipient:'Waiting for '+item.recipient)
         :(item.acknowledged?'Received — outstanding':'Not yet acknowledged')));
@@ -81,13 +84,14 @@
    const actions=node('div','tk2m-unified-entry-actions');
    if(item.kind==='task'){
      if(item.direction==='received'){
-       if(!item.acknowledged)actions.append(actionButton('Received','receipt',item));
-       actions.append(actionButton('Done','complete',item));
+       if(item.status!=='completed'&&!item.acknowledged)actions.append(actionButton('Received','receipt',item));
+       if(item.canComplete)actions.append(actionButton('Done','complete',item));
        actions.append(actionButton('Reply','reply',item));
      }else if(item.direction==='sent'){
        actions.append(actionButton('Reply','reply',item));
      }else if(item.direction==='team'){
-       actions.append(actionButton('Hide from my view','hide-team',item));
+       actions.append(actionButton('Reply','reply',item));
+       if(item.status!=='completed')actions.append(actionButton('Hide from my view','hide-team',item));
      }
    }else{
      actions.append(actionButton('Reply','legacy',item));
@@ -167,12 +171,13 @@
    loading=true;
    const focus=Number(focusTaskId||0);
    try{
-     const data=await api('/api/tk2m/communications/inbox'+(activeScope==='team'?'?scope=team':''));
-     lastItems=Array.isArray(data.items)?data.items:[];
+     const data=await api('/api/tk2m/communications/myday'+(activeScope==='team'?'?scope=team':''));
+     lastItems=Array.isArray(data[activeView])?data[activeView]:[];
      list.replaceChildren();
      for(const item of lastItems)list.appendChild(entry(item));
      if(!lastItems.length)list.append(node('div','tk2m-unified-empty','Nothing outstanding. You are up to date.'));
-     status.textContent=lastItems.length+(activeScope==='team'?' team':'')+' recent communications';
+     const count=activeView==='today'?(data.counts?.today??lastItems.length):(data.counts?.outstanding??lastItems.length);
+     status.textContent=String(count)+(activeView==='today'?' communications today':' outstanding from previous days');
      if(focus)list.querySelector('[data-communication-kind="task"][data-communication-id="'+focus+'"]')?.scrollIntoView({block:'nearest'});
    }catch(error){status.textContent='Could not load Communications: '+error.message;}
    finally{loading=false;}
@@ -185,8 +190,15 @@
        module_name:'communications',route_path:'/workspace',action:'open_inbox'})
    }).catch(()=>{});
  }
+ function selectView(view){
+   activeView=view==='outstanding'?'outstanding':'today';
+   overlay.querySelectorAll('[data-tk2m-unified-view]').forEach(button=>{
+     button.setAttribute('aria-pressed',String(button.dataset.tk2mUnifiedView===activeView));
+   });
+ }
  function open(options={}){
    activeScope=options.scope==='mine'?'mine':options.scope==='team'?'team':(cfg.isManagement?'team':'mine');
+   selectView(options.view);
    labelLauncher();
    trackInboxOpen();
    // The old floating Work window must never sit on top of this one.
@@ -198,6 +210,13 @@
    refreshTimer=window.setInterval(()=>{if(!document.hidden&&!overlay.hidden&&!busy)void load();},20000);
    overlay.querySelector('[data-tk2m-unified-close]').focus();
  }
+ overlay.querySelectorAll('[data-tk2m-unified-view]').forEach(button=>{
+   button.addEventListener('click',()=>{
+     if(busy)return;
+     selectView(button.dataset.tk2mUnifiedView);
+     void load();
+   });
+ });
  overlay.querySelector('[data-tk2m-unified-close]').addEventListener('click',close);
  overlay.querySelector('[data-tk2m-unified-send]').addEventListener('click',()=>{
    close();window.Talk2MeCommunications?.open?.();
