@@ -9,7 +9,7 @@ const cron=fs.readFileSync('scripts/run-tk2m-library-monthly-archive.js','utf8')
 assert.equal(localClock(new Date('2026-12-06T22:00:01Z')).day,'07');
 assert.equal(localClock(new Date('2026-12-06T22:00:01Z')).hour,'00');
 assert.equal(localClock(new Date('2026-12-06T22:00:01Z')).minute,'00');
-assert.equal(localClock(new Date('2026-12-06T22:00:01Z')).cutoff,'2026-12-07 00:00:00');
+assert.equal(localClock(new Date('2026-12-06T22:00:01Z')).cutoff,'2026-11-07 00:00:01');
 assert.equal(localClock(new Date('2026-12-06T21:59:59Z')).day,'06');
 assert.match(source,/function canRestoreArchived/);
 assert.match(source,/Number\(user.id\)===1/);
@@ -62,10 +62,10 @@ async function validate(){
  assert.equal(atMidnight.month,'2026-12');
  assert.equal(atMidnight.archived,44);
  assert.deepEqual(history.slice(0,3),['begin','commit','release']);
- assert.ok(queries.some(q=>q.sql.includes('status=\'active\' AND d.updated_at<:cutoff')));
- assert.ok(queries.some(q=>q.sql.includes("SET status='archived'")));
- assert.ok(queries.some(q=>q.sql.includes('updated_at<:cutoff')));
- assert.ok(queries.some(q=>q.params?.cutoff==='2026-12-07 00:00:00'));
+ assert.ok(queries.some(q=>q.sql.includes("d.status='active' AND COALESCE(v.created_at,d.created_at)<:cutoff")));
+ assert.ok(queries.some(q=>q.sql.includes("SET d.status='archived'")));
+ assert.ok(queries.some(q=>q.sql.includes('COALESCE(v.created_at,d.created_at)<:cutoff')));
+ assert.ok(queries.some(q=>q.params?.cutoff==='2026-11-07 00:00:02'));
  firstRun=false;
  const duplicate=await archiveLibrary(db,{now:new Date('2026-12-06T22:00:22Z')});
  assert.equal(duplicate.alreadyRan,true);
@@ -79,6 +79,6 @@ async function validate(){
  assert.equal(catchUp.archived,44);
  const noCatch=await archiveLibrary(db,{now:new Date('2026-11-19T13:00:00Z')});
  assert.equal(noCatch.due,false);
- console.log('TK2M_LIBRARY_MIDNIGHT_7TH_ARCHIVE_GERDA_ONLY_AND_ROLLBACK_PASS');
+ console.log('TK2M_LIBRARY_ROLLING_30_DAY_ARCHIVE_GERDA_ONLY_AND_ROLLBACK_PASS');
 }
 validate().catch(e=>{console.error(e);process.exitCode=1});
