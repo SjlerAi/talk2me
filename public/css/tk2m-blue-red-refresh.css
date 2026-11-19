@@ -1,0 +1,471 @@
+/*
+ * TK2M Blue / White / Subtle Red — owner + Gerda approved My Day design.
+ * One shared non-destructive visual layer for the OS shell, Command views,
+ * embedded work panels, customer/fixed-line screens, reports and standalone
+ * Library / Deals. Business logic and role permissions are intentionally untouched.
+ * Rollback: remove this final stylesheet link; exact source release remains pinned.
+ */
+:root {
+  --tk2m-navy: #153b64;
+  --tk2m-ink: #18324d;
+  --tk2m-blue: #22649d;
+  --tk2m-blue-hover: #184d7e;
+  --tk2m-sky: #e7f2fc;
+  --tk2m-blue-soft: #f3f8fd;
+  --tk2m-accent: #bb3948;
+  --tk2m-accent-soft: #fff1f3;
+  --tk2m-stroke: #d6e4f0;
+  --tk2m-muted: #65788c;
+  --tk2m-elevation: 0 4px 17px rgba(28, 78, 124, .07);
+  --t2m-charcoal: #153b64;
+  --t2m-charcoal-2: #24527e;
+  --t2m-blue: #22649d;
+  --t2m-red: #bb3948;
+  --t2m-bg: #f3f8fd;
+  --t2m-border: #d6e4f0;
+  --t2m-ink: #18324d;
+  --t2m-muted: #65788c;
+  --red: #bb3948;
+  --dark: #18324d;
+  --blue: #22649d;
+  --bg: #f3f8fd;
+  --border: #d6e4f0;
+  --text: #18324d;
+}
+html { color-scheme: light; }
+body { color: var(--tk2m-ink); }
+:where(a, button, input, select, textarea, summary):focus-visible {
+  outline: 2px solid #347cb6 !important;
+  outline-offset: 2px;
+}
+:where(input, select, textarea):not([type="checkbox"]):not([type="radio"]) {
+  accent-color: var(--tk2m-blue);
+}
+:where(input, textarea, select):disabled { opacity: .72; }
+:where(.panel,.stat,.module-card,.summary-block,.t2m-home-month,.t2m-home-agenda,
+  .library-topbar,.library-toolbar,.library-featured,.library-results,.library-categories,
+  .deals-head,.deals-toolbar,.deals-results) {
+  border-color: var(--tk2m-stroke);
+}
+:where(.badge,.tag,.pill) { border-radius: 999px; }
+
+/* Talk2Me operating-system frame: bright workspace, blue navigation, restrained red. */
+body.t2m-os-body { background: var(--tk2m-blue-soft) !important; }
+#talk2me-os { background: var(--tk2m-blue-soft); color: var(--tk2m-ink); }
+#talk2me-os .t2m-os-topbar {
+  background: #fff !important;
+  color: var(--tk2m-navy) !important;
+  border-bottom: 1px solid var(--tk2m-stroke) !important;
+  box-shadow: 0 2px 13px rgba(27, 76, 122, .055);
+}
+#talk2me-os .t2m-os-brand { color: var(--tk2m-navy) !important; }
+#talk2me-os .t2m-os-brand strong { color: var(--tk2m-navy); font-weight: 900; }
+#talk2me-os .t2m-os-brand small { color: #9e4755 !important; letter-spacing: .07em; }
+#talk2me-os .t2m-os-search>span { color: var(--tk2m-blue); }
+#talk2me-os .t2m-os-search input {
+  border: 1px solid #accce6 !important;
+  border-radius: 12px !important;
+  background: #fff !important;
+  color: #1d344c !important;
+  box-shadow: 0 2px 7px rgba(32,83,132,.045);
+}
+#talk2me-os .t2m-os-search input:focus {
+  border-color: var(--tk2m-blue) !important;
+  box-shadow: 0 0 0 3px rgba(34,100,157,.11) !important;
+}
+#talk2me-os .t2m-os-search-results {
+  background: #fff !important;
+  border: 1px solid var(--tk2m-stroke) !important;
+  box-shadow: 0 14px 35px rgba(16,54,94,.15) !important;
+}
+#talk2me-os .t2m-os-search-result:hover { background: var(--tk2m-blue-soft); }
+#talk2me-os .t2m-os-icon-button,
+#talk2me-os .t2m-os-user-button,
+#talk2me-os .t2m-os-logout,
+#talk2me-os .attendance-user-control {
+  background: #f5faff !important;
+  border: 1px solid var(--tk2m-stroke) !important;
+  color: var(--tk2m-navy) !important;
+  border-radius: 11px !important;
+  box-shadow: none !important;
+}
+#talk2me-os .t2m-os-icon-button:hover,
+#talk2me-os .t2m-os-logout:hover,
+#talk2me-os .attendance-user-control:hover {
+  background: #e6f2fd !important;
+  border-color: #9cc5e6 !important;
+}
+#talk2me-os .t2m-os-badge { background: var(--tk2m-accent) !important; color: #fff !important; }
+
+#talk2me-os .t2m-os-sidebar {
+  background: linear-gradient(180deg,#f6fbff 0%,#e6f3ff 75%,#d7e9fa 100%) !important;
+  color: var(--tk2m-ink) !important;
+  border-right: 1px solid #cbdfee !important;
+}
+#talk2me-os .t2m-os-sidebar-label { color: #617c97 !important; }
+#talk2me-os .t2m-os-sidebar button {
+  color: var(--tk2m-navy) !important;
+  border-radius: 11px !important;
+}
+#talk2me-os .t2m-os-sidebar button:hover,
+#talk2me-os .t2m-os-sidebar button.is-open,
+#talk2me-os .t2m-simple-nav button.is-current {
+  background: #dcecf9 !important;
+  color: var(--tk2m-navy) !important;
+  box-shadow: inset 3px 0 var(--tk2m-blue) !important;
+}
+#talk2me-os .t2m-os-sidebar button>span {
+  color: var(--tk2m-blue) !important;
+}
+#talk2me-os .t2m-os-sidebar button>b {
+  background: var(--tk2m-accent) !important; color: #fff !important;
+}
+#talk2me-os .t2m-os-sidebar-toggle {
+  background: rgba(255,255,255,.55) !important;
+  border: 1px solid #d1e3f2 !important;
+}
+#talk2me-os .t2m-os-launcher {
+  background: #fff !important;
+  border-bottom: 1px solid var(--tk2m-stroke) !important;
+  box-shadow: 0 2px 6px rgba(30,75,120,.025);
+}
+#talk2me-os .t2m-os-launcher button,
+#talk2me-os .t2m-os-launcher-scroll>button,
+#talk2me-os .t2m-os-launcher-arrow {
+  background: #fff !important; color: var(--tk2m-navy) !important;
+  border: 1px solid #d7e5f2 !important; border-radius: 11px !important;
+  box-shadow: 0 2px 5px rgba(34,76,120,.045) !important;
+}
+#talk2me-os .t2m-os-launcher button:hover,
+#talk2me-os .t2m-os-launcher button.is-active {
+  background: #e9f4fe !important;
+  border-color: #95bee1 !important;
+}
+#talk2me-os .t2m-brand-mark {
+  background: #e4f1fc !important;
+  border: 1px solid #bedaf0 !important;
+  color: var(--tk2m-blue) !important;
+}
+#talk2me-os .t2m-os-workspace { background: var(--tk2m-blue-soft) !important; }
+#talk2me-os .t2m-os-taskbar {
+  background: #e7f2fb !important;
+  color: var(--tk2m-navy) !important;
+  border-top: 1px solid #cfe0ee !important;
+}
+#talk2me-os .t2m-os-taskbar-label { color: #456b91 !important; }
+#talk2me-os .t2m-os-taskbar-item {
+  background: #fff !important; color: var(--tk2m-navy) !important;
+  border: 1px solid #c9deef !important;
+  box-shadow: 0 2px 7px rgba(30,75,120,.055);
+}
+#talk2me-os .t2m-os-taskbar-item:hover,
+#talk2me-os .t2m-os-taskbar-item.is-active {
+  background: #eaf4fd !important; border-color: #8cb9dc !important;
+}
+#talk2me-os .t2m-os-window {
+  background: #fff !important;
+  border: 1px solid #cbddea !important;
+  border-radius: 13px !important;
+  box-shadow: 0 17px 45px rgba(16,49,86,.19) !important;
+}
+#talk2me-os .t2m-os-window-titlebar {
+  background: #edf5fc !important; color: var(--tk2m-navy) !important;
+  border-bottom: 1px solid #d2e3f2 !important;
+}
+#talk2me-os .t2m-os-window-title strong,
+#talk2me-os .t2m-os-window-title small { color: var(--tk2m-navy) !important; }
+#talk2me-os .t2m-os-window-controls button {
+  background: #fff !important; border: 1px solid #d2e2f0 !important;
+  color: var(--tk2m-navy) !important;
+}
+#talk2me-os .t2m-os-window-controls button:hover { background: #e1effa !important; }
+#talk2me-os .t2m-os-desk-widget {
+  border: 1px solid #d5e5f0 !important;
+  border-radius: 13px !important; box-shadow: var(--tk2m-elevation);
+}
+#talk2me-os .t2m-os-desk-widget>header {
+  background: #edf5fc !important; color: var(--tk2m-navy) !important;
+}
+#talk2me-os .t2m-os-primary-button {
+  background: var(--tk2m-blue) !important; border-color: var(--tk2m-blue) !important;
+  color: #fff !important;
+}
+#talk2me-os .t2m-os-secondary-button {
+  background: #f3f8fe !important; border-color: #c7ddeb !important;
+  color: var(--tk2m-navy) !important;
+}
+
+/* My Day: same information, balanced blue-first cards with red alerts only. */
+#talk2me-os .t2m-home-calendar {
+  background: var(--tk2m-blue-soft) !important;
+  color: var(--tk2m-ink) !important;
+}
+#talk2me-os .t2m-home-calendar-head h1,
+#talk2me-os .t2m-home-calendar-controls>strong {
+  color: var(--tk2m-navy) !important;
+}
+#talk2me-os .t2m-home-focus>.t2m-home-attention-strip {
+  background: linear-gradient(115deg,#ecf6ff,#f6faff) !important;
+  border: 1px solid #bad7ec !important;
+  border-radius: 13px !important;
+  box-shadow: var(--tk2m-elevation);
+}
+#talk2me-os .t2m-home-attention-copy strong {
+  color: var(--tk2m-navy) !important; font-weight: 900;
+}
+#talk2me-os .t2m-home-attention-copy span { color: #325779 !important; }
+#talk2me-os .t2m-home-attention-actions button {
+  background: #246296 !important; border: 1px solid #246296 !important;
+  color: #fff !important; border-radius: 9px !important;
+  box-shadow: none !important;
+}
+#talk2me-os .t2m-home-attention-actions button[data-home-quick-send] {
+  background: var(--tk2m-accent) !important; border-color: var(--tk2m-accent) !important;
+}
+#talk2me-os .t2m-home-priority-item {
+  background: #fff !important; border: 1px solid #d6e5f1 !important;
+  border-left: 4px solid #54a5dd !important;
+  border-radius: 10px !important; box-shadow: 0 2px 8px rgba(21,72,120,.06);
+}
+#talk2me-os .t2m-home-priority-item:hover {
+  border-color: #9fc5df !important; box-shadow: 0 5px 17px rgba(21,72,120,.10);
+}
+#talk2me-os .t2m-home-priority-who { color: #183a60 !important; }
+#talk2me-os .t2m-home-priority-open strong { color: #20384f !important; }
+#talk2me-os .t2m-home-priority-actions button,
+#talk2me-os .t2m-home-carry-actions button {
+  background: #edf6fe !important; color: var(--tk2m-navy) !important;
+  border: 1px solid #bcd8ec !important; border-radius: 8px !important;
+}
+#talk2me-os .t2m-home-priority-actions button.is-done,
+#talk2me-os .t2m-home-carry-actions button.is-done,
+#talk2me-os .t2m-home-carry-reply-controls .is-send,
+#talk2me-os .t2m-home-priority-reply button {
+  background: #fff !important;
+  border: 1px solid #c77680 !important;
+  color: #a52d3f !important;
+}
+#talk2me-os .t2m-home-priority-actions button.is-done:hover,
+#talk2me-os .t2m-home-carry-actions button.is-done:hover {
+  background: #fff0f1 !important;
+}
+#talk2me-os .t2m-home-priority-reply input {
+  background: #fff !important; border-color: #bdd9ec !important;
+  color: var(--tk2m-ink) !important;
+}
+#talk2me-os .t2m-home-focus>button {
+  background: #fff !important;
+  border: 1px solid #d5e4f0 !important; border-radius: 11px !important;
+  color: #244969 !important; box-shadow: var(--tk2m-elevation);
+}
+#talk2me-os .t2m-home-focus>button>strong {
+  color: var(--tk2m-blue) !important;
+}
+#talk2me-os .t2m-home-focus>button.has-attention>strong {
+  color: #af3446 !important;
+}
+#talk2me-os .t2m-home-calendar-controls>button,
+#talk2me-os .t2m-home-team-filter button,
+#talk2me-os .t2m-home-scope button,
+#talk2me-os .t2m-home-agenda-actions button {
+  border-color: #cbdeed !important;
+  background: #fff !important;
+  color: var(--tk2m-navy) !important;
+}
+#talk2me-os .t2m-home-scope button.is-active,
+#talk2me-os .t2m-home-calendar-controls>button:hover {
+  background: #215e94 !important; color: #fff !important;
+}
+#talk2me-os .t2m-home-month,
+#talk2me-os .t2m-home-agenda,
+#talk2me-os .t2m-home-carry-panel {
+  background: #fff !important;
+  border: 1px solid #d5e5f1 !important;
+  border-radius: 13px !important;
+  box-shadow: var(--tk2m-elevation);
+}
+#talk2me-os .t2m-home-weekdays {
+  background: #edf5fc !important;
+  color: #446888 !important;
+}
+#talk2me-os .t2m-home-day { background: #fff !important; }
+#talk2me-os .t2m-home-day:hover { background: #f1f8ff !important; }
+#talk2me-os .t2m-home-day.is-selected {
+  background: #e4f2ff !important;
+  box-shadow: inset 0 0 0 2px #78b5df !important;
+}
+#talk2me-os .t2m-home-day.is-today .t2m-home-day-top>b {
+  background: #215e94 !important; color: #fff !important;
+}
+#talk2me-os .t2m-home-day-top>em,
+#talk2me-os .t2m-home-agenda>header>b,
+#talk2me-os .t2m-home-carry-header>b {
+  background: var(--tk2m-accent) !important; color: #fff !important;
+}
+#talk2me-os .t2m-home-agenda>header,
+#talk2me-os .t2m-home-carry-header {
+  background: linear-gradient(90deg,#edf6ff,#f9fcff) !important;
+  color: var(--tk2m-navy) !important;
+  border-color: #d6e4f0 !important;
+}
+#talk2me-os .t2m-home-agenda>header strong,
+#talk2me-os .t2m-home-carry-header strong {
+  color: var(--tk2m-navy) !important;
+}
+#talk2me-os .t2m-home-carry-item,
+#talk2me-os .t2m-home-agenda-item {
+  background: #fff !important;
+  border: 1px solid #dce8f2 !important;
+  border-left: 4px solid #4399d1 !important;
+  border-radius: 9px !important;
+}
+#talk2me-os .t2m-home-agenda-item>strong,
+#talk2me-os .t2m-home-carry-subject { color: var(--tk2m-ink) !important; }
+#talk2me-os .t2m-home-reminder-dialog form {
+  background: #fff !important;
+  border: 1px solid #bbd7ea !important;
+}
+#talk2me-os .t2m-home-reminder-dialog header {
+  background: #eaf4fd !important; color: var(--tk2m-navy) !important;
+}
+
+/* Classic Command shell & embedded/legacy CRM screens: modernise without
+ * altering navigation, table columns, form state or task lifecycle.
+ */
+body.command-body { background: var(--tk2m-blue-soft) !important; color: var(--tk2m-ink); }
+body.command-body .command-sidebar {
+  background: linear-gradient(180deg,#f5faff 0%,#e5f2fe 100%) !important;
+  color: var(--tk2m-navy) !important;
+  border-right: 1px solid #cbdded !important;
+}
+body.command-body .command-brand,
+body.command-body .command-brand strong { color: var(--tk2m-navy) !important; }
+body.command-body .command-brand img { filter: none !important; }
+body.command-body .command-brand span { color: #a14454 !important; }
+body.command-body .command-user {
+  background: #fff !important; color: var(--tk2m-ink) !important;
+  border: 1px solid var(--tk2m-stroke); box-shadow: var(--tk2m-elevation);
+}
+body.command-body .command-user span { color: var(--tk2m-muted) !important; }
+body.command-body .command-avatar { background: #246397 !important; }
+body.command-body .command-nav-label { color: #6685a1 !important; }
+body.command-body .command-nav a {
+  color: #24466b !important;
+  border-radius: 10px !important;
+}
+body.command-body .command-nav a>b { color: #246397 !important; }
+body.command-body .command-nav a:hover,
+body.command-body .command-nav a.active {
+  background: #dcecfb !important; color: var(--tk2m-navy) !important;
+}
+body.command-body .command-nav a.active { box-shadow: inset 3px 0 #2872ac !important; }
+body.command-body .command-nav a>em { background: var(--tk2m-accent) !important; }
+body.command-body .command-topbar {
+  background: #fff !important; color: var(--tk2m-ink) !important;
+  border-bottom: 1px solid var(--tk2m-stroke) !important;
+  box-shadow: 0 2px 11px rgba(22,68,113,.055);
+}
+body.command-body .command-search input {
+  background: #fff !important;
+  border: 1px solid #c2dbea !important;
+  border-radius: 11px !important; color: var(--tk2m-ink) !important;
+}
+body.command-body .command-page { background: var(--tk2m-blue-soft) !important; }
+body.command-body .panel,
+body.command-body .stat,
+body.command-body .module-card,
+body.command-body .query-card,
+body.command-body .summary-block {
+  background: #fff !important;
+  border: 1px solid var(--tk2m-stroke) !important;
+  border-radius: 12px !important;
+  box-shadow: var(--tk2m-elevation) !important;
+}
+body.command-body h1,
+body.command-body h2,
+body.command-body h3 { color: var(--tk2m-navy); }
+body.command-body .eyebrow { color: #a44151 !important; }
+body.command-body .btn.primary,
+body.command-body .primary,
+body.command-body .result-load {
+  background: #245f94 !important; border-color: #245f94 !important;
+  color: #fff !important;
+}
+body.command-body .btn,
+body.command-body button:not(.command-avatar) {
+  border-radius: 9px;
+}
+body.command-body th,
+body.command-body thead { background: #eaf4fc !important; color: #315b7b !important; }
+body.command-body tr:nth-child(even):not(.urgent-row) { background: #fbfdff; }
+body.command-body tr:hover:not(.urgent-row) { background: #f2f8fe; }
+body.command-body input,
+body.command-body select,
+body.command-body textarea {
+  border-color: #cadae9;
+  background: #fff;
+  color: var(--tk2m-ink);
+}
+body.command-body .work-panel { background: #fff !important; }
+body.command-body .work-panel-bar {
+  background: #e8f3fc !important; color: var(--tk2m-navy) !important;
+}
+body.command-body .badge.ok,
+body.command-body .badge.resolved { color: #256c53; }
+/* Genuine success statuses retain a greenish text cue; green is never the
+ * primary branding or call-to-action colour. */
+
+/* Standalone Library & Deals windows, same CRM visual language. */
+body:has(.library-app),
+body:has(.deals-app) { background: var(--tk2m-blue-soft) !important; }
+.library-app,.deals-app { background: var(--tk2m-blue-soft) !important; }
+.library-topbar,.library-toolbar,.library-featured,
+.library-results,.library-categories,.deals-head,.deals-toolbar,.deals-results {
+  background: #fff !important; border: 1px solid var(--tk2m-stroke) !important;
+  border-radius: 12px !important; box-shadow: var(--tk2m-elevation) !important;
+}
+.library-topbar,.deals-head { border-top: 3px solid #2c78b2 !important; }
+.library-topbar h1,.deals-title h1 { color: var(--tk2m-navy) !important; }
+.library-admin header,.library-viewer-shell>header,.deals-viewer-shell>header {
+  background: #173e65 !important; color: #fff !important;
+}
+.library-top-actions .primary,
+.library-admin-tabs .is-active,
+.deals-type-tabs button.is-active,
+.deals-refresh:hover {
+  background: #246397 !important; border-color: #246397 !important; color: #fff !important;
+}
+.library-results header,.library-featured header { background: #edf5fc !important; }
+.library-category-deals,
+.library-categories button.is-active {
+  border-left-color: #3084c0 !important; color: var(--tk2m-navy) !important;
+}
+.library-filter-row button.is-active { background: #e4f1fc !important; color: var(--tk2m-navy) !important; }
+.library-admin,.library-viewer,.deals-viewer { color: var(--tk2m-ink); }
+.deal-card:focus-visible { outline-color: #488dbb !important; }
+.deals-count { background: #eaf3fb !important; color: var(--tk2m-navy) !important; }
+.deal-preview { background: linear-gradient(140deg,#e5f1fb,#f8fbff) !important; color: #4e7b9f !important; }
+
+/* Unify tertiary layouts (portal, login, legacy detail pages) unobtrusively. */
+body:not(.t2m-os-body):not(.command-body) { color: var(--tk2m-ink); }
+body:not(.t2m-os-body):not(.command-body) :where(
+  input[type="text"],input[type="search"],input[type="number"],input[type="email"],
+  input[type="date"],input[type="tel"],textarea,select) {
+  border-color: #cadae9;
+}
+:where(.panel,.module-card,.stat,.t2m-os-window,.library-app,.deals-app) {
+  transition: box-shadow .15s ease, border-color .15s ease;
+}
+@media (max-width: 760px) {
+  #talk2me-os .t2m-os-topbar { padding-inline: 10px; }
+  #talk2me-os .t2m-home-calendar { padding: 10px !important; }
+  #talk2me-os .t2m-home-focus>.t2m-home-attention-strip { padding: 10px !important; }
+  #talk2me-os .t2m-home-priority-item { min-width: 0; }
+  #talk2me-os .t2m-home-month,#talk2me-os .t2m-home-agenda {
+    border-radius: 10px !important;
+  }
+  body.command-body .command-sidebar { background: #eaf4fd !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+  :where(.panel,.module-card,.stat,.t2m-os-window,.library-app,.deals-app) { transition: none; }
+}
