@@ -130,6 +130,7 @@ const owner={id:1,role:'owner'},manager={id:9,role:'manager'},staff={id:2,role:'
  assert.equal(results[0].url,'/mobile-base/909');
 
  // Name, account, email and phone search target the same CRM view.
+ masterRows=[];
  crmRows=[line(301,'SYNTHETIC DETAIL SEARCH',{
   email:'customer@invalid.example',account_number:'VB-987654',
   cell_number:'0821234567',id_number:'0000000000000'
