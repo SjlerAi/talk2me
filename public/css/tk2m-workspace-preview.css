@@ -230,3 +230,69 @@
  justify-self:stretch!important;
  text-align:left!important;
 }
+
+/* TK2M My Day is already the active screen: remove redundant heading and
+   duplicate +Send/+Reminder buttons, leaving the one red Communications toolbar. */
+.t2m-tk2m-test-shell .t2m-home-calendar-head{display:none!important}
+.t2m-tk2m-test-shell .t2m-home-calendar{
+ padding:8px 12px 10px!important;
+ gap:6px!important;
+}
+.t2m-tk2m-test-shell .t2m-home-focus{gap:5px!important}
+.t2m-tk2m-test-shell .t2m-home-focus>.t2m-home-attention-strip{
+ padding:8px 11px!important;gap:6px 10px!important
+}
+/* Arrows flank the current three short headlines. Nothing extra is shown
+   if all outstanding communications already fit on one page. */
+.t2m-tk2m-test-shell .t2m-home-priority-carousel{
+ grid-column:1/-1;min-width:0;display:grid;align-items:center;
+ grid-template-columns:minmax(0,1fr);gap:6px;
+}
+.t2m-tk2m-test-shell .t2m-home-priority-carousel.has-pages{
+ grid-template-columns:33px minmax(0,1fr) 33px;
+}
+.t2m-tk2m-test-shell .t2m-home-priority-carousel>.t2m-home-priority-list{
+ grid-column:1/-1;min-width:0;
+}
+.t2m-tk2m-test-shell .t2m-home-priority-carousel.has-pages>.t2m-home-priority-list{
+ grid-column:2;
+}
+.t2m-tk2m-test-shell .t2m-home-priority-arrow[hidden]{display:none!important}
+.t2m-tk2m-test-shell .t2m-home-priority-carousel .t2m-home-priority-arrow{
+ display:grid!important;place-items:center!important;
+ box-sizing:border-box!important;width:33px!important;height:58px!important;
+ min-width:33px!important;min-height:58px!important;padding:0!important;
+ border:1px solid #dab2b7!important;border-radius:8px!important;
+ background:#fff!important;color:#a51c2c!important;
+ font:900 27px Arial,sans-serif!important;cursor:pointer!important;
+}
+.t2m-tk2m-test-shell .t2m-home-priority-arrow:focus-visible{
+ outline:3px solid #8b1a26!important;outline-offset:2px!important;
+}
+@media(max-width:600px){
+ .t2m-tk2m-test-shell .t2m-home-calendar{padding:6px!important}
+ .t2m-tk2m-test-shell .t2m-home-priority-carousel.has-pages{
+  grid-template-columns:28px minmax(0,1fr) 28px;
+ }
+ .t2m-tk2m-test-shell .t2m-home-priority-carousel .t2m-home-priority-arrow{
+  width:28px!important;min-width:28px!important;min-height:54px!important;height:54px!important
+ }
+}
+
+/* Hidden arrows must stay hidden even with the carousel's explicit display. */
+.t2m-tk2m-test-shell .t2m-home-priority-carousel .t2m-home-priority-arrow[hidden]{
+ display:none!important
+}
+
+/* One compact horizontal row for the four My Day metric counters. */
+.t2m-tk2m-test-shell .t2m-home-focus>button{
+ min-height:43px!important;height:43px!important;
+ padding:5px 10px!important;gap:5px!important;
+ grid-template-columns:minmax(0,1fr) auto!important;
+ grid-template-rows:1fr!important;
+}
+.t2m-tk2m-test-shell .t2m-home-focus>button>small{display:none!important}
+.t2m-tk2m-test-shell .t2m-home-focus>button>strong{font-size:20px!important}
+@media(max-width:650px){
+ .t2m-tk2m-test-shell .t2m-home-focus>button{height:45px!important;min-height:45px!important}
+}

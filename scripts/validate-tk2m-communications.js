@@ -97,7 +97,11 @@ async function main(){
  const myDay=read('public/js/calendar-home-uat.js');
  require('node:vm').compileFunction(myDay,[]);
  assert.match(myDay,/data-home-priority-list/);
- assert.match(myDay,/\.slice\(0,3\)/);
+ assert.match(myDay,/data-home-priority-prev/);
+ assert.match(myDay,/data-home-priority-next/);
+ assert.match(myDay,/state\.priorityPage/);
+ assert.match(read('public/css/tk2m-workspace-preview.css'),/t2m-home-calendar-head\{display:none/);
+ assert.match(myDay,/\.slice\(state\.priorityPage\*3,\(state\.priorityPage\+1\)\*3\)/);
  assert.match(myDay,/state\.communications/);
  assert.match(myDay,/data-home-agenda-more/);
  assert.match(myDay,/items\.slice\(0,4\)/);
@@ -140,6 +144,10 @@ async function main(){
  assert.match(inboxQueries[2],/WHERE 1=1/);
  assert.equal(inbox.scope,'mine');
  assert.match(read('src/routes/tk2m-communications-brief.js'),/canSeeTeam/);
+ assert.match(read('src/routes/tk2m-communications-brief.js'),/hide-team/);
+ assert.match(read('src/routes/tk2m-communications-brief.js'),/Number\(task\.created_by\)===viewerId/);
+ assert.match(read('src/services/tk2m-unified-inbox.js'),/source_kind='hide_team_task'/);
+ assert.match(unified,/Hide from my view/);
  assert.equal(inbox.items[0].canComplete,true);
  assert.match(inboxQueries[0],/t\.created_by=:staffId/);
  assert.match(inboxQueries[0],/t\.assigned_to=:staffId/);

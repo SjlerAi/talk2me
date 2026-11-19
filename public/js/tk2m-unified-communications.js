@@ -86,6 +86,8 @@
        actions.append(actionButton('Reply','reply',item));
      }else if(item.direction==='sent'){
        actions.append(actionButton('Reply','reply',item));
+     }else if(item.direction==='team'){
+       actions.append(actionButton('Hide from my view','hide-team',item));
      }
    }else{
      actions.append(actionButton('Reply','legacy',item));
@@ -138,7 +140,11 @@
    }
    busy=true;button.disabled=true;
    try{
-     if(type==='clear'){
+     if(type==='hide-team'){
+       await api('/api/tk2m/communications/hide-team',{method:'POST',
+         body:JSON.stringify({kind:'task',id:item.id})});
+       status.textContent='Hidden from your Team view; still outstanding for the staff involved';
+     }else if(type==='clear'){
        await api('/api/tk2m/communications/clear',{method:'POST',
          body:JSON.stringify({kind:'legacy_chat',id:item.id})});
        status.textContent='Cleared from your list; history retained';

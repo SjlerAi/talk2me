@@ -314,15 +314,19 @@
             <button type="button" data-home-quick-send aria-label="Send communication">+ Send</button>
             <button type="button" data-os-app="messages" aria-label="Open all recent communications">Communications</button>
           </div>
-          <div class="t2m-home-priority-list" data-home-priority-list role="list" aria-label="Three latest communications" aria-live="polite">
-            <span class="t2m-home-priority-loading">Loading current instructions...</span>
+          <div class="t2m-home-priority-carousel" data-home-priority-carousel aria-label="Browse outstanding communications">
+            <button type="button" class="t2m-home-priority-arrow" data-home-priority-prev aria-label="Previous communications" title="Previous communications" hidden>‹</button>
+            <div class="t2m-home-priority-list" data-home-priority-list role="list" aria-label="Recent outstanding communications" aria-live="polite">
+              <span class="t2m-home-priority-loading">Loading current instructions...</span>
+            </div>
+            <button type="button" class="t2m-home-priority-arrow" data-home-priority-next aria-label="Next communications" title="Next communications" hidden>›</button>
           </div>
         </section>
         <button type="button" data-home-focus="tasks" aria-label="View selected-day calendar actions">
           <span>Calendar actions</span><strong data-home-focus-count="tasks">—</strong><small>Selected day · agenda</small>
         </button>
-        <button type="button" data-home-focus="reminders" aria-label="View reminders for selected day">
-          <span>Reminders</span><strong data-home-focus-count="reminders">—</strong><small>Selected day · calendar</small>
+        <button type="button" data-home-focus="reminders" aria-label="Add a reminder for the selected date">
+          <span>Reminders</span><strong data-home-focus-count="reminders">—</strong><small>Tap to add · selected date</small>
         </button>
         <button type="button" data-home-focus="messages" data-os-app="messages" aria-label="Open recent communications">
           <span>Communications</span><strong data-home-focus-count="messages">—</strong><small>Last 48 hours · open list</small>
@@ -372,7 +376,8 @@
       focus: { messages: null, overdue: null, openWork: null },
       communications: [],
       attentionError: null,
-      agendaExpanded: false
+      agendaExpanded: false,
+      priorityPage: 0
     };
 
     const grid = workspace.querySelector('[data-home-grid]');
@@ -415,6 +420,7 @@
         button.onclick = () => {
           const value = button.dataset.staffFilter;
           state.staffFilter = value === 'all' ? null : value;
+          state.priorityPage = 0;
           render();
         };
       });
@@ -438,7 +444,22 @@
         ?state.communications.filter(item=>item.kind==='task' &&
            staffKey({assignedTo:item.assignedTo,assignedName:item.recipient})===state.staffFilter)
         :state.communications;
-      const latest=scoped.slice(0,3);
+      const pages=Math.ceil(scoped.length/3);
+      state.priorityPage=pages ? Math.min(state.priorityPage,pages-1) : 0;
+      const latest=scoped.slice(state.priorityPage*3,(state.priorityPage+1)*3);
+      const frame=workspace.querySelector('[data-home-priority-carousel]');
+      const prev=workspace.querySelector('[data-home-priority-prev]');
+      const next=workspace.querySelector('[data-home-priority-next]');
+      const hasPages=pages>1;
+      frame?.classList.toggle('has-pages',hasPages);
+      if(prev){
+        prev.hidden=!hasPages;
+        prev.onclick=()=>{state.priorityPage=(state.priorityPage-1+pages)%pages;renderPriority();};
+      }
+      if(next){
+        next.hidden=!hasPages;
+        next.onclick=()=>{state.priorityPage=(state.priorityPage+1)%pages;renderPriority();};
+      }
       if(!latest.length){
         panel.innerHTML='<div class="t2m-home-priority-empty">No outstanding communications in the last 48 hours.</div>';
         return;
@@ -702,10 +723,9 @@
       window.setTimeout(()=>agenda?.classList.remove('is-highlighted'),900);
     });
     workspace.querySelector('[data-home-focus="reminders"]')?.addEventListener('click', () => {
-      const panel = workspace.querySelector('.t2m-home-agenda');
-      panel?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-      panel?.classList.add('is-highlighted');
-      window.setTimeout(() => panel?.classList.remove('is-highlighted'), 900);
+      if(tk2mPreview){openReminder();return;}
+      const panel=workspace.querySelector('.t2m-home-agenda');
+      panel?.scrollIntoView({block:'nearest',behavior:'smooth'});
     });
     workspace.querySelector('[data-home-focus="overdue"]')?.addEventListener('click', () => {
       if(tk2mPreview && window.Talk2MeUnifiedInbox?.open){
@@ -723,6 +743,7 @@
         if (next === state.scope) return;
         state.scope = next;
         state.staffFilter = null;
+        state.priorityPage = 0;
         state.agendaExpanded=false;
         load();loadAttention();
       };
