@@ -259,6 +259,9 @@
         <section class="review-card review-decision">
           <h2>Record your decision</h2>
           <p>Write down what was checked. Your review survives a later data refresh while the underlying facts remain unchanged.</p>
+          <% if(typeof decisionsAvailable!=='undefined' && !decisionsAvailable){ %>
+            <p class="review-warning" role="status">Decision storage is unavailable. Case data can be inspected, but recording a review is disabled until the database schema is verified.</p>
+          <% } else { %>
           <form method="post" action="<%= basePath %>/data-review/case/<%= selected.id %>/decision">
             <input type="hidden" name="csrf" value="<%= csrf %>">
             <input type="hidden" name="source_hash" value="<%= selected.fingerprint %>">
@@ -276,6 +279,7 @@
             <button class="review-primary" type="submit">Save review and return to queue</button>
             <p class="review-muted">Saving never merges clients, alters upgrade dates, imports records or sends messages.</p>
           </form>
+          <% } %>
         </section>
         <section class="review-card">
           <h2>Review history</h2>
