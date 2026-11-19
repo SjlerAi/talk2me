@@ -488,11 +488,8 @@
         const sender=shortStaffName(item.sender),recipient=shortStaffName(item.recipient);
         const who=item.kind==='task'?sender+' → '+recipient
           :item.direction==='sent'?'To '+recipient:'From '+sender;
-        const title=String((item.kind==='task'?item.subject:'')||item.text||'Communication')
+        const title=String(item.text||item.subject||'Communication')
           .replace(/\s+/g,' ').trim();
-        const stateLabel=item.kind==='legacy_chat'?'Message'
-          :item.status==='completed'?'Completed'
-          :item.acknowledged?'Received · outstanding':'Awaiting receipt';
         const color=item.kind==='task'
           ?staffColor({assignedTo:item.assignedTo,assignedName:item.recipient})
           :'#ab2330';
@@ -501,7 +498,6 @@
             aria-label="Open communication: ${esc(who)} – ${esc(title)}">
             <span class="t2m-home-priority-who">${esc(who)}</span>
             <strong title="${esc(title)}">${esc(title)}</strong>
-            <small>${esc(stateLabel)}</small>
           </button>
           <div class="t2m-home-priority-actions">
             <button type="button" data-priority-reply="${index}">Reply</button>
