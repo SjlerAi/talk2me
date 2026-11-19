@@ -205,7 +205,7 @@
   }
 
   const workWidgetKey=`t2m-work-widget-v2-${user.id}`;
-  const workWidget=makeWidget({id:'t2m-task-widget',title:'Work',subtitle:'Tasks, messages, files & follow-ups',icon:'✓',key:workWidgetKey,size:{width:840,height:700,minWidth:560,minHeight:420}});
+  const workWidget=makeWidget({id:'t2m-task-widget',title:'Communications',subtitle:'Messages, actions and follow-ups',icon:'✓',key:workWidgetKey,size:{width:840,height:700,minWidth:560,minHeight:420}});
   const workBody=workWidget.querySelector('[data-widget-body]');
   const chatWidget=workWidget;
   const chatBody=workBody;
@@ -215,9 +215,9 @@
   workHeadNav.className='t2m-work-head-nav';
   workHeadNav.setAttribute('aria-label','Work sections');
   workHeadNav.innerHTML=`
-    <button type="button" data-work-head="inbox"><span>✓</span><strong>Inbox</strong></button>
+    <button type="button" data-work-head="inbox"><span>✓</span><strong>My Work</strong></button>
     <button type="button" data-work-head="messages"><span>●</span><strong>Messages</strong><b data-work-message-count hidden>0</b></button>
-    <button type="button" class="new-task" data-work-head="new"><span>＋</span><strong>Task</strong></button>`;
+    <button type="button" class="new-task" data-work-head="new"><span>＋</span><strong>+ Send</strong></button>`;
   workHead.insertBefore(workHeadNav,workHeadActions);
   workHeadNav.addEventListener('pointerdown',event=>event.stopPropagation());
   workHeadNav.addEventListener('click',event=>{
@@ -226,7 +226,11 @@
     event.preventDefault();event.stopPropagation();
     const next=button.dataset.workHead;
     if(next==='messages')openChat();
-    else if(next==='new')openTaskWidget({new:true});
+    else if(next==='new'){
+      if(retireCudoInTk2m && window.Talk2MeCommunications?.open)
+        window.Talk2MeCommunications.open({actionRequired:true});
+      else openTaskWidget({new:true});
+    }
     else openTaskWidget();
   });
 
@@ -742,7 +746,10 @@
       };
     }
   }
-  async function openTaskWidget(prefill={}){renderWorkHeader(prefill.new?'new':'inbox');clearInterval(chatPoll);showWidget(workWidget);try{const requestedView=prefill.view||'latest';const requestedFilter=prefill.filter||'all';const requestedScope=prefill.scope||'mine';const query=new URLSearchParams({scope:requestedScope,view:requestedView,filter:requestedFilter});const data=await jsonFetch(`/api/uat/tasks?${query.toString()}`);taskState={...taskState,...data,scope:data.scope||requestedScope,view:data.view||requestedView,filter:data.filter||requestedFilter};if(prefill.new)renderTaskNew(prefill);else renderTaskList();}catch(error){taskBody.innerHTML=`<div class="t2m-chat-empty"><strong>Could not open Work</strong><span>${esc(error.message)}</span></div>`;}}
+  async function openTaskWidget(prefill={}){
+    if(prefill.new && retireCudoInTk2m && window.Talk2MeCommunications?.open)
+      return window.Talk2MeCommunications.open({actionRequired:true});
+    renderWorkHeader(prefill.new?'new':'inbox');clearInterval(chatPoll);showWidget(workWidget);try{const requestedView=prefill.view||'latest';const requestedFilter=prefill.filter||'all';const requestedScope=prefill.scope||'mine';const query=new URLSearchParams({scope:requestedScope,view:requestedView,filter:requestedFilter});const data=await jsonFetch(`/api/uat/tasks?${query.toString()}`);taskState={...taskState,...data,scope:data.scope||requestedScope,view:data.view||requestedView,filter:data.filter||requestedFilter};if(prefill.new)renderTaskNew(prefill);else renderTaskList();}catch(error){taskBody.innerHTML=`<div class="t2m-chat-empty"><strong>Could not open Work</strong><span>${esc(error.message)}</span></div>`;}}
 
   async function openConversation(token){
     if(token!=='office' && !/^direct:\d+$/.test(String(token||'')))return;
@@ -752,7 +759,12 @@
   }
   window.Talk2MeWidgets={openConversation,openWork:()=>window.Talk2MeOperatingModel?.openWork?.()||openTaskWidget(),openChat,openTasks:openTaskWidget,openTask};
   window.addEventListener('click',event=>{
-    const taskAdd=event.target.closest?.('[data-home-add-task]');if(taskAdd){event.preventDefault();event.stopImmediatePropagation();openTaskWidget({new:true});return;}
+    const taskAdd=event.target.closest?.('[data-home-add-task],[data-home-quick-send]');
+    if(taskAdd){event.preventDefault();event.stopImmediatePropagation();
+      if(retireCudoInTk2m && window.Talk2MeCommunications?.open)
+        window.Talk2MeCommunications.open({actionRequired:true});
+      else openTaskWidget({new:true});
+      return;}
     const openCalendarTask=event.target.closest?.('[data-open-calendar-item]');if(openCalendarTask&&String(openCalendarTask.dataset.openCalendarItem||'').startsWith('task:')){event.preventDefault();event.stopImmediatePropagation();openTask(Number(String(openCalendarTask.dataset.openCalendarItem).split(':')[1]));return;}
     const taskApp=event.target.closest?.('[data-os-app="work"],[data-os-app="tasks"],[data-os-app="messages"]');if(taskApp){event.preventDefault();event.stopImmediatePropagation();if(taskApp.dataset.osApp==='messages')openChat();else if(taskApp.dataset.osApp==='tasks')openTaskWidget();else if(window.Talk2MeOperatingModel?.openWork)window.Talk2MeOperatingModel.openWork();else openTaskWidget();}
   },true);

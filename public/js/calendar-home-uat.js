@@ -299,7 +299,7 @@
           <p>${tk2mPreview ? (isManagement ? 'Your calendar first. Switch between your day and the team, with staff colours showing responsibility.' : 'Your calendar, tasks, reminders and messages in one place.') : (isManagement ? 'Team view shows the whole office. Staff colours show responsibility.' : 'Your tasks, customers and dated work in one place.')}</p>
         </div>
         <div class="t2m-home-actions">
-          <button type="button" data-home-add-task>+ Task</button>
+          <button type="button" data-home-add-task>${tk2mPreview?'+ Send':'+ Task'}</button>
           <button type="button" data-home-add-reminder>+ Reminder</button>
         </div>
       </header>
@@ -311,8 +311,9 @@
             <small data-home-alert-status>Checking red alerts...</small>
           </div>
           <div class="t2m-home-attention-actions">
-            <button type="button" data-os-app="messages" aria-label="Open all staff messages">Open messages</button>
-            <button type="button" data-os-app="tasks" aria-label="Open outstanding tasks">Open tasks</button>
+            <button type="button" data-home-quick-send aria-label="Send a message or task">+ Send</button>
+            <button type="button" data-os-app="messages" aria-label="Open all staff messages">Messages</button>
+            <button type="button" data-os-app="tasks" aria-label="Open outstanding tasks">Tasks</button>
           </div>
         </section>
         <button type="button" data-home-focus="tasks" data-os-app="tasks" aria-label="Open tasks and follow-ups">
@@ -598,6 +599,10 @@
     }
 
     function openTask() {
+      if(tk2mPreview && window.Talk2MeCommunications?.open) {
+        window.Talk2MeCommunications.open({actionRequired:true});
+        return;
+      }
       openWorkWindow({
         id: 'quick:task', appKey: 'quick-action', title: 'Add Task', icon: '✓',
         subtitle: `Task for ${state.selected}`,

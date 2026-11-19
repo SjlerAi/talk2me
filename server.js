@@ -420,6 +420,9 @@ if (CRM_LIVE_MODE) {
   const staffAttention = require('./src/routes/tk2m-staff-attention');
   app.use('/', staffAttention);
   if (BASE_PATH) app.use(BASE_PATH, staffAttention);
+  const communicationsBrief = require('./src/routes/tk2m-communications-brief');
+  app.use('/', communicationsBrief);
+  if (BASE_PATH) app.use(BASE_PATH, communicationsBrief);
 }
 
 const staffWorkAccess = require('./src/routes/staff-work-access');
