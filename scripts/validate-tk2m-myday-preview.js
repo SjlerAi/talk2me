@@ -55,6 +55,12 @@ assert.match(css, /grid-template-rows:116px 60px minmax\(0,1fr\) 46px!important/
 assert.match(css, /t2m-home-focus/, 'Priorities need responsive styling');
 assert.match(css, /@media \(max-width:760px\)/, 'Phone rules required');
 assert.match(admin, /Administration Centre/);
+const adminOwnerContext={basePath:'',currentUser:{role:'owner'},panelMode:false};
+const adminLive=require('ejs').render(admin,{...adminOwnerContext,isLive:true});
+const adminStaging=require('ejs').render(admin,{...adminOwnerContext,isLive:false});
+assert.match(adminLive,/Management &amp; Review/,'Live Administration must identify management work, not QA');
+assert.doesNotMatch(adminLive,/QA Administration/,'QA wording must not appear in live Administration');
+assert.match(adminStaging,/QA Administration/,'Staging QA heading remains explicit');
 for (const name of ['Staff &amp; Access','Customers &amp; CRM Data','Workflows &amp; Approvals','Reports &amp; Performance','System &amp; Communication']) {
   assert.ok(admin.includes(name), 'Missing admin group '+name);
 }
