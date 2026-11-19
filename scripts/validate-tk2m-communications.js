@@ -94,6 +94,15 @@ async function main(){
  assert.match(read('public/js/uat-work-widgets.js'),/return window\.Talk2MeQuickTaskThread\.open\(id\)/);
  assert.doesNotMatch(client,/data\.set\('due_at'/);
  assert.match(read('public/js/calendar-home-uat.js'),/data-home-quick-send/);
+ const myDay=read('public/js/calendar-home-uat.js');
+ require('node:vm').compileFunction(myDay,[]);
+ assert.match(myDay,/data-home-priority-list/);
+ assert.match(myDay,/\.slice\(0,3\)/);
+ assert.match(myDay,/state\.communications/);
+ assert.match(myDay,/data-home-agenda-more/);
+ assert.match(myDay,/items\.slice\(0,4\)/);
+ assert.match(myDay,/!tk2mPreview && item\.details/);
+ assert.match(read('public/css/tk2m-workspace-preview.css'),/t2m-home-priority-item/);
  assert.match(read('public/js/uat-work-widgets.js'),/Talk2MeCommunications/);
  assert.match(read('public/js/uat-work-widgets.js'),/Talk2MeUnifiedInbox/);
  assert.match(read('public/js/uat-work-operating-model.js'),/return window.Talk2MeUnifiedInbox.open\(\)/);
