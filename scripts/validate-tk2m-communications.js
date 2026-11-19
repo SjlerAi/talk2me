@@ -77,6 +77,8 @@ async function main(){
  assert.match(thread,/completion_note:reply\|\|'Completed'/);
  assert.match(thread,/api\/uat\/tasks\//);
  assert.match(read('public/js/tk2m-staff-attention.js'),/Talk2MeQuickTaskThread\.open/);
+ assert.match(read('public/js/tk2m-quick-task-thread.js'),/open_task_reply/);
+ assert.match(read('public/js/tk2m-quick-chat-reply.js'),/open_chat_reply/);
  assert.match(read('public/js/uat-work-widgets.js'),/return window\.Talk2MeQuickTaskThread\.open\(id\)/);
  assert.doesNotMatch(client,/data\.set\('due_at'/);
  assert.match(read('public/js/calendar-home-uat.js'),/data-home-quick-send/);
