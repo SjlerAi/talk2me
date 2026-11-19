@@ -78,5 +78,5 @@ assert.match(approvedCss,/:is\(\.t2m-tk2m-test-shell,\.t2m-approved-home-shell\)
 assert.match(approvedCss,/#talk2me-os\.t2m-approved-home-shell \.t2m-home-priority-list/);
 assert.match(approvedCss,/grid-template-columns:minmax\(0,1fr\)!important;/,'priority cards/calendar must fit narrow OS workspace');
 assert.match(approvedCss,/grid-template-rows:auto auto auto auto minmax\(0,1fr\)!important;/,'My Day five content rows required');
-assert.doesNotMatch(approvedShell,/data-tk2m-preview="1"\s*<%\s*}\s*%>/,'do not mark production as staging');
+assert.match(approvedShell,/if\(isStaging\)\{ %>data-tk2m-preview="1"/,'only staging receives preview data flag');
 console.log('TK2M_APPROVED_BLUE_RED_THEME_GATE_PASS full_documents='+full.length+' all_templates='+templates.length);
