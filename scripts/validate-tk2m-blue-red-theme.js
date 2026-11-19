@@ -66,4 +66,17 @@ assert.ok(css.includes('body.command-body .tk2m-staff-roster tbody'),'missing st
 assert.ok(css.includes('content:attr(data-label)'),'missing visible staff field labels');
 assert.ok(css.includes('width:calc(100vw - 100px) !important'),'split-screen Staff width must be viewport capped');
 assert.ok(css.includes('grid-template-columns:repeat(auto-fit,minmax(min(360px,100%),1fr))'),'staff cards must fit narrow windows');
+// Production My Day previously rendered preview-only content with no preview
+// layout stylesheet: the top communication header and calendar overflowed the
+// actual 970px browser viewport. Require the approved layout on live without
+// ever labelling the live shell as staging or UAT.
+const approvedShell=fs.readFileSync(path.join(root,'views/os-shell.ejs'),'utf8');
+const approvedCss=fs.readFileSync(path.join(root,'public/css/tk2m-workspace-preview.css'),'utf8');
+assert.match(approvedShell,/if\(isStaging \|\| isLive\)/,'approved My Day stylesheet must load in production');
+assert.match(approvedShell,/isLive\?' t2m-approved-home-shell'/,'live My Day requires a dedicated production class');
+assert.match(approvedCss,/:is\(\.t2m-tk2m-test-shell,\.t2m-approved-home-shell\)/,'approved layout shared by staging and live');
+assert.match(approvedCss,/#talk2me-os\.t2m-approved-home-shell \.t2m-home-priority-list/);
+assert.match(approvedCss,/grid-template-columns:minmax\(0,1fr\)!important;/,'priority cards/calendar must fit narrow OS workspace');
+assert.match(approvedCss,/grid-template-rows:auto auto auto auto minmax\(0,1fr\)!important;/,'My Day five content rows required');
+assert.match(approvedShell,/if\(isStaging\)\{ %>data-tk2m-preview="1"/,'only staging receives preview data flag');
 console.log('TK2M_APPROVED_BLUE_RED_THEME_GATE_PASS full_documents='+full.length+' all_templates='+templates.length);
