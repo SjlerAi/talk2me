@@ -1,11 +1,11 @@
 {
   "schema": 1,
-  "action": "deploy",
+  "action": "hold",
   "environment": "tk2m-production",
-  "request_id": "tk2m-myday-live-responsive-20261119-a1",
+  "request_id": "tk2m-myday-live-responsive-20261119-postrelease-hold",
   "release_branch": "release/tk2m-myday-live-responsive-20261119",
   "release_sha": "d9f264be10816de918b6123cc4d5fcedc5070b1d",
-  "expected_previous_sha": "fd6f3dc826837ace04aca8c26106c8b9f6bd17da",
+  "expected_previous_sha": "d9f264be10816de918b6123cc4d5fcedc5070b1d",
   "production_cutover": true,
-  "owner_approved": true
+  "owner_approved": false
 }
