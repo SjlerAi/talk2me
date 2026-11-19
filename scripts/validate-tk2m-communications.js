@@ -65,9 +65,11 @@ async function main(){
  const client=read('public/js/tk2m-quick-communications.js');
  assert.match(client,/data-tk2m-quick-recipient/);
  assert.match(client,/data-tk2m-quick-text/);
- assert.match(client,/action_required/);
+ assert.doesNotMatch(client,/data-tk2m-quick-action/);
+ assert.match(client,/SEND COMMUNICATION/);
  assert.match(client,/new FormData/);
- assert.match(client,/api\/uat\/chat\/messages/);
+ assert.doesNotMatch(client,/api\/uat\/chat\/messages/);
+ assert.match(read('src/routes/tk2m-communications-brief.js'),/communications\/inbox/);
  assert.match(client,/api\/uat\/tasks/);
  assert.match(client,/api\/tk2m\/communications\/brief\/ack/);
  assert.match(client,/window\.setInterval\(pollBrief,30000\)/);
@@ -85,7 +87,7 @@ async function main(){
  assert.match(read('public/js/uat-work-widgets.js'),/Talk2MeCommunications/);
  assert.match(read('public/js/uat-work-widgets.js'),/<strong>\+ Send<\/strong>/);
  assert.match(read('public/js/tk2m-staff-attention.js'),/completeNow/);
- assert.match(read('public/js/tk2m-staff-attention.js'),/Complete Task/);
+ assert.match(read('public/js/tk2m-staff-attention.js'),/Received/);
  assert.match(read('src/routes/tk2m-staff-attention.js'),/work_alert_acknowledged/);
  assert.match(read('src/routes/tk2m-communications-brief.js'),/communications_brief_reviewed/);
  const ejs=require('ejs'),shell=read('views/os-shell.ejs');

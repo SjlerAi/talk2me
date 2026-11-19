@@ -37,26 +37,24 @@
  modal.setAttribute('aria-labelledby','tk2m-quick-title');
  modal.innerHTML=
   '<section class="tk2m-quick-box">'+
-  '<header class="tk2m-quick-red"><h2 id="tk2m-quick-title">SEND MESSAGE / TASK</h2><button type="button" data-tk2m-quick-close aria-label="Close message">×</button></header>'+
+  '<header class="tk2m-quick-red"><h2 id="tk2m-quick-title">SEND COMMUNICATION</h2><button type="button" data-tk2m-quick-close aria-label="Close message">×</button></header>'+
   '<form data-tk2m-quick-form><label class="tk2m-quick-label">To'+
   '<select name="assigned_to" required data-tk2m-quick-recipient><option value="">Choose staff member</option></select></label>'+
-  '<label class="tk2m-quick-label"><span>Message or instruction</span><textarea required maxlength="4000" rows="3" name="message" placeholder="e.g. Bel my asseblief" data-tk2m-quick-text></textarea></label>'+
-  '<label class="tk2m-quick-check"><input type="checkbox" name="action_required" data-tk2m-quick-action><span>Action required (track until complete)</span></label>'+
+  '<label class="tk2m-quick-label"><span>What needs to be done?</span><textarea required maxlength="4000" rows="3" name="message" placeholder="e.g. Bel my asseblief" data-tk2m-quick-text></textarea></label>'+
+
   '<div class="tk2m-quick-bottom"><label class="tk2m-quick-attachment"><span>📎 Attach file (optional)</span><input type="file" data-tk2m-quick-files name="attachments" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv,.txt,.jpg,.jpeg,.png,.webp"></label>'+
   '<button type="submit" class="tk2m-quick-send" data-tk2m-quick-send>Send <span aria-hidden="true">➤</span></button></div>'+
-  '<p class="tk2m-quick-hint">Sends immediately. No automatic deadline. Tasks remain open until completed.</p>'+
+  '<p class="tk2m-quick-hint">Sends immediately. No deadline, priority or extra forms. Follow-up is automatic.</p>'+
   '<p class="tk2m-quick-error" role="alert" data-tk2m-quick-error hidden></p></form></section>';
  document.body.appendChild(modal);
  const form=modal.querySelector('[data-tk2m-quick-form]');
  const select=form.querySelector('[data-tk2m-quick-recipient]');
  const message=form.querySelector('[data-tk2m-quick-text]');
- const action=form.querySelector('[data-tk2m-quick-action]');
  const files=form.querySelector('[data-tk2m-quick-files]');
  const error=form.querySelector('[data-tk2m-quick-error]');
  const send=form.querySelector('[data-tk2m-quick-send]');
  function toggleFiles(){
    const count=files.files?.length||0;
-   if(count)action.checked=true;
    files.closest('.tk2m-quick-attachment')?.classList.toggle('has-files',count>0);
    const text=files.closest('.tk2m-quick-attachment')?.querySelector('span');
    if(text)text.textContent=count?(count+' file'+(count===1?'':'s')+' attached'):'📎 Attach file (optional)';
@@ -81,7 +79,7 @@
    if(briefOpen||sending)return;
    void trackComposeOpen();
    modal.hidden=false;
-   form.reset();error.hidden=true;action.checked=options.actionRequired!==false;
+   form.reset();error.hidden=true;
    toggleFiles();
    const previous=select.value;
    select.innerHTML='<option value="">Choose staff member</option>';
@@ -100,28 +98,23 @@
  form.addEventListener('submit',async event=>{
    event.preventDefault();
    if(sending)return;
-   const person=Number(select.value),text=String(message.value||'').trim(),needsAction=action.checked||(files.files?.length||0)>0;
+   const person=Number(select.value),text=String(message.value||'').trim();
    if(!person||!text){error.textContent='Select a staff member and enter a message.';error.hidden=false;return;}
    if(text.length>4000){error.textContent='Message is too long.';error.hidden=false;return;}
    sending=true;send.disabled=true;send.textContent='Sending…';error.hidden=true;
    try{
-     if(needsAction){
-       const data=new FormData();
-       data.set('assigned_to',String(person));
-       data.set('message',text);
-       const title=text.split(/\r?\n/)[0].trim().slice(0,180)||text.slice(0,180);
-       data.set('title',title);
-       data.set('priority','high');
-       // Intentionally no due_at: an automatic "deadline missed" would be false.
-       for(const file of files.files||[])data.append('attachments',file,file.name);
-       await api('/api/uat/tasks',{method:'POST',body:data});
-     }else{
-       await api('/api/uat/chat/messages',{method:'POST',
-         body:JSON.stringify({conversation:'direct:'+person,body:text})});
-     }
+     // Every new communication uses ONE actionable task record. No optional
+     // message/task distinction and no automatic deadline.
+     const data=new FormData();
+     data.set('assigned_to',String(person));
+     data.set('message',text);
+     data.set('title',text.split(/\r?\n/)[0].trim().slice(0,180)||text.slice(0,180));
+     data.set('priority','high');
+     for(const file of files.files||[])data.append('attachments',file,file.name);
+     await api('/api/uat/tasks',{method:'POST',body:data});
      const name=recipients?.find(p=>p.id===person)?.name||'staff';
      modal.hidden=true;form.reset();toggleFiles();
-     say((needsAction?'Task':'Message')+' sent to '+name);
+     say('Communication sent to '+name);
      window.dispatchEvent(new Event('workspace:refresh'));
    }catch(e){error.textContent=e.message;error.hidden=false;}finally{
      sending=false;send.disabled=false;send.textContent='Send ➤';
