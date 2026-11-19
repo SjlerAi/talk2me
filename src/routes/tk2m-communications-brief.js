@@ -4,6 +4,7 @@ const db=require('../config/db');
 const {requireAuth}=require('../middleware/auth');
 const {dailyBrief,acknowledgeDailyBrief}=require('../services/tk2m-communications-brief');
 const {listInbox}=require('../services/tk2m-unified-inbox');
+const {myDayCommunications,CUTOVER_DAY}=require('../services/tk2m-myday-communications');
 const {positiveId,chatToken}=require('../services/tk2m-staff-attention');
 const {trackEvent}=require('../services/usage-telemetry');
 const router=express.Router();
@@ -21,7 +22,7 @@ router.post('/api/tk2m/communications/hide-team',requireAuth,async(req,res,next)
    const [[task]]=await db.execute(
      `SELECT id,created_by,assigned_to FROM staff_tasks
        WHERE id=:id AND type='task' AND status IN ('unread','seen','in_progress')
-       AND created_at>=DATE_SUB(NOW(),INTERVAL 2 DAY) LIMIT 1`,{id});
+       AND created_at>=:cutover LIMIT 1`,{id,cutover:CUTOVER_DAY});
    if(!task)return res.status(404).json({ok:false,error:'Communication not in active list'});
    if(Number(task.created_by)===viewerId||Number(task.assigned_to)===viewerId)
      return res.status(403).json({ok:false,error:'Your own instructions remain until completed'});
@@ -60,6 +61,15 @@ router.post('/api/tk2m/communications/clear',requireAuth,async(req,res,next)=>{
      moduleName:'communications',httpMethod:'POST',httpStatus:200,
      metadata:{kind:'legacy_chat'}});
    res.json({ok:true,cleared:true});
+ }catch(error){next(error);}
+});
+router.get('/api/tk2m/communications/myday',requireAuth,async(req,res,next)=>{
+ if(!enabled)return res.sendStatus(404);
+ res.set('Cache-Control','private, no-store');
+ try{
+  const role=String(req.session.user.role||'').toLowerCase();
+  const scope=req.query.scope==='team'&&['owner','admin','manager'].includes(role)?'team':'mine';
+  res.json(await myDayCommunications(db,req.session.user.id,{scope}));
  }catch(error){next(error);}
 });
 router.get('/api/tk2m/communications/inbox',requireAuth,async(req,res,next)=>{
