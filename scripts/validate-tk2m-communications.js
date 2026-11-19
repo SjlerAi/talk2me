@@ -104,6 +104,10 @@ async function main(){
  assert.match(unified,/Communications/);
  assert.match(unified,/data-tk2m-unified-list/);
  assert.match(unified,/api\/tk2m\/communications\/inbox/);
+ assert.match(unified,/api\/tk2m\/communications\/clear/);
+ assert.match(unified,/actionButton\('Clear','clear',item\)/);
+ assert.match(read('src/routes/tk2m-communications-brief.js'),/VALUES \(:staffId,'hide_chat',:id,:key,'clear'\)/);
+ assert.match(read('src/routes/tk2m-communications-brief.js'),/chatToken\(staffId,msg.conversation_key\)/);
  assert.match(unified,/api\/uat\/chat\/messages/);
  assert.doesNotMatch(unified,/Talk2MeQuickChat\.open/);
  const {listInbox}=require('../src/services/tk2m-unified-inbox');
@@ -126,6 +130,8 @@ async function main(){
  assert.match(inboxQueries[0],/t\.created_by=:staffId/);
  assert.match(inboxQueries[0],/t\.assigned_to=:staffId/);
  assert.match(inboxQueries[1],/m\.conversation_key='office'/);
+ assert.match(inboxQueries[1],/source_kind='hide_chat'/);
+ assert.match(read('src/services/tk2m-communications-brief.js'),/source_kind='hide_chat'/);
  assert.match(read('public/js/uat-work-widgets.js'),/<strong>\+ Send<\/strong>/);
  assert.match(read('public/js/tk2m-staff-attention.js'),/completeNow/);
  assert.match(read('public/js/tk2m-staff-attention.js'),/Received/);

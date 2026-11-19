@@ -44,6 +44,7 @@ async function main(){
       }
       if(sql.includes('FROM staff_chat_messages m')){
         assert.match(sql,/m\.created_at >= DATE_SUB\(NOW\(\), INTERVAL 2 DAY\)/);
+        assert.match(sql,/source_kind='hide_chat'/);
         return [[{id:9,conversation_key:'direct:4:7',sender_name:'Gerda',message_type:'text',body:'Phone',created_at:'2026-11-19T08:00:00Z'}]];
       }
       if(sql.includes('FROM staff_tasks t')){

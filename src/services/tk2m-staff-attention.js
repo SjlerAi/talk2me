@@ -75,6 +75,9 @@ async function pendingAlerts(db, userId) {
       WHERE m.sender_staff_id<>:staffId
         AND m.created_at >= DATE_SUB(NOW(), INTERVAL 2 DAY)
         AND m.id>GREATEST(COALESCE(r.last_read_message_id,0),:archivedChatId)
+        AND NOT EXISTS (SELECT 1 FROM staff_attention_acknowledgments hidden
+          WHERE hidden.staff_id=:staffId AND hidden.source_kind='hide_chat'
+            AND hidden.source_id=m.id)
         AND (m.conversation_key='office'
              OR m.conversation_key IN (
                SELECT CONCAT('direct:',LEAST(other.id,:staffId),':',GREATEST(other.id,:staffId))

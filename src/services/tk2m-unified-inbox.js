@@ -24,11 +24,21 @@ async function listInbox(db,viewer){
     ORDER BY t.created_at DESC,t.id DESC LIMIT 100`,params);
  const [messages]=await db.execute(
   `SELECT m.id,m.body,m.message_type,m.conversation_key,m.sender_staff_id,m.created_at,
-      sender.full_name sender_name
+      sender.full_name sender_name,peer.full_name peer_name
     FROM staff_chat_messages m
     JOIN staff_users sender ON sender.id=m.sender_staff_id
+    LEFT JOIN staff_users peer ON peer.id=CASE
+      WHEN m.conversation_key LIKE 'direct:%'
+       THEN IF(
+         CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(m.conversation_key,':',2),':',-1) AS UNSIGNED)=:staffId,
+         CAST(SUBSTRING_INDEX(m.conversation_key,':',-1) AS UNSIGNED),
+         CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(m.conversation_key,':',2),':',-1) AS UNSIGNED))
+      ELSE NULL END
     WHERE m.id>:archivedChatId
       AND m.created_at>=DATE_SUB(NOW(),INTERVAL 2 DAY)
+      AND NOT EXISTS (SELECT 1 FROM staff_attention_acknowledgments hidden
+        WHERE hidden.staff_id=:staffId AND hidden.source_kind='hide_chat'
+          AND hidden.source_id=m.id)
       AND (m.sender_staff_id=:staffId
         OR m.conversation_key='office'
         OR m.conversation_key IN (
@@ -51,7 +61,7 @@ async function listInbox(db,viewer){
     const other=key==='office'?null:(Number(ids[1])===staffId?Number(ids[2]):Number(ids[1]));
     return {
       kind:'legacy_chat',id:Number(m.id),createdAt:m.created_at,
-      sender:short(m.sender_name,120),recipient:key==='office'?'Office':'Direct',
+      sender:short(m.sender_name,120),recipient:key==='office'?'Office':short(m.peer_name||'Colleague',120),
       direction:self?'sent':'received',
       subject:'Communication',text:m.message_type==='voice'?'Voice message':short(m.body,2500),
       acknowledged:false,status:'message',canComplete:false,

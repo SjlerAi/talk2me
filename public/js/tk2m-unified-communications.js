@@ -87,6 +87,7 @@
      }
    }else{
      actions.append(actionButton('Reply','legacy',item));
+     actions.append(actionButton('Clear','clear',item));
    }
    strip.append(actions);wrap.append(strip);
    const form=node('form','tk2m-unified-inline-reply');
@@ -135,7 +136,11 @@
    }
    busy=true;button.disabled=true;
    try{
-     if(type==='receipt'){
+     if(type==='clear'){
+       await api('/api/tk2m/communications/clear',{method:'POST',
+         body:JSON.stringify({kind:'legacy_chat',id:item.id})});
+       status.textContent='Cleared from your list; history retained';
+     }else if(type==='receipt'){
        await api('/api/staff-attention/ack',{method:'POST',
          body:JSON.stringify({kind:'task',id:item.id,method:'dismiss'})});
        status.textContent='Received and recorded';
