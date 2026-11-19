@@ -484,11 +484,10 @@
         panel.innerHTML='<div class="t2m-home-priority-empty">No communications sent or received today.</div>';
         return;
       }
-      panel.innerHTML=latest.map(item=>{
-        const sender=shortStaffName(item.sender);
-        const recipient=shortStaffName(item.recipient);
-        const who=item.kind==='task' ? sender+' → '+recipient
-          :item.direction==='sent' ? 'To '+recipient : 'From '+sender;
+      panel.innerHTML=latest.map((item,index)=>{
+        const sender=shortStaffName(item.sender),recipient=shortStaffName(item.recipient);
+        const who=item.kind==='task'?sender+' → '+recipient
+          :item.direction==='sent'?'To '+recipient:'From '+sender;
         const title=String((item.kind==='task'?item.subject:'')||item.text||'Communication')
           .replace(/\s+/g,' ').trim();
         const stateLabel=item.kind==='legacy_chat'?'Message'
@@ -497,16 +496,91 @@
         const color=item.kind==='task'
           ?staffColor({assignedTo:item.assignedTo,assignedName:item.recipient})
           :'#ab2330';
-        return `<button type="button" class="t2m-home-priority-item" role="listitem"
-            data-home-priority-open="${esc(item.id)}" style="--staff-color:${color}"
+        return `<article class="t2m-home-priority-item" role="listitem" style="--staff-color:${color}">
+          <button type="button" class="t2m-home-priority-open" data-home-priority-open="${index}"
             aria-label="Open communication: ${esc(who)} – ${esc(title)}">
-          <span class="t2m-home-priority-who">${esc(who)}</span>
-          <strong title="${esc(title)}">${esc(title)}</strong>
-          <small>${esc(stateLabel)}</small>
-        </button>`;
+            <span class="t2m-home-priority-who">${esc(who)}</span>
+            <strong title="${esc(title)}">${esc(title)}</strong>
+            <small>${esc(stateLabel)}</small>
+          </button>
+          <div class="t2m-home-priority-actions">
+            <button type="button" data-priority-reply="${index}">Reply</button>
+            ${item.kind==='task'&&item.canComplete?`<button type="button" class="is-done" data-priority-done="${index}">Done</button>`:''}
+          </div>
+          ${item.kind==='task'?`<form class="t2m-home-priority-reply" data-priority-form="${index}" hidden>
+            <label for="priority-reply-${index}">Quick reply</label>
+            <textarea id="priority-reply-${index}" maxlength="4000" rows="2" required></textarea>
+            <div><button type="button" data-priority-cancel="${index}">Cancel</button>
+              <button type="submit">Send reply</button></div>
+          </form>`:''}
+          <small class="t2m-home-priority-feedback" data-priority-feedback="${index}" role="status" hidden></small>
+        </article>`;
       }).join('');
-      panel.querySelectorAll('[data-home-priority-open]').forEach((button,index)=>{
-        button.onclick=()=>openCommunications(latest[index]);
+      const priorityForm=index=>panel.querySelector('[data-priority-form="'+index+'"]');
+      const priorityFeedback=(index,message)=>{
+        const node=panel.querySelector('[data-priority-feedback="'+index+'"]');
+        if(node){node.textContent=String(message||'');node.hidden=false;}
+      };
+      panel.querySelectorAll('[data-home-priority-open]').forEach(button=>{
+        button.onclick=()=>openCommunications(latest[Number(button.dataset.homePriorityOpen)]);
+      });
+      panel.querySelectorAll('[data-priority-reply]').forEach(button=>{
+        button.onclick=()=>{
+          if(state.carryBusy)return;
+          const index=Number(button.dataset.priorityReply),item=latest[index];
+          if(!item)return;
+          if(item.kind!=='task'){openCommunications(item);return;}
+          const form=priorityForm(index);
+          if(form){form.hidden=!form.hidden;if(!form.hidden)form.querySelector('textarea')?.focus();}
+        };
+      });
+      panel.querySelectorAll('[data-priority-cancel]').forEach(button=>{
+        button.onclick=()=>{const form=priorityForm(button.dataset.priorityCancel);
+          if(form){form.hidden=true;form.reset();}};
+      });
+      panel.querySelectorAll('[data-priority-form]').forEach(form=>{
+        form.addEventListener('submit',async event=>{
+          event.preventDefault();
+          if(state.carryBusy)return;
+          const index=Number(form.dataset.priorityForm),item=latest[index];
+          if(!item||item.kind!=='task')return;
+          const reply=String(form.querySelector('textarea')?.value||'').trim();
+          if(!reply){priorityFeedback(index,'Enter a reply first.');return;}
+          state.carryBusy=true;
+          try{
+            const body=new FormData();body.set('comment',reply);
+            const response=await fetch(`${basePath}/api/uat/tasks/${Number(item.id)}/comments`,{
+              method:'POST',credentials:'same-origin',headers:{Accept:'application/json'},body});
+            const result=await response.json().catch(()=>({}));
+            if(!response.ok||result.ok===false)throw Error(result.error||'Could not send reply');
+            priorityFeedback(index,'Reply sent.');form.hidden=true;form.reset();
+            window.dispatchEvent(new Event('workspace:refresh'));
+          }catch(error){priorityFeedback(index,error.message);}
+          finally{state.carryBusy=false;}
+        });
+      });
+      panel.querySelectorAll('[data-priority-done]').forEach(button=>{
+        button.onclick=async()=>{
+          if(state.carryBusy)return;
+          const index=Number(button.dataset.priorityDone),item=latest[index];
+          if(!item||item.kind!=='task'||!item.canComplete)return;
+          if(item.completeOnBehalf&&!window.confirm(
+            'Mark "'+String(item.subject||'this instruction')+'" Done on behalf of '+
+            String(item.recipient||'the employee')+'? This records you as completing it.'
+          ))return;
+          state.carryBusy=true;button.disabled=true;
+          try{
+            await jsonFetch(`/api/uat/tasks/${Number(item.id)}/status`,{
+              method:'POST',body:JSON.stringify({
+                status:'completed',completion_note:item.completeOnBehalf
+                  ?'Manager confirmed completion on behalf via My Day ribbon'
+                  :'Completed via My Day ribbon'
+              })
+            });
+            window.dispatchEvent(new Event('workspace:refresh'));
+          }catch(error){priorityFeedback(index,error.message);button.disabled=false;}
+          finally{state.carryBusy=false;}
+        };
       });
     }
     function showCarryFeedback(message,isError=false){

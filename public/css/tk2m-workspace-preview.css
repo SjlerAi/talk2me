@@ -190,6 +190,37 @@
 }
 .t2m-tk2m-test-shell .t2m-home-focus>button{min-height:47px;padding:7px 11px}
 
+/* Inline actions on every horizontally paged My Day communication card. */
+.t2m-tk2m-test-shell .t2m-home-priority-open{
+  all:unset;display:grid;gap:3px;width:100%;min-width:0;cursor:pointer;
+}
+.t2m-tk2m-test-shell .t2m-home-priority-open:focus-visible{
+  outline:2px solid #a72432;outline-offset:2px;border-radius:4px;
+}
+.t2m-tk2m-test-shell .t2m-home-priority-actions{
+  display:flex;gap:6px;align-items:center;flex-wrap:wrap;
+}
+.t2m-tk2m-test-shell .t2m-home-priority-actions button,
+.t2m-tk2m-test-shell .t2m-home-priority-reply button{
+  border:1px solid #cbd5e1;border-radius:6px;background:#f8fafc;
+  color:#273448;font-size:11px;font-weight:750;padding:4px 10px;cursor:pointer;
+}
+.t2m-tk2m-test-shell .t2m-home-priority-actions button.is-done{
+  background:#e9f8ef;border-color:#93d5ab;color:#17643b;
+}
+.t2m-tk2m-test-shell .t2m-home-priority-reply{
+  display:grid;gap:5px;min-width:0;
+}
+.t2m-tk2m-test-shell .t2m-home-priority-reply[hidden]{display:none}
+.t2m-tk2m-test-shell .t2m-home-priority-reply label{font-size:10px;font-weight:700}
+.t2m-tk2m-test-shell .t2m-home-priority-reply textarea{
+  width:100%;box-sizing:border-box;min-width:0;border:1px solid #cbd5e1;
+  border-radius:5px;padding:6px;font:inherit;font-size:12px;resize:vertical;
+}
+.t2m-tk2m-test-shell .t2m-home-priority-reply>div{display:flex;gap:6px}
+.t2m-tk2m-test-shell .t2m-home-priority-feedback{color:#8f2432;white-space:normal!important}
+.t2m-tk2m-test-shell .t2m-home-focus .t2m-home-priority-item{cursor:default}
+
 /* Compact selected-date items: type/time, task headline, person/action.
    Details remain accessible on demand in the existing authorized screen. */
 .t2m-tk2m-test-shell .t2m-home-agenda-list{padding:7px}
