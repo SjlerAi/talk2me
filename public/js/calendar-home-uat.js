@@ -12,8 +12,21 @@
   function openWorkWindow(options = {}) {
     const manager = window.Talk2MeOS?.windows;
     if (manager?.open) return manager.open(options);
+    // Never replace My Day when the OS window manager has not finished loading.
+    // A separate same-origin window is a safe fallback: closing it returns to
+    // the unchanged workspace. A blocked popup must fail closed.
     if (options.url) {
-      window.location.assign(new URL(options.url, window.location.href).href);
+      let destination;
+      try { destination = new URL(options.url, window.location.href); } catch (_) { return null; }
+      if (destination.origin !== window.location.origin) return null;
+      const name = 'tk2m-work-' + String(options.id || 'details').replace(/[^a-zA-Z0-9_-]/g, '-');
+      const popup = window.open(destination.href, name,
+        'popup=yes,width=1120,height=720,resizable=yes,scrollbars=yes');
+      if (popup) {
+        try { popup.opener = null; popup.focus(); } catch (_) {}
+        return popup;
+      }
+      window.alert('Work window blocked. Allow CRM pop-ups and try again. Your My Day screen is unchanged.');
     }
     return null;
   }

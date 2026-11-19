@@ -32,7 +32,8 @@ assert.doesNotMatch(page,/Approvals Needed/);
 for(const asset of ['command-4.0.1.css','attendance-tabs.css','cudo-widget.js','customer-actions.js','layout-polish.css','os-v6.js','session-status-monitor.js']){
  assert.ok(!page.includes(asset),'Old asset leaked into stand-alone login: '+asset);
 }
-assert.equal((page.match(/rel="stylesheet"/g)||[]).length,1,'TK2M login should load one stylesheet');
+assert.equal((page.match(/rel="stylesheet"/g)||[]).length,2,'TK2M login needs only its login CSS and the approved shared blue/red theme');
+assert.match(page, /data-tk2m-blue-refresh/, 'Login must retain the approved blue/red visual identity');
 assert.ok(css.includes('#e9f3ff'),'Login needs distinctive soft blue background');
 assert.match(route,/layout: res\.locals\.isStaging \? 'tk2m-login-layout' : 'layout'/);
 assert.equal(route.split("layout: res.locals.isStaging ? 'tk2m-login-layout' : 'layout'").length-1,2,'GET and failed POST should use separate shell');
