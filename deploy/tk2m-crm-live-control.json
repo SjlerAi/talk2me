@@ -1,11 +1,11 @@
 {
   "schema": 1,
-  "action": "deploy",
+  "action": "hold",
   "environment": "tk2m-production",
-  "request_id": "tk2m-narrow-inquiry-report-20261119-a1",
+  "request_id": "tk2m-narrow-inquiry-report-20261119-postrelease-hold",
   "release_branch": "release/tk2m-narrow-inquiry-report-20261119",
   "release_sha": "a6f81b0946da15be54b9d4ac830d3090c03955bc",
-  "expected_previous_sha": "9e7f1374cdced1f9388fd37a1706fbcdc5f452c3",
+  "expected_previous_sha": "a6f81b0946da15be54b9d4ac830d3090c03955bc",
   "production_cutover": true,
-  "owner_approved": true
+  "owner_approved": false
 }
