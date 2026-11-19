@@ -104,6 +104,8 @@ async function main(){
  assert.match(unified,/Communications/);
  assert.match(unified,/data-tk2m-unified-list/);
  assert.match(unified,/api\/tk2m\/communications\/inbox/);
+ assert.match(unified,/api\/uat\/chat\/messages/);
+ assert.doesNotMatch(unified,/Talk2MeQuickChat\.open/);
  const {listInbox}=require('../src/services/tk2m-unified-inbox');
  const inboxQueries=[];
  const inboxDb={async execute(sql,args){
@@ -144,13 +146,13 @@ async function main(){
  assert.match(html,/tk2m-quick-communication-modal/);
  assert.match(html,/api\/tk2m\/communications\/brief/);
  assert.match(html,/tk2m-attention-inline-bootstrap/);
- assert.match(html,/tk2m-quick-task-thread-inline-bootstrap/);
- assert.match(html,/tk2m-quick-chat-inline-bootstrap/);
+ assert.doesNotMatch(html,/tk2m-quick-task-thread-inline-bootstrap/);
+ assert.doesNotMatch(html,/tk2m-quick-chat-inline-bootstrap/);
  assert.match(read('public/js/tk2m-staff-attention.js'),/Talk2MeQuickChat\.open/);
  const chatSource=read('public/js/tk2m-quick-chat-reply.js');
  require('node:vm').compileFunction(chatSource,[]);
  assert.match(chatSource,/Talk2MeQuickChat=/);
- assert.match(html,/tk2m-quick-task-thread/);
+ assert.doesNotMatch(html,/tk2m-quick-task-thread/);
  assert.match(html,/tk2m-quick-communications\.css/);
  assert.match(read('server.js'),/require\('\.\/src\/routes\/tk2m-communications-brief'\)/);
  console.log('TK2M_FAST_COMMUNICATIONS_AND_BRIEFINGS_PASS');
