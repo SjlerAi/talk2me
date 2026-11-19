@@ -16,9 +16,6 @@ assert.match(src,/age>20\*60\*1000/);
 assert.match(src,/CREATE TABLE IF NOT EXISTS tk2m_review_decisions/);
 assert.match(src,/CREATE TABLE IF NOT EXISTS tk2m_review_history/);
 assert.doesNotMatch(src,/CREATE TABLE IF NOT EXISTS tk2m_review_source_deltas/);
-assert.doesNotMatch(src,/\b(?:DROP|TRUNCATE|DELETE FROM|UPDATE clients|UPDATE staff_tasks|ALTER TABLE)\b/gi
-  .test(src.split('const tables=')[1]?.split('async function validateTable')[0]||'')
-  ? /never-made-up-query-pattern/ : /^$ /);
 const ddl=src.split('const tables=')[1]?.split('async function validateTable')[0]||'';
 for(const name of ['tk2m_review_decisions','tk2m_review_history']){
  assert.match(ddl,new RegExp('CREATE TABLE IF NOT EXISTS '+name));
