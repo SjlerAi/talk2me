@@ -164,24 +164,24 @@
  grid-column:1/-1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
  gap:8px;min-width:0;
 }
-.t2m-tk2m-test-shell .t2m-home-priority-item{
- all:unset;box-sizing:border-box;display:grid;gap:4px;min-width:0;min-height:71px;
+.t2m-tk2m-test-shell .t2m-home-focus .t2m-home-priority-item{
+ all:unset;box-sizing:border-box;display:grid;grid-template-columns:minmax(0,1fr);align-items:stretch;gap:4px;min-width:0;min-height:71px;text-align:left;
  padding:9px 12px;border:1px solid #e9d6d9;border-left:5px solid var(--staff-color,#a72432);
  border-radius:9px;background:#fff;cursor:pointer;color:#222d3a;
 }
-.t2m-tk2m-test-shell .t2m-home-priority-item:hover,
-.t2m-tk2m-test-shell .t2m-home-priority-item:focus-visible{
+.t2m-tk2m-test-shell .t2m-home-focus .t2m-home-priority-item:hover,
+.t2m-tk2m-test-shell .t2m-home-focus .t2m-home-priority-item:focus-visible{
  border-color:#b91c2b;box-shadow:0 0 0 2px #f7d4d8;outline:none;
 }
 .t2m-tk2m-test-shell .t2m-home-priority-who{
  display:block;font-size:11px;font-weight:850;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 }
-.t2m-tk2m-test-shell .t2m-home-priority-item strong{
+.t2m-tk2m-test-shell .t2m-home-focus .t2m-home-priority-item strong{
  display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:1;
  overflow:hidden;min-width:0;font-size:13px;line-height:1.25;color:#1f2937;
  overflow-wrap:anywhere;
 }
-.t2m-tk2m-test-shell .t2m-home-priority-item small{
+.t2m-tk2m-test-shell .t2m-home-focus .t2m-home-priority-item small{
  font-size:10px;color:#667085;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 }
 .t2m-tk2m-test-shell .t2m-home-priority-empty{
@@ -215,7 +215,7 @@
 }
 @media(max-width:1000px){
  .t2m-tk2m-test-shell .t2m-home-priority-list{grid-template-columns:1fr}
- .t2m-tk2m-test-shell .t2m-home-priority-item{min-height:56px}
+ .t2m-tk2m-test-shell .t2m-home-focus .t2m-home-priority-item{min-height:56px}
 }
 @media(max-width:600px){
  .t2m-tk2m-test-shell .t2m-home-focus>.t2m-home-attention-strip{grid-template-columns:1fr}
