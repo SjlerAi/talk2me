@@ -96,6 +96,8 @@ async function main(){
  assert.match(read('public/js/calendar-home-uat.js'),/data-home-quick-send/);
  assert.match(read('public/js/uat-work-widgets.js'),/Talk2MeCommunications/);
  assert.match(read('public/js/uat-work-widgets.js'),/Talk2MeUnifiedInbox/);
+ assert.match(read('public/js/uat-work-operating-model.js'),/return window.Talk2MeUnifiedInbox.open\(\)/);
+ assert.match(read('public/js/calendar-home-uat.js'),/recent communications/);
  assert.match(read('public/js/calendar-home-uat.js'),/Communications<\/button>/);
  const unified=read('public/js/tk2m-unified-communications.js');
  require('node:vm').compileFunction(unified,[]);

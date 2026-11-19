@@ -4,6 +4,20 @@
  const cfgEl=document.getElementById('talk2me-os-config');
  if(!cfgEl)return;
  const cfg=JSON.parse(cfgEl.textContent||'{}'),base=String(cfg.basePath||'');
+ function labelLauncher(){
+   document.querySelectorAll('[data-os-app="work"]').forEach(button=>{
+     if(button.getAttribute('aria-label')!=='Communications')button.setAttribute('aria-label','Communications');
+     if(button.getAttribute('title')!=='Communications')button.setAttribute('title','Communications');
+     button.querySelectorAll('strong').forEach(child=>{
+       if(child.textContent!=='Communications')child.textContent='Communications';
+     });
+   });
+ }
+ labelLauncher();
+ const launcherBar=document.querySelector('.t2m-os-launcher');
+ if(launcherBar && typeof MutationObserver!=='undefined'){
+   new MutationObserver(labelLauncher).observe(launcherBar,{childList:true,subtree:true});
+ }
  const overlay=document.createElement('div');
  overlay.className='tk2m-unified-overlay';
  overlay.id='tk2m-unified-communications';
@@ -160,6 +174,7 @@
    }).catch(()=>{});
  }
  function open(options={}){
+   labelLauncher();
    trackInboxOpen();
    // The old floating Work window must never sit on top of this one.
    const old=document.getElementById('t2m-task-widget');
