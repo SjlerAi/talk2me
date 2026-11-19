@@ -537,3 +537,104 @@ body.tk2m-reminder-page .eyebrow {color:#356e9c !important}
 body.tk2m-reminder-page .note {background:#f7fbff !important;border-color:#dae8f3 !important}
 body.tk2m-reminder-page .detail button {background:#22649d !important;color:#fff !important;border-color:#22649d !important}
 body.tk2m-reminder-page .detail button.secondary {background:#fff !important;color:#22649d !important;border-color:#bdd5e7 !important}
+
+/* Review after opening Customers and Fixed Services at a 1130px split-screen.
+ * Keep controls and important actions visible; only wide data tables scroll.
+ */
+body.command-body .command-app,
+body.command-body .command-page {
+  box-sizing:border-box;max-width:100%;min-width:0;
+}
+body.command-body .command-topbar {
+  height:auto;min-height:68px;
+  display:flex;flex-wrap:wrap;align-content:center;
+  gap:8px !important;padding:8px 14px !important;
+}
+body.command-body .command-topbar .icon-button {
+  background:#22649d !important;color:#fff !important;
+  border-color:#22649d !important;
+}
+body.command-body .command-topbar .command-search {
+  flex:1 1 240px;min-width:160px;margin:0;
+}
+body.command-body .command-topbar .top-task-link {
+  background:#f3f8fd !important;color:#224d73 !important;
+  border:1px solid #d5e4f0 !important;
+  white-space:normal;min-width:0;
+}
+body.command-body .command-topbar .approval-top-link {
+  background:#fff5f2 !important;color:#864b35 !important;
+  border-color:#edc8b3 !important;
+}
+body.command-body .command-page {
+  padding:clamp(12px,2vw,26px) !important;
+}
+body.command-body .page-head {
+  display:flex;justify-content:space-between;align-items:center;
+  flex-wrap:wrap;gap:12px;min-width:0;
+}
+body.command-body .page-head>div {min-width:0;flex:1 1 320px;}
+body.command-body .page-head>div p {max-width:78ch;overflow-wrap:anywhere;}
+body.command-body .page-head>.btn {
+  max-width:100%;white-space:normal;flex:0 1 auto;
+}
+body.command-body .report-filters {
+  display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px;
+}
+body.command-body .report-filters>label {
+  min-width:0;flex:1 1 190px;margin:0;
+}
+body.command-body .report-filters>label :is(input,select) {
+  display:block;width:100%;max-width:100%;
+}
+body.command-body .report-filters>.btn {
+  flex:0 0 auto;max-width:100%;min-height:42px;
+}
+body.command-body .command-page>.panel,
+body.command-body .command-page>.card,
+body.command-body .command-page>.customer-results-card {
+  box-sizing:border-box;max-width:100%;min-width:0;
+}
+body.command-body .table-wrap {
+  display:block;box-sizing:border-box;
+  width:100%;max-width:100%;min-width:0;
+  overflow-x:auto;overscroll-behavior-x:contain;
+}
+body.command-body .table-wrap table {width:100%;min-width:780px;}
+body.command-body .customer-visibility-card,
+body.command-body .customer-advanced-filter {
+  background:#fff !important;border:1px solid #d6e4f0 !important;
+  border-radius:12px !important;box-shadow:var(--tk2m-elevation);
+}
+body.command-body .customer-attention-launcher {
+  border-radius:12px;
+}
+body.command-body .customer-attention-action {
+  border-color:#c8ddeb;border-left-color:#4090ca;
+  box-shadow:0 2px 8px rgba(24,67,108,.045);
+}
+body.command-body .customer-attention-action.active {
+  border-color:#4090ca;background:#edf6fe;
+}
+body.command-body .customer-filter-grid {
+  grid-template-columns:repeat(auto-fit,minmax(min(185px,100%),1fr));
+}
+body.command-body .customer-filter-heading,
+body.command-body .customer-visibility-card {
+  min-width:0;
+}
+body.command-body .customer-visibility-actions {
+  min-width:0;max-width:100%;gap:8px;
+}
+@media(max-width:1250px){
+  body.command-body .command-topbar {
+    position:relative;
+  }
+  body.command-body .command-page {padding:14px !important}
+  body.command-body .command-topbar .top-task-link {padding:8px 10px;}
+}
+@media(max-width:740px){
+  body.command-body .command-topbar .command-search {flex-basis:100%;}
+  body.command-body .report-filters>.btn {width:100%;}
+  body.command-body .page-head>.btn {width:100%;text-align:center;}
+}
