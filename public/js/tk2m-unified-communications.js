@@ -151,7 +151,16 @@
    }catch(error){status.textContent='Could not load Communications: '+error.message;}
    finally{loading=false;}
  }
+ function trackInboxOpen(){
+   fetch(base+'/api/usage/events',{
+     method:'POST',credentials:'same-origin',keepalive:true,
+     headers:{'Content-Type':'application/json'},
+     body:JSON.stringify({event_type:'ui_action',screen_key:'communications-inbox',
+       module_name:'communications',route_path:'/workspace',action:'open_inbox'})
+   }).catch(()=>{});
+ }
  function open(options={}){
+   trackInboxOpen();
    // The old floating Work window must never sit on top of this one.
    const old=document.getElementById('t2m-task-widget');
    if(old)old.hidden=true;
