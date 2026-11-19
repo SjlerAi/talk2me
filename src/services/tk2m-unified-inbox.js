@@ -4,9 +4,12 @@
 const {positiveId}=require('./tk2m-staff-attention');
 const {getArchiveCutoffs}=require('./tk2m-communications-archive');
 const short=(v,len=500)=>String(v||'').slice(0,len);
-async function listInbox(db,viewer){
+async function listInbox(db,viewer,options={}){
  const staffId=positiveId(viewer);
  if(!staffId)throw new Error('Invalid staff identity');
+ // Team access must be authorised by the router before it calls this service.
+ const isTeam=options.scope==='team';
+ const taskAudience=isTeam?'1=1':'(t.assigned_to=:staffId OR t.created_by=:staffId)';
  const archive=await getArchiveCutoffs(db,staffId);
  const params={staffId,archivedChatId:archive.chatId};
  const [tasks]=await db.execute(
@@ -18,7 +21,7 @@ async function listInbox(db,viewer){
     JOIN staff_users recipient ON recipient.id=t.assigned_to
     LEFT JOIN staff_attention_acknowledgments ack ON
       ack.staff_id=t.assigned_to AND ack.source_kind='task' AND ack.source_id=t.id
-    WHERE (t.assigned_to=:staffId OR t.created_by=:staffId)
+    WHERE ${taskAudience}
       AND t.type='task' AND t.status IN ('unread','seen','in_progress')
       AND t.created_at>=DATE_SUB(NOW(),INTERVAL 2 DAY)
     ORDER BY t.created_at DESC,t.id DESC LIMIT 100`,params);
@@ -49,7 +52,8 @@ async function listInbox(db,viewer){
    ...tasks.map(t=>({
     kind:'task',id:Number(t.id),createdAt:t.created_at,
     sender:short(t.sender_name,120),recipient:short(t.recipient_name,120),
-    direction:Number(t.assigned_to)===staffId?'received':'sent',
+    direction:Number(t.assigned_to)===staffId?'received':(Number(t.created_by)===staffId?'sent':'team'),
+    assignedTo:Number(t.assigned_to),createdBy:Number(t.created_by),
     subject:short(t.title,170),text:short(t.message||t.title,2500),
     acknowledged:!!t.receipt_at,acknowledgedAt:t.receipt_at||null,
     status:t.status,canComplete:Number(t.assigned_to)===staffId
@@ -69,7 +73,7 @@ async function listInbox(db,viewer){
     };
    })
  ].sort((a,b)=>new Date(b.createdAt).getTime()-new Date(a.createdAt).getTime()||b.id-a.id).slice(0,120);
- return {ok:true,windowDays:2,items:result,openCount:tasks.length,
+ return {ok:true,windowDays:2,scope:isTeam?'team':'mine',items:result,openCount:tasks.length,
    counts:{received:result.filter(x=>x.direction==='received').length,sent:result.filter(x=>x.direction==='sent').length}};
 }
 module.exports={listInbox};

@@ -314,6 +314,9 @@
             <button type="button" data-home-quick-send aria-label="Send communication">+ Send</button>
             <button type="button" data-os-app="messages" aria-label="Open all recent communications">Communications</button>
           </div>
+          <div class="t2m-home-priority-list" data-home-priority-list role="list" aria-label="Three latest communications" aria-live="polite">
+            <span class="t2m-home-priority-loading">Loading current instructions...</span>
+          </div>
         </section>
         <button type="button" data-home-focus="tasks" aria-label="View selected-day calendar actions">
           <span>Calendar actions</span><strong data-home-focus-count="tasks">—</strong><small>Selected day · agenda</small>
@@ -366,7 +369,10 @@
       events: [],
       loading: false,
       error: '',
-      focus: { messages: null, overdue: null, openWork: null }
+      focus: { messages: null, overdue: null, openWork: null },
+      communications: [],
+      attentionError: null,
+      agendaExpanded: false
     };
 
     const grid = workspace.querySelector('[data-home-grid]');
@@ -414,6 +420,53 @@
       });
     }
 
+    function openCommunications(item=null) {
+      const options={scope:isManagement&&state.scope==='team'?'team':'mine'};
+      if(item?.kind==='task')options.focusTaskId=Number(item.id);
+      if(window.Talk2MeUnifiedInbox?.open)return window.Talk2MeUnifiedInbox.open(options);
+      document.querySelector('[data-os-app="work"]')?.click();
+    }
+    function renderPriority() {
+      if(!tk2mPreview)return;
+      const panel=workspace.querySelector('[data-home-priority-list]');
+      if(!panel)return;
+      if(state.attentionError){
+        panel.innerHTML='<div class="t2m-home-priority-empty">Communications unavailable. Open the list to retry.</div>';
+        return;
+      }
+      const scoped=state.staffFilter && isManagement && state.scope==='team'
+        ?state.communications.filter(item=>item.kind==='task' &&
+           staffKey({assignedTo:item.assignedTo,assignedName:item.recipient})===state.staffFilter)
+        :state.communications;
+      const latest=scoped.slice(0,3);
+      if(!latest.length){
+        panel.innerHTML='<div class="t2m-home-priority-empty">No outstanding communications in the last 48 hours.</div>';
+        return;
+      }
+      panel.innerHTML=latest.map(item=>{
+        const sender=shortStaffName(item.sender);
+        const recipient=shortStaffName(item.recipient);
+        const who=item.direction==='team' ? sender+' → '+recipient
+          :item.direction==='sent' ? 'To '+recipient : 'From '+sender;
+        const title=String((item.kind==='task'?item.subject:'')||item.text||'Communication')
+          .replace(/\s+/g,' ').trim();
+        const stateLabel=item.kind==='legacy_chat'?'Message'
+          :item.acknowledged?'Received · outstanding':'Awaiting receipt';
+        const color=item.kind==='task'
+          ?staffColor({assignedTo:item.assignedTo,assignedName:item.recipient})
+          :'#ab2330';
+        return `<button type="button" class="t2m-home-priority-item" role="listitem"
+            data-home-priority-open="${esc(item.id)}" style="--staff-color:${color}"
+            aria-label="Open communication: ${esc(who)} – ${esc(title)}">
+          <span class="t2m-home-priority-who">${esc(who)}</span>
+          <strong title="${esc(title)}">${esc(title)}</strong>
+          <small>${esc(stateLabel)}</small>
+        </button>`;
+      }).join('');
+      panel.querySelectorAll('[data-home-priority-open]').forEach((button,index)=>{
+        button.onclick=()=>openCommunications(latest[index]);
+      });
+    }
     function renderFocus() {
       if (!tk2mPreview) return;
       const inactive = new Set(['completed', 'cancelled', 'closed', 'done', 'accepted']);
@@ -435,6 +488,7 @@
         node.textContent = count === null ? '—' : String(count);
         node.closest('[data-home-focus]')?.classList.toggle('has-attention', Number(count) > 0);
       }
+      renderPriority();
       const summary = workspace.querySelector('[data-home-attention-summary]');
       if(summary){
         const count=state.focus.messages,overdue=state.focus.overdue;
@@ -445,7 +499,10 @@
     }
 
     function renderAgenda() {
-      const items = visibleEvents().filter(item => item.date === state.selected);
+      const inactive=new Set(['completed','cancelled','closed','done','accepted']);
+      const items = visibleEvents().filter(item => item.date === state.selected &&
+        (!tk2mPreview || !inactive.has(String(item.status||'').toLowerCase())));
+      const shown=tk2mPreview && !state.agendaExpanded?items.slice(0,4):items;
       agendaDate.textContent = humanDate(state.selected);
       agendaCount.textContent = String(items.length);
 
@@ -462,25 +519,34 @@
         return;
       }
 
-      agenda.innerHTML = items.map(item => {
+      agenda.innerHTML = shown.map(item => {
         const meta = eventMeta[item.type] || eventMeta.other;
         const color = staffColor(item);
         return `<article class="t2m-home-agenda-item" style="--staff-color:${color}">
           <div class="t2m-home-agenda-top"><span>${esc(meta.icon)} ${esc(meta.label)}</span><time>${esc(item.time || 'All day')}</time></div>
           <strong>${esc(item.title || meta.label)}</strong>
           <span class="t2m-home-owner"><i></i>${esc(shortStaffName(item.assignedName))}</span>
-          ${item.details ? `<p>${esc(item.details)}</p>` : ''}
+          ${!tk2mPreview && item.details ? `<p>${esc(item.details)}</p>` : ''}
           <div class="t2m-home-agenda-actions">
             ${item.url ? `<button type="button" data-open-calendar-item="${esc(item.id)}">${item.source === 'personal' ? 'View' : 'Open'}</button>` : ''}
             ${item.editable ? `<button type="button" data-complete-calendar-item="${item.sourceId}" data-status="${esc(item.status || 'open')}">${item.status === 'completed' ? 'Reopen' : 'Complete'}</button><button type="button" data-delete-calendar-item="${item.sourceId}">Delete</button>` : ''}
           </div>
         </article>`;
-      }).join('');
+      }).join('') + (tk2mPreview && items.length>4
+        ?`<button type="button" class="t2m-home-agenda-more" data-home-agenda-more>${state.agendaExpanded?'Show four': 'View all '+items.length+' calendar actions'}</button>`
+        :'');
+      agenda.querySelector('[data-home-agenda-more]')?.addEventListener('click',()=>{
+        state.agendaExpanded=!state.agendaExpanded;
+        renderAgenda();
+      });
 
       agenda.querySelectorAll('[data-open-calendar-item]').forEach(button => {
         button.onclick = () => {
           const item = state.events.find(event => String(event.id) === String(button.dataset.openCalendarItem));
           if (!item?.url) return;
+          if(tk2mPreview && item.source==='task' && window.Talk2MeUnifiedInbox?.open){
+            openCommunications({kind:'task',id:item.sourceId});return;
+          }
           const meta = eventMeta[item.type] || eventMeta.other;
           openWorkWindow({
             id: `dated:${String(item.id).replace(/[^a-zA-Z0-9:_-]/g, '-')}`,
@@ -543,6 +609,7 @@
         }).join('');
         button.innerHTML = `<span class="t2m-home-day-top"><b>${date.getDate()}</b>${items.length ? `<em>${items.length}</em>` : ''}</span><span class="t2m-home-event-marks">${markers}</span>${items.length ? `<small>${items.length === 1 ? esc((eventMeta[items[0].type] || eventMeta.other).label) : `${items.length} items`}</small>` : '<small>&nbsp;</small>'}`;
         button.onclick = () => {
+          state.agendaExpanded=false;
           state.selected = key;
           if (outside) {
             state.month = monthStart(date);
@@ -582,11 +649,15 @@
     async function loadAttention() {
       if (!tk2mPreview) return;
       const [messagesResult, statusResult] = await Promise.allSettled([
-        jsonFetch('/api/tk2m/communications/inbox'),
+        jsonFetch('/api/tk2m/communications/inbox'+
+          (isManagement&&state.scope==='team'?'?scope=team':'')),
         jsonFetch('/api/os/status')
       ]);
+      state.communications=messagesResult.status==='fulfilled' && Array.isArray(messagesResult.value.items)
+        ?messagesResult.value.items:[];
+      state.attentionError=messagesResult.status==='rejected'?String(messagesResult.reason?.message||'Unavailable'):null;
       state.focus.messages = messagesResult.status === 'fulfilled'
-        ? Math.max(0, Array.isArray(messagesResult.value.items)?messagesResult.value.items.length:0)
+        ? state.communications.length
         : null;
       state.focus.overdue = statusResult.status === 'fulfilled'
         ? Math.max(0, Number(statusResult.value.status?.overdueTaskCount || 0))
@@ -619,9 +690,9 @@
       setTimeout(() => reminderForm.elements.title.focus(), 0);
     }
 
-    workspace.querySelector('[data-home-prev]').onclick = () => { state.month = new Date(state.month.getFullYear(), state.month.getMonth() - 1, 1, 12); state.selected = iso(state.month); load(); };
-    workspace.querySelector('[data-home-next]').onclick = () => { state.month = new Date(state.month.getFullYear(), state.month.getMonth() + 1, 1, 12); state.selected = iso(state.month); load(); };
-    workspace.querySelector('[data-home-today-button]').onclick = () => { const now = new Date(); state.month = monthStart(now); state.selected = iso(now); state.staffFilter = null; load(); };
+    workspace.querySelector('[data-home-prev]').onclick = () => { state.agendaExpanded=false; state.month = new Date(state.month.getFullYear(), state.month.getMonth() - 1, 1, 12); state.selected = iso(state.month); load(); };
+    workspace.querySelector('[data-home-next]').onclick = () => { state.agendaExpanded=false; state.month = new Date(state.month.getFullYear(), state.month.getMonth() + 1, 1, 12); state.selected = iso(state.month); load(); };
+    workspace.querySelector('[data-home-today-button]').onclick = () => { state.agendaExpanded=false; const now = new Date(); state.month = monthStart(now); state.selected = iso(now); state.staffFilter = null; load(); };
     workspace.querySelector('[data-home-add-task]').onclick = openTask;
     workspace.querySelector('[data-home-add-reminder]').onclick = openReminder;
     workspace.querySelector('[data-home-focus="tasks"]')?.addEventListener('click', () => {
@@ -652,7 +723,8 @@
         if (next === state.scope) return;
         state.scope = next;
         state.staffFilter = null;
-        load();
+        state.agendaExpanded=false;
+        load();loadAttention();
       };
     });
 
@@ -664,6 +736,7 @@
       state.month = monthStart(now);
       state.selected = iso(now);
       state.staffFilter = null;
+      state.agendaExpanded=false;
       load();
     });
 
