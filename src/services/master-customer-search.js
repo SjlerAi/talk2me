@@ -144,8 +144,6 @@ async function searchMaster({query,user,basePath='/talk2me'}){
  const [found]=await db.execute(sql,{phone:canon,like});
  const rows=management?found:await visibleToStaff(found,userId);
  const crmLines=await searchCrmLines({q,canon,userId,management,basePath});
- const linkedIds=new Set(rows.map(r=>Number(r.crm_client_id)).filter(Number.isSafeInteger));
- const fallback=crmLines.filter(r=>!linkedIds.has(Number(r.id)));
  const masterResults=rows.slice(0,20).map(r=>{
   const fixed=r.service_type==='fixed';
   const relatedType=fixed?'fixed':r.crm_client_id?'mobile':r.mobile_base_id?'mobile_base':'unverified';
@@ -168,7 +166,15 @@ async function searchMaster({query,user,basePath='/talk2me'}){
    branch_name:r.branch_name||null,solution_id:r.solution_id||null,url
   };
  });
- // CRM hits take precedence so a service-register LIMIT cannot hide a line.
- return [...fallback,...masterResults].slice(0,20);
+ // Deduplicate only the master rows actually returned: the master's earlier
+ // candidate LIMIT must not suppress a CRM line found independently.
+ const linkedIds=new Set(rows.slice(0,20).map(r=>Number(r.crm_client_id)).filter(Number.isSafeInteger));
+ const fallback=crmLines.filter(r=>!linkedIds.has(Number(r.id)));
+ // A full phone lookup is also used to authorize Base Details service access.
+ // Put its verified exact master service first, then missing CRM lines, then
+ // other source results; do not let CRM duplicates displace an exact service.
+ const exact=canon?masterResults.filter(r=>r.cell_number===canon):[];
+ const remaining=canon?masterResults.filter(r=>r.cell_number!==canon):masterResults;
+ return [...exact,...fallback,...remaining].slice(0,20);
 }
 module.exports={searchMaster,normalPhone};
