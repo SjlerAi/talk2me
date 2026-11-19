@@ -9,6 +9,7 @@ const path = require('path');
 const crypto = require('crypto');
 const XLSX = require('xlsx');
 const { writeZip, safeZipPath } = require('../services/library-zip');
+const { trackEvent } = require('../services/usage-telemetry');
 
 const router = express.Router();
 const IS_UAT = String(process.env.UAT_MODE || '').trim().toLowerCase() === 'true';
@@ -26,6 +27,19 @@ function management(user) {
   return Boolean(user && MANAGEMENT_ROLES.has(String(user.role || '').toLowerCase()));
 }
 
+// Verified live staff user: id 1, Gerda, Owner. Only this principal can
+// access archived documents or restore them, even among owner/manager roles.
+function canRestoreArchived(user){
+  return Boolean(user && Number(user.id)===1 &&
+    String(user.role||'').toLowerCase()==='owner' &&
+    String(user.full_name||'').trim().toLowerCase()==='gerda');
+}
+function requireGerda(req,res,next){
+  if(!req.session.user)return res.status(401).json({ok:false,error:'Sign in required.'});
+  if(!canRestoreArchived(req.session.user))
+    return res.status(403).json({ok:false,error:'Only Gerda can access the Library archive.'});
+  next();
+}
 function requireManager(req, res, next) {
   if (!req.session.user) return res.status(401).json({ ok:false, error:'Sign in required.' });
   if (!management(req.session.user)) return res.status(403).json({ ok:false, error:'Manager or administrator access required.' });
@@ -301,7 +315,7 @@ function documentAccessSql(user) {
 }
 
 async function getDocument(documentId,user,{includeArchived=false}={}) {
-  const statusSql = includeArchived && management(user) ? '1=1' : "d.status='active'";
+  const statusSql = includeArchived && canRestoreArchived(user) ? '1=1' : "d.status='active'";
   const [[row]] = await db.execute(`SELECT d.*,v.version_number,v.original_name,v.stored_filename,v.mime_type,v.extension,v.file_bytes,v.created_at version_created_at,
     uploader.full_name uploaded_by_name
     FROM library_documents d
@@ -312,7 +326,8 @@ async function getDocument(documentId,user,{includeArchived=false}={}) {
 }
 
 async function visibleDocuments(user,{status='active'}={}) {
-  const statusSql=status==='all'&&management(user)?'1=1':"d.status='active'";
+  const statusSql=canRestoreArchived(user)&&status==='all'?'1=1':
+    canRestoreArchived(user)&&status==='archived'?"d.status='archived'":"d.status='active'";
   const [rows]=await db.execute(`SELECT d.id,d.title,d.description,d.category,d.access_level,d.company_favourite,d.status,d.updated_at,
     v.id version_id,v.version_number,v.original_name,v.mime_type,v.extension,v.file_bytes,v.created_at version_created_at,
     uploader.full_name uploaded_by_name
@@ -320,7 +335,7 @@ async function visibleDocuments(user,{status='active'}={}) {
     LEFT JOIN library_versions v ON v.id=d.current_version_id
     LEFT JOIN staff_users uploader ON uploader.id=v.uploaded_by
     WHERE ${documentAccessSql(user)} AND ${statusSql}
-    ORDER BY d.company_favourite DESC,d.updated_at DESC,d.id DESC`);
+    ORDER BY COALESCE(v.created_at,d.created_at) DESC,d.id DESC`);
   return rows;
 }
 
@@ -509,7 +524,10 @@ router.get('/api/uat/library/bootstrap',requireAuth,async(req,res,next)=>{
     const userId=Number(req.session.user.id);
     const canManage=management(req.session.user);
     const requestedStatus=clean(req.query.status,20);
-    const rows=await visibleDocuments(req.session.user,{status:requestedStatus==='all'&&canManage?'all':'active'});
+    const canRestore=canRestoreArchived(req.session.user);
+    const rows=await visibleDocuments(req.session.user,{
+      status:canRestore&&['all','archived'].includes(requestedStatus)?requestedStatus:'active'
+    });
     const favourites=await favouriteSet(userId);
     const documents=rows.map(row=>mapDocument(row,favourites,nativeLaunchFor(req,res.locals.basePath,row)));
     const documentCategories=[...new Set(documents.map(item=>item.category).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
@@ -517,6 +535,8 @@ router.get('/api/uat/library/bootstrap',requireAuth,async(req,res,next)=>{
     res.json({
       ok:true,
       canManage,
+      canRestore,
+      archiveSchedule:'7th of every month at 00:00 Africa/Johannesburg',
       user:{id:userId,name:req.session.user.full_name,role:req.session.user.role},
       categories,
       suggestedCategories:CATEGORIES,
@@ -551,7 +571,7 @@ router.get('/api/uat/deals',requireAuth,async(req,res,next)=>{
       LEFT JOIN library_versions v ON v.id=d.current_version_id
       LEFT JOIN staff_users uploader ON uploader.id=v.uploaded_by
       WHERE ${whereSql}
-      ORDER BY d.company_favourite DESC,d.updated_at DESC,d.id DESC
+      ORDER BY COALESCE(v.created_at,d.created_at) DESC,d.id DESC
       LIMIT ${limit} OFFSET ${offset}`,params);
     const favourites=await favouriteSet(userId);
     const documents=rows.map(row=>mapDocument(row,favourites,nativeLaunchFor(req,res.locals.basePath,row)));
@@ -696,6 +716,9 @@ router.post('/api/uat/library/documents/:id/version',requireAuth,requireManager,
     if(!documentId||!req.file){removeUploaded(req);return res.status(400).json({ok:false,error:'Document and file are required.'});}
     const [[doc]]=await connection.execute('SELECT id,status FROM library_documents WHERE id=:id LIMIT 1',{id:documentId});
     if(!doc){removeUploaded(req);return res.sendStatus(404);}
+    if(doc.status!=='active'&&!canRestoreArchived(req.session.user)){
+      removeUploaded(req);return res.status(403).json({ok:false,error:'Only Gerda can republish archived documents.'});
+    }
     const [[maxVersion]]=await connection.execute('SELECT COALESCE(MAX(version_number),0) max_version FROM library_versions WHERE document_id=:id',{id:documentId});
     const versionNumber=Number(maxVersion?.max_version||0)+1;
     const userId=Number(req.session.user.id);
@@ -742,7 +765,8 @@ router.post('/api/uat/library/documents/:id/meta',requireAuth,requireManager,asy
     const [result]=await db.execute(`UPDATE library_documents
       SET title=:title,description=:description,category=:category,access_level=:accessLevel,
         company_favourite=:favourite,updated_by=:userId,updated_at=NOW()
-      WHERE id=:id`,{title,description,category,accessLevel,favourite,userId,id});
+      WHERE id=:id AND (status='active' OR :canRestore=1)`,{title,description,category,accessLevel,favourite,userId,id,
+        canRestore:canRestoreArchived(req.session.user)?1:0});
     if(!result.affectedRows) return res.sendStatus(404);
     res.json({ok:true});
   }catch(error){next(error);}
@@ -754,10 +778,20 @@ router.post('/api/uat/library/documents/:id/archive',requireAuth,requireManager,
     const id=idOf(req.params.id);
     if(!id) return res.sendStatus(404);
     const status=clean(req.body.status,20)==='active'?'active':'archived';
-    const [result]=await db.execute('UPDATE library_documents SET status=:status,updated_by=:userId,updated_at=NOW() WHERE id=:id',{
-      status,userId:Number(req.session.user.id),id
+    if(status==='active'&&!canRestoreArchived(req.session.user))
+      return res.status(403).json({ok:false,error:'Only Gerda can restore archived files.'});
+    const [result]=await db.execute(`UPDATE library_documents
+      SET status=:status,updated_by=:userId,updated_at=NOW()
+      WHERE id=:id AND (status='active' OR :canRestore=1)`,{
+      status,userId:Number(req.session.user.id),id,
+      canRestore:canRestoreArchived(req.session.user)?1:0
     });
     if(!result.affectedRows) return res.sendStatus(404);
+    try{await trackEvent({staffId:req.session.user.id,
+      eventType:status==='active'?'library_document_restored':'library_document_archived',
+      screenKey:'library',routePath:'/api/uat/library/documents/archive',
+      moduleName:'library',httpMethod:'POST',httpStatus:200,metadata:{documentId:id}});
+    }catch(error){console.error('[library-audit]',error.message);}
     res.json({ok:true,status});
   }catch(error){next(error);}
 });
@@ -771,12 +805,16 @@ router.delete('/api/uat/library/documents/:id',requireAuth,requireManager,async(
 
     await connection.beginTransaction();
     const [[document]]=await connection.execute(
-      'SELECT id,title FROM library_documents WHERE id=:id LIMIT 1 FOR UPDATE',
+      'SELECT id,title,status FROM library_documents WHERE id=:id LIMIT 1 FOR UPDATE',
       {id}
     );
     if(!document){
       await connection.rollback();
       return res.sendStatus(404);
+    }
+    if(document.status!=='active'&&!canRestoreArchived(req.session.user)){
+      await connection.rollback();
+      return res.status(403).json({ok:false,error:'Only Gerda can manage archived documents.'});
     }
 
     const [versions]=await connection.execute(
@@ -855,7 +893,7 @@ router.get('/api/uat/library/files/:versionId',requireAuth,async(req,res,next)=>
       FROM library_versions v JOIN library_documents d ON d.id=v.document_id
       WHERE v.id=:versionId LIMIT 1`,{versionId});
     if(!row) return res.sendStatus(404);
-    if(row.status!=='active'&&!management(req.session.user)) return res.sendStatus(404);
+    if(row.status!=='active'&&!canRestoreArchived(req.session.user)) return res.sendStatus(404);
     if(row.access_level!=='all'&&!management(req.session.user)) return res.sendStatus(403);
     const target=filePathFor(row);
     if(!target||!fs.existsSync(target)) return res.sendStatus(404);
