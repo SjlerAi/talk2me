@@ -11,7 +11,7 @@ function dbMock(options={}){
  const db={async execute(sql,values){
    seen.push(sql);
    if(sql.includes('MAX(CASE WHEN source_kind='))return [[{chatId:0,notificationTaskId:0,workflowId:0}]];
-   if(sql.includes('FROM staff_tasks t')&&sql.includes('COUNT(*) total'))return [[{total:options.taskCount??3,carryover:options.carryTasks??2,received_today:1}]];
+   if(sql.includes('FROM staff_tasks t')&&sql.includes('COUNT(*) total'))return [[{total:options.taskCount??3,carryover:options.carryTasks??2,received_today:1,sent_total:options.sentTasks??0,received_total:options.receivedTasks??3,sent_carry:options.sentCarry??0,received_carry:options.receivedCarry??2}]];
    if(sql.includes('FROM staff_chat_messages m')&&sql.includes('COUNT(*) total'))return [[{total:options.messageCount??2,carryover:options.carryMessages??1,received_today:1}]];
    if(sql.includes('FROM staff_tasks t')&&sql.includes('ORDER BY t.created_at'))return [[{id:31,title:'Call client',created_at:'2026-11-18 16:00:00',due_at:null,status:'unread',sender:'Gerda'}]];
    if(sql.includes('FROM staff_chat_messages m')&&sql.includes('ORDER BY m.created_at'))return [[{id:44,body:'Please call',created_at:'2026-11-18 12:30:00',sender:'Johnny'}]];
@@ -33,6 +33,7 @@ async function main(){
  assert.equal(start.counts.carriedTasks,2);
  assert.equal(start.counts.carriedMessages,1);
  assert.equal(start.counts.sent,0);
+ assert.equal(start.counts.received,5);
  assert.match(read('src/services/tk2m-communications-brief.js'),/t\.created_by=:staffId/);
  assert.equal(start.prompts.morning.pending,true);
  assert.equal(start.prompts.afternoon.pending,false);
@@ -42,6 +43,11 @@ async function main(){
  const evening=await dailyBrief(x.db,9,afternoon);
  assert.equal(evening.prompts.afternoon.pending,true);
  assert.equal(evening.prompts.morning.pending,false);
+ const sender=dbMock({taskCount:1,carryTasks:1,messageCount:0,carryMessages:0,sentTasks:1,sentCarry:1,receivedTasks:0,receivedCarry:0});
+ const senderMorning=await dailyBrief(sender.db,9,morning);
+ assert.equal(senderMorning.counts.sentCarried,1);
+ assert.equal(senderMorning.prompts.morning.pending,true);
+ assert.equal((await dailyBrief(sender.db,9,afternoon)).prompts.afternoon.pending,true);
  const result=await acknowledgeDailyBrief(x.db,9,'afternoon',afternoon);
  assert.equal(result.status,200);
  assert.deepEqual(x.writes[0],{staffId:9,kind:'afternoon',sourceId:20261119});
@@ -91,13 +97,31 @@ async function main(){
  assert.match(read('public/js/uat-work-widgets.js'),/Talk2MeCommunications/);
  assert.match(read('public/js/uat-work-widgets.js'),/Talk2MeUnifiedInbox/);
  assert.match(read('public/js/calendar-home-uat.js'),/Communications<\/button>/);
- assert.match(html,/tk2m-unified-communications-inline-bootstrap/);
- assert.match(html,/tk2m-unified-communications\.css/);
  const unified=read('public/js/tk2m-unified-communications.js');
  require('node:vm').compileFunction(unified,[]);
  assert.match(unified,/Communications/);
  assert.match(unified,/data-tk2m-unified-list/);
  assert.match(unified,/api\/tk2m\/communications\/inbox/);
+ const {listInbox}=require('../src/services/tk2m-unified-inbox');
+ const inboxQueries=[];
+ const inboxDb={async execute(sql,args){
+    inboxQueries.push(sql);
+    if(sql.includes('FROM staff_tasks t'))return [[{
+      id:356,title:'Call me',message:'Call me please',created_at:'2026-11-19T08:00:00Z',
+      status:'unread',assigned_to:9,created_by:15,sender_name:'ChatGPT CRM Test',
+      recipient_name:'Stephan',receipt_at:null
+    }]];
+    if(sql.includes('FROM staff_chat_messages m'))return [[]];
+    throw Error('Unexpected unified inbox query');
+ }};
+ const inbox=await listInbox(inboxDb,9);
+ assert.equal(inbox.items.length,1);
+ assert.equal(inbox.items[0].kind,'task');
+ assert.equal(inbox.items[0].direction,'received');
+ assert.equal(inbox.items[0].canComplete,true);
+ assert.match(inboxQueries[0],/t\.created_by=:staffId/);
+ assert.match(inboxQueries[0],/t\.assigned_to=:staffId/);
+ assert.match(inboxQueries[1],/m\.conversation_key='office'/);
  assert.match(read('public/js/uat-work-widgets.js'),/<strong>\+ Send<\/strong>/);
  assert.match(read('public/js/tk2m-staff-attention.js'),/completeNow/);
  assert.match(read('public/js/tk2m-staff-attention.js'),/Received/);
@@ -113,6 +137,8 @@ async function main(){
    osLaunchers:[],approvalCentreCount:0,unassignedClientCount:0,attendanceState:null
  },{filename:path.join(root,'views/os-shell.ejs')});
  assert.match(html,/tk2m-quick-communications-inline-bootstrap/);
+ assert.match(html,/tk2m-unified-communications-inline-bootstrap/);
+ assert.match(html,/tk2m-unified-communications\.css/);
  assert.match(html,/tk2m-quick-communication-modal/);
  assert.match(html,/api\/tk2m\/communications\/brief/);
  assert.match(html,/tk2m-attention-inline-bootstrap/);
