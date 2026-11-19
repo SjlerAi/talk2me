@@ -802,24 +802,23 @@
     }
 
     async function loadAttention() {
-      if (!tk2mPreview) return;
-      const [messagesResult, statusResult] = await Promise.allSettled([
-        jsonFetch('/api/tk2m/communications/inbox'+
-          (isManagement&&state.scope==='team'?'?scope=team':'')),
-        jsonFetch('/api/os/status')
-      ]);
-      state.communications=messagesResult.status==='fulfilled' && Array.isArray(messagesResult.value.items)
-        ?messagesResult.value.items:[];
-      state.attentionError=messagesResult.status==='rejected'?String(messagesResult.reason?.message||'Unavailable'):null;
-      state.focus.messages = messagesResult.status === 'fulfilled'
-        ? state.communications.length
-        : null;
-      state.focus.overdue = statusResult.status === 'fulfilled'
-        ? Math.max(0, Number(statusResult.value.status?.overdueTaskCount || 0))
-        : null;
-      state.focus.openWork = statusResult.status === 'fulfilled'
-        ? Math.max(0, Number(statusResult.value.status?.taskCount || 0))
-        : null;
+      if(!tk2mPreview)return;
+      try{
+        const data=await jsonFetch('/api/tk2m/communications/myday'+
+          (isManagement&&state.scope==='team'?'?scope=team':''));
+        state.communications=Array.isArray(data.today)?data.today:[];
+        state.outstanding=Array.isArray(data.outstanding)?data.outstanding:[];
+        state.outstandingTotal=Math.max(0,Number(data.counts?.outstanding||0));
+        state.attentionError=null;
+        state.focus.messages=state.communications.length;
+        state.focus.overdue=state.outstandingTotal;
+        state.focus.openWork=state.outstandingTotal;
+      }catch(error){
+        state.attentionError=String(error.message||'Communications unavailable');
+        state.communications=[];state.outstanding=[];
+        state.outstandingTotal=0;
+        state.focus.messages=null;state.focus.overdue=null;
+      }
       renderFocus();
     }
 
@@ -928,6 +927,15 @@
 
     window.addEventListener('workspace:refresh', () => {
       setTimeout(() => { load(); loadAttention(); }, 100);
+    });
+    // Refresh remote staff instructions without closing an active quick-reply box.
+    window.setInterval(()=>{
+      if(!tk2mPreview||document.hidden||state.carryBusy||
+         workspace.querySelector('[data-carry-form]:not([hidden])'))return;
+      void loadAttention();
+    },30000);
+    document.addEventListener('visibilitychange',()=>{
+      if(tk2mPreview&&!document.hidden&&!state.carryBusy)void loadAttention();
     });
 
     load();
