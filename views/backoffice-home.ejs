@@ -7,7 +7,7 @@
 </section>
 <% if(['owner','manager'].includes(currentUser.role)){ %>
 <section class="t2m-admin-qa" aria-labelledby="tk2m-qa-heading">
-  <h2 id="tk2m-qa-heading">QA Administration</h2>
+  <h2 id="tk2m-qa-heading"><%= isLive ? 'Management & Review' : 'QA Administration' %></h2>
   <div class="module-grid">
     <a class="module-card" href="<%= basePath %>/grouped-upgrade-accounts?mode=review"><span class="module-icon">📂</span><h2>Grouped Upgrade Accounts — Staff Review</h2><p>Review flagged account lines and outstanding corrections.</p></a>
     <a class="module-card" href="<%= basePath %>/backoffice/staff-usage/daily"><span class="module-icon">📋</span><h2>Daily Screen Usage</h2><p>Today, yesterday and 30-day staff activity, including screens with no recorded use, and CSV export.</p></a>
