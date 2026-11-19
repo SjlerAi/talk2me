@@ -1,0 +1,46 @@
+'use strict';
+// Approved owner/manager visual refresh. Read-only structural regression gate.
+// Every full-document EJS template must load the shared theme, while all
+// legacy partials continue to inherit it from the OS or Command parent.
+const fs=require('fs');
+const path=require('path');
+const assert=require('node:assert/strict');
+const root=path.join(__dirname,'..');
+const cssPath=path.join(root,'public/css/tk2m-blue-red-refresh.css');
+const css=fs.readFileSync(cssPath,'utf8');
+const templates=fs.readdirSync(path.join(root,'views')).filter(v=>v.endsWith('.ejs'));
+const full=templates.filter(name=>/<!doctype/i.test(fs.readFileSync(path.join(root,'views',name),'utf8')));
+assert.equal(full.length,13,'unexpected top-level view count: review new full-document screens');
+for(const name of full){
+  const src=fs.readFileSync(path.join(root,'views',name),'utf8');
+  assert.match(src,/data-tk2m-blue-refresh/,'missing shared theme in '+name);
+  assert.equal((src.match(/data-tk2m-blue-refresh/g)||[]).length,1,'duplicate theme in '+name);
+  assert.ok(src.indexOf('data-tk2m-blue-refresh')<src.indexOf('</head>'),'theme must be in <head>: '+name);
+  assert.ok(src.indexOf('data-tk2m-blue-refresh')>src.lastIndexOf('<link rel="stylesheet"'),'theme must follow existing CSS: '+name);
+  require('ejs').compile(src,{filename:path.join(root,'views',name)});
+}
+for(const [key,marker] of Object.entries({
+  shell:'#talk2me-os .t2m-os-topbar',
+  sidebar:'#talk2me-os .t2m-os-sidebar',
+  nav:'#talk2me-os .t2m-os-launcher',
+  myday:'#talk2me-os .t2m-home-calendar',
+  communications:'#talk2me-os .t2m-home-priority-item',
+  calendar:'#talk2me-os .t2m-home-month',
+  outstanding:'#talk2me-os .t2m-home-carry-panel',
+  windows:'#talk2me-os .t2m-os-window',
+  classic:'body.command-body .command-sidebar',
+  table:'body.command-body th',
+  library:'.library-topbar,.library-toolbar,.library-featured',
+  deals:'.deals-head,.deals-toolbar,.deals-results'
+})){
+ assert.ok(css.includes(marker),'missing theme surface '+key);
+}
+for(const tok of ['--tk2m-navy: #153b64','--tk2m-blue: #22649d','--tk2m-accent: #bb3948','@media (max-width: 760px)','@media (prefers-reduced-motion: reduce)']){
+ assert.ok(css.includes(tok),'missing design/accessibility token '+tok);
+}
+assert.match(css, /t2m-home-priority-actions button\.is-done/,'Done theme');
+assert.match(css, /t2m-home-priority-reply button/,'Send theme');
+assert.match(css, /:focus-visible/,'keyboard focus styling');
+assert.match(css,/\.t2m-home-day\.is-selected/,'selected date styling');
+assert.match(css,/\.t2m-home-priority-open strong/,'message preview');
+console.log('TK2M_APPROVED_BLUE_RED_THEME_GATE_PASS full_documents='+full.length+' all_templates='+templates.length);

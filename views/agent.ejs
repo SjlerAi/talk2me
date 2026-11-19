@@ -20,8 +20,9 @@
     @media(max-width:760px){.instruction{grid-template-columns:1fr}.instruction .wide,.instruction h3,.instruction button{grid-column:1}.responsibility-bar{grid-template-columns:repeat(4,minmax(62px,1fr))}.daily-item{grid-template-columns:auto minmax(0,1fr)}.daily-status{grid-column:2}.app{padding:12px 12px 32px}.top{padding-bottom:12px}.brand span{display:none}.user .name{display:none}.statusbar{align-items:flex-start}.grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.metric{padding:15px}.metric strong{font-size:1.65rem}.command-row{grid-template-columns:1fr}.command button{padding:14px 18px}.section{padding:16px}.staff-overview{grid-template-columns:repeat(2,minmax(0,1fr))}.subgrid{grid-template-columns:1fr}.detail-row{grid-template-columns:1fr}.detail-row time{white-space:normal}.strip-head{display:block}.strip-head span{display:block;margin-top:3px}}
     @media(max-width:390px){.grid{grid-template-columns:1fr 1fr}.metric span{font-size:.67rem}.metric strong{font-size:1.5rem}}
   </style>
+  <link rel="stylesheet" data-tk2m-blue-refresh href="<%= basePath %>/public/css/tk2m-blue-red-refresh.css?v=blue20261119a">
 </head>
-<body>
+<body class="tk2m-agent-page">
 <% const fmt = value => value ? new Date(value).toLocaleString('en-ZA',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : '—';
    const shortName = value => { const raw=String(value||'').trim(); if(!raw)return ''; const source=raw.includes('@')?raw.split('@')[0]:raw; const parts=source.split(/[\\s._-]+/).filter(Boolean); return String(parts[0]||'').toLowerCase()==='van'&&String(parts[1]||'').toLowerCase()==='zyl'?'Van Zyl':(parts[0]||raw); }; %>
   <main class="app">
