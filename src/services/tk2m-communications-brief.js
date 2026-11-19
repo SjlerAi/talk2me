@@ -48,6 +48,9 @@ async function dailyBrief(db,staff,now=new Date()){
    LEFT JOIN staff_chat_reads r
      ON r.staff_id=:staffId AND r.conversation_key=m.conversation_key
    WHERE ${visibleMessageSql}
+     AND NOT EXISTS (SELECT 1 FROM staff_attention_acknowledgments hidden
+       WHERE hidden.staff_id=:staffId AND hidden.source_kind='hide_chat'
+         AND hidden.source_id=m.id)
      AND m.id>:archivedChatId
      AND m.created_at>=DATE_SUB(NOW(),INTERVAL 2 DAY)`,params);
  const [taskRows]=await db.execute(
@@ -67,6 +70,9 @@ async function dailyBrief(db,staff,now=new Date()){
    LEFT JOIN staff_chat_reads r
      ON r.staff_id=:staffId AND r.conversation_key=m.conversation_key
    WHERE ${visibleMessageSql}
+     AND NOT EXISTS (SELECT 1 FROM staff_attention_acknowledgments hidden
+       WHERE hidden.staff_id=:staffId AND hidden.source_kind='hide_chat'
+         AND hidden.source_id=m.id)
      AND m.id>:archivedChatId
      AND m.created_at>=DATE_SUB(NOW(),INTERVAL 2 DAY)
    ORDER BY m.created_at DESC,m.id DESC LIMIT 6`,params);
