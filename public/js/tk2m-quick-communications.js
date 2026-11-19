@@ -43,8 +43,17 @@
   '<label class="tk2m-quick-label"><span>What needs to be done?</span><textarea required maxlength="4000" rows="3" name="message" placeholder="e.g. Bel my asseblief" data-tk2m-quick-text></textarea></label>'+
 
   '<div class="tk2m-quick-bottom"><label class="tk2m-quick-attachment"><span>📎 Attach file (optional)</span><input type="file" data-tk2m-quick-files name="attachments" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv,.txt,.jpg,.jpeg,.png,.webp"></label>'+
-  '<button type="submit" class="tk2m-quick-send" data-tk2m-quick-send>Send <span aria-hidden="true">➤</span></button></div>'+
-  '<p class="tk2m-quick-hint">Sends immediately. No deadline, priority or extra forms. Follow-up is automatic.</p>'+
+  '<div class="tk2m-quick-actions"><button type="button" class="tk2m-quick-schedule" data-tk2m-quick-schedule aria-expanded="false">Schedule</button>'+
+  '<button type="submit" class="tk2m-quick-send" data-tk2m-quick-send>Send <span aria-hidden="true">➤</span></button></div></div>'+
+  '<div class="tk2m-quick-schedule-options" data-tk2m-quick-schedule-options hidden>'+
+  '<p>Deliver this communication later (South Africa time).</p>'+
+  '<div class="tk2m-quick-schedule-datetime"><label>Date<input type="date" data-tk2m-schedule-date></label>'+
+  '<label>Time<input type="time" data-tk2m-schedule-time step="60"></label></div>'+
+  '<div class="tk2m-quick-schedule-footer"><button type="button" data-tk2m-schedule-back>Back</button>'+
+  '<button type="button" class="tk2m-quick-schedule-confirm" data-tk2m-schedule-confirm>Confirm schedule</button></div></div>'+
+  '<p class="tk2m-quick-hint">Send delivers immediately. Schedule delivers on the date and time you choose.</p>'+
+  '<button type="button" class="tk2m-quick-scheduled-link" data-tk2m-view-scheduled aria-expanded="false">View scheduled messages</button>'+
+  '<section class="tk2m-quick-scheduled-list" data-tk2m-scheduled-list hidden aria-label="Messages awaiting scheduled delivery"></section>'+
   '<p class="tk2m-quick-error" role="alert" data-tk2m-quick-error hidden></p></form></section>';
  document.body.appendChild(modal);
  const form=modal.querySelector('[data-tk2m-quick-form]');
@@ -53,6 +62,14 @@
  const files=form.querySelector('[data-tk2m-quick-files]');
  const error=form.querySelector('[data-tk2m-quick-error]');
  const send=form.querySelector('[data-tk2m-quick-send]');
+ const scheduleBtn=form.querySelector('[data-tk2m-quick-schedule]');
+ const options=form.querySelector('[data-tk2m-quick-schedule-options]');
+ const dateInput=form.querySelector('[data-tk2m-schedule-date]');
+ const timeInput=form.querySelector('[data-tk2m-schedule-time]');
+ const confirmSchedule=form.querySelector('[data-tk2m-schedule-confirm]');
+ const backSchedule=form.querySelector('[data-tk2m-schedule-back]');
+ const viewScheduled=form.querySelector('[data-tk2m-view-scheduled]');
+ const scheduledList=form.querySelector('[data-tk2m-scheduled-list]');
  function toggleFiles(){
    const count=files.files?.length||0;
    files.closest('.tk2m-quick-attachment')?.classList.toggle('has-files',count>0);
@@ -60,7 +77,7 @@
    if(text)text.textContent=count?(count+' file'+(count===1?'':'s')+' attached'):'📎 Attach file (optional)';
  }
  files.addEventListener('change',toggleFiles);
- function closeQuick(){if(sending)return;modal.hidden=true;form.reset();toggleFiles();error.hidden=true;}
+ function closeQuick(){if(sending)return;modal.hidden=true;form.reset();toggleFiles();error.hidden=true;closeSchedule();scheduledList.hidden=true;viewScheduled.setAttribute('aria-expanded','false');}
  modal.querySelector('[data-tk2m-quick-close]').addEventListener('click',closeQuick);
  async function staff(){
    if(recipients)return recipients;
@@ -80,6 +97,7 @@
    void trackComposeOpen();
    modal.hidden=false;
    form.reset();error.hidden=true;
+   closeSchedule();scheduledList.hidden=true;viewScheduled.setAttribute('aria-expanded','false');
    toggleFiles();
    const previous=select.value;
    select.innerHTML='<option value="">Choose staff member</option>';
@@ -119,6 +137,107 @@
    }catch(e){error.textContent=e.message;error.hidden=false;}finally{
      sending=false;send.disabled=false;send.textContent='Send ➤';
    }
+ });
+ function nextSast(){
+   const d=new Date(Date.now()+15*60000);
+   const parts=new Intl.DateTimeFormat('en-GB',{
+     timeZone:'Africa/Johannesburg',year:'numeric',month:'2-digit',day:'2-digit',
+     hour:'2-digit',minute:'2-digit',hourCycle:'h23'
+   }).formatToParts(d);
+   const p={};for(const a of parts)if(a.type!=='literal')p[a.type]=a.value;
+   return {date:p.year+'-'+p.month+'-'+p.day,time:p.hour+':'+p.minute};
+ }
+ function closeSchedule(){
+   options.hidden=true;
+   scheduleBtn.setAttribute('aria-expanded','false');
+   send.disabled=false;
+   scheduleBtn.disabled=false;
+ }
+ scheduleBtn.addEventListener('click',()=>{
+   if(sending)return;
+   if(!options.hidden){closeSchedule();return;}
+   const next=nextSast();
+   dateInput.value=next.date;timeInput.value=next.time;
+   dateInput.min=nextSast().date;
+   error.hidden=true;
+   options.hidden=false;
+   scheduleBtn.setAttribute('aria-expanded','true');
+   send.disabled=true;
+   dateInput.focus();
+ });
+ backSchedule.addEventListener('click',closeSchedule);
+ confirmSchedule.addEventListener('click',async()=>{
+   if(sending)return;
+   const person=Number(select.value),text=String(message.value||'').trim();
+   if(!person||!text||text.length>4000){
+     error.textContent='Choose a colleague and enter your message first.';
+     error.hidden=false;return;
+   }
+   const when=String(dateInput.value||'')+'T'+String(timeInput.value||'');
+   if(!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(when)){
+     error.textContent='Choose both a date and time for delivery.';
+     error.hidden=false;dateInput.focus();return;
+   }
+   sending=true;confirmSchedule.disabled=true;confirmSchedule.textContent='Scheduling…';
+   scheduleBtn.disabled=true;error.hidden=true;
+   try{
+     const data=new FormData();
+     data.set('assigned_to',String(person));
+     data.set('message',text);
+     data.set('scheduled_for',when);
+     for(const file of files.files||[])data.append('attachments',file,file.name);
+     const result=await api('/api/tk2m/communications/scheduled',{method:'POST',body:data});
+     closeQuick();
+     say('Scheduled for '+result.scheduledFor.replace('T',' ')+' (South Africa time)');
+     window.dispatchEvent(new Event('workspace:refresh'));
+   }catch(err){error.textContent=err.message;error.hidden=false}
+   finally{
+     sending=false;confirmSchedule.disabled=false;
+     confirmSchedule.textContent='Confirm schedule';scheduleBtn.disabled=false;
+   }
+ });
+ async function showScheduled(){
+   scheduledList.hidden=false;
+   viewScheduled.setAttribute('aria-expanded','true');
+   scheduledList.replaceChildren(el('p','','Loading scheduled messages…'));
+   try{
+     const data=await api('/api/tk2m/communications/scheduled');
+     const items=Array.isArray(data.pending)?data.pending:[];
+     scheduledList.replaceChildren();
+     if(!items.length){
+       scheduledList.append(el('p','','No messages awaiting scheduled delivery.'));
+       return;
+     }
+     scheduledList.append(el('strong','','Scheduled – not delivered yet'));
+     for(const item of items){
+       const row=el('div','tk2m-scheduled-item');
+       const body=el('span','');
+       body.append(el('strong','',item.recipientName+' · '+item.scheduledFor.replace('T',' ')+' SAST'));
+       body.append(el('small','',String(item.title||'Communication').slice(0,90)));
+       const cancel=el('button','','Cancel');
+       cancel.type='button';cancel.setAttribute('aria-label','Cancel scheduled message to '+item.recipientName);
+       cancel.onclick=async()=>{
+         if(sending)return;
+         if(!window.confirm('Cancel this scheduled communication? It will not be sent.'))return;
+         sending=true;cancel.disabled=true;
+         try{
+           await api('/api/tk2m/communications/scheduled/'+item.id+'/cancel',{method:'POST',body:'{}'});
+           say('Scheduled communication cancelled');
+           await showScheduled();
+         }catch(err){error.textContent=err.message;error.hidden=false;}
+         finally{sending=false;cancel.disabled=false}
+       };
+       row.append(body,cancel);scheduledList.append(row);
+     }
+   }catch(err){scheduledList.replaceChildren(el('p','',err.message))}
+ }
+ viewScheduled.addEventListener('click',()=>{
+   if(sending)return;
+   if(!scheduledList.hidden){
+     scheduledList.hidden=true;viewScheduled.setAttribute('aria-expanded','false');
+     return;
+   }
+   void showScheduled();
  });
  // Backend-computed, per-staff once-daily summaries. No task is marked read/done.
  const brief=el('div','tk2m-brief-overlay');
