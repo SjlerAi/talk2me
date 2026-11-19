@@ -1,11 +1,11 @@
 {
   "schema": 1,
-  "action": "hold",
+  "action": "deploy",
   "environment": "tk2m-production",
-  "request_id": "tk2m-remove-legacy-copy-20261119-postrelease-hold",
-  "release_branch": "release/tk2m-remove-legacy-copy-20261119",
-  "release_sha": "18cf11c4645461554ec38d86291d028afecd9743",
+  "request_id": "tk2m-staff-legacy-labels-20261119-a1",
+  "release_branch": "release/tk2m-staff-legacy-labels-20261119",
+  "release_sha": "319a385605e4fea853caea255262cca336941130",
   "expected_previous_sha": "18cf11c4645461554ec38d86291d028afecd9743",
   "production_cutover": true,
-  "owner_approved": false
+  "owner_approved": true
 }
