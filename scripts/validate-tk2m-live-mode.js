@@ -23,7 +23,7 @@ assert.match(server,/if \(TK2M_SITE\)/);
 assert.match(server,/if \(TK2M_SITE && typeof stageListener === 'number'\)/);
 assert.match(launcher,/production-runtime\.env/);
 assert.match(launcher,/CRM_LIVE_MODE/);
-assert.match(login,/TALK2ME CONNECT360 · LIVE CRM/);
+assert.match(login,/TALK2ME · LIVE CRM/);
 assert.match(auth,/protectedTk2m/);
 for(const f of ['src/routes/uat-library.js','src/routes/uat-work-widgets.js']){
  assert.match(read(f),/CRM_LIVE_MODE/);
