@@ -423,6 +423,9 @@ if (CRM_LIVE_MODE) {
   const communicationsBrief = require('./src/routes/tk2m-communications-brief');
   app.use('/', communicationsBrief);
   if (BASE_PATH) app.use(BASE_PATH, communicationsBrief);
+  const scheduledCommunications=require('./src/routes/tk2m-scheduled-communications');
+  app.use('/',scheduledCommunications);
+  if(BASE_PATH)app.use(BASE_PATH,scheduledCommunications);
 }
 
 const staffWorkAccess = require('./src/routes/staff-work-access');
