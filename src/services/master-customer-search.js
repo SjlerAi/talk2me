@@ -48,6 +48,55 @@ async function visibleToStaff(rows,userId){
   return !owners.size||owners.has(userId);
  });
 }
+// Query the same master-aware client view used by Customer Administration.
+// A CRM line can exist without an active service link: never equate those cases
+// with a non-existent customer. This lookup does not create or merge records.
+async function searchCrmLines({q,canon,userId,management,basePath}){
+ const params={like:'%'+q+'%',starts:q+'%',exact:q,phoneSuffix:canon?'%'+canon.slice(1)+'%':null};
+ const access=management?'1=1':`
+   COALESCE(c.master_link_state,'')<>'needs_conflict_review'
+   AND NOT EXISTS (
+     SELECT 1 FROM client_assignments denied
+     WHERE denied.is_active=1 AND denied.assigned_staff_id<>:staffId
+       AND (denied.client_id=c.id OR
+         (c.account_number IS NOT NULL AND c.account_number<>''
+          AND denied.account_number=c.account_number))
+   )
+   AND NOT EXISTS (
+     SELECT 1 FROM customer_accounts accountOwner
+     WHERE c.account_number IS NOT NULL AND c.account_number<>''
+       AND accountOwner.account_number_normalised=UPPER(REPLACE(TRIM(c.account_number),' ',''))
+       AND accountOwner.assigned_staff_id IS NOT NULL
+       AND accountOwner.assigned_staff_id<>:staffId
+   )`;
+ if(!management)params.staffId=userId;
+ const [clients]=await db.execute(`
+   SELECT c.id,c.client_name,c.cell_number,c.email,c.account_number,
+     c.handset,c.package_name,c.master_customer_key,c.master_service_key,c.master_link_state
+   FROM crm_v_master_clients c
+   WHERE c.is_active=1
+     AND (c.client_name LIKE :like OR c.cell_number LIKE :like
+       OR c.email LIKE :like OR c.account_number LIKE :like OR c.id_number LIKE :like
+       OR (:phoneSuffix IS NOT NULL AND c.cell_number LIKE :phoneSuffix))
+     AND (${access})
+   ORDER BY CASE WHEN c.client_name=:exact THEN 0
+                 WHEN :phoneSuffix IS NOT NULL AND c.cell_number LIKE :phoneSuffix THEN 1
+                 WHEN c.client_name LIKE :starts THEN 2 ELSE 3 END,
+            c.client_name,c.id LIMIT 40`,params);
+ return clients.map(c=>({
+  id:c.id,linked_crm_client_id:c.id,record_type:'crm',service_type:'mobile',
+  service_key:c.master_service_key||'crm:'+c.id,
+  verification_status:c.master_link_state==='needs_conflict_review'
+    ?'needs_conflict_review':c.master_service_key
+      ?(c.master_link_state||'crm_master_linked'):'crm_unmapped',
+  master_customer_key:c.master_customer_key||null,
+  account_number:c.account_number||null,client_name:c.client_name,
+  cell_number:c.cell_number||null,email:c.email||null,
+  handset:c.handset||null,package_name:c.package_name||null,
+  url:basePath+'/customers/'+c.id+'/360'
+ }));
+}
+
 async function searchMaster({query,user,basePath='/talk2me'}){
  const q=clean(query);if(q.length<2)return [];
  const management=ADMIN.has(String(user?.role||'').toLowerCase());
@@ -94,7 +143,10 @@ async function searchMaster({query,user,basePath='/talk2me'}){
  ].join(' ');
  const [found]=await db.execute(sql,{phone:canon,like});
  const rows=management?found:await visibleToStaff(found,userId);
- return rows.slice(0,20).map(r=>{
+ const crmLines=await searchCrmLines({q,canon,userId,management,basePath});
+ const linkedIds=new Set(rows.map(r=>Number(r.crm_client_id)).filter(Number.isSafeInteger));
+ const fallback=crmLines.filter(r=>!linkedIds.has(Number(r.id)));
+ const masterResults=rows.slice(0,20).map(r=>{
   const fixed=r.service_type==='fixed';
   const relatedType=fixed?'fixed':r.crm_client_id?'mobile':r.mobile_base_id?'mobile_base':'unverified';
   const directId=fixed?r.fixed_account_id:r.crm_client_id||r.mobile_base_id||r.service_key;
@@ -108,7 +160,7 @@ async function searchMaster({query,user,basePath='/talk2me'}){
    service_type:r.service_type,verification_status:r.link_state,
    master_customer_key:r.master_customer_key,
    account_number:r.official_account||r.crm_account||r.base_account||r.fixed_account||null,
-   client_name:r.master_customer_name||r.crm_name||r.base_name||r.fixed_name||r.master_line_name,
+   client_name:r.crm_name||r.master_customer_name||r.base_name||r.fixed_name||r.master_line_name,
    cell_number:r.phone||r.fixed_contact||null,
    email:r.crm_email||r.base_email||r.fixed_email||null,
    handset:r.crm_handset||[r.device_manufacturer,r.device_name].filter(Boolean).join(' ')||r.router_model||null,
@@ -116,5 +168,7 @@ async function searchMaster({query,user,basePath='/talk2me'}){
    branch_name:r.branch_name||null,solution_id:r.solution_id||null,url
   };
  });
+ // CRM hits take precedence so a service-register LIMIT cannot hide a line.
+ return [...fallback,...masterResults].slice(0,20);
 }
 module.exports={searchMaster,normalPhone};
