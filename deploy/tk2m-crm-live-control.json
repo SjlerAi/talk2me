@@ -1,11 +1,11 @@
 {
   "schema": 1,
-  "action": "hold",
+  "action": "deploy",
   "environment": "tk2m-production",
-  "request_id": "tk2m-staff-card-responsive-20261119-worker-blocker-hold",
-  "release_branch": "release/tk2m-staff-card-responsive-20261119",
-  "release_sha": "339452fd49778452f38e9bce4e509b36c9924bd8",
+  "request_id": "tk2m-cron-selector-worker-proof-20261119-a1",
+  "release_branch": "release/tk2m-cron-selector-worker-proof-20261119",
+  "release_sha": "6ee41891d24fc1a9600c694e14cff926b017a78a",
   "expected_previous_sha": "339452fd49778452f38e9bce4e509b36c9924bd8",
   "production_cutover": true,
-  "owner_approved": false
+  "owner_approved": true
 }
