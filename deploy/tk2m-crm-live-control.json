@@ -1,11 +1,11 @@
 {
   "schema": 1,
-  "action": "hold",
+  "action": "deploy",
   "environment": "tk2m-production",
-  "request_id": "tk2m-cron-selector-worker-proof-20261119-postrelease-hold",
-  "release_branch": "release/tk2m-cron-selector-worker-proof-20261119",
-  "release_sha": "6ee41891d24fc1a9600c694e14cff926b017a78a",
+  "request_id": "tk2m-staff-roster-viewport-20261119-a1",
+  "release_branch": "release/tk2m-staff-roster-viewport-20261119",
+  "release_sha": "fd6f3dc826837ace04aca8c26106c8b9f6bd17da",
   "expected_previous_sha": "6ee41891d24fc1a9600c694e14cff926b017a78a",
   "production_cutover": true,
-  "owner_approved": false
+  "owner_approved": true
 }
