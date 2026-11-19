@@ -80,13 +80,16 @@ router.get('/data-review',protectedPage,reviewSession,authorize,async(req,res,ne
 router.get('/data-review/history',protectedPage,reviewSession,authorize,async(req,res,next)=>{
   try{
     const owner=canManage(req.session.user);
+    const all=await authenticatedCases(req);
+    if(!all.decisionsAvailable)return alertPage(res,503,
+      'Review decision history is temporarily unavailable until the required database tables are installed.');
     const params=owner?[]:[Number(req.session.user.id)];
     const where=owner?'':' WHERE h.reviewer_staff_id=?';
     const [history]=await db.query('SELECT h.case_id,h.kind,h.status,h.note,h.reviewed_at,h.revision,s.full_name reviewer FROM tk2m_review_history h LEFT JOIN staff_users s ON s.id=h.reviewer_staff_id'+where+' ORDER BY h.id DESC LIMIT 150',params);
     res.render('tk2m-review-portal',{layout:false,title:'Review History',currentUser:req.session.user,
       basePath:res.locals.basePath||'',assetVersion:res.locals.assetVersion,
       listing:[],totals:null,kinds:TYPES,kind:'all',view:'all',q:'',page:1,pages:1,listTotal:0,
-      csrf:csrf(req),selected:null,history,notice:all.sourceComparisonAvailable?'':'Source-vs-test comparison is unavailable until a verified source snapshot is installed.',canManage:owner});
+      csrf:csrf(req),selected:null,history,notice:all.sourceComparisonAvailable?'':'Source-vs-test comparison is unavailable until a verified source snapshot is installed.',decisionsAvailable:all.decisionsAvailable,canManage:owner});
   }catch(error){next(error);}
 });
 router.get('/data-review/case/:id',protectedPage,reviewSession,authorize,async(req,res,next)=>{
