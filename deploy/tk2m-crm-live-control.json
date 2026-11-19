@@ -1,11 +1,11 @@
 {
   "schema": 1,
-  "action": "hold",
+  "action": "deploy",
   "environment": "tk2m-production",
-  "request_id": "tk2m-inquiry-report-blue-cards-20261119-postrelease-hold",
-  "release_branch": "release/tk2m-inquiry-report-blue-cards-20261119",
-  "release_sha": "9926d369e0333f588bdc27458921464ad6281ca7",
+  "request_id": "tk2m-compact-inquiry-filters-20261119-a1",
+  "release_branch": "release/tk2m-compact-inquiry-filters-20261119",
+  "release_sha": "9e7f1374cdced1f9388fd37a1706fbcdc5f452c3",
   "expected_previous_sha": "9926d369e0333f588bdc27458921464ad6281ca7",
   "production_cutover": true,
-  "owner_approved": false
+  "owner_approved": true
 }
