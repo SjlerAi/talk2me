@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <title><%= title %> | Talk2Me Command</title>
+  <title><%= title %> | Talk2Me CRM</title>
   <link rel="icon" href="<%= basePath %>/public/images/favicon.ico?v=<%= encodeURIComponent(assetVersion || appVersion) %>">
   <link rel="apple-touch-icon" sizes="192x192" href="<%= basePath %>/public/images/favicon-192x192.png?v=<%= encodeURIComponent(assetVersion || appVersion) %>">
   <link rel="manifest" href="<%= basePath %>/public/site.webmanifest?v=<%= encodeURIComponent(assetVersion || appVersion) %>">
@@ -30,6 +30,7 @@
   <% if(currentUser){ %><script defer src="<%= basePath %>/public/js/session-status-monitor.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>" data-base-path="<%= basePath %>"></script><% if(isLive && !panelMode){ %><script defer src="<%= basePath %>/public/js/tk2m-staff-attention.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>"></script><% } %><% } %>
   <% if(currentUser && ['owner','admin','manager'].includes(currentUser.role)){ %><script defer src="<%= basePath %>/public/js/approval-badges.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>" data-base-path="<%= basePath %>"></script><% } %>
   <% if(isUat && !cudoDisabled && currentUser && String(currentUser.role||'').toLowerCase()==='owner' && !panelMode){ %><script defer src="<%= basePath %>/public/js/cudo-widget.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>" data-base-path="<%= basePath %>"></script><% } %>
+  <link rel="stylesheet" data-tk2m-blue-refresh href="<%= basePath %>/public/css/tk2m-blue-red-refresh.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>-blue20261119a">
 </head>
 <body class="command-body <%= panelMode?'panel-mode':'' %>">
 <% if(cudoDisabled){ %><style id="tk2m-retired-cudu">.cudo-root{display:none!important}</style><% } %>
