@@ -106,7 +106,7 @@ async function main(){
  assert.match(unified,/api\/tk2m\/communications\/inbox/);
  assert.match(unified,/api\/tk2m\/communications\/clear/);
  assert.match(unified,/actionButton\('Clear','clear',item\)/);
- assert.match(read('src/routes/tk2m-communications-brief.js'),/source_kind='hide_chat'/);
+ assert.match(read('src/routes/tk2m-communications-brief.js'),/VALUES \(:staffId,'hide_chat',:id,:key,'clear'\)/);
  assert.match(read('src/routes/tk2m-communications-brief.js'),/chatToken\(staffId,msg.conversation_key\)/);
  assert.match(unified,/api\/uat\/chat\/messages/);
  assert.doesNotMatch(unified,/Talk2MeQuickChat\.open/);
