@@ -152,7 +152,7 @@ async function main(){
  const chatSource=read('public/js/tk2m-quick-chat-reply.js');
  require('node:vm').compileFunction(chatSource,[]);
  assert.match(chatSource,/Talk2MeQuickChat=/);
- assert.match(html,/tk2m-quick-task-thread/);
+ assert.doesNotMatch(html,/tk2m-quick-task-thread/);
  assert.match(html,/tk2m-quick-communications\.css/);
  assert.match(read('server.js'),/require\('\.\/src\/routes\/tk2m-communications-brief'\)/);
  console.log('TK2M_FAST_COMMUNICATIONS_AND_BRIEFINGS_PASS');
