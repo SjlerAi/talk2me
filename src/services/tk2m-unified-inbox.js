@@ -22,6 +22,9 @@ async function listInbox(db,viewer,options={}){
     LEFT JOIN staff_attention_acknowledgments ack ON
       ack.staff_id=t.assigned_to AND ack.source_kind='task' AND ack.source_id=t.id
     WHERE ${taskAudience}
+      AND NOT EXISTS(SELECT 1 FROM staff_attention_acknowledgments hidden
+        WHERE hidden.staff_id=:staffId AND hidden.source_kind='hide_team_task'
+          AND hidden.source_id=t.id)
       AND t.type='task' AND t.status IN ('unread','seen','in_progress')
       AND t.created_at>=DATE_SUB(NOW(),INTERVAL 2 DAY)
     ORDER BY t.created_at DESC,t.id DESC LIMIT 100`,params);

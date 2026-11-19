@@ -58,3 +58,7 @@
 .tk2m-unified-clear{background:#f2f5f9!important;color:#38475a!important;
  border:1px solid #bdc8d5!important}
 .tk2m-unified-clear:focus-visible{outline:3px solid #b91c2d!important;outline-offset:2px!important}
+
+/* Management may hide an unrelated team task from their own overview only. */
+.tk2m-unified-hide-team{font-weight:750!important;font-size:12px!important;
+ color:#475569!important;background:#f8fafc!important;border-color:#cbd5e1!important}

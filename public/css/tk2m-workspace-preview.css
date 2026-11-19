@@ -278,3 +278,8 @@
   width:28px!important;min-width:28px!important;min-height:54px!important;height:54px!important
  }
 }
+
+/* Hidden arrows must stay hidden even with the carousel's explicit display. */
+.t2m-tk2m-test-shell .t2m-home-priority-carousel .t2m-home-priority-arrow[hidden]{
+ display:none!important
+}

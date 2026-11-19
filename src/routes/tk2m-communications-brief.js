@@ -8,6 +8,35 @@ const {positiveId,chatToken}=require('../services/tk2m-staff-attention');
 const {trackEvent}=require('../services/usage-telemetry');
 const router=express.Router();
 const enabled=String(process.env.CRM_LIVE_MODE||'').toLowerCase()==='true';
+router.post('/api/tk2m/communications/hide-team',requireAuth,async(req,res,next)=>{
+ if(!enabled)return res.sendStatus(404);
+ res.set('Cache-Control','private, no-store');
+ try{
+   const viewerId=positiveId(req.session.user.id),id=positiveId(req.body?.id);
+   const role=String(req.session.user.role||'').toLowerCase();
+   if(!viewerId||!id||req.body?.kind!=='task')
+     return res.status(400).json({ok:false,error:'Invalid communication'});
+   if(!['owner','manager','admin'].includes(role))
+     return res.status(403).json({ok:false,error:'Only management can hide team items'});
+   const [[task]]=await db.execute(
+     `SELECT id,created_by,assigned_to FROM staff_tasks
+       WHERE id=:id AND type='task' AND status IN ('unread','seen','in_progress')
+       AND created_at>=DATE_SUB(NOW(),INTERVAL 2 DAY) LIMIT 1`,{id});
+   if(!task)return res.status(404).json({ok:false,error:'Communication not in active list'});
+   if(Number(task.created_by)===viewerId||Number(task.assigned_to)===viewerId)
+     return res.status(403).json({ok:false,error:'Your own instructions remain until completed'});
+   // Manager's personal Team overview only. The original instruction, staff
+   // inboxes, reminders, sender approvals and audit history are untouched.
+   await db.execute(`INSERT IGNORE INTO staff_attention_acknowledgments
+     (staff_id,source_kind,source_id,source_key,ack_method)
+     VALUES (:viewerId,'hide_team_task',:id,'communications-team','hide')`,{viewerId,id});
+   await trackEvent({staffId:viewerId,eventType:'communications_hidden',
+     screenKey:'communications-inbox',routePath:'/api/tk2m/communications/hide-team',
+     moduleName:'communications',httpMethod:'POST',httpStatus:200,
+     metadata:{kind:'team_task'}});
+   res.json({ok:true,hidden:true});
+ }catch(error){next(error);}
+});
 router.post('/api/tk2m/communications/clear',requireAuth,async(req,res,next)=>{
  if(!enabled)return res.sendStatus(404);
  res.set('Cache-Control','private, no-store');

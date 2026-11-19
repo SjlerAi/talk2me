@@ -144,6 +144,10 @@ async function main(){
  assert.match(inboxQueries[2],/WHERE 1=1/);
  assert.equal(inbox.scope,'mine');
  assert.match(read('src/routes/tk2m-communications-brief.js'),/canSeeTeam/);
+ assert.match(read('src/routes/tk2m-communications-brief.js'),/hide-team/);
+ assert.match(read('src/routes/tk2m-communications-brief.js'),/Number\(task\.created_by\)===viewerId/);
+ assert.match(read('src/services/tk2m-unified-inbox.js'),/source_kind='hide_team_task'/);
+ assert.match(unified,/Hide from my view/);
  assert.equal(inbox.items[0].canComplete,true);
  assert.match(inboxQueries[0],/t\.created_by=:staffId/);
  assert.match(inboxQueries[0],/t\.assigned_to=:staffId/);
