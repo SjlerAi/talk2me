@@ -64,7 +64,9 @@ prove_live(){
 const [,,sha,releaseText,healthText]=process.argv;
 try {
  const release=JSON.parse(releaseText),health=JSON.parse(healthText);
- if(release.commit!==sha || release.environment!=='production' ||
+ if(release.commit!==sha || release.workerBootCommit!==sha ||
+    typeof release.workerBootTime!=='string' || Number.isNaN(Date.parse(release.workerBootTime)) ||
+    release.environment!=='production' ||
     release.productionCutover!==true || release.stagingOnly!==false ||
     health.environment!=='production' || health.status!=='ok' ||
     health.database!=='connected') process.exit(1);
@@ -80,16 +82,66 @@ if [[ "$last" == "$request $sha $branch" ]]; then
 fi
 [[ "$current" == "$expected_previous" ]] || fail "target already installed but no matching verified release"
 
+# Record exactly which CRM Passenger worker was running before this release.
+# Never infer it from a generic 'node' PID or touch another app's worker.
+crm_worker_pids() {
+  ps -eo pid=,args= | awk '$2=="lsnode:/home/talk/repositories/talk2me-crm-stage/" {print $1}'
+}
+pre_deploy_pid="$(crm_worker_pids)"
+if [[ -n "$pre_deploy_pid" && ! "$pre_deploy_pid" =~ ^[0-9]+$ ]]; then
+  fail "multiple or invalid CRM workers; refuse automatic process operation"
+fi
+
 "$DRIVER" "$branch" "$sha" "$request" dry-run
 "$DRIVER" "$branch" "$sha" "$request" run
 
-# Passenger restart is asynchronous; verify actual HTTPS identity, not just files.
-for trial in 1 2 3 4 5 6; do
+# First permit Passenger to refresh naturally. A file-based /api/release SHA
+# is NOT proof of loaded code; prove_live verifies the worker's boot SHA.
+for trial in 1 2 3; do
   if prove_live; then
-    printf 'TK2M_PRODUCTION_DEPLOY_PROVEN request=%s sha=%s\n' "$request" "$sha"
-    printf 'TK2M_PRODUCTION_DEPLOY_REQUIRES_CONTROL_HOLD\n'
+    printf 'TK2M_PRODUCTION_DEPLOY_PROVEN request=%s sha=%s\\n' "$request" "$sha"
+    printf 'TK2M_PRODUCTION_DEPLOY_REQUIRES_CONTROL_HOLD\\n'
     exit 0
   fi
   sleep 5
 done
-fail "hosted release could not be proved; review driver rollback and live status; signal HOLD"
+
+# The application-scoped CloudLinux restart is preferred and never targets
+# Zippy, UENT or the whole hosting account.
+cloudlinux-selector restart --json --interpreter nodejs --user talk --app-root "$APP" ||
+  fail "scoped CloudLinux CRM restart refused"
+for trial in 1 2 3; do
+  if prove_live; then
+    printf 'TK2M_PRODUCTION_DEPLOY_PROVEN request=%s sha=%s\\n' "$request" "$sha"
+    printf 'TK2M_PRODUCTION_DEPLOY_REQUIRES_CONTROL_HOLD\\n'
+    exit 0
+  fi
+  sleep 5
+done
+
+# LiteSpeed sometimes ignores its own successful restart response. Kill only
+# the SAME pre-release worker after verifying a unique PID, owner, exact cwd,
+# and exact lsnode command. If anything moved, fail closed for manual review.
+current_pid="$(crm_worker_pids)"
+if [[ -n "$pre_deploy_pid" && "$current_pid" == "$pre_deploy_pid" ]]; then
+  owner="$(ps -o user= -p "$current_pid" | tr -d '[:space:]')"
+  actual_cwd="$(readlink "/proc/$current_pid/cwd" 2>/dev/null || true)"
+  command="$(ps -o args= -p "$current_pid" | sed 's/[[:space:]]*$//')"
+  [[ "$owner" == talk && "$actual_cwd" == "$APP" &&
+     "$command" == "lsnode:$APP/" ]] ||
+    fail "CRM-only process identity was not proven; no signal sent"
+  kill -TERM "$current_pid"
+  echo "TK2M_CRM_SCOPED_WORKER_RESTART old_pid=$current_pid"
+elif [[ -n "$current_pid" ]]; then
+  fail "CRM worker changed unexpectedly while runtime SHA is stale; no signal sent"
+fi
+
+for trial in 1 2 3 4 5 6; do
+  if prove_live; then
+    printf 'TK2M_PRODUCTION_DEPLOY_PROVEN request=%s sha=%s\\n' "$request" "$sha"
+    printf 'TK2M_PRODUCTION_DEPLOY_REQUIRES_CONTROL_HOLD\\n'
+    exit 0
+  fi
+  sleep 5
+done
+fail "new worker boot SHA/health not proven; production requires incident review"
