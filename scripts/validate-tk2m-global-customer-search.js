@@ -115,6 +115,20 @@ const owner={id:1,role:'owner'},manager={id:9,role:'manager'},staff={id:2,role:'
  assert.deepEqual(Array.from(results,r=>r.id),[201,202,203,204]);
  assert.equal(results[3].verification_status,'needs_conflict_review');
 
+ // Exact provider/service lookup must remain first even when >20 CRM lines
+ // share a phone. This route is used to check supplier line authorisation.
+ masterRows=[{
+  run_id:3,service_key:'mobile:0710000000',phone:'0710000000',
+  service_type:'mobile',master_customer_key:'master:provider',
+  link_state:'account_only_no_customer',mobile_base_id:909,
+  master_customer_name:'SYNTHETIC PROVIDER'
+ }];
+ crmRows=Array.from({length:30},(_,i)=>line(i+500,'SYNTHETIC SHARED PHONE'));
+ results=await searchMaster({query:'0710000000',user:owner,basePath:''});
+ assert.equal(results.length,20);
+ assert.equal(results[0].service_key,'mobile:0710000000');
+ assert.equal(results[0].url,'/mobile-base/909');
+
  // Name, account, email and phone search target the same CRM view.
  crmRows=[line(301,'SYNTHETIC DETAIL SEARCH',{
   email:'customer@invalid.example',account_number:'VB-987654',
