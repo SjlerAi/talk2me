@@ -1,11 +1,11 @@
 {
   "schema": 1,
-  "action": "hold",
+  "action": "deploy",
   "environment": "tk2m-production",
-  "request_id": "tk2m-20261119-schedule-communications-postrelease-hold",
-  "release_branch": "release/tk2m-scheduled-communications-20261119",
-  "release_sha": "ca1492f59cb9f7e1e7dcaf8964d9e89febb3db18",
+  "request_id": "tk2m-20261119-library-midnight-7th-a1",
+  "release_branch": "release/tk2m-library-midnight-monthly-20261119",
+  "release_sha": "729cb9865793a42a5670fa73bdb6ed25a5f8e98f",
   "expected_previous_sha": "ca1492f59cb9f7e1e7dcaf8964d9e89febb3db18",
   "production_cutover": true,
-  "owner_approved": false
+  "owner_approved": true
 }
