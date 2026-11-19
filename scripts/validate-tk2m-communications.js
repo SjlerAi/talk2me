@@ -101,7 +101,7 @@ async function main(){
  assert.match(myDay,/data-home-priority-next/);
  assert.match(myDay,/state\.priorityPage/);
  assert.match(read('public/css/tk2m-workspace-preview.css'),/t2m-home-calendar-head\{display:none/);
- assert.match(myDay,/\.slice\(0,3\)/);
+ assert.match(myDay,/\.slice\(state\.priorityPage\*3,\(state\.priorityPage\+1\)\*3\)/);
  assert.match(myDay,/state\.communications/);
  assert.match(myDay,/data-home-agenda-more/);
  assert.match(myDay,/items\.slice\(0,4\)/);
