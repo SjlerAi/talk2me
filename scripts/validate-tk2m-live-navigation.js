@@ -61,12 +61,13 @@ assert.match(production, /body\.command-body\{padding-top:0!important\}/);
 assert.doesNotMatch(uat, /id="tk2m-production-no-uat-banner"/);
 
 const osShell = read('views/os-shell.ejs');
-const match = osShell.match(/(<small><%= isLive\?[^%]+%>OS v<%= appVersion %><\/small>)/);
-assert.ok(match, 'TK2M workspace live-vs-staging identity must be explicit');
-const brand = ({isLive,isStaging}) => ejs.render(match[1],{isLive,isStaging,appVersion:'synthetic'});
-assert.match(brand({isLive:true,isStaging:true}), /TK2M LIVE/);
-assert.doesNotMatch(brand({isLive:true,isStaging:true}), /TEST|NOT LIVE/);
-assert.match(brand({isLive:false,isStaging:true}), /TK2M TEST/);
+const match = osShell.match(/(data-tk2m-environment="<%= isLive\?[^%]+%>")/);
+assert.ok(match, 'TK2M workspace live-vs-staging identity must remain explicit');
+const environment = ({isLive,isStaging}) => ejs.render(match[1],{isLive,isStaging});
+assert.match(environment({isLive:true,isStaging:true}), /TK2M LIVE/);
+assert.doesNotMatch(environment({isLive:true,isStaging:true}), /TEST|NOT LIVE/);
+assert.match(environment({isLive:false,isStaging:true}), /TK2M TEST/);
+assert.match(osShell, /<small>Cellular CRM<\/small>/,'new branding does not show the legacy version stripe');
 
 const appSource = read('server.js');
 const liveNeutralizer = appSource.match(/if \(CRM_LIVE_MODE\) \{\s*app\.get\('\/public\/uat-safety\.css'[\s\S]*?\n\}/);
