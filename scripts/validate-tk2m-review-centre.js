@@ -69,7 +69,7 @@ const imports=[
 ];
 const deltas=[{entity_type:'client',entity_id:2,field_key:'is_active',source_value:'active',stage_value:'inactive',
  source_hash:'d'.repeat(64),checked_at:'2026-10-27 10:00:00'}];
-function conn(rows,{missingSource=false,wrongSourceError=false}={}){
+function conn(rows,{missingSource=false,wrongSourceError=false,missingDecisions=false}={}){
  return {query:async sql=>{
   if(sql.includes('FROM clients c LEFT JOIN client_assignments'))return [rows];
   if(sql.includes('FROM temporary_duplicate_triage'))return [triage];
@@ -82,7 +82,13 @@ function conn(rows,{missingSource=false,wrongSourceError=false}={}){
    }
    return [deltas];
   }
-  if(sql.includes('FROM tk2m_review_decisions'))return [[]];
+  if(sql.includes('FROM tk2m_review_decisions')){
+   if(missingDecisions){
+    const msg="Table 'talk_crm_stage.tk2m_review_decisions' doesn't exist";
+    throw Object.assign(new Error(msg),{code:'ER_NO_SUCH_TABLE',sqlMessage:msg});
+   }
+   return [[]];
+  }
   throw Error('Unexpected test SQL: '+sql.slice(0,100));
  }};
 }
@@ -101,6 +107,20 @@ function conn(rows,{missingSource=false,wrongSourceError=false}={}){
  assert.equal(noSnapshot.length,4,'missing optional comparison must not hide core review cases');
  assert.equal(summarize(noSnapshot).kinds.migration.total,0);
  assert.equal(summarize(noSnapshot).kinds.duplicate_phone.total,1);
+ const noDecisionStore=await loadCases(owner,conn(fixture,{missingSource:true,missingDecisions:true}));
+ assert.equal(noDecisionStore.length,4,'core review cases remain inspectable');
+ assert.equal(noDecisionStore.decisionsAvailable,false,'missing decision table must be marked unavailable');
+ assert.equal(noDecisionStore.sourceComparisonAvailable,false);
+ assert.ok(noDecisionStore.every(c=>c.state==='pending'));
+ const readOnlyPage=ejs.render(view,{title:'Review Case',currentUser:owner,basePath:'',assetVersion:'qa',
+   canManage:true,decisionsAvailable:false,listing:[],totals:summarize(noDecisionStore),
+   kinds:TYPES,kind:'all',view:'open',q:'',page:1,pages:1,listTotal:4,
+   csrf:'e'.repeat(64),history:[],notice:'Decision storage unavailable',
+   selected:{...noDecisionStore[0],lines:[]}});
+ assert.ok(readOnlyPage.includes('recording a review is disabled'));
+ assert.ok(!readOnlyPage.includes('Save review and return to queue'));
+ assert.match(routes,/all\.decisionsAvailable/);
+ assert.match(routes,/No changes have been saved/);
  await assert.rejects(loadCases(owner,conn(fixture,{wrongSourceError:true})),/unrelated_table/);
  assert.match(routes,/Source-vs-test comparison is unavailable/);
  assert.equal(canManage(owner),true);assert.equal(canManage(manager),true);assert.equal(canManage(staff),false);

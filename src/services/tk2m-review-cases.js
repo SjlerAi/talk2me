@@ -107,16 +107,27 @@ async function loadCases(user,conn=db) {
         checkedAt:date(d.checked_at),version:[d.source_value,d.stage_value,d.source_hash]}));
   }
   const visible=cases.filter(c=>canSee(c,user));
+  let decisionsAvailable=true;
+  let decisions=[];
   if(visible.length) {
-    const [decisions]=await conn.query('SELECT case_id,source_hash,status,note,reviewer_staff_id,revision,reviewed_at FROM tk2m_review_decisions WHERE case_id IN (?)',[visible.map(c=>c.id)]);
+    try {
+      [decisions]=await conn.query('SELECT case_id,source_hash,status,note,reviewer_staff_id,revision,reviewed_at FROM tk2m_review_decisions WHERE case_id IN (?)',[visible.map(c=>c.id)]);
+    } catch(error) {
+      if(error?.code!=='ER_NO_SUCH_TABLE' ||
+         !String(error.sqlMessage||error.message||'').includes('tk2m_review_decisions'))throw error;
+      // Show the verified cases read-only. Never imply that a missing audit
+      // schema contains no decisions, and never permit an unrecorded save.
+      decisionsAvailable=false;
+    }
     const indexed=new Map(decisions.map(x=>[x.case_id,x]));
     for(const c of visible){
       c.review=indexed.get(c.id)||null;
       c.state=c.review?(c.review.source_hash===c.fingerprint?c.review.status:'stale'):'pending';
     }
   }
-  // Route uses this to visibly state when migration parity cannot be certified.
+  // Keep missing optional source snapshots and unavailable decision storage distinct.
   visible.sourceComparisonAvailable=sourceComparisonAvailable;
+  visible.decisionsAvailable=decisionsAvailable;
   return visible;
 }
 function summarize(cases) {
