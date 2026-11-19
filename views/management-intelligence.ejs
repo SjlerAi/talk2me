@@ -71,7 +71,7 @@
   </section>
 
   <section class="management-card management-section" id="mailbox">
-    <h2>Gerda mailbox & dealsheets</h2><p>Import an Outlook .eml for UAT. Chatz/Vodacom deal sheets are detected and can be saved directly into the Deals library.</p>
+    <h2>Gerda mailbox & dealsheets</h2><p>Import a saved Outlook email (.eml or .html). Chatz/Vodacom deal sheets can be identified and saved directly into the Deals library.</p>
     <form class="management-file" method="post" action="<%= basePath %>/management/mailbox/import" enctype="multipart/form-data"><input type="file" name="email_file" accept=".eml,.html,.htm" required><button class="management-btn" type="submit">Import email</button></form>
     <div style="margin-top:12px">
     <% if(!overview.mailbox.length){ %><div class="management-row">No recent mailbox items.</div><% } %>
