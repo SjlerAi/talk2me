@@ -108,6 +108,8 @@ async function main(){
  assert.match(myDay,/data-carry-done/);
  assert.match(myDay,/data-home-calendar-fold/);
  assert.match(myDay,/Completed via My Day Outstanding Work/);
+ assert.match(myDay,/item.completeOnBehalf/);
+ assert.match(myDay,/window.confirm/);
  assert.match(myDay,/communications\/myday/);
  assert.match(myDay,/data-home-agenda-more/);
  assert.match(myDay,/items\.slice\(0,4\)/);
@@ -125,6 +127,7 @@ async function main(){
  assert.match(unified,/api\/tk2m\/communications\/myday/);
  assert.match(unified,/data-tk2m-unified-view="today"/);
  assert.match(unified,/data-tk2m-unified-view="outstanding"/);
+ assert.match(unified,/item.completeOnBehalf/);
  assert.match(unified,/api\/tk2m\/communications\/clear/);
  assert.match(unified,/actionButton\('Clear','clear',item\)/);
  assert.match(read('src/routes/tk2m-communications-brief.js'),/VALUES \(:staffId,'hide_chat',:id,:key,'clear'\)/);
@@ -174,6 +177,11 @@ async function main(){
      created_at:'2026-11-19T12:30:00Z',status:'completed',
      assigned_to:9,created_by:15,sender_name:'ChatGPT CRM Test',
      recipient_name:'Stephan',receipt_at:'2026-11-19T12:35:00Z'
+   },{
+     id:358,title:'Call me when available',message:'Please call',
+     created_at:'2026-11-19T09:00:00Z',status:'unread',
+     assigned_to:9,created_by:1,sender_name:'Gerda',
+     recipient_name:'Stephan',receipt_at:null
    }]];
    if(sql.includes('FROM staff_tasks t')&&sql.includes('t.created_at>=:cutover'))return [[{
      id:352,title:'New Lines HelpU',message:'Previous day instruction',
@@ -189,12 +197,15 @@ async function main(){
  });
  assert.equal(split.day,'2026-11-19');
  assert.equal(split.scope,'team');
- assert.equal(split.counts.today,1);
+ assert.equal(split.counts.today,2);
  assert.equal(split.counts.outstanding,1);
- assert.equal(split.today[0].status,'completed');
- assert.equal(split.today[0].canComplete,false);
+ assert.equal(split.today[0].status,'unread');
+ assert.equal(split.today[0].canComplete,true);
+ assert.equal(split.today[1].status,'completed');
+ assert.equal(split.today[1].canComplete,false);
  assert.equal(split.outstanding[0].id,352);
- assert.equal(split.outstanding[0].canComplete,false);
+ assert.equal(split.outstanding[0].canComplete,true);
+ assert.equal(split.outstanding[0].completeOnBehalf,true);
  assert.equal(split.outstanding[0].canReply,true);
  assert.equal(split.outstanding[0].direction,'team');
  assert.ok(myDayQueries.some(q=>q.sql.includes('t.created_at>=:cutover')&&q.sql.includes('t.created_at<:today')));
@@ -204,6 +215,7 @@ async function main(){
    scope:'mine',now:new Date('2026-11-19T11:00:00Z')
  });
  assert.equal(assigneeView.outstanding[0].canComplete,true);
+ assert.equal(assigneeView.outstanding[0].completeOnBehalf,false);
  assert.ok(myDayQueries.some(q=>q.sql.includes('(t.created_by=:staffId OR t.assigned_to=:staffId)')));
  assert.match(read('src/services/tk2m-communications-brief.js'),/t.created_at>=:cutover/);
  assert.match(read('public/js/uat-work-widgets.js'),/<strong>\+ Send<\/strong>/);
