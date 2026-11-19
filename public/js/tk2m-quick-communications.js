@@ -187,6 +187,7 @@
      data.set('scheduled_for',when);
      for(const file of files.files||[])data.append('attachments',file,file.name);
      const result=await api('/api/tk2m/communications/scheduled',{method:'POST',body:data});
+     sending=false;
      closeQuick();
      say('Scheduled for '+result.scheduledFor.replace('T',' ')+' (South Africa time)');
      window.dispatchEvent(new Event('workspace:refresh'));
