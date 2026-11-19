@@ -13,7 +13,7 @@ function localClock(now=new Date()) {
   for(const t of tokens)if(t.type!=='literal')p[t.type]=t.value;
   return {year:p.year,month:p.month,day:p.day,hour:p.hour,minute:p.minute,
     archiveMonth:p.year+'-'+p.month,
-    cutoff:p.year+'-'+p.month+'-07 00:00:00'};
+    cutoff:(()=>{const parts=new Intl.DateTimeFormat('en-GB',{timeZone:'Africa/Johannesburg',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(new Date(date.getTime()-30*86400000));const a={};for(const x of parts)if(x.type!=='literal')a[x.type]=x.value;return `${a.year}-${a.month}-${a.day} ${a.hour}:${a.minute}:${a.second}`})()};
 }
 let readyPromise;
 async function ensureArchiveSchema(db){
@@ -40,7 +40,7 @@ async function ensureArchiveSchema(db){
 async function archiveLibrary(db,{now=new Date(),catchUp=false}={}){
   const clock=localClock(now);
   // The recurring cron only acts in the minute beginning at midnight
-  // on the 7th. Explicit catchUp is used once to clear older October stock.
+  // on the 7th. Explicit catchUp is reserved for controlled recovery.
   const isMidnight=clock.day==='07'&&clock.hour==='00'&&clock.minute==='00';
   const due=catchUp?Number(clock.day)>=7:isMidnight;
   if(!due)return {ok:true,due:false,month:clock.archiveMonth,archived:0};
@@ -61,11 +61,13 @@ async function archiveLibrary(db,{now=new Date(),catchUp=false}={}){
     await conn.execute(`INSERT INTO library_monthly_archive_items
       (archive_month,document_id)
       SELECT :month,d.id FROM library_documents d
-      WHERE d.status='active' AND d.updated_at<:cutoff`,
+      LEFT JOIN library_versions v ON v.id=d.current_version_id
+      WHERE d.status='active' AND COALESCE(v.created_at,d.created_at)<:cutoff`,
       {month:clock.archiveMonth,cutoff:clock.cutoff});
-    const [result]=await conn.execute(`UPDATE library_documents
-      SET status='archived',updated_at=NOW()
-      WHERE status='active' AND updated_at<:cutoff`,{cutoff:clock.cutoff});
+    const [result]=await conn.execute(`UPDATE library_documents d
+      LEFT JOIN library_versions v ON v.id=d.current_version_id
+      SET d.status='archived',d.updated_at=NOW()
+      WHERE d.status='active' AND COALESCE(v.created_at,d.created_at)<:cutoff`,{cutoff:clock.cutoff});
     const count=Number(result.affectedRows||0);
     await conn.execute(`UPDATE library_monthly_archive_runs
       SET archived_count=:count,completed_at=NOW()
