@@ -221,3 +221,12 @@
  .t2m-tk2m-test-shell .t2m-home-focus>.t2m-home-attention-strip{grid-template-columns:1fr}
  .t2m-tk2m-test-shell .t2m-home-attention-actions{grid-column:1;width:100%}
 }
+
+/* One-column priority headline: sender, short action, receipt status. */
+.t2m-tk2m-test-shell .t2m-home-focus .t2m-home-priority-item>span,
+.t2m-tk2m-test-shell .t2m-home-focus .t2m-home-priority-item>small,
+.t2m-tk2m-test-shell .t2m-home-focus .t2m-home-priority-item>strong{
+ grid-column:1/-1!important;
+ justify-self:stretch!important;
+ text-align:left!important;
+}
