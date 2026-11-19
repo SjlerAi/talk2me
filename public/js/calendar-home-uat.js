@@ -304,25 +304,25 @@
         </div>
       </header>
       ${tk2mPreview ? `<section class="t2m-home-focus" aria-label="Daily priorities">
-        <section class="t2m-home-attention-strip" data-home-attention-strip aria-label="Messages and outstanding work">
+        <section class="t2m-home-attention-strip" data-home-attention-strip aria-label="Communications">
           <div class="t2m-home-attention-copy">
-            <strong>MESSAGES &amp; OUTSTANDING WORK</strong>
-            <span data-home-attention-summary>Checking your inbox and tasks...</span>
+            <strong>COMMUNICATIONS</strong>
+            <span data-home-attention-summary>Checking recent communications...</span>
             <small data-home-alert-status>Checking red alerts...</small>
           </div>
           <div class="t2m-home-attention-actions">
-            <button type="button" data-home-quick-send aria-label="Send a message or task">+ Send</button>
+            <button type="button" data-home-quick-send aria-label="Send communication">+ Send</button>
             <button type="button" data-os-app="messages" aria-label="Open all recent communications">Communications</button>
           </div>
         </section>
-        <button type="button" data-home-focus="tasks" data-os-app="tasks" aria-label="Open tasks and follow-ups">
-          <span>Tasks &amp; follow-ups</span><strong data-home-focus-count="tasks">—</strong><small>Selected day · open Work</small>
+        <button type="button" data-home-focus="tasks" aria-label="View selected-day calendar actions">
+          <span>Calendar actions</span><strong data-home-focus-count="tasks">—</strong><small>Selected day · agenda</small>
         </button>
         <button type="button" data-home-focus="reminders" aria-label="View reminders for selected day">
           <span>Reminders</span><strong data-home-focus-count="reminders">—</strong><small>Selected day · calendar</small>
         </button>
-        <button type="button" data-home-focus="messages" data-os-app="messages" aria-label="Open unread staff messages">
-          <span>Messages</span><strong data-home-focus-count="messages">—</strong><small>Unread · open messages</small>
+        <button type="button" data-home-focus="messages" data-os-app="messages" aria-label="Open recent communications">
+          <span>Communications</span><strong data-home-focus-count="messages">—</strong><small>Last 48 hours · open list</small>
         </button>
         <button type="button" data-home-focus="overdue" aria-label="Open my overdue tasks">
           <span>My overdue</span><strong data-home-focus-count="overdue">—</strong><small>Needs your attention</small>
@@ -437,10 +437,10 @@
       }
       const summary = workspace.querySelector('[data-home-attention-summary]');
       if(summary){
-        const unread=state.focus.messages, work=state.focus.openWork, overdue=state.focus.overdue;
-        summary.textContent = unread===null || work===null || overdue===null
-          ? 'Checking your inbox and outstanding work...'
-          : unread+' unread messages · '+work+' active tasks · '+overdue+' overdue';
+        const count=state.focus.messages,overdue=state.focus.overdue;
+        summary.textContent = count===null || overdue===null
+          ? 'Checking recent communications...'
+          : count+' recent communications · '+overdue+' overdue';
       }
     }
 
@@ -582,11 +582,11 @@
     async function loadAttention() {
       if (!tk2mPreview) return;
       const [messagesResult, statusResult] = await Promise.allSettled([
-        jsonFetch('/api/uat/chat/bootstrap'),
+        jsonFetch('/api/tk2m/communications/inbox'),
         jsonFetch('/api/os/status')
       ]);
       state.focus.messages = messagesResult.status === 'fulfilled'
-        ? Math.max(0, Number(messagesResult.value.unreadTotal || 0) + Number(messagesResult.value.systemUnread || 0))
+        ? Math.max(0, Array.isArray(messagesResult.value.items)?messagesResult.value.items.length:0)
         : null;
       state.focus.overdue = statusResult.status === 'fulfilled'
         ? Math.max(0, Number(statusResult.value.status?.overdueTaskCount || 0))
@@ -624,6 +624,12 @@
     workspace.querySelector('[data-home-today-button]').onclick = () => { const now = new Date(); state.month = monthStart(now); state.selected = iso(now); state.staffFilter = null; load(); };
     workspace.querySelector('[data-home-add-task]').onclick = openTask;
     workspace.querySelector('[data-home-add-reminder]').onclick = openReminder;
+    workspace.querySelector('[data-home-focus="tasks"]')?.addEventListener('click', () => {
+      const agenda=workspace.querySelector('.t2m-home-agenda');
+      agenda?.scrollIntoView({block:'nearest',behavior:'smooth'});
+      agenda?.classList.add('is-highlighted');
+      window.setTimeout(()=>agenda?.classList.remove('is-highlighted'),900);
+    });
     workspace.querySelector('[data-home-focus="reminders"]')?.addEventListener('click', () => {
       const panel = workspace.querySelector('.t2m-home-agenda');
       panel?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
@@ -631,6 +637,9 @@
       window.setTimeout(() => panel?.classList.remove('is-highlighted'), 900);
     });
     workspace.querySelector('[data-home-focus="overdue"]')?.addEventListener('click', () => {
+      if(tk2mPreview && window.Talk2MeUnifiedInbox?.open){
+        window.Talk2MeUnifiedInbox.open();return;
+      }
       openWorkWindow({
         id: 'myday:overdue', appKey: 'overdue-work', title: 'My overdue tasks',
         icon: '!', subtitle: 'Outstanding work requiring attention',

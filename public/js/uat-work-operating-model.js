@@ -149,6 +149,8 @@
   }
 
   async function openWork(){
+    if(location.hostname==='crm.tk2m.co.za' && window.Talk2MeUnifiedInbox?.open)
+      return window.Talk2MeUnifiedInbox.open();
     ensureHeader();
     if(!showWidget())return;
     setActive('overview');
