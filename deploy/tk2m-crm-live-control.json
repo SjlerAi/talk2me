@@ -1,11 +1,11 @@
 {
   "schema": 1,
-  "action": "hold",
+  "action": "deploy",
   "environment": "tk2m-production",
-  "request_id": "tk2m-fixed-line-cards-20261119-postrelease-hold",
-  "release_branch": "release/tk2m-fixed-line-cards-20261119",
-  "release_sha": "fa00a36e5cf27bc6b70daba8005b6f82f0697365",
+  "request_id": "tk2m-management-live-copy-20261119-a1",
+  "release_branch": "release/tk2m-management-live-copy-20261119",
+  "release_sha": "83ce3e555f001bb7375169eeb14157d498b35ae9",
   "expected_previous_sha": "fa00a36e5cf27bc6b70daba8005b6f82f0697365",
   "production_cutover": true,
-  "owner_approved": false
+  "owner_approved": true
 }
