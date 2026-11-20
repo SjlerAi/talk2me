@@ -17,6 +17,7 @@ assert.match(manualsCss,/grid-template-rows:max-content max-content minmax\(0,1f
 assert.match(manualsCss,/\.deals-app\[data-deals-app\] \.deals-head \.deals-title/);
 assert.match(manualsCss,/flex:0 0 auto !important/);
 assert.match(manualView,/assetVersion \|\| appVersion/,'mobile CSS should cache bust by exact release');
+assert.ok(manualView.includes('/public/js/manuals.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>-library-central3'),'Manuals viewer JavaScript must use release-specific cache-busting');
 const shell=read('views/os-shell.ejs');
 const managed=read('public/js/os-launchers.js');
 assert.match(calendar,/data-uat-deals-launcher/);
