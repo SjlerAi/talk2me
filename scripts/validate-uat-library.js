@@ -85,7 +85,7 @@ assert(ui.includes("new URLSearchParams(window.location.search).get('category')"
 assert(ui.includes("uploadCategory.value='Deals'"), 'Deals upload shortcut must assign the Deals category');
 assert(ui.includes('New version'), 'Admin version workflow must exist');
 assert(ui.includes('data-library-delete'), 'Management must have a Delete button on Library cards');
-assert(ui.includes('state.canManage?'), 'Delete buttons must only render for management');
+assert(ui.includes("state.canManage&&(doc.category!=='Manuals'||state.canManageManuals)"), 'Delete buttons must require management plus Manuals permission');
 assert(ui.includes("method:'DELETE'"), 'Library Delete control must call the permanent delete endpoint');
 assert(ui.includes('Delete "${doc.title}" permanently?'), 'Permanent deletion must require confirmation');
 assert(css.includes('.library-delete{'), 'Library card Delete control must be visibly styled');
@@ -113,12 +113,12 @@ assert(dealsCss.includes('.deals-type-tabs'), 'Deals type buttons must be visibl
 assert(dealsCss.includes('.deals-type-tabs button.is-active'), 'Active Deals type button must be visually distinct');
 assert(dealsCss.includes('@media(max-width:760px)'), 'Dedicated Deals window must remain mobile responsive');
 
-assert(calendar.includes('data-uat-library-launcher'), 'Library must be added to the top launcher');
+assert(!calendar.includes('data-uat-library-launcher'), 'Library is accessed from the left sidebar rather than duplicated in top shortcuts');
 assert(calendar.includes('data-uat-deals-launcher'), 'Deals must have a dedicated top-bar launcher');
 assert(calendar.includes('/deals'), 'Live Deals launcher must open the operational Deals window');
 assert(!calendar.includes('/uat/deals'), 'Live launcher must not display the old UAT Deals URL');
 assert(!calendar.includes('/uat/library?category=Deals'), 'Deals launcher must never route staff back into the Library');
-assert(homeCss.includes('.t2m-top-deals-button'), 'Deals launcher must be visibly styled in green');
+assert(homeCss.includes('.t2m-top-deals-button'), 'Deals launcher must remain visibly styled in blue');
 assert(calendar.includes('/library'), 'Live Library must use the operational URL');
 assert(!calendar.includes('/uat/library'), 'Live Library launcher must not use the old UAT URL');
 assert(route.includes("router.get(['/library','/uat/library'],requireAuth"), 'Canonical /library must keep the old authenticated route compatible');

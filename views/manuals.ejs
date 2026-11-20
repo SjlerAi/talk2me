@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#374151">
+  <title>Talk2Me Manuals</title>
+  <link rel="stylesheet" href="<%= basePath %>/public/css/uat-deals.css?v=<%= encodeURIComponent(appVersion) %>-deals-window2">
+  <link rel="stylesheet" href="<%= basePath %>/public/css/manuals.css?v=<%= encodeURIComponent(appVersion) %>">
+  <link rel="stylesheet" data-tk2m-blue-refresh href="<%= basePath %>/public/css/tk2m-blue-red-refresh.css?v=blue20261119a">
+</head>
+<body>
+  <main class="deals-app" data-deals-app>
+    <header class="deals-head">
+      <div class="deals-title">
+        <span>Talk2Me</span>
+        <h1>Manuals</h1>
+        <p>Reference manuals for your team.</p>
+      </div>
+      <div class="deals-head-actions">
+        <% if(canManageManuals){ %><button type="button" class="manuals-manage-launch" data-manuals-manage-open>Manage manuals</button><% } %>
+        <nav class="deals-type-tabs" aria-label="Manual file type">
+          <button type="button" data-deals-type="images">Images</button>
+          <button type="button" data-deals-type="spreadsheets">Spreadsheets</button>
+          <button type="button" data-deals-type="pdfs">PDFs</button>
+        </nav>
+        <div class="deals-count" aria-live="polite"><strong data-deals-count>0</strong><span data-deals-count-label>manuals</span></div>
+      </div>
+    </header>
+
+    <section class="deals-toolbar">
+      <label class="deals-search">
+        <span aria-hidden="true">⌕</span>
+        <input type="search" autocomplete="off" placeholder="Search manuals..." data-deals-search>
+      </label>
+      <button type="button" class="deals-refresh" data-deals-refresh>Refresh</button>
+    </section>
+
+    <section class="deals-results" aria-live="polite">
+      <div class="deals-grid" data-deals-grid></div>
+      <div class="deals-load-zone" data-deals-load-zone>
+        <button type="button" data-deals-load-more hidden>Load more manuals</button>
+        <span data-deals-status></span>
+      </div>
+    </section>
+  </main>
+
+  <dialog class="deals-viewer" data-deals-viewer>
+    <div class="deals-viewer-shell">
+      <header>
+        <div>
+          <span>Manual</span>
+          <strong data-deals-viewer-title></strong>
+          <small data-deals-viewer-meta></small>
+        </div>
+        <div class="deals-viewer-actions">
+          <a href="#" target="_blank" rel="noopener" data-deals-download>Download original</a>
+          <button type="button" data-deals-fullscreen>Full screen</button>
+          <button type="button" class="close" data-deals-close aria-label="Close">×</button>
+        </div>
+      </header>
+      <div class="deals-viewer-body" data-deals-viewer-body></div>
+    </div>
+  </dialog>
+
+  <% if(canManageManuals){ %>
+  <dialog class="manuals-manage" data-manuals-manage>
+    <div class="manuals-manage-shell">
+      <header><h2>Manage manuals</h2><button type="button" data-manuals-manage-close>×</button></header>
+      <form data-manuals-upload enctype="multipart/form-data">
+        <p>Upload up to 10 files, maximum 40 MB each. All staff can read these manuals.</p>
+        <label>Description<textarea name="description" maxlength="5000" rows="2"></textarea></label>
+        <label>Choose manuals<input type="file" name="files" multiple required accept=".pdf,.doc,.docx,.xlsx,.xls,.csv,.ppt,.pptx,.txt,.rtf,.jpg,.jpeg,.png,.webp,.gif"></label>
+        <button type="submit">Upload and publish</button><span role="status" data-manuals-upload-status></span>
+      </form>
+      <% if(canDelegateManuals){ %>
+      <section class="manuals-publishers">
+        <h3>Give staff upload permission</h3>
+        <label>Select staff member<select data-manuals-staff></select></label>
+        <div class="manuals-delegation-actions"><button type="button" data-manuals-grant>Allow upload</button><button type="button" data-manuals-revoke>Revoke upload</button></div>
+        <span data-manuals-publishers role="status"></span>
+      </section>
+      <% } %>
+    </div>
+  </dialog>
+  <% } %>
+  <script id="deals-config" type="application/json"><%- JSON.stringify({basePath,user:{id:currentUser.id,name:currentUser.full_name,role:currentUser.role}}).replace(/</g,'\u003c') %></script>
+  <script src="<%= basePath %>/public/js/manuals.js?v=<%= encodeURIComponent(appVersion) %>-deals-window2"></script>
+</body>
+</html>

@@ -122,7 +122,7 @@
   </div>
   <% } %>
   <% if(cudoDisabled){ %><style id="tk2m-retired-cudu">.cudo-root{display:none!important}</style><% } %>
-  <% const launchers = (typeof osLaunchers !== 'undefined' && Array.isArray(osLaunchers) ? osLaunchers : []).filter(item => item.is_enabled); %>
+  <% const launchers = (typeof osLaunchers !== 'undefined' && Array.isArray(osLaunchers) ? osLaunchers : []).filter(item => item.is_enabled && (item.slot_key==='slot_8' || !['communications','communication','library','deals'].includes(String(item.display_name||'').trim().toLowerCase()))); %>
   <% const attendance = typeof attendanceState !== 'undefined' ? attendanceState : null; %>
   <% const firstName = String(currentUser.full_name || currentUser.username || 'Staff').trim().split(/\s+/)[0]; %>
   <% const unassignedCount = typeof unassignedClientCount === 'undefined' ? 0 : Number(unassignedClientCount || 0); %>
@@ -162,7 +162,7 @@
       <button class="t2m-os-launcher-arrow" type="button" data-launcher-scroll="previous" aria-label="Previous launcher">‹</button>
       <div class="t2m-os-launcher-scroll">
         <button type="button" data-os-launch="customers"><span class="t2m-brand-mark customer">C</span><strong>Customers</strong></button>
-        <% launchers.forEach(item=>{ %><button type="button" data-os-managed-launcher="<%= item.slot_key %>"><span class="t2m-brand-mark customer"><%= item.icon_text||item.display_name.slice(0,1) %></span><strong><%= item.display_name %></strong></button><% }) %>
+        <% launchers.forEach(item=>{ const label=item.slot_key==='slot_8'?'Manuals':(String(item.display_name||'').toLowerCase().includes('knowledge')?'Know.':String(item.display_name||'')); %><button type="button" data-os-managed-launcher="<%= item.slot_key %>" aria-label="<%= item.display_name %>" title="<%= item.display_name %>" class="<%= item.slot_key==='slot_8'?'t2m-manuals-launcher':'' %>"><span class="t2m-brand-mark customer"><%= item.slot_key==='slot_8'?'📘':(item.icon_text||item.display_name.slice(0,1)) %></span><strong><%= label.length>7?label.slice(0,6)+'…':label %></strong></button><% }) %>
       </div>
       <button class="t2m-os-launcher-arrow" type="button" data-launcher-scroll="next" aria-label="Next launcher">›</button>
     </nav>

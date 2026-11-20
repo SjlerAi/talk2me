@@ -22,7 +22,7 @@ const librarySnapshotDir = path.join(libraryRoot, 'snapshots');
 const libraryTempDir = path.join(libraryRoot, 'tmp');
 let schemaPromise;
 
-const CATEGORIES = ['Deals','Favourites','Images','Pricing','PDFs','Forms','Promotions','Training','Documents','Presentations','Other'];
+const CATEGORIES = ['Deals','Manuals','Favourites','Images','Pricing','PDFs','Forms','Promotions','Training','Documents','Presentations','Other'];
 
 function management(user) {
   return Boolean(user && MANAGEMENT_ROLES.has(String(user.role || '').toLowerCase()));
@@ -47,6 +47,22 @@ function requireManager(req, res, next) {
   next();
 }
 
+function isManualsCategory(value) {
+  return String(value||'').trim().toLowerCase()==='manuals';
+}
+async function canEditManuals(user) {
+  if(canRestoreArchived(user))return true;
+  if(!user || !Number.isInteger(Number(user.id)) || Number(user.id)<1)return false;
+  const [[row]]=await db.execute('SELECT staff_id FROM library_manual_publishers WHERE staff_id=:staffId LIMIT 1', {staffId:Number(user.id)});
+  return Boolean(row);
+}
+async function requireManualEditor(req,res,next) {
+  try {
+    await ensureSchema();
+    if(!await canEditManuals(req.session.user))return res.status(403).json({ok:false,error:'Only Gerda or her authorised publishers may upload manuals.'});
+    next();
+  }catch(error){next(error);}
+}
 function idOf(value) {
   const id = Number(value);
   return Number.isInteger(id) && id > 0 ? id : null;
@@ -58,7 +74,7 @@ function clean(value, max=5000) {
 
 function safeCategory(value) {
   const raw = clean(value,80);
-  return raw || 'Other';
+  return raw.toLowerCase()==='manuals' ? 'Manuals' : (raw || 'Other');
 }
 
 function safeMonth(value) {
@@ -226,6 +242,12 @@ async function ensureSchema() {
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (id),
         KEY idx_library_snapshots_month (snapshot_month,created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+      await db.query(`CREATE TABLE IF NOT EXISTS library_manual_publishers (
+        staff_id BIGINT UNSIGNED NOT NULL,
+        granted_by BIGINT UNSIGNED NOT NULL,
+        granted_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (staff_id)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
     })().catch(error=>{schemaPromise=null;throw error;});
   }
@@ -542,10 +564,11 @@ router.get('/api/uat/library/bootstrap',requireAuth,async(req,res,next)=>{
     const favourites=await favouriteSet(userId);
     const documents=rows.map(row=>mapDocument(row,favourites,nativeLaunchFor(req,res.locals.basePath,row)));
     const documentCategories=[...new Set(documents.map(item=>item.category).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
-    const categories=['Deals',...documentCategories.filter(category=>category!=='Deals')];
+    const categories=['Deals','Manuals',...documentCategories.filter(category=>category!=='Deals'&&category!=='Manuals')];
     res.json({
       ok:true,
       canManage,
+      canManageManuals:await canEditManuals(req.session.user),
       canRestore,
       archiveSchedule:'7th of every month at 00:00 Africa/Johannesburg',
       user:{id:userId,name:req.session.user.full_name,role:req.session.user.role},
@@ -601,6 +624,79 @@ router.get('/api/uat/deals',requireAuth,async(req,res,next)=>{
   }catch(error){next(error);}
 });
 
+router.get('/manuals',requireAuth,async(req,res,next)=>{
+  try{await ensureSchema();res.render('manuals',{layout:false,title:'Manuals',basePath:res.locals.basePath||'',appVersion:res.locals.appVersion||'',currentUser:req.session.user,canManageManuals:await canEditManuals(req.session.user),canDelegateManuals:canRestoreArchived(req.session.user)});}catch(error){next(error);}
+});
+router.get('/api/uat/manuals',requireAuth,async(req,res,next)=>{
+  try{
+    await ensureSchema();
+    const userId=Number(req.session.user.id);
+    const limit=Math.min(Math.max(Number.parseInt(req.query.limit,10)||100,1),200);
+    const offset=Math.max(Number.parseInt(req.query.offset,10)||0,0);
+    const query=clean(req.query.q,120);
+    const typeFilter=dealTypeFilterSql(req.query.type);
+    const params={};
+    let searchSql='';
+    if(query){
+      params.search=`%${query}%`;
+      searchSql=' AND (d.title LIKE :search OR d.description LIKE :search OR v.original_name LIKE :search)';
+    }
+    const whereSql=`${documentAccessSql(req.session.user)} AND d.status='active' AND d.category='Manuals'${typeFilter.sql}${searchSql}`;
+    const [[countRow]]=await db.execute(`SELECT COUNT(*) total
+      FROM library_documents d
+      LEFT JOIN library_versions v ON v.id=d.current_version_id
+      WHERE ${whereSql}`,params);
+    const [rows]=await db.execute(`SELECT d.id,d.title,d.description,d.category,d.access_level,d.company_favourite,d.status,d.updated_at,
+      v.id version_id,v.version_number,v.original_name,v.mime_type,v.extension,v.file_bytes,v.created_at version_created_at,
+      uploader.full_name uploaded_by_name
+      FROM library_documents d
+      LEFT JOIN library_versions v ON v.id=d.current_version_id
+      LEFT JOIN staff_users uploader ON uploader.id=v.uploaded_by
+      WHERE ${whereSql}
+      ORDER BY COALESCE(v.created_at,d.created_at) DESC,d.id DESC
+      LIMIT ${limit} OFFSET ${offset}`,params);
+    const favourites=await favouriteSet(userId);
+    const documents=rows.map(row=>mapDocument(row,favourites,nativeLaunchFor(req,res.locals.basePath,row)));
+    const total=Number(countRow?.total||0);
+    const nextOffset=offset+documents.length;
+    res.json({
+      ok:true,
+      total,
+      offset,
+      limit,
+      nextOffset,
+      hasMore:nextOffset<total,
+      type:typeFilter.type,
+      documents
+    });
+  }catch(error){next(error);}
+});
+
+router.get('/api/uat/manuals/publishers',requireAuth,requireGerda,async(req,res,next)=>{
+  try{
+    await ensureSchema();
+    const [rows]=await db.execute('SELECT s.id,s.full_name,CASE WHEN p.staff_id IS NULL THEN 0 ELSE 1 END allowed FROM staff_users s LEFT JOIN library_manual_publishers p ON p.staff_id=s.id ORDER BY s.full_name,s.id');
+    res.json({ok:true,staff:rows.map(row=>({id:Number(row.id),name:row.full_name,allowed:Boolean(row.allowed)}))});
+  }catch(error){next(error);}
+});
+router.post('/api/uat/manuals/publishers',requireAuth,requireGerda,async(req,res,next)=>{
+  try{
+    await ensureSchema();
+    const staffId=idOf(req.body.staffId);
+    if(!staffId)return res.status(400).json({ok:false,error:'Choose a valid staff member.'});
+    const [[staff]]=await db.execute('SELECT id FROM staff_users WHERE id=:staffId LIMIT 1',{staffId});
+    if(!staff)return res.sendStatus(404);
+    const allowed=req.body.allowed===true;
+    if(allowed)await db.execute('INSERT INTO library_manual_publishers (staff_id,granted_by) VALUES (:staffId,:grantedBy) ON DUPLICATE KEY UPDATE granted_by=VALUES(granted_by),granted_at=NOW()',{staffId,grantedBy:Number(req.session.user.id)});
+    else await db.execute('DELETE FROM library_manual_publishers WHERE staff_id=:staffId',{staffId});
+    try{await trackEvent({staffId:req.session.user.id,
+      eventType:allowed?'manuals_publisher_granted':'manuals_publisher_revoked',
+      screenKey:'manuals',routePath:'/api/uat/manuals/publishers',
+      moduleName:'library',httpMethod:'POST',httpStatus:200,metadata:{targetStaffId:staffId}});
+    }catch(error){console.error('[manuals-audit]',error.message);}
+    res.json({ok:true,staffId,allowed});
+  }catch(error){next(error);}
+});
 router.get('/api/uat/library/documents/:id',requireAuth,async(req,res,next)=>{
   try{
     await ensureSchema();
@@ -622,6 +718,58 @@ router.get('/api/uat/library/documents/:id',requireAuth,async(req,res,next)=>{
   }catch(error){next(error);}
 });
 
+router.post('/api/uat/manuals/upload',requireAuth,requireManualEditor,uploadBatchMiddleware,async(req,res,next)=>{
+  let persisted=false;
+  const connection=await db.getConnection();
+  try{
+    await ensureSchema();
+    const files=Array.isArray(req.files)?req.files:[];
+    if(!files.length)return res.status(400).json({ok:false,error:'Choose at least one file.'});
+    if(files.length>10){cleanupFiles(files);return res.status(400).json({ok:false,error:'Upload a maximum of 10 files at once.'});}
+    const userId=Number(req.session.user.id);
+    const category='Manuals';
+    const description=clean(req.body.description,5000);
+    const accessLevel='all';
+    const favourite=0;
+    const created=[];
+    await connection.beginTransaction();
+    for(const file of files){
+      const ext=extensionOf(file);
+      const basename=path.basename(String(file.originalname||'document'),ext);
+      const title=clean(basename.replace(/[_-]+/g,' ').replace(/\s+/g,' '),180)||'Document';
+      const [docResult]=await connection.execute(`INSERT INTO library_documents
+        (title,description,category,access_level,company_favourite,status,created_by,updated_by)
+        VALUES (:title,:description,:category,:accessLevel,:favourite,'active',:userId,:userId)`,
+        {title,description,category,accessLevel,favourite,userId});
+      const [versionResult]=await connection.execute(`INSERT INTO library_versions
+        (document_id,version_number,original_name,stored_filename,mime_type,extension,file_bytes,uploaded_by)
+        VALUES (:documentId,1,:originalName,:storedFilename,:mime,:extension,:bytes,:userId)`,{
+          documentId:docResult.insertId,
+          originalName:clean(path.basename(file.originalname),255),
+          storedFilename:path.basename(file.filename),
+          mime:clean(file.mimetype,140),
+          extension:ext,
+          bytes:Number(file.size||0),
+          userId
+        });
+      await connection.execute('UPDATE library_documents SET current_version_id=:versionId WHERE id=:documentId',{
+        versionId:versionResult.insertId,documentId:docResult.insertId
+      });
+      created.push({id:Number(docResult.insertId),title,versionId:Number(versionResult.insertId)});
+    }
+    await connection.commit();
+    persisted=true;
+    res.json({ok:true,count:created.length,documents:created});
+  }catch(error){
+    try{await connection.rollback();}catch(_){}
+    if(!persisted) cleanupFiles(req.files);
+    next(error);
+  }finally{
+    try{connection.release();}catch(_){}
+  }
+});
+
+
 router.post('/api/uat/library/documents/batch',requireAuth,requireManager,uploadBatchMiddleware,async(req,res,next)=>{
   let persisted=false;
   const connection=await db.getConnection();
@@ -632,8 +780,12 @@ router.post('/api/uat/library/documents/batch',requireAuth,requireManager,upload
     if(files.length>10){cleanupFiles(files);return res.status(400).json({ok:false,error:'Upload a maximum of 10 files at once.'});}
     const userId=Number(req.session.user.id);
     const category=safeCategory(req.body.category);
+    if(isManualsCategory(category)&&!await canEditManuals(req.session.user)){
+      cleanupFiles(req.files);
+      return res.status(403).json({ok:false,error:'Only authorised publishers can upload manuals.'});
+    }
     const description=clean(req.body.description,5000);
-    const accessLevel=clean(req.body.access_level,30)==='management'?'management':'all';
+    const accessLevel=isManualsCategory(category)?'all':(clean(req.body.access_level,30)==='management'?'management':'all');
     const favourite=String(req.body.company_favourite||'')==='1'?1:0;
     const created=[];
     await connection.beginTransaction();
@@ -683,8 +835,12 @@ router.post('/api/uat/library/documents',requireAuth,requireManager,uploadMiddle
     if(!title){removeUploaded(req);return res.status(400).json({ok:false,error:'Enter a document title.'});}
     const userId=Number(req.session.user.id);
     const category=safeCategory(req.body.category);
+    if(isManualsCategory(category)&&!await canEditManuals(req.session.user)){
+      removeUploaded(req);
+      return res.status(403).json({ok:false,error:'Only authorised publishers can upload manuals.'});
+    }
     const description=clean(req.body.description,5000);
-    const accessLevel=clean(req.body.access_level,30)==='management'?'management':'all';
+    const accessLevel=isManualsCategory(category)?'all':(clean(req.body.access_level,30)==='management'?'management':'all');
     const favourite=String(req.body.company_favourite||'')==='1'?1:0;
     const ext=extensionOf(req.file);
     await connection.beginTransaction();
@@ -725,8 +881,12 @@ router.post('/api/uat/library/documents/:id/version',requireAuth,requireManager,
     await ensureSchema();
     const documentId=idOf(req.params.id);
     if(!documentId||!req.file){removeUploaded(req);return res.status(400).json({ok:false,error:'Document and file are required.'});}
-    const [[doc]]=await connection.execute('SELECT id,status FROM library_documents WHERE id=:id LIMIT 1',{id:documentId});
+    const [[doc]]=await connection.execute('SELECT id,status,category FROM library_documents WHERE id=:id LIMIT 1',{id:documentId});
     if(!doc){removeUploaded(req);return res.sendStatus(404);}
+    if(isManualsCategory(doc.category)&&!await canEditManuals(req.session.user)){
+      removeUploaded(req);
+      return res.status(403).json({ok:false,error:'Only authorised publishers can replace manuals.'});
+    }
     if(doc.status!=='active'&&!canRestoreArchived(req.session.user)){
       removeUploaded(req);return res.status(403).json({ok:false,error:'Only Gerda can republish archived documents.'});
     }
@@ -769,8 +929,12 @@ router.post('/api/uat/library/documents/:id/meta',requireAuth,requireManager,asy
     const title=clean(req.body.title,180);
     if(!title) return res.status(400).json({ok:false,error:'Title is required.'});
     const category=safeCategory(req.body.category);
+    const [[existing]]=await db.execute('SELECT category FROM library_documents WHERE id=:id LIMIT 1',{id});
+    if(!existing)return res.sendStatus(404);
+    if((isManualsCategory(existing.category)||isManualsCategory(category))&&!await canEditManuals(req.session.user))
+      return res.status(403).json({ok:false,error:'Only authorised publishers can edit manuals.'});
     const description=clean(req.body.description,5000);
-    const accessLevel=clean(req.body.access_level,30)==='management'?'management':'all';
+    const accessLevel=isManualsCategory(category)?'all':(clean(req.body.access_level,30)==='management'?'management':'all');
     const favourite=String(req.body.company_favourite||'')==='1'?1:0;
     const userId=Number(req.session.user.id);
     const [result]=await db.execute(`UPDATE library_documents
@@ -788,6 +952,10 @@ router.post('/api/uat/library/documents/:id/archive',requireAuth,requireManager,
     await ensureSchema();
     const id=idOf(req.params.id);
     if(!id) return res.sendStatus(404);
+    const [[existing]]=await db.execute('SELECT category FROM library_documents WHERE id=:id LIMIT 1',{id});
+    if(!existing)return res.sendStatus(404);
+    if(isManualsCategory(existing.category)&&!await canEditManuals(req.session.user))
+      return res.status(403).json({ok:false,error:'Only authorised publishers can archive manuals.'});
     const status=clean(req.body.status,20)==='active'?'active':'archived';
     if(status==='active'&&!canRestoreArchived(req.session.user))
       return res.status(403).json({ok:false,error:'Only Gerda can restore archived files.'});
@@ -817,12 +985,16 @@ router.delete('/api/uat/library/documents/:id',requireAuth,requireManager,async(
 
     await connection.beginTransaction();
     const [[document]]=await connection.execute(
-      'SELECT id,title,status FROM library_documents WHERE id=:id LIMIT 1 FOR UPDATE',
+      'SELECT id,title,status,category FROM library_documents WHERE id=:id LIMIT 1 FOR UPDATE',
       {id}
     );
     if(!document){
       await connection.rollback();
       return res.sendStatus(404);
+    }
+    if(isManualsCategory(document.category)&&!await canEditManuals(req.session.user)){
+      await connection.rollback();
+      return res.status(403).json({ok:false,error:'Only authorised publishers can delete manuals.'});
     }
     if(document.status!=='active'&&!canRestoreArchived(req.session.user)){
       await connection.rollback();

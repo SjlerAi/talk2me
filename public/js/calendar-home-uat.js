@@ -247,21 +247,6 @@
       else launcherScroll.prepend(workLauncher);
     }
 
-    if (launcherScroll && !launcherScroll.querySelector('[data-uat-library-launcher]')) {
-      const libraryLauncher = document.createElement('button');
-      libraryLauncher.type = 'button';
-      libraryLauncher.dataset.uatLibraryLauncher = '1';
-      libraryLauncher.dataset.osRoute = `${basePath}/library`;
-      libraryLauncher.dataset.routeTitle = 'Library';
-      libraryLauncher.dataset.routeIcon = 'L';
-      libraryLauncher.setAttribute('aria-label', 'Library');
-      libraryLauncher.title = 'Library';
-      libraryLauncher.innerHTML = '<span class="t2m-brand-mark customer">L</span><strong>Library</strong>';
-      const customerLauncher = launcherScroll.querySelector('[data-os-launch="customers"]');
-      if (customerLauncher?.nextSibling) launcherScroll.insertBefore(libraryLauncher, customerLauncher.nextSibling);
-      else launcherScroll.appendChild(libraryLauncher);
-    }
-
     mountMobileMenu();
 
     if (topActions && !topActions.querySelector('[data-os-app="notes"]')) {
