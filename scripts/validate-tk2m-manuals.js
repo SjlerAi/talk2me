@@ -30,6 +30,7 @@ assert.match(dbService,/operationalManualsSlot/);
 assert.match(dbService,/slot_8/);
 assert.match(css,/#0072bc/);
 assert.match(css,/t2m-manuals-launcher/);
+assert.ok(css.includes('#talk2me-os .t2m-os-launcher-scroll>button.t2m-manuals-launcher{'),'dark-blue Manuals styling must win against the shared theme');
 assert.match(css,/#1e3a8a/);
 assert.match(route,/router.get\('\/manuals',requireAuth/);
 assert.match(route,/router.get\('\/api\/uat\/manuals',requireAuth/);
