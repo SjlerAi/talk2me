@@ -77,7 +77,7 @@
     });
     if(!state.documents.length&&!state.loading){
       const typeLabel=state.type==='images'?'images':state.type==='spreadsheets'?'spreadsheets':state.type==='pdfs'?'PDFs':'deals';
-      grid.innerHTML=`<div class="deals-empty"><div><strong>${state.query?`No matching ${typeLabel}`:`No ${typeLabel} available`}</strong><span>${state.query?'Try a different search.':state.type?'This Deals filter has no published files.':'New Deals uploads appear automatically. If an older Deal spreadsheet was archived, Gerda can restore it from Library → Manage Library → Archive.'}</span></div></div>`;
+      grid.innerHTML=`<div class="deals-empty"><div><strong>${state.query?`No matching ${typeLabel}`:`No ${typeLabel} available`}</strong><span>${state.query?'Try a different search.':state.type?'This Deals filter has no published files.':'New Deals uploads appear automatically. If an older Deal spreadsheet was archived, an Owner can restore it from Library → Manage Library → Archive.'}</span></div></div>`;
     }else{
       grid.innerHTML=state.documents.map(cardHtml).join('');
     }
