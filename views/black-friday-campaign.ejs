@@ -83,7 +83,7 @@
         <button type="submit">Show this staff member's clients</button>
       </form>
       <% if(!selectedStaff){ %>
-        <p class="muted" style="margin-bottom:0">Choose Jonathan, Annazel or another staff member above. Their available Black Friday customers will appear for you to tick and send as follow-up tasks. Nothing is assigned automatically.</p>
+        <p class="muted" style="margin-bottom:0">Choose a staff member above. Their eligible campaign customers will appear for review and assignment as follow-up tasks. Nothing is assigned automatically.</p>
       <% }else{ %>
         <div class="toolbar" style="margin-top:14px">
           <a class="btn <%= data.options.pool==='own'?'':'btn-light' %>" href="<%= basePath %>/black-friday?staff=<%= selectedStaff.id %>&pool=own<%= panelMode?'&panel=1':'' %>">
