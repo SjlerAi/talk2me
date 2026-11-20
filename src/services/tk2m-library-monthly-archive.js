@@ -62,12 +62,12 @@ async function archiveLibrary(db,{now=new Date(),catchUp=false}={}){
       (archive_month,document_id)
       SELECT :month,d.id FROM library_documents d
       LEFT JOIN library_versions v ON v.id=d.current_version_id
-      WHERE d.status='active' AND COALESCE(v.created_at,d.created_at)<:cutoff`,
+      WHERE d.status='active' AND COALESCE(v.created_at,d.created_at)<:cutoff AND d.category<>'Manuals'`,
       {month:clock.archiveMonth,cutoff:clock.cutoff});
     const [result]=await conn.execute(`UPDATE library_documents d
       LEFT JOIN library_versions v ON v.id=d.current_version_id
       SET d.status='archived',d.updated_at=NOW()
-      WHERE d.status='active' AND COALESCE(v.created_at,d.created_at)<:cutoff`,{cutoff:clock.cutoff});
+      WHERE d.status='active' AND COALESCE(v.created_at,d.created_at)<:cutoff AND d.category<>'Manuals'`,{cutoff:clock.cutoff});
     const count=Number(result.affectedRows||0);
     await conn.execute(`UPDATE library_monthly_archive_runs
       SET archived_count=:count,completed_at=NOW()
