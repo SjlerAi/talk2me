@@ -78,7 +78,7 @@ router.get('/data-review',protectedPage,reviewSession,authorize,async(req,res,ne
       basePath:res.locals.basePath||'',assetVersion:res.locals.assetVersion,
       listing,totals,kinds:displayTypes,kind,view,q:term,page,pages:Math.max(1,Math.ceil(count/limit)),
       listTotal:count,csrf:csrf(req),selected:null,history:null,
-      notice:[req.query.saved==='1'?'Review saved. The next outstanding cases remain in the queue.':'', (!IS_LIVE&&!all.sourceComparisonAvailable)?'Historical comparison source is unavailable.':'',, all.decisionsAvailable?'':'Decision storage has not been installed. This queue is read-only until the review schema is installed and verified.'].filter(Boolean).join(' '),
+      notice:[req.query.saved==='1'?'Review saved. The next outstanding cases remain in the queue.':'', (!IS_LIVE&&!all.sourceComparisonAvailable)?'Historical comparison source is unavailable.':'', all.decisionsAvailable?'':'Decision storage has not been installed. This queue is read-only until the review schema is installed and verified.'].filter(Boolean).join(' '),
       decisionsAvailable:all.decisionsAvailable,canManage:canManage(req.session.user)});
   }catch(error){next(error);}
 });
@@ -94,7 +94,7 @@ router.get('/data-review/history',protectedPage,reviewSession,authorize,async(re
     res.render('tk2m-review-portal',{layout:false,title:'Review History',currentUser:req.session.user,
       basePath:res.locals.basePath||'',assetVersion:res.locals.assetVersion,
       listing:[],totals:null,kinds:TYPES,kind:'all',view:'all',q:'',page:1,pages:1,listTotal:0,
-      csrf:csrf(req),selected:null,history,notice:(!IS_LIVE&&!all.sourceComparisonAvailable)?'Historical comparison source is unavailable.':'',,decisionsAvailable:all.decisionsAvailable,canManage:owner});
+      csrf:csrf(req),selected:null,history,notice:(!IS_LIVE&&!all.sourceComparisonAvailable)?'Historical comparison source is unavailable.':'',decisionsAvailable:all.decisionsAvailable,canManage:owner});
   }catch(error){next(error);}
 });
 router.get('/data-review/case/:id',protectedPage,reviewSession,authorize,async(req,res,next)=>{
