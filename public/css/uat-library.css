@@ -18,3 +18,29 @@ dialog{padding:0;border:0;background:transparent}.library-viewer,.library-admin,
 
 /* Monthly non-destructive archive, shown only to Gerda. */
 .library-archive-info{padding:14px 18px;background:#edf5fa;border:1px solid #c8d7e3;border-radius:10px;margin:8px 12px;color:#32485e}.library-archive-info strong{font-size:16px}.library-archive-info p{font-size:13px;line-height:1.5;margin:6px 0 0}.library-archive-restore{background:#196b43!important;color:#fff!important;border:1px solid #196b43!important;border-radius:7px;padding:9px 12px!important;cursor:pointer;font-weight:850}.library-archive-restore:focus-visible{outline:3px solid #167248;outline-offset:2px}
+
+
+/* Library is the sole publishing desk for Deals and Manuals. */
+.library-upload-shortcuts{display:flex;flex-wrap:wrap;gap:10px}
+.library-upload-shortcuts .library-upload-manuals{
+  border-color:#bfd9f0;background:#f1f8ff;color:#15578d;
+}
+.library-upload-shortcuts .library-upload-manuals>span{
+  background:#0072bc;color:#fff;
+}
+.library-upload-shortcuts .library-upload-manuals>small{color:#547d9f}
+.library-upload-shortcuts .library-upload-manuals.is-active{
+  background:#0072bc;color:#fff;border-color:#00639f;
+}
+.library-upload-shortcuts .library-upload-manuals.is-active>span{background:rgba(255,255,255,.18)}
+.library-upload-shortcuts .library-upload-manuals.is-active>small{color:#e8f5ff}
+.library-publishers-panel{max-width:760px;display:grid;gap:12px}
+.library-publishers-panel>label{display:grid;gap:6px}
+.library-publisher-actions{display:flex;flex-wrap:wrap;gap:9px}
+.library-publisher-actions button{padding:10px 12px;border-radius:9px;min-height:40px}
+.library-publishers-panel [role=status]{font-size:12px;color:#40566b}
+@media(max-width:600px){
+ .library-upload-shortcuts>button{min-width:0;flex:1 1 156px}
+ .library-publisher-actions button{flex:1 1 145px}
+ .library-admin-tabs{flex-wrap:wrap}
+}
