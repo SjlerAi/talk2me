@@ -41,6 +41,14 @@
   const uploadFilesList=uploadForm.querySelector('[data-upload-files]');
   const uploadCategory=uploadForm.querySelector('[name="category"]');
   const uploadDeals=document.querySelector('[data-upload-deals]');
+  const uploadManuals=document.querySelector('[data-upload-manuals]');
+  const uploadAccess=uploadForm.querySelector('[name="access_level"]');
+  const uploadFavourite=uploadForm.querySelector('[name="company_favourite"]');
+  const manualsPublishersTab=document.querySelector('[data-library-manuals-publishers-tab]');
+  const manualsStaff=document.querySelector('[data-library-manual-staff]');
+  const manualsPublisherStatus=document.querySelector('[data-library-manual-publishers]');
+  const documentsTab=document.querySelector('[data-admin-tab="documents"]');
+  const snapshotsTab=document.querySelector('[data-admin-tab="snapshots"]');
 
   const esc=value=>String(value==null?'':value).replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
   const formatBytes=value=>{
@@ -141,8 +149,16 @@
     state.canManage=Boolean(data.canManage);
     state.canManageManuals=Boolean(data.canManageManuals);
     state.canRestore=Boolean(data.canRestore);
-    adminButton.hidden=!state.canManage;
+    adminButton.hidden=!(state.canManage||state.canManageManuals);
     if(archiveTab)archiveTab.hidden=!state.canRestore;
+    if(manualsPublishersTab)manualsPublishersTab.hidden=!state.canRestore;
+    if(documentsTab)documentsTab.hidden=!state.canManage;
+    if(snapshotsTab)snapshotsTab.hidden=!state.canManage;
+    if(uploadDeals)uploadDeals.hidden=!state.canManage;
+    if(uploadManuals)uploadManuals.hidden=!state.canManageManuals;
+    uploadCategory.readOnly=!state.canManage&&state.canManageManuals;
+    if(uploadCategory.readOnly)uploadCategory.value='Manuals';
+    syncUploadDeals();
     renderFilters();
     render();
     if(state.canManage)renderAdminDocuments();
@@ -246,19 +262,71 @@
     render();
   }
 
+  // Deals and Manuals are categories in the same Library upload workflow.
+  // Delegated staff are locked to Manuals in the UI and on the server.
   function syncUploadDeals(){
-    if(!uploadDeals||!uploadCategory)return;
-    uploadDeals.classList.toggle('is-active',uploadCategory.value.trim().toLowerCase()==='deals');
+    if(!uploadCategory)return;
+    if(!state.canManage&&state.canManageManuals)uploadCategory.value='Manuals';
+    const selected=uploadCategory.value.trim().toLowerCase();
+    const manual=selected==='manuals';
+    uploadDeals?.classList.toggle('is-active',selected==='deals');
+    uploadManuals?.classList.toggle('is-active',manual);
+    if(uploadAccess){
+      if(manual)uploadAccess.value='all';
+      uploadAccess.disabled=manual;
+    }
+    if(uploadFavourite){
+      if(manual)uploadFavourite.checked=false;
+      uploadFavourite.disabled=manual;
+    }
   }
 
   uploadDeals?.addEventListener('click',()=>{
-    if(!uploadCategory)return;
+    if(!state.canManage)return;
     uploadCategory.value='Deals';
+    syncUploadDeals();
+    uploadCategory.focus();
+  });
+  uploadManuals?.addEventListener('click',()=>{
+    if(!state.canManageManuals)return;
+    uploadCategory.value='Manuals';
     syncUploadDeals();
     uploadCategory.focus();
   });
   uploadCategory?.addEventListener('input',syncUploadDeals);
   uploadCategory?.addEventListener('change',syncUploadDeals);
+
+  // Upload delegation is managed in Library; no second upload interface exists
+  // on the Manuals viewer.
+  async function loadManualsPublishers(){
+    if(!state.canRestore||!manualsStaff||!manualsPublisherStatus)return;
+    try{
+      const data=await request('/api/uat/manuals/publishers');
+      const staff=(data.staff||[]).filter(item=>String(item.role||'').toLowerCase()!=='owner');
+      manualsStaff.innerHTML=staff.map(item=>`<option value="${Number(item.id)}">${esc(item.name)}${item.allowed?' (authorised)':''}</option>`).join('');
+      const active=staff.filter(item=>item.allowed).map(item=>item.name);
+      manualsPublisherStatus.textContent=active.length?'Authorised Manuals publishers: '+active.join(', '):'No delegated publishers. Owners already have upload rights.';
+    }catch(error){manualsPublisherStatus.textContent=error.message;}
+  }
+  async function setManualsPublisher(allowed){
+    if(!state.canRestore)return;
+    const staffId=Number(manualsStaff?.value);
+    if(!Number.isInteger(staffId)||staffId<1)return;
+    const grant=document.querySelector('[data-library-manual-grant]');
+    const revoke=document.querySelector('[data-library-manual-revoke]');
+    if(grant)grant.disabled=true;
+    if(revoke)revoke.disabled=true;
+    try{
+      await request('/api/uat/manuals/publishers',{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({staffId,allowed})
+      });
+      await loadManualsPublishers();
+    }catch(error){if(manualsPublisherStatus)manualsPublisherStatus.textContent=error.message;}
+    finally{if(grant)grant.disabled=false;if(revoke)revoke.disabled=false;}
+  }
+  document.querySelector('[data-library-manual-grant]')?.addEventListener('click',()=>setManualsPublisher(true));
+  document.querySelector('[data-library-manual-revoke]')?.addEventListener('click',()=>setManualsPublisher(false));
 
   app.addEventListener('click',event=>{
     const remove=event.target.closest('[data-library-delete]');
@@ -300,7 +368,14 @@
   });
 
   refreshButton.onclick=()=>load().catch(error=>alert(error.message));
-  adminButton.onclick=()=>{if(state.category==='Deals'&&uploadCategory){uploadCategory.value='Deals';syncUploadDeals();}adminDialog.showModal();renderAdminDocuments();loadSnapshots().catch(()=>{});};
+  adminButton.onclick=()=>{
+    if(state.category==='Deals'&&state.canManage)uploadCategory.value='Deals';
+    else if(state.category==='Manuals'&&state.canManageManuals)uploadCategory.value='Manuals';
+    else if(!state.canManage&&state.canManageManuals)uploadCategory.value='Manuals';
+    syncUploadDeals();
+    adminDialog.showModal();
+    if(state.canManage){renderAdminDocuments();loadSnapshots().catch(()=>{});}
+  };
   viewer.querySelector('[data-viewer-close]').onclick=()=>viewer.close();
   viewerFavourite.onclick=()=>state.selected&&toggleFavourite(state.selected.id).catch(error=>alert(error.message));
   viewer.querySelector('[data-viewer-fullscreen]').onclick=()=>{
@@ -312,7 +387,8 @@
   document.querySelectorAll('[data-admin-tab]').forEach(button=>button.onclick=()=>{
     document.querySelectorAll('[data-admin-tab]').forEach(item=>item.classList.toggle('is-active',item===button));
     document.querySelectorAll('[data-admin-panel]').forEach(panel=>panel.hidden=panel.dataset.adminPanel!==button.dataset.adminTab);
-    if(button.dataset.adminTab==='snapshots')loadSnapshots().catch(error=>alert(error.message));
+    if(button.dataset.adminTab==='snapshots'&&state.canManage)loadSnapshots().catch(error=>alert(error.message));
+    if(button.dataset.adminTab==='manuals-publishers'&&state.canRestore)loadManualsPublishers();
     if(button.dataset.adminTab==='archive'&&state.canRestore)
       loadArchive().catch(error=>{archiveList.innerHTML='<div class="library-empty">'+esc(error.message)+'</div>';});
   });
@@ -343,7 +419,7 @@
     submit.disabled=true;status.textContent=`Uploading ${files.length} file${files.length===1?'':'s'}…`;
     try{
       const form=new FormData(uploadForm);
-      form.set('company_favourite',uploadForm.querySelector('[name="company_favourite"]').checked?'1':'0');
+      form.set('company_favourite',uploadFavourite.checked?'1':'0');
       const result=await request('/api/uat/library/documents/batch',{method:'POST',body:form});
       uploadForm.reset();
       syncUploadDeals();
