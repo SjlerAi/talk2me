@@ -35,7 +35,7 @@ const releaseVersion='6.0.0-test-0123456789ab';
 const policy=(relative,requestUrl,live=true)=>cacheControlForStatic({
  live,root:publicRoot,file:path.join(publicRoot,relative),requestUrl,releaseVersion
 });
-const expected='public, max-age=604800, immutable';
+const expected='private, max-age=604800, immutable';
 assert.equal(policy('css/app.css','/public/css/app.css?v='+releaseVersion),expected);
 assert.equal(policy('js/os-v6.js','/public/js/os-v6.js?v='+releaseVersion+'-blue20261120'),expected);
 assert.equal(policy('css/app.css','/public/css/app.css?v='+releaseVersion,false),'no-store');
