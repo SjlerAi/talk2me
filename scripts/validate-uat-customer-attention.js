@@ -75,9 +75,11 @@ const database={
   async execute(sql,params){
     if(sql.includes('information_schema.TABLES'))return [[{present:0}]];
     calls.push({sql,params:{...params}});
-    if(sql.startsWith('SELECT COUNT(*) total FROM crm_v_master_clients c'))return [[{total:4}]];
     if(sql.includes('SUM(c.is_active=1)'))return [[{active_count:2134,prospect_count:0,archived_count:0,incomplete_count:0}]];
-    if(sql.includes('COUNT(*) total FROM crm_v_master_clients c'))return [[{total:0}]];
+    if(sql.startsWith('SELECT COUNT(*) total FROM clients c JOIN crm_master_active')){
+      if(sql.includes('AND NOT EXISTS ('))return [[{total:0}]];
+      return [[{total:4}]];
+    }
     if(sql.includes('FROM crm_v_master_clients c')&&sql.includes('ORDER BY'))return [[{
       id:77,client_name:'Example Only',account_number:'ACC0077',cell_number:'0820000000',
       email:'example@example.invalid',lifecycle_status:'client',
