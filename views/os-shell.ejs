@@ -122,7 +122,7 @@
   </div>
   <% } %>
   <% if(cudoDisabled){ %><style id="tk2m-retired-cudu">.cudo-root{display:none!important}</style><% } %>
-  <% const launchers = (typeof osLaunchers !== 'undefined' && Array.isArray(osLaunchers) ? osLaunchers : []).filter(item => item.is_enabled && (item.slot_key==='slot_8' || !['communications','communication','library','deals'].includes(String(item.display_name||'').trim().toLowerCase()))); %>
+  <% const launchers = (typeof osLaunchers !== 'undefined' && Array.isArray(osLaunchers) ? osLaunchers : []).filter(item => Number(item.is_enabled) === 1 && !['communications','communication','library','deals','manuals'].includes(String(item.display_name||'').trim().toLowerCase())).sort((a,b)=>Number(a.sort_order)-Number(b.sort_order)); %>
   <% const attendance = typeof attendanceState !== 'undefined' ? attendanceState : null; %>
   <% const firstName = String(currentUser.full_name || currentUser.username || 'Staff').trim().split(/\s+/)[0]; %>
   <% const unassignedCount = typeof unassignedClientCount === 'undefined' ? 0 : Number(unassignedClientCount || 0); %>
@@ -161,8 +161,9 @@
     <nav class="t2m-os-launcher" aria-label="Primary systems">
       <button class="t2m-os-launcher-arrow" type="button" data-launcher-scroll="previous" aria-label="Previous launcher">‹</button>
       <div class="t2m-os-launcher-scroll">
-        <button type="button" data-os-launch="customers"><span class="t2m-brand-mark customer">C</span><strong>Customers</strong></button>
-        <% launchers.forEach(item=>{ const label=item.slot_key==='slot_8'?'Manuals':(String(item.display_name||'').toLowerCase().includes('knowledge')?'Know.':String(item.display_name||'')); %><button type="button" data-os-managed-launcher="<%= item.slot_key %>" aria-label="<%= item.display_name %>" title="<%= item.display_name %>" class="<%= item.slot_key==='slot_8'?'t2m-manuals-launcher':'' %>"><span class="t2m-brand-mark customer"><%= item.slot_key==='slot_8'?'📘':(item.icon_text||item.display_name.slice(0,1)) %></span><strong><%= label.length>7?label.slice(0,6)+'…':label %></strong></button><% }) %>
+        <button type="button" data-os-launch="customers" title="Customers" aria-label="Customers"><strong>Customers</strong></button>
+        <% launchers.forEach(item=>{ const raw=String(item.display_name||'').trim(); const label=raw.toLowerCase().includes('knowledge')?'Know B':raw.length>7?raw.slice(0,6)+'…':raw; %><button type="button" data-os-managed-launcher="<%= item.slot_key %>" aria-label="<%= raw %>" title="<%= raw %>"><strong><%= label %></strong></button><% }) %>
+        <% if(isLive){ %><button type="button" data-os-managed-launcher="manuals" class="t2m-manuals-launcher" title="Manuals" aria-label="Manuals"><span class="t2m-brand-mark customer" aria-hidden="true">▤</span><strong>Manuals</strong></button><% } %>
       </div>
       <button class="t2m-os-launcher-arrow" type="button" data-launcher-scroll="next" aria-label="Next launcher">›</button>
     </nav>
@@ -196,7 +197,7 @@
     <footer class="t2m-os-taskbar" id="os-taskbar" aria-label="Open windows"><span class="t2m-os-taskbar-label">Open windows</span><div class="t2m-os-taskbar-items" id="os-taskbar-items"></div></footer>
   </div>
   <div class="t2m-os-toast-region" id="os-toast-region" aria-live="polite" aria-atomic="true"></div>
-  <script id="talk2me-os-config" type="application/json"><%- JSON.stringify({basePath,appVersion,assetVersion,user:{id:currentUser.id,name:currentUser.full_name,role:currentUser.role},isStaging:Boolean(isStaging),isManagement,status,launchers}).replace(/</g, '\u003c') %></script>
+  <script id="talk2me-os-config" type="application/json"><%- JSON.stringify({basePath,appVersion,assetVersion,user:{id:currentUser.id,name:currentUser.full_name,role:currentUser.role},isStaging:Boolean(isStaging),isLive:Boolean(isLive),isManagement,status,launchers}).replace(/</g, '\u003c') %></script>
   <script defer src="<%= basePath %>/public/js/os-sidebar-state.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>"></script>
   <script defer src="<%= basePath %>/public/js/os-window-geometry.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>"></script>
   <script defer src="<%= basePath %>/public/js/os-v6.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>"></script>

@@ -10,6 +10,7 @@ const crypto = require('crypto');
 const XLSX = require('xlsx');
 const { writeZip, safeZipPath } = require('../services/library-zip');
 const { trackEvent } = require('../services/usage-telemetry');
+const { hasOwnerLibraryAuthority } = require('../services/tk2m-library-roles');
 
 const router = express.Router();
 const IS_UAT = String(process.env.UAT_MODE || '').trim().toLowerCase() === 'true';
@@ -28,17 +29,13 @@ function management(user) {
   return Boolean(user && MANAGEMENT_ROLES.has(String(user.role || '').toLowerCase()));
 }
 
-// Verified live staff user: id 1, Gerda, Owner. Only this principal can
-// access archived documents or restore them, even among owner/manager roles.
-function canRestoreArchived(user){
-  return Boolean(user && Number(user.id)===1 &&
-    String(user.role||'').toLowerCase()==='owner' &&
-    String(user.full_name||'').trim().toLowerCase()==='gerda');
-}
-function requireGerda(req,res,next){
+// Owners receive the same Library archive/publishing authority regardless
+// of display name or staff ID. Staff-specific tasks/messages still use identity.
+const canRestoreArchived = hasOwnerLibraryAuthority;
+function requireLibraryOwner(req,res,next){
   if(!req.session.user)return res.status(401).json({ok:false,error:'Sign in required.'});
   if(!canRestoreArchived(req.session.user))
-    return res.status(403).json({ok:false,error:'Only Gerda can access the Library archive.'});
+    return res.status(403).json({ok:false,error:'Only Owners can manage Library publishing permissions and archived documents.'});
   next();
 }
 function requireManager(req, res, next) {
@@ -59,7 +56,7 @@ async function canEditManuals(user) {
 async function requireManualEditor(req,res,next) {
   try {
     await ensureSchema();
-    if(!await canEditManuals(req.session.user))return res.status(403).json({ok:false,error:'Only Gerda or her authorised publishers may upload manuals.'});
+    if(!await canEditManuals(req.session.user))return res.status(403).json({ok:false,error:'Only an Owner or an authorised publisher may upload manuals.'});
     next();
   }catch(error){next(error);}
 }
@@ -672,20 +669,21 @@ router.get('/api/uat/manuals',requireAuth,async(req,res,next)=>{
   }catch(error){next(error);}
 });
 
-router.get('/api/uat/manuals/publishers',requireAuth,requireGerda,async(req,res,next)=>{
+router.get('/api/uat/manuals/publishers',requireAuth,requireLibraryOwner,async(req,res,next)=>{
   try{
     await ensureSchema();
-    const [rows]=await db.execute('SELECT s.id,s.full_name,CASE WHEN p.staff_id IS NULL THEN 0 ELSE 1 END allowed FROM staff_users s LEFT JOIN library_manual_publishers p ON p.staff_id=s.id ORDER BY s.full_name,s.id');
-    res.json({ok:true,staff:rows.map(row=>({id:Number(row.id),name:row.full_name,allowed:Boolean(row.allowed)}))});
+    const [rows]=await db.execute('SELECT s.id,s.full_name,s.role,CASE WHEN p.staff_id IS NULL THEN 0 ELSE 1 END allowed FROM staff_users s LEFT JOIN library_manual_publishers p ON p.staff_id=s.id ORDER BY s.full_name,s.id');
+    res.json({ok:true,staff:rows.map(row=>({id:Number(row.id),name:row.full_name,role:row.role,allowed:Boolean(row.allowed)}))});
   }catch(error){next(error);}
 });
-router.post('/api/uat/manuals/publishers',requireAuth,requireGerda,async(req,res,next)=>{
+router.post('/api/uat/manuals/publishers',requireAuth,requireLibraryOwner,async(req,res,next)=>{
   try{
     await ensureSchema();
     const staffId=idOf(req.body.staffId);
     if(!staffId)return res.status(400).json({ok:false,error:'Choose a valid staff member.'});
-    const [[staff]]=await db.execute('SELECT id FROM staff_users WHERE id=:staffId LIMIT 1',{staffId});
+    const [[staff]]=await db.execute('SELECT id,role FROM staff_users WHERE id=:staffId LIMIT 1',{staffId});
     if(!staff)return res.sendStatus(404);
+    if(hasOwnerLibraryAuthority(staff))return res.status(400).json({ok:false,error:'Owners already have publishing rights by role.'});
     const allowed=req.body.allowed===true;
     if(allowed)await db.execute('INSERT INTO library_manual_publishers (staff_id,granted_by) VALUES (:staffId,:grantedBy) ON DUPLICATE KEY UPDATE granted_by=VALUES(granted_by),granted_at=NOW()',{staffId,grantedBy:Number(req.session.user.id)});
     else await db.execute('DELETE FROM library_manual_publishers WHERE staff_id=:staffId',{staffId});
@@ -888,7 +886,7 @@ router.post('/api/uat/library/documents/:id/version',requireAuth,requireManager,
       return res.status(403).json({ok:false,error:'Only authorised publishers can replace manuals.'});
     }
     if(doc.status!=='active'&&!canRestoreArchived(req.session.user)){
-      removeUploaded(req);return res.status(403).json({ok:false,error:'Only Gerda can republish archived documents.'});
+      removeUploaded(req);return res.status(403).json({ok:false,error:'Only Owners can republish archived documents.'});
     }
     const [[maxVersion]]=await connection.execute('SELECT COALESCE(MAX(version_number),0) max_version FROM library_versions WHERE document_id=:id',{id:documentId});
     const versionNumber=Number(maxVersion?.max_version||0)+1;
@@ -958,7 +956,7 @@ router.post('/api/uat/library/documents/:id/archive',requireAuth,requireManager,
       return res.status(403).json({ok:false,error:'Only authorised publishers can archive manuals.'});
     const status=clean(req.body.status,20)==='active'?'active':'archived';
     if(status==='active'&&!canRestoreArchived(req.session.user))
-      return res.status(403).json({ok:false,error:'Only Gerda can restore archived files.'});
+      return res.status(403).json({ok:false,error:'Only Owners can restore archived files.'});
     const [result]=await db.execute(`UPDATE library_documents
       SET status=:status,access_level=IF(:shareWithStaff=1,'all',access_level),updated_by=:userId,updated_at=NOW()
       WHERE id=:id AND (status='active' OR :canRestore=1)`,{
@@ -998,7 +996,7 @@ router.delete('/api/uat/library/documents/:id',requireAuth,requireManager,async(
     }
     if(document.status!=='active'&&!canRestoreArchived(req.session.user)){
       await connection.rollback();
-      return res.status(403).json({ok:false,error:'Only Gerda can manage archived documents.'});
+      return res.status(403).json({ok:false,error:'Only Owners can manage archived documents.'});
     }
 
     const [versions]=await connection.execute(

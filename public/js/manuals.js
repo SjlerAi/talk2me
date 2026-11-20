@@ -77,7 +77,7 @@
     });
     if(!state.documents.length&&!state.loading){
       const typeLabel=state.type==='images'?'images':state.type==='spreadsheets'?'spreadsheets':state.type==='pdfs'?'PDFs':'manuals';
-      grid.innerHTML=`<div class="deals-empty"><div><strong>${state.query?`No matching ${typeLabel}`:`No ${typeLabel} available`}</strong><span>${state.query?'Try a different search.':state.type?'This Manuals filter has no published files.':'Gerda or an authorised uploader can publish manuals here.'}</span></div></div>`;
+      grid.innerHTML=`<div class="deals-empty"><div><strong>${state.query?`No matching ${typeLabel}`:`No ${typeLabel} available`}</strong><span>${state.query?'Try a different search.':state.type?'This Manuals filter has no published files.':'An Owner or authorised uploader can publish manuals here.'}</span></div></div>`;
     }else{
       grid.innerHTML=state.documents.map(cardHtml).join('');
     }
@@ -207,8 +207,8 @@
   async function loadPublishers(){
     const select=document.querySelector("[data-manuals-staff]");if(!select)return;
     try{const data=await request("/api/uat/manuals/publishers");
-      select.innerHTML=(data.staff||[]).filter(user=>user.id!==1).map(user=>"<option value=\""+user.id+"\">"+esc(user.name)+(user.allowed?" (authorised)":"")+"</option>").join("");
-      const names=(data.staff||[]).filter(user=>user.allowed&&user.id!==1).map(user=>user.name);
+      select.innerHTML=(data.staff||[]).filter(user=>String(user.role||'').toLowerCase()!=='owner').map(user=>"<option value=\""+user.id+"\">"+esc(user.name)+(user.allowed?" (authorised)":"")+"</option>").join("");
+      const names=(data.staff||[]).filter(user=>user.allowed&&String(user.role||'').toLowerCase()!=='owner').map(user=>user.name);
       document.querySelector("[data-manuals-publishers]").textContent=names.length?"Authorised: "+names.join(", "):"No other authorised uploaders.";
     }catch(error){document.querySelector("[data-manuals-publishers]").textContent=error.message;}
   }

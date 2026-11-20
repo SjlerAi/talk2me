@@ -156,18 +156,24 @@ async function selectManagedSlotRows(connection, forUpdate = false) {
   return rows;
 }
 
-function operationalManualsSlot(item) {
-  if(String(process.env.CRM_LIVE_MODE||'').toLowerCase()!=='true'||item.slot_key!=='slot_8')return item;
-  return {...item,display_name:'Manuals',icon_text:'📘',portal_url:'https://crm.tk2m.co.za/manuals',open_mode:'separate',is_enabled:1};
+function releaseLegacyManualsSlot(item) {
+  // Earlier releases reserved slot 8 for internal Manuals. If the operator
+  // saved that temporary reservation, expose it as a free slot without
+  // making an unapproved live database change or losing any external URL.
+  if (item.slot_key !== 'slot_8' ||
+      String(item.display_name || '').trim().toLowerCase() !== 'manuals' ||
+      !/^https:\/\/crm\.tk2m\.co\.za\/manuals\/?$/i.test(String(item.portal_url || ''))) return item;
+  return {...item,display_name:'System 8',icon_text:'8',portal_url:null,open_mode:'separate',is_enabled:0};
 }
 async function loadLaunchers(connection) {
   await ensureTable(connection);
-  return (await selectManagedSlotRows(connection)).map(operationalManualsSlot);
+  // External managed slots remain configurable; Manuals is separate/last.
+  return (await selectManagedSlotRows(connection)).map(releaseLegacyManualsSlot);
 }
 
 function enabledLaunchers(rows) {
   return (Array.isArray(rows) ? rows : [])
-    .filter(item => Number(item.is_enabled) === 1 || (String(process.env.CRM_LIVE_MODE||'').toLowerCase()==='true' && item.slot_key==='slot_8'))
+    .filter(item => Number(item.is_enabled) === 1)
     .sort((left, right) => Number(left.sort_order) - Number(right.sort_order));
 }
 
@@ -180,10 +186,6 @@ async function saveLaunchers(connection, body, updatedBy) {
       throw new LauncherValidationError('All ten managed launcher slots could not be loaded. No settings were changed.', submittedValues(body, existingRows));
     }
     const submitted = validateSubmittedLaunchers(body, existingRows);
-    if(String(process.env.CRM_LIVE_MODE||'').toLowerCase()==='true'){
-      const slotEight=submitted.find(item=>item.slot_key==='slot_8');
-      if(slotEight)Object.assign(slotEight,operationalManualsSlot(slotEight));
-    }
     for (const item of submitted) {
       await connection.execute(`UPDATE os_external_launchers SET
         display_name=:display_name,icon_text=:icon_text,portal_url=:portal_url,open_mode=:open_mode,
@@ -212,6 +214,7 @@ module.exports = {
   ensureManagedSlotRows,
   ensureTable,
   selectManagedSlotRows,
+  releaseLegacyManualsSlot,
   loadLaunchers,
   enabledLaunchers,
   saveLaunchers
