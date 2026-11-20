@@ -79,6 +79,7 @@
         <button type="button" data-admin-tab="documents">Documents</button>
         <button type="button" data-admin-tab="archive" data-library-archive-tab hidden>Archive (Owners)</button>
         <button type="button" data-admin-tab="snapshots">Month-end</button>
+        <button type="button" data-admin-tab="manuals-publishers" data-library-manuals-publishers-tab hidden>Upload permissions</button>
       </nav>
 
       <section data-admin-panel="upload">
@@ -87,6 +88,7 @@
           <p class="library-form-help">Select up to 10 files from the same folder. Talk2Me creates one Library item per file and uses each filename as its starting title.</p>
           <div class="library-upload-shortcuts">
             <button type="button" class="library-upload-deals" data-upload-deals><span>🤝</span><strong>Deals</strong><small>Put these files in the Deals section</small></button>
+            <button type="button" class="library-upload-manuals" data-upload-manuals hidden><span>▤</span><strong>Manuals</strong><small>Put these files in the Manuals section</small></button>
           </div>
           <div class="library-form-grid">
             <label>Category<input name="category" list="library-category-options" maxlength="80" required placeholder="Pricing"></label>
@@ -104,6 +106,19 @@
           </label>
           <div class="library-form-actions"><span data-upload-status></span><button type="submit" class="primary">Upload & publish</button></div>
         </form>
+      </section>
+
+      <section data-admin-panel="manuals-publishers" hidden>
+        <div class="library-admin-form library-publishers-panel">
+          <h2>Manuals upload permissions</h2>
+          <p class="library-form-help">Every Owner can publish Manuals. To allow another staff member to upload Manuals, grant that person access here. Other Library categories remain restricted to management.</p>
+          <label>Select staff member<select data-library-manual-staff></select></label>
+          <div class="library-publisher-actions">
+            <button type="button" class="primary" data-library-manual-grant>Allow Manuals uploads</button>
+            <button type="button" class="secondary" data-library-manual-revoke>Revoke permission</button>
+          </div>
+          <p data-library-manual-publishers role="status"></p>
+        </div>
       </section>
 
       <section data-admin-panel="documents" hidden>
