@@ -156,11 +156,19 @@ async function selectManagedSlotRows(connection, forUpdate = false) {
   return rows;
 }
 
+function releaseLegacyManualsSlot(item) {
+  // Earlier releases reserved slot 8 for internal Manuals. If the operator
+  // saved that temporary reservation, expose it as a free slot without
+  // making an unapproved live database change or losing any external URL.
+  if (item.slot_key !== 'slot_8' ||
+      String(item.display_name || '').trim().toLowerCase() !== 'manuals' ||
+      !/^https:\/\/crm\.tk2m\.co\.za\/manuals\/?$/i.test(String(item.portal_url || ''))) return item;
+  return {...item,display_name:'System 8',icon_text:'8',portal_url:null,open_mode:'separate',is_enabled:0};
+}
 async function loadLaunchers(connection) {
   await ensureTable(connection);
-  // Managed slots always represent real, owner-configured external systems.
-  // The staff Manuals shortcut is an intrinsic last launcher, not a slot.
-  return selectManagedSlotRows(connection);
+  // External managed slots remain configurable; Manuals is separate/last.
+  return (await selectManagedSlotRows(connection)).map(releaseLegacyManualsSlot);
 }
 
 function enabledLaunchers(rows) {
@@ -206,6 +214,7 @@ module.exports = {
   ensureManagedSlotRows,
   ensureTable,
   selectManagedSlotRows,
+  releaseLegacyManualsSlot,
   loadLaunchers,
   enabledLaunchers,
   saveLaunchers
