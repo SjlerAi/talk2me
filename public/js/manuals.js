@@ -120,7 +120,7 @@
   async function openDeal(id){
     const data=await request(`/api/uat/library/documents/${id}`);
     const doc=data.document;
-    if(!doc||doc.category!=='Manuals')throw new Error('This item is no longer in Deals.');
+    if(!doc||doc.category!=='Manuals')throw new Error('This item is no longer in Manuals.');
     if(doc.nativeLaunch&&['document','spreadsheet','presentation'].includes(doc.previewKind)){
       window.location.href=doc.nativeLaunch;
       return;
