@@ -74,9 +74,10 @@ assert.doesNotMatch(tagline({isLive:true,isStaging:true}), /TEST|NOT LIVE|OS v/)
 assert.match(tagline({isLive:false,isStaging:true}), /TEST · Cellular CRM/);
 
 const appSource = read('server.js');
-assert.match(appSource, /if \\(UAT_MODE && !CRM_LIVE_MODE\\) \\{\\s*const publicUatWidgets/, 'Live site must not expose UAT-only widget/telemetry health endpoints');
+assert.ok(appSource.includes('if (UAT_MODE && !CRM_LIVE_MODE) {'), 'UAT-only public health routes must not be registered on the live site');
 const legacyWorkHealth = read('src/routes/uat-work-widgets.js');
-assert.equal((legacyWorkHealth.match(/if \\(!IS_UAT \\|\\| String\\(process\\.env\\.CRM_LIVE_MODE/g)||[]).length,2, 'Two UAT-only work diagnostics must be disabled in production');
+const privateHealthGuard = "if (!IS_UAT || String(process.env.CRM_LIVE_MODE || '').toLowerCase()==='true') return res.sendStatus(404);";
+assert.equal(legacyWorkHealth.split(privateHealthGuard).length-1,2,'UAT-only work diagnostics must be closed in production');
 const liveNeutralizer = appSource.match(/if \(CRM_LIVE_MODE\) \{\s*app\.get\('\/public\/uat-safety\.css'[\s\S]*?\n\}/);
 assert.ok(liveNeutralizer, 'production-only UAT CSS neutralizer must exist');
 assert.match(liveNeutralizer[0], /res\.type\('text\/css'\)\.send/);
@@ -98,27 +99,34 @@ const ownerHtml=ejs.render(layout,{
   currentUser:{id:1,role:'owner',full_name:'Owner',email:'owner@example.invalid'},
   panelMode:false,title:'Customers',body:'<p>Normal operation</p>'
 },{filename:path.join(root,'views/layout.ejs')});
-const visibleText=ownerHtml.replace(/<script\\b[^>]*>[\\s\\S]*?<\\/script>/gi,'')
- .replace(/<style\\b[^>]*>[\\s\\S]*?<\\/style>/gi,'')
+const visibleText=ownerHtml.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,'')
+ .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi,'')
  .replace(/<[^>]*>/g,' ');
-assert.doesNotMatch(visibleText,/\\bUAT\\b|Cleanup Centre \\(Temporary\\)|\\bTEST CRM\\b/i,'Live owner navigation must contain no UAT-only controls');
-assert.doesNotMatch(ownerHtml,/cudo-widget\\.(?:js|css)/,'Retired Cudo widget must not load on the live CRM');
-assert.doesNotMatch(ownerHtml,/href="\\/temporary-cleanup"/,'Expired historical cleanup screen must not appear in live navigation');
+assert.doesNotMatch(visibleText,/\bUAT\b|Cleanup Centre \(Temporary\)|\bTEST CRM\b/i,
+  'Live owner navigation must not expose UAT labels or expired cleanup');
+assert.ok(!ownerHtml.includes('cudo-widget.js') && !ownerHtml.includes('cudo-widget.css'),
+  'Retired Cudo widget must not load on the live CRM');
+assert.ok(!ownerHtml.includes('href="/temporary-cleanup"'),
+  'Expired historical cleanup screen must not appear in live navigation');
 const errorView=read('views/error.ejs');
 const productionError=ejs.render(errorView,{
   isLive:true,diagnostic:'SENSITIVE_INTERNAL_DIAGNOSTIC',title:'Unavailable',message:'Please try again',basePath:''
 });
-assert.doesNotMatch(productionError,/SENSITIVE_INTERNAL_DIAGNOSTIC|UAT diagnostic/i,'Production errors must not reveal internal diagnostics');
-assert.match(productionError,/href="\\/workspace"/,'Error page must return staff to My Day');
+assert.doesNotMatch(productionError,/SENSITIVE_INTERNAL_DIAGNOSTIC|UAT diagnostic/i,
+  'Production errors must not reveal internal diagnostics');
+assert.ok(productionError.includes('href="/workspace"'),'Error page must return staff to My Day');
 for(const [file,obsolete] of [
  ['views/backoffice-home.ejs',/migration differences/i],
  ['views/base-details-centre.ejs',/one-off SQL|Staging writes|PR #110/i],
  ['views/monthly-data-import.ejs',/one-off SQL|generic migration system|Technical batch/i],
- ['views/tk2m-review-portal.ejs',/TK2M test data|Friday's transfer|Currently live \\(UENT\\)/i]
+ ['views/tk2m-review-portal.ejs',/TK2M test data|Friday's transfer|Currently live \(UENT\)/i]
 ])assert.doesNotMatch(read(file),obsolete,file+' must use operational copy');
-const liveShellOpening=osShell.match(/<div class="t2m-os-shell[\\s\\S]*?data-tk2m-preview="1"<% } %>>/)?.[0];
-assert.ok(liveShellOpening,'Expected the preserved staging-only shell marker');
-const liveShellHtml=ejs.render(liveShellOpening,{isLive:true,isStaging:true});
-assert.doesNotMatch(liveShellHtml,/tk2m-test-shell|data-tk2m-preview="1"/i,'Live CRM must not inherit staging-only shell markers');
+const shellStart=osShell.indexOf('<div class="t2m-os-shell');
+const shellEnd=osShell.indexOf('<header class="t2m-os-topbar">',shellStart);
+assert.ok(shellStart>=0 && shellEnd>shellStart,'Expected preserved shell opening markup');
+const shellFragment=osShell.slice(shellStart,shellEnd);
+const liveShellHtml=ejs.render(shellFragment,{isLive:true,isStaging:true});
+assert.doesNotMatch(liveShellHtml,/tk2m-test-shell|data-tk2m-preview="1"/i,
+  'Live CRM must not inherit staging-only shell markers');
 assert.match(liveShellHtml,/t2m-approved-home-shell/,'Live CRM must retain approved layout styling');
 console.log('TK2M_LIVE_NAVIGATION_AND_BANNER_PASS');
