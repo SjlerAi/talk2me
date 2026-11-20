@@ -4,7 +4,7 @@
 const crypto = require('crypto');
 const db = require('../config/db');
 const TYPES = Object.freeze({
-  migration:'Source vs test',duplicate_phone:'Repeated customer phone',
+  migration:'Historical source reconciliation',duplicate_phone:'Repeated customer phone',
   identity:'Identity to verify',import_conflict:'Import conflict',
   import_possible:'Possible import match'
 });
@@ -101,7 +101,7 @@ async function loadCases(user,conn=db) {
     const members=related?[related]:[];
     cases.push(make('migration',d.entity_type+':'+d.entity_id+':'+d.field_key,
       (related?.client_name||(d.entity_type==='client'?'Customer':'Assignment'))+' #'+d.entity_id,
-      d.field_key+': live '+d.source_value+' / test '+d.stage_value,members,
+      d.field_key+': original snapshot '+d.source_value+' / TK2M snapshot '+d.stage_value,members,
       {entityType:d.entity_type,entityId:Number(d.entity_id),field:d.field_key,
         sourceValue:text(d.source_value),stageValue:text(d.stage_value),
         checkedAt:date(d.checked_at),version:[d.source_value,d.stage_value,d.source_hash]}));
