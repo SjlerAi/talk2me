@@ -876,8 +876,12 @@ router.post('/api/uat/library/documents/:id/version',requireAuth,requireManager,
     await ensureSchema();
     const documentId=idOf(req.params.id);
     if(!documentId||!req.file){removeUploaded(req);return res.status(400).json({ok:false,error:'Document and file are required.'});}
-    const [[doc]]=await connection.execute('SELECT id,status FROM library_documents WHERE id=:id LIMIT 1',{id:documentId});
+    const [[doc]]=await connection.execute('SELECT id,status,category FROM library_documents WHERE id=:id LIMIT 1',{id:documentId});
     if(!doc){removeUploaded(req);return res.sendStatus(404);}
+    if(isManualsCategory(doc.category)&&!await canEditManuals(req.session.user)){
+      removeUploaded(req);
+      return res.status(403).json({ok:false,error:'Only authorised publishers can replace manuals.'});
+    }
     if(doc.status!=='active'&&!canRestoreArchived(req.session.user)){
       removeUploaded(req);return res.status(403).json({ok:false,error:'Only Gerda can republish archived documents.'});
     }
