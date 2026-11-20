@@ -693,6 +693,58 @@ router.get('/api/uat/library/documents/:id',requireAuth,async(req,res,next)=>{
   }catch(error){next(error);}
 });
 
+router.post('/api/uat/manuals/upload',requireAuth,requireManualEditor,uploadBatchMiddleware,async(req,res,next)=>{
+  let persisted=false;
+  const connection=await db.getConnection();
+  try{
+    await ensureSchema();
+    const files=Array.isArray(req.files)?req.files:[];
+    if(!files.length)return res.status(400).json({ok:false,error:'Choose at least one file.'});
+    if(files.length>10){cleanupFiles(files);return res.status(400).json({ok:false,error:'Upload a maximum of 10 files at once.'});}
+    const userId=Number(req.session.user.id);
+    const category='Manuals';
+    const description=clean(req.body.description,5000);
+    const accessLevel='all';
+    const favourite=0;
+    const created=[];
+    await connection.beginTransaction();
+    for(const file of files){
+      const ext=extensionOf(file);
+      const basename=path.basename(String(file.originalname||'document'),ext);
+      const title=clean(basename.replace(/[_-]+/g,' ').replace(/\s+/g,' '),180)||'Document';
+      const [docResult]=await connection.execute(`INSERT INTO library_documents
+        (title,description,category,access_level,company_favourite,status,created_by,updated_by)
+        VALUES (:title,:description,:category,:accessLevel,:favourite,'active',:userId,:userId)`,
+        {title,description,category,accessLevel,favourite,userId});
+      const [versionResult]=await connection.execute(`INSERT INTO library_versions
+        (document_id,version_number,original_name,stored_filename,mime_type,extension,file_bytes,uploaded_by)
+        VALUES (:documentId,1,:originalName,:storedFilename,:mime,:extension,:bytes,:userId)`,{
+          documentId:docResult.insertId,
+          originalName:clean(path.basename(file.originalname),255),
+          storedFilename:path.basename(file.filename),
+          mime:clean(file.mimetype,140),
+          extension:ext,
+          bytes:Number(file.size||0),
+          userId
+        });
+      await connection.execute('UPDATE library_documents SET current_version_id=:versionId WHERE id=:documentId',{
+        versionId:versionResult.insertId,documentId:docResult.insertId
+      });
+      created.push({id:Number(docResult.insertId),title,versionId:Number(versionResult.insertId)});
+    }
+    await connection.commit();
+    persisted=true;
+    res.json({ok:true,count:created.length,documents:created});
+  }catch(error){
+    try{await connection.rollback();}catch(_){}
+    if(!persisted) cleanupFiles(req.files);
+    next(error);
+  }finally{
+    try{connection.release();}catch(_){}
+  }
+});
+
+
 router.post('/api/uat/library/documents/batch',requireAuth,requireManager,uploadBatchMiddleware,async(req,res,next)=>{
   let persisted=false;
   const connection=await db.getConnection();
