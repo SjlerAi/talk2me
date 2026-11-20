@@ -272,14 +272,34 @@
         body.innerHTML = '<div class="t2m-os-window-loader">Loading application…</div>';
         const frame = document.createElement('iframe');
         frame.title = record.options.title;
+        frame.loading = 'eager';
         frame.src = panelUrl(record.options.url);
+        // iframe.load waits for every image and script. For same-origin CRM
+        // pages, reveal the already parsed document while remaining assets
+        // finish in the background. The regular load handler remains a fallback.
+        let earlyReadyTimer;
         frame.addEventListener('load', () => {
+          window.clearInterval(earlyReadyTimer);
           body.querySelector('.t2m-os-window-loader')?.remove();
           // Run on every navigation, not only the first load: an old Customer
           // 360 or another work screen can navigate inside this same iframe.
           removeLegacyUatBannerFromFrame(frame);
         });
         body.appendChild(frame);
+        const earlyReadyStarted = Date.now();
+        earlyReadyTimer = window.setInterval(() => {
+          if (!frame.isConnected || Date.now() - earlyReadyStarted > 5000) {
+            window.clearInterval(earlyReadyTimer);
+            return;
+          }
+          try {
+            const doc = frame.contentDocument;
+            if (!doc || doc.URL === 'about:blank' || doc.readyState === 'loading' || !doc.body?.firstElementChild) return;
+            if (new URL(doc.URL).origin !== window.location.origin) return;
+            body.querySelector('.t2m-os-window-loader')?.remove();
+            window.clearInterval(earlyReadyTimer);
+          } catch (_) { /* Cross-origin frames retain the normal load fallback. */ }
+        }, 60);
       } else if (record.options.render) {
         record.options.render(body, record);
       }
