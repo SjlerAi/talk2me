@@ -44,3 +44,9 @@ dialog{padding:0;border:0;background:transparent}.library-viewer,.library-admin,
  .library-publisher-actions button{flex:1 1 145px}
  .library-admin-tabs{flex-wrap:wrap}
 }
+
+/* Hidden publishing choices and owner-only tabs must not be exposed by the
+   shared CRM button layout rules. Server authorisation remains authoritative. */
+.library-upload-shortcuts>button[hidden],
+.library-admin-tabs>button[hidden],
+.library-top-actions>[hidden]{display:none!important}
