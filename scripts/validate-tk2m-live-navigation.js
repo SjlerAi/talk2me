@@ -142,6 +142,8 @@ assert.doesNotMatch(reviewCases,/Source vs test|: live .* \/ test /i,
   'Review cases must not display obsolete test environment vocabulary');
 assert.match(reviewCases,/Historical source reconciliation/,
   'Existing historical source cases must retain an operational description');
+assert.doesNotMatch(read('views/monthly-data-import.ejs'),/Technical History|Technical Import History|Legacy finalisation is no longer used/i,
+  'Live Monthly Import must be presented as an operational workflow, not obsolete developer tooling');
 assert.doesNotMatch(reviewView,/Friday refresh/i,
   'Review history must not assume the old cutover timetable');
 console.log('TK2M_LIVE_NAVIGATION_AND_BANNER_PASS');
