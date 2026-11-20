@@ -60,6 +60,15 @@ async function requireManualEditor(req,res,next) {
     next();
   }catch(error){next(error);}
 }
+// Library is the sole upload UI. Explicitly delegated staff may use its
+// batch endpoint for Manuals only; other Library writes still require management.
+async function requireLibraryBatchPublisher(req,res,next) {
+  try {
+    await ensureSchema();
+    if(management(req.session.user) || await canEditManuals(req.session.user))return next();
+    return res.status(403).json({ok:false,error:'Only management or authorised Manuals publishers may upload documents.'});
+  }catch(error){next(error);}
+}
 function idOf(value) {
   const id = Number(value);
   return Number.isInteger(id) && id > 0 ? id : null;
@@ -768,7 +777,7 @@ router.post('/api/uat/manuals/upload',requireAuth,requireManualEditor,uploadBatc
 });
 
 
-router.post('/api/uat/library/documents/batch',requireAuth,requireManager,uploadBatchMiddleware,async(req,res,next)=>{
+router.post('/api/uat/library/documents/batch',requireAuth,requireLibraryBatchPublisher,uploadBatchMiddleware,async(req,res,next)=>{
   let persisted=false;
   const connection=await db.getConnection();
   try{
@@ -778,13 +787,17 @@ router.post('/api/uat/library/documents/batch',requireAuth,requireManager,upload
     if(files.length>10){cleanupFiles(files);return res.status(400).json({ok:false,error:'Upload a maximum of 10 files at once.'});}
     const userId=Number(req.session.user.id);
     const category=safeCategory(req.body.category);
+    if(!management(req.session.user) && !isManualsCategory(category)){
+      cleanupFiles(req.files);
+      return res.status(403).json({ok:false,error:'Delegated publishers may upload Manuals only.'});
+    }
     if(isManualsCategory(category)&&!await canEditManuals(req.session.user)){
       cleanupFiles(req.files);
       return res.status(403).json({ok:false,error:'Only authorised publishers can upload manuals.'});
     }
     const description=clean(req.body.description,5000);
     const accessLevel=isManualsCategory(category)?'all':(clean(req.body.access_level,30)==='management'?'management':'all');
-    const favourite=String(req.body.company_favourite||'')==='1'?1:0;
+    const favourite=isManualsCategory(category)?0:(String(req.body.company_favourite||'')==='1'?1:0);
     const created=[];
     await connection.beginTransaction();
     for(const file of files){
