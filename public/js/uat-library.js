@@ -418,10 +418,12 @@
     if(files.length>10){status.textContent='Choose a maximum of 10 files.';return;}
     submit.disabled=true;status.textContent=`Uploading ${files.length} file${files.length===1?'':'s'}…`;
     try{
+      const selectedCategory=uploadCategory.value;
       const form=new FormData(uploadForm);
       form.set('company_favourite',uploadFavourite.checked?'1':'0');
       const result=await request('/api/uat/library/documents/batch',{method:'POST',body:form});
       uploadForm.reset();
+      uploadCategory.value=selectedCategory;
       syncUploadDeals();
       renderSelectedFiles();
       status.textContent=`✓ Published ${result.count} file${result.count===1?'':'s'}`;
