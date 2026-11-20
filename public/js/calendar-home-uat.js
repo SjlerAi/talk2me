@@ -300,7 +300,32 @@
         deals.setAttribute('aria-pressed', active ? 'true' : 'false');
       });
     }
-  }
+
+
+        if (topActions && !topActions.querySelector('[data-uat-manuals-launcher]')) {
+      const manuals = document.createElement('button');
+      manuals.type = 'button';
+      manuals.className = 't2m-os-icon-button t2m-top-manuals-button';
+      manuals.setAttribute('data-uat-manuals-launcher', '1');
+      manuals.dataset.osRoute = `${basePath}/manuals`;
+      manuals.dataset.routeTitle = 'Manuals';
+      manuals.dataset.routeIcon = '📘';
+      manuals.title = 'Manuals';
+      manuals.setAttribute('aria-label', 'Open Manuals');
+      manuals.setAttribute('aria-pressed', 'false');
+      manuals.innerHTML = '<span aria-hidden="true">📘</span>';
+
+      const notesButton = topActions.querySelector('[data-os-app="notes"]');
+      if (notesButton?.nextSibling) topActions.insertBefore(manuals, notesButton.nextSibling);
+      else topActions.appendChild(manuals);
+
+      document.addEventListener('click', event => {
+        const routeButton = event.target.closest('[data-os-route]');
+        if (!routeButton) return;
+        const active = routeButton === manuals;
+        manuals.classList.toggle('is-active', active);
+        manuals.setAttribute('aria-pressed', active ? 'true' : 'false');
+      });  }
 
   function mountCalendar() {
     const today = iso(new Date());
