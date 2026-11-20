@@ -40,7 +40,8 @@
 
   function applyLaunchers(items) {
     const enabled = (Array.isArray(items) ? items : [])
-      .filter(item => (Number(item.is_enabled) === 1 || item.slot_key === 'slot_8') && (item.slot_key==='slot_8' || !['communications','communication','library','deals'].includes(String(item.display_name||'').trim().toLowerCase())))
+      .filter(item => Number(item.is_enabled) === 1 &&
+        !['communications','communication','library','deals','manuals'].includes(String(item.display_name||'').trim().toLowerCase()))
       .sort((left, right) => Number(left.sort_order) - Number(right.sort_order));
     for (const key of Object.keys(byKey)) delete byKey[key];
     for (const item of enabled) byKey[item.slot_key] = item;
@@ -52,13 +53,26 @@
       const button = document.createElement('button');
       button.type = 'button';
       button.dataset.osManagedLauncher = item.slot_key;
-      if(item.slot_key==='slot_8')button.classList.add('t2m-manuals-launcher');
-      const shortLabel=String(item.display_name||'').toLowerCase().includes('knowledge')?'Know.':String(item.display_name||'');
-      const shownLabel=shortLabel.length>7?shortLabel.slice(0,6)+'…':shortLabel;
-      button.title=String(item.display_name||'');
-      button.setAttribute('aria-label',button.title);
-      button.innerHTML = item.slot_key==='slot_8' ? '<span class="t2m-brand-mark customer">📘</span><strong>Manuals</strong>' : `<span class="t2m-brand-mark customer">${esc(item.icon_text || item.display_name.slice(0, 1))}</span><strong>${esc(shownLabel)}</strong>`;
+      const rawLabel = String(item.display_name || '').trim();
+      const shortLabel = rawLabel.toLowerCase().includes('knowledge')
+        ? 'Know B'
+        : (rawLabel.length > 7 ? rawLabel.slice(0, 6) + '…' : rawLabel);
+      button.title = rawLabel;
+      button.setAttribute('aria-label', rawLabel);
+      button.innerHTML = `<strong>${esc(shortLabel)}</strong>`;
       strip.appendChild(button);
+    }
+    // This is NOT one of the ten owner-configured portal slots. Adding or
+    // rearranging external systems can never push Manuals out of last place.
+    if (config.isLive) {
+      const manuals = document.createElement('button');
+      manuals.type = 'button';
+      manuals.dataset.osManagedLauncher = 'manuals';
+      manuals.className = 't2m-manuals-launcher';
+      manuals.title = 'Manuals';
+      manuals.setAttribute('aria-label', 'Manuals');
+      manuals.innerHTML = '<span class="t2m-brand-mark customer" aria-hidden="true">▤</span><strong>Manuals</strong>';
+      strip.appendChild(manuals);
     }
   }
 
@@ -240,7 +254,7 @@
   }
 
   function openManagedLauncher(key) {
-    if(key==='slot_8'){
+    if(key==='manuals' && config.isLive){
       window.open(`${config.basePath || ''}/manuals`,'_blank','noopener');
       return;
     }
