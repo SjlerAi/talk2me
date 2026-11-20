@@ -179,10 +179,15 @@ async function queryIntelligence(rangeKey='this_week') {
   };
 }
 
+// Same active/ready Master gate as crm_v_master_clients, without the
+// source/service LEFT JOIN projections that made cold report scans take seconds.
+const COMMERCIAL_MASTER_READY = `clients customer JOIN crm_master_active active ON active.singleton=1
+    JOIN crm_master_runs activeRun ON activeRun.id=active.run_id AND activeRun.state='ready'`;
+
 async function commercialIntelligence() {
   await ensureManagementSchema();
   const [packages]=await db.query(`SELECT COALESCE(NULLIF(TRIM(package_name),''),'Unknown') package_name,COUNT(*) client_lines
-    FROM crm_v_master_clients WHERE is_active=1 AND COALESCE(line_status,'active')<>'cancelled'
+    FROM ${COMMERCIAL_MASTER_READY} WHERE is_active=1 AND COALESCE(line_status,'active')<>'cancelled'
     GROUP BY COALESCE(NULLIF(TRIM(package_name),''),'Unknown') ORDER BY client_lines DESC LIMIT 15`);
   const [towns]=await db.query(`SELECT
     COALESCE(NULLIF(NULLIF(LOWER(TRIM(city_town)),'null'),''),'Unknown') city_town_key,
@@ -195,7 +200,7 @@ async function commercialIntelligence() {
       AND EXISTS(SELECT 1 FROM crm_v_master_actionable_upgrades accepted WHERE accepted.id=customer.id)
       THEN 1 ELSE 0 END) due_upgrades,
     SUM(CASE WHEN COALESCE(email,'')='' OR COALESCE(id_number,'')='' THEN 1 ELSE 0 END) incomplete_records
-    FROM crm_v_master_clients customer WHERE is_active=1 AND COALESCE(line_status,'active')<>'cancelled'
+    FROM ${COMMERCIAL_MASTER_READY} WHERE is_active=1 AND COALESCE(line_status,'active')<>'cancelled'
     GROUP BY COALESCE(NULLIF(NULLIF(LOWER(TRIM(city_town)),'null'),''),'Unknown')
     ORDER BY clients DESC LIMIT 20`);
   const packageRows=packages.map(row=>({...row,client_lines:Number(row.client_lines||0)}));
