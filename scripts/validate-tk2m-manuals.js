@@ -33,7 +33,7 @@ assert.doesNotMatch(launcher,/key==='slot_8'/);
 assert.match(launcher,/t2m-manuals-launcher/);
 assert.match(launcher,/\/manuals/);
 assert.doesNotMatch(dbService,/operationalManualsSlot/);
-assert.match(dbService,/return selectManagedSlotRows\(connection\)/);
+assert.match(dbService,/releaseLegacyManualsSlot/);
 assert.match(dbService,/MANAGED_SLOT_KEYS/);
 assert.doesNotMatch(dbService,/item.slot_key==='slot_8'/);
 assert.match(css,/#0072bc/);
