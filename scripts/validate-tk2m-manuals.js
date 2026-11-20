@@ -65,6 +65,8 @@ assert.match(route,/Only authorised publishers can delete manuals/);
 assert.match(archive,/d.category<>'Manuals'/);
 assert.match(manualUi,/\/api\/uat\/manuals\?/);
 assert.doesNotMatch(manualUi,/\/api\/uat\/manuals\/upload/,'Manuals viewer must never post uploads');
+assert.match(manualUi,/Library → Manage Library/,'Manuals viewer should direct publishers to the Library');
+assert.doesNotMatch(manualUi,/publish manuals here/,'View-only Manuals should not imply publishing happens on the viewer');
 assert.match(manualUi,/doc.category!=='Manuals'/);
 assert.doesNotMatch(manualView,/data-manuals-manage-open/,'Manuals viewer must be read-only');
 assert.doesNotMatch(manualView,/data-manuals-grant/,'Publishing rights must be managed in Library');
