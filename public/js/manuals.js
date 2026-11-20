@@ -77,7 +77,7 @@
     });
     if(!state.documents.length&&!state.loading){
       const typeLabel=state.type==='images'?'images':state.type==='spreadsheets'?'spreadsheets':state.type==='pdfs'?'PDFs':'manuals';
-      grid.innerHTML=`<div class="deals-empty"><div><strong>${state.query?`No matching ${typeLabel}`:`No ${typeLabel} available`}</strong><span>${state.query?'Try a different search.':state.type?'This Manuals filter has no published files.':'Gerda or an authorised uploader can publish manuals here.'}</span></div></div>`;
+      grid.innerHTML=`<div class="deals-empty"><div><strong>${state.query?`No matching ${typeLabel}`:`No ${typeLabel} available`}</strong><span>${state.query?'Try a different search.':state.type?'This Manuals filter has no published files.':'An Owner or authorised uploader can publish manuals here.'}</span></div></div>`;
     }else{
       grid.innerHTML=state.documents.map(cardHtml).join('');
     }
