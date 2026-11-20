@@ -10,6 +10,8 @@ const client=read('public/js/os-launchers.js');
 const css=read('public/css/calendar-home-uat.css');
 const library=read('src/routes/uat-library.js');
 const manuals=read('public/js/manuals.js');
+const libraryClient=read('public/js/uat-library.js');
+const libraryView=read('views/uat-library.ejs');
 const chat=read('src/routes/uat-work-widgets.js');
 
 // Both real Owner identities have identical permissions; no name/id exception.
@@ -31,7 +33,12 @@ assert.doesNotMatch(library,/function requireGerda/);
 assert.match(library,/canManageManuals:await canEditManuals/);
 assert.match(library,/canDelegateManuals:canRestoreArchived/);
 assert.match(library,/SELECT s.id,s.full_name,s.role/);
-assert.match(manuals,/user.role/);
+// Permission controls now live in the central Library; Manuals is view-only.
+assert.doesNotMatch(manuals,/user.role|\/api\/uat\/manuals\/upload/);
+assert.match(libraryClient,/canManageManuals/);
+assert.match(libraryClient,/setManualsPublisher/);
+assert.match(libraryView,/data-library-manual-grant/);
+assert.match(libraryView,/data-library-manual-revoke/);
 assert.match(library,/const category='Manuals'/);
 assert.match(library,/d.category='Manuals'/);
 assert.match(library,/d.category='Deals'/);

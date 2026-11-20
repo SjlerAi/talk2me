@@ -71,6 +71,11 @@ assert(view.includes('Company favourites'), 'Library must expose company favouri
 assert(view.includes('My favourites'), 'Library must expose personal favourites');
 assert(view.includes('data-library-category="Deals"'), 'Library must expose a permanent Deals heading');
 assert(view.includes('data-upload-deals'), 'Library upload must provide a one-click Deals category choice');
+assert(view.includes('data-upload-manuals'), 'Library upload must provide a one-click Manuals category choice');
+assert(view.includes('data-library-manuals-publishers-tab'), 'Manuals grant and revoke UI must live inside Library Management');
+assert(ui.includes("uploadCategory.value='Manuals'"), 'Manuals shortcut must select the Manuals category');
+assert(route.includes('requireLibraryBatchPublisher'), 'Delegated Manuals uploaders must use the central Library batch route');
+assert(route.includes('Delegated publishers may upload Manuals only.'), 'Non-management publishers must not upload other categories');
 assert(view.includes('Library Management'), 'Management UI must exist');
 assert(view.includes('Create month-end snapshot'), 'Month-end snapshot control must exist');
 assert(view.includes('Download original'), 'Original files must remain downloadable');
