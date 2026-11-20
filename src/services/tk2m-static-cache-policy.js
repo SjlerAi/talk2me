@@ -13,7 +13,7 @@ function cacheControlForStatic({ live, root, file, requestUrl, releaseVersion })
   try { version = new URL(requestUrl || '/', 'https://crm.tk2m.co.za').searchParams.get('v') || ''; }
   catch (_) { return 'no-store'; }
   if (version !== releaseVersion && !version.startsWith(releaseVersion + '-')) return 'no-store';
-  return 'public, max-age=604800, immutable';
+  return 'private, max-age=604800, immutable';
 }
 
 module.exports = { cacheControlForStatic };
