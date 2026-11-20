@@ -29,4 +29,23 @@ for(const f of ['src/routes/uat-library.js','src/routes/uat-work-widgets.js']){
  assert.match(read(f),/CRM_LIVE_MODE/);
  assert.match(read(f),/crm-live\/uploads/);
 }
+const {cacheControlForStatic}=require('../src/services/tk2m-static-cache-policy');
+const publicRoot=path.join(root,'public');
+const releaseVersion='6.0.0-test-0123456789ab';
+const policy=(relative,requestUrl,live=true)=>cacheControlForStatic({
+ live,root:publicRoot,file:path.join(publicRoot,relative),requestUrl,releaseVersion
+});
+const expected='private, max-age=604800, immutable';
+assert.equal(policy('css/app.css','/public/css/app.css?v='+releaseVersion),expected);
+assert.equal(policy('js/os-v6.js','/public/js/os-v6.js?v='+releaseVersion+'-blue20261120'),expected);
+assert.equal(policy('css/app.css','/public/css/app.css?v='+releaseVersion,false),'no-store');
+assert.equal(policy('css/app.css','/public/css/app.css'),'no-store');
+assert.equal(policy('css/app.css','/public/css/app.css?v=previous-release'),'no-store');
+assert.equal(policy('images/logo.png','/public/images/logo.png?v='+releaseVersion),'no-store');
+assert.equal(policy('../uploads/private.pdf','/private.pdf?v='+releaseVersion),'no-store');
+assert.match(server,/cacheControlForStatic\(\{/,'Static cache response headers must be release-pinned');
+assert.match(server,/versionedAppAsset/,'Service worker must distinguish versioned application code');
+assert.match(server,/if \(\$\{CRM_LIVE_MODE \? 'true' : 'false'\} && versionedAppAsset\)/,'Only live CRM may cache-first versioned code');
+assert.match(server,/fetch\(request, \{ cache: 'no-store' \}\)/,'UAT assets must stay network-first');
+assert.match(server,/request\.mode === 'navigate'/,'Customer navigation must never be served from static cache');
 console.log('TK2M_LIVE_MODE_SECURITY_AND_PARITY=PASS');

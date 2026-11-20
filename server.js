@@ -285,6 +285,24 @@ self.addEventListener('fetch', event => {
   }
   const isStatic = url.pathname.startsWith(BASE + '/public/');
   if (!isStatic) return;
+  // Live CSS/JS are release-versioned public assets. Serve repeated requests
+  // from the active release cache; NEVER cache customer HTML or API data.
+  const versionedAppAsset = url.searchParams.has('v') && (
+    (url.pathname.startsWith(BASE + '/public/css/') && url.pathname.endsWith('.css')) ||
+    (url.pathname.startsWith(BASE + '/public/js/') && url.pathname.endsWith('.js'))
+  );
+  if (${CRM_LIVE_MODE ? 'true' : 'false'} && versionedAppAsset) {
+    event.respondWith(caches.open(CACHE_NAME).then(async cache => {
+      const cached = await cache.match(request);
+      if (cached) return cached;
+      const response = await fetch(request);
+      if (response.ok) {
+        try { await cache.put(request, response.clone()); } catch (_) {}
+      }
+      return response;
+    }));
+    return;
+  }
   event.respondWith(caches.open(CACHE_NAME).then(async cache => {
     const cached = await cache.match(request);
     if (${UAT_MODE ? 'true' : 'false'}) {
@@ -327,8 +345,20 @@ if (CRM_LIVE_MODE) {
     res.type('text/css').send('/* TK2M production: UAT warning retired. */ body.command-body::before{content:none!important;display:none!important} body.command-body{padding-top:0!important}');
   });
 }
-app.use('/public', express.static(path.join(__dirname, 'public')));
-if (BASE_PATH) app.use(`${BASE_PATH}/public`, express.static(path.join(__dirname, 'public')));
+// In production, immutable versioned CSS/JS may be reused between CRM pop-ups.
+// Do not cache HTML, API responses, unversioned assets or uploaded documents.
+const { cacheControlForStatic } = require('./src/services/tk2m-static-cache-policy');
+const publicAssetRoot = path.join(__dirname, 'public');
+const staticOptions = CRM_LIVE_MODE ? {
+  setHeaders(res, file) {
+    res.setHeader('Cache-Control', cacheControlForStatic({
+      live: CRM_LIVE_MODE, root: publicAssetRoot, file,
+      requestUrl: res.req.originalUrl, releaseVersion: assetVersionForRelease()
+    }));
+  }
+} : undefined;
+app.use('/public', express.static(publicAssetRoot, staticOptions));
+if (BASE_PATH) app.use(`${BASE_PATH}/public`, express.static(publicAssetRoot, staticOptions));
 
 // Protected TK2M-only review portal. UENT live never loads the new routes.
 if (TK2M_SITE) {

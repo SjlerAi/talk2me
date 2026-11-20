@@ -25,4 +25,11 @@ assert.doesNotMatch(myDay, /window\.location\.assign\(/, 'My Day fallback must n
 assert.match(myDay, /window\.open\(destination\.href/, 'Use a separate work window when the OS manager is unavailable');
 assert.match(myDay, /destination\.origin !== window\.location\.origin/, 'Fallback popups must remain same-origin');
 assert.match(myDay, /popup\.opener = null/, 'Fallback popups must not retain parent opener access');
+const windowManager = fs.readFileSync(path.join(root,'public/js/os-v6.js'),'utf8');
+assert.match(windowManager, /frame\.loading = 'eager'/,'Customer and management frames must load eagerly');
+assert.match(windowManager, /doc\.readyState === 'loading'/,'Early reveal must wait for document parsing');
+assert.match(windowManager, /new URL\(doc.URL\)\.origin !== window\.location\.origin/,'Early reveal must check same-origin');
+assert.match(windowManager, /Date\.now\(\) - earlyReadyStarted > 5000/,'Early readiness polling must be bounded');
+assert.match(windowManager, /window\.clearInterval\(earlyReadyTimer\)/,'Early readiness polling must clean up');
+assert.match(windowManager, /frame\.addEventListener\('load'/,'Original iframe onload fallback must remain');
 console.log('UAT popup navigation validation passed.');
