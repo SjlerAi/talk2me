@@ -3,7 +3,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const read=file=>fs.readFileSync(file,'utf8');
 const {hasOwnerLibraryAuthority}=require('../src/services/tk2m-library-roles');
-const {enabledLaunchers}=require('../src/services/os-launcher-settings');
+const {enabledLaunchers,releaseLegacyManualsSlot}=require('../src/services/os-launcher-settings');
 const service=read('src/services/os-launcher-settings.js');
 const shell=read('views/os-shell.ejs');
 const client=read('public/js/os-launchers.js');
@@ -52,10 +52,21 @@ const input=[
   {slot_key:'slot_7',display_name:'iCAP',is_enabled:1,sort_order:7},
   {slot_key:'slot_6',display_name:'DWP',is_enabled:0,sort_order:6}
 ];
+const legacy=releaseLegacyManualsSlot({
+  slot_key:'slot_8',display_name:'Manuals',
+  portal_url:'https://crm.tk2m.co.za/manuals',
+  icon_text:'📘',open_mode:'separate',is_enabled:1,sort_order:8
+});
+assert.equal(legacy.is_enabled,0);
+assert.equal(legacy.display_name,'System 8');
+assert.equal(legacy.portal_url,null);
+const unrelated=releaseLegacyManualsSlot({slot_key:'slot_8',display_name:'VDS',
+  portal_url:'https://vds.example.test',is_enabled:1});
+assert.equal(unrelated.display_name,'VDS');
 assert.deepEqual(enabledLaunchers(input).map(item=>item.slot_key),
   ['slot_1','slot_7','slot_8','slot_9','slot_10']);
 assert.doesNotMatch(service,/operationalManualsSlot/);
-assert.match(service,/return selectManagedSlotRows\(connection\)/);
+assert.match(service,/releaseLegacyManualsSlot/);
 assert.match(shell,/data-os-managed-launcher="manuals"/);
 assert.ok(shell.indexOf('launchers.forEach(item=>') < shell.indexOf('data-os-managed-launcher="manuals"'));
 assert.ok(client.indexOf('for (const item of enabled)') < client.indexOf('strip.appendChild(manuals)'));
