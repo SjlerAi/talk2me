@@ -104,7 +104,7 @@
       <a href="#upload"><span>1</span><strong>Upload Files</strong></a>
       <a href="#process"><span>2</span><strong>Process Monthly Import</strong></a>
       <a href="#exceptions"><span>3</span><strong>Review Exceptions</strong></a>
-      <a href="#finalise"><span>4</span><strong>Technical History</strong></a>
+      <a href="#finalise"><span>4</span><strong>Import History</strong></a>
     </nav>
 
     <section id="upload" class="workflow-card">
@@ -201,8 +201,8 @@
       <div class="step-number">4</div>
       <div class="workflow-content">
         <span class="eyebrow">Import history</span>
-        <h2>Legacy finalisation is no longer used</h2>
-        <p>Only records classified as safe may be approved through Monthly Import Management. This page cannot apply imported records.</p>
+        <h2>Complete imports through Monthly Import Management</h2>
+        <p>Review and resolve exceptions here, then approve eligible records through Monthly Import Management. Original batch history remains available for audit.</p>
         <div class="finalise-preview">
           <article><span>Matched mobile updates</span><strong><%= Number(workflow.mobileUpdates||0) %></strong><small>Trusted non-empty fields are preserved.</small></article>
           <article><span>Matched fixed updates</span><strong><%= Number(workflow.fixedUpdates||0) %></strong><small>Unique service identifiers are checked again.</small></article>
@@ -211,7 +211,7 @@
           <article><span>Excluded / deferred</span><strong><%= Number(workflow.excluded||0) %></strong><small>No live write.</small></article>
           <article><span>Already finalised</span><strong><%= Number(workflow.finalised||0) %></strong><small>Skipped on every repeat run.</small></article>
         </div>
-        <div class="phase-notice warning"><strong>Finalisation is paused</strong><p><%= Number(workflow.unresolved||0) %> outstanding exception(s) still need attention. Preview and finalise safe records through the protected bulk workflow.</p></div>
+        <div class="phase-notice warning"><strong>Finalise through Monthly Import Management</strong><p><%= Number(workflow.unresolved||0) %> outstanding exception(s) still need attention. Preview and finalise safe records through the protected bulk workflow.</p></div>
         <nav class="finalise-form">
           <a class="button-link" href="<%= basePath %>/backoffice/monthly-import-management<%= panelMode?'?panel=1':'' %>">Open Monthly Import Management</a>
           <a class="button-link secondary" href="<%= basePath %>/backoffice/monthly-import-management/exceptions<%= panelMode?'?panel=1':'' %>">Resolve exceptions</a>
@@ -220,7 +220,7 @@
     </section>
 
     <details id="history" class="card technical-history">
-      <summary><span><strong>Technical Import History</strong><small>Batch-level diagnostics and reprocessing controls</small></span><span><%= batches.length %> recent batches</span></summary>
+      <summary><span><strong>Import History</strong><small>Uploaded batches, processing results and review actions</small></span><span><%= batches.length %> recent batches</span></summary>
       <div class="batch-list">
         <% batches.forEach(batch => { %>
           <article class="batch-card">
