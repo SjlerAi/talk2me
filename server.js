@@ -113,7 +113,8 @@ registerPublicGet('/api/release', (req, res) => {
   }
 });
 
-if (UAT_MODE) {
+// Legacy UAT health diagnostics must not be publicly exposed on the live CRM.
+if (UAT_MODE && !CRM_LIVE_MODE) {
   const publicUatWidgets = require('./src/routes/uat-work-widgets');
   registerPublicGet('/api/uat/widgets/health', async (req, res) => {
     res.set('Cache-Control', 'no-store');
