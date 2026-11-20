@@ -50,3 +50,83 @@ dialog{padding:0;border:0;background:transparent}.library-viewer,.library-admin,
 .library-upload-shortcuts>button[hidden],
 .library-admin-tabs>button[hidden],
 .library-top-actions>[hidden]{display:none!important}
+
+/* Phone-width Library publishing: constrain the modal's implicit grid track
+   and long-form controls to the actual viewport. Desktop is unchanged. */
+@media(max-width:760px){
+  dialog.library-admin{
+    box-sizing:border-box;
+    width:100dvw;
+    max-width:100dvw;
+    min-width:0;
+    margin:0;
+    overflow:hidden;
+  }
+  .library-admin .library-admin-shell{
+    box-sizing:border-box;
+    width:100%;
+    max-width:100%;
+    min-width:0;
+    grid-template-columns:minmax(0,1fr);
+  }
+  .library-admin .library-admin-shell>section{
+    box-sizing:border-box;
+    width:100%;
+    min-width:0;
+    overflow-x:hidden;
+    overflow-y:auto;
+  }
+  .library-admin .library-admin-form{
+    box-sizing:border-box;
+    width:100%;
+    max-width:100%;
+    min-width:0;
+  }
+  .library-admin .library-form-grid{
+    grid-template-columns:minmax(0,1fr);
+    min-width:0;
+  }
+  .library-admin .library-form-grid>label,
+  .library-admin .library-dropzone,
+  .library-admin .library-admin-form input,
+  .library-admin .library-admin-form select,
+  .library-admin .library-admin-form textarea{
+    box-sizing:border-box;
+    max-width:100%;
+    min-width:0;
+  }
+  .library-admin .library-upload-shortcuts{
+    display:grid;
+    grid-template-columns:minmax(0,1fr);
+    gap:8px;
+    width:100%;
+    max-width:100%;
+  }
+  .library-admin .library-upload-shortcuts>button{
+    width:100%;
+    max-width:100%;
+    min-width:0;
+    grid-template-columns:30px minmax(0,1fr);
+  }
+  .library-admin .library-upload-shortcuts>button>small{
+    min-width:0;
+    overflow-wrap:anywhere;
+  }
+  .library-admin .library-form-actions{
+    display:flex;
+    flex-wrap:wrap;
+    align-items:stretch;
+    min-width:0;
+    gap:8px;
+  }
+  .library-admin .library-form-actions>span{
+    flex:1 1 100%;
+    min-width:0;
+  }
+  .library-admin .library-form-actions>button{
+    flex:1 1 100%;
+    width:100%;
+    max-width:100%;
+    min-width:0;
+  }
+}

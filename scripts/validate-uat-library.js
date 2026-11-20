@@ -98,6 +98,10 @@ assert(css.includes('.library-admin-row-actions .danger'), 'Admin-list Delete co
 assert(view.includes('-monthly-archive1'), 'Library assets must be cache-busted for monthly archive release');
 assert(css.includes('@media(max-width:760px)'), 'Library must have phone layout rules');
 assert(css.includes('height:100dvh'), 'Library viewers must be mobile full-screen capable');
+assert(css.includes('Phone-width Library publishing:'), 'Mobile Library upload width must be explicitly constrained');
+assert(css.includes('.library-admin .library-admin-shell{'), 'Mobile modal must constrain its grid container');
+assert(css.includes('grid-template-columns:minmax(0,1fr)'), 'Phone-width upload grid must avoid intrinsic overflow');
+assert(view.includes('encodeURIComponent(assetVersion || appVersion)'), 'Mobile Library stylesheet must refresh with the released commit');
 assert(dealsView.includes('data-deals-grid'), 'Dedicated Deals window must expose its own deal grid');
 assert(dealsView.includes('Search deals'), 'Dedicated Deals window must be searchable');
 assert(dealsView.includes('data-deals-type="images"'), 'Deals window must expose an Images button');
