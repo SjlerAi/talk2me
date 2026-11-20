@@ -1,11 +1,11 @@
 {
   "schema": 1,
-  "action": "hold",
+  "action": "deploy",
   "environment": "tk2m-production",
-  "request_id": "tk2m-owner-ribbon-manuals-20261120-postrelease-hold",
-  "release_branch": "release/tk2m-owner-manuals-last-ribbon-20261120",
-  "release_sha": "f88494f22b1056a5c2e7289dea92cda2015f6a6e",
+  "request_id": "tk2m-library-manuals-central-20261120-a1",
+  "release_branch": "release/tk2m-library-manuals-central-upload-20261120",
+  "release_sha": "b3d420eab6dc3be888da4596454c87beacb9fcbb",
   "expected_previous_sha": "f88494f22b1056a5c2e7289dea92cda2015f6a6e",
   "production_cutover": true,
-  "owner_approved": false
+  "owner_approved": true
 }
