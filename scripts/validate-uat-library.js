@@ -85,7 +85,7 @@ assert(ui.includes("new URLSearchParams(window.location.search).get('category')"
 assert(ui.includes("uploadCategory.value='Deals'"), 'Deals upload shortcut must assign the Deals category');
 assert(ui.includes('New version'), 'Admin version workflow must exist');
 assert(ui.includes('data-library-delete'), 'Management must have a Delete button on Library cards');
-assert(ui.includes('state.canManage?'), 'Delete buttons must only render for management');
+assert(ui.includes("state.canManage&&(doc.category!=='Manuals'||state.canManageManuals)"), 'Delete buttons must require management plus Manuals permission');
 assert(ui.includes("method:'DELETE'"), 'Library Delete control must call the permanent delete endpoint');
 assert(ui.includes('Delete "${doc.title}" permanently?'), 'Permanent deletion must require confirmation');
 assert(css.includes('.library-delete{'), 'Library card Delete control must be visibly styled');
