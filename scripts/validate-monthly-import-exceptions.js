@@ -168,7 +168,8 @@ for (const wording of [
 assert(legacyRouteSource.includes('Legacy finalisation is disabled.'));
 assert(!dataImportView.includes('name="confirm_finalise"'));
 assert(!dataImportView.includes('>Finalise Import</button>'));
-assert(dataImportView.includes('Only records classified as safe may be approved through Monthly Import Management.'));
+assert(dataImportView.includes('Review and resolve exceptions here, then approve eligible records through Monthly Import Management.'), 'Live imports must clearly direct staff to safe controlled approvals');
+assert(!dataImportView.includes('Legacy finalisation is no longer used'), 'Live import page must not show retired developer wording');
 assert(dataImportView.includes('/backoffice/monthly-import-management/exceptions'));
 
 assert(!/overflow-x\s*:\s*(auto|scroll)/i.test(css), 'Exception queue must not require horizontal scrolling');

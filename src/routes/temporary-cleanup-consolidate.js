@@ -15,7 +15,7 @@ class UnsafeConsolidation extends Error {}
 const listSql="SELECT id,account_id,account_number,client_name,cell_number,cell_number_normalised,email,DATE_FORMAT(previous_upgrade_date,'%Y-%m-%d') previous_upgrade_date,DATE_FORMAT(next_upgrade_date,'%Y-%m-%d') next_upgrade_date,DATE_FORMAT(upgrade_date,'%Y-%m-%d') upgrade_date,package_name,line_status,is_active,updated_at FROM clients WHERE cell_number_normalised=:key ORDER BY account_id,id LIMIT 80";
 function listHash(rows){return crypto.createHash('sha256').update(JSON.stringify(rows)).digest('hex');}
 router.post('/temporary-cleanup/consolidate/:key',requireAuth,async(req,res,next)=>{
-  if(!canUseTemporaryCleanup(req.session.user))return fail(res,404,'Temporary UAT cleanup not available.');
+  if(!canUseTemporaryCleanup(req.session.user))return fail(res,404,'This operation is no longer available.');
   const key=String(req.params.key||'');
   const primaryId=Number(req.body.primary_id);
   if(!/^27[0-9]{9}$/.test(key)||!Number.isSafeInteger(primaryId)||primaryId<1)return fail(res,400,'Invalid line or current-record identifier.');

@@ -13,7 +13,7 @@ const TAKE = 30;
 const KINDS = new Set(['same_account_phone','cross_account_phone','account_alias','staff_conflict','base_unlinked']);
 const DECISIONS = new Set(['approved_grouping','keep_separate','needs_correction','flagged']);
 function guard(req,res,next) {
-  if (!canUseTemporaryCleanup(req.session.user)) return res.status(404).render('error',{title:'Not available',message:'Temporary cleanup access is disabled or restricted.'});
+  if (!canUseTemporaryCleanup(req.session.user)) return res.status(404).render('error',{title:'Not available',message:'This retired screen is no longer available. Continue through My Day or Administration Centre.'});
   return next();
 }
 function csrf(req) {

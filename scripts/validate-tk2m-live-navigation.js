@@ -129,4 +129,21 @@ const liveShellHtml=ejs.render(shellFragment,{isLive:true,isStaging:true});
 assert.doesNotMatch(liveShellHtml,/tk2m-test-shell|data-tk2m-preview="1"/i,
   'Live CRM must not inherit staging-only shell markers');
 assert.match(liveShellHtml,/t2m-approved-home-shell/,'Live CRM must retain approved layout styling');
+// No active production Data Review screen may advertise the retired UENT test
+// comparison; historical decision records remain available to management.
+const reviewRoute=read('src/routes/tk2m-data-review.js');
+const reviewCases=read('src/services/tk2m-review-cases.js');
+const reviewView=read('views/tk2m-review-portal.ejs');
+assert.doesNotMatch(reviewRoute,/Source-vs-test comparison is unavailable/i);
+assert.match(reviewRoute,/IS_LIVE&&!all.sourceComparisonAvailable/,
+  'Live review overview must hide the unavailable historical comparison category');
+assert.match(reviewRoute,/kinds:displayTypes/,'Live review must render the filtered type choices');
+assert.doesNotMatch(reviewCases,/Source vs test|: live .* \/ test /i,
+  'Review cases must not display obsolete test environment vocabulary');
+assert.match(reviewCases,/Historical source reconciliation/,
+  'Existing historical source cases must retain an operational description');
+assert.doesNotMatch(read('views/monthly-data-import.ejs'),/Technical History|Technical Import History|Legacy finalisation is no longer used/i,
+  'Live Monthly Import must be presented as an operational workflow, not obsolete developer tooling');
+assert.doesNotMatch(reviewView,/Friday refresh/i,
+  'Review history must not assume the old cutover timetable');
 console.log('TK2M_LIVE_NAVIGATION_AND_BANNER_PASS');

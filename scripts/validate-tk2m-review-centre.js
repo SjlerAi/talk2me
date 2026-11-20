@@ -122,7 +122,8 @@ function conn(rows,{missingSource=false,wrongSourceError=false,missingDecisions=
  assert.match(routes,/all\.decisionsAvailable/);
  assert.match(routes,/No changes have been saved/);
  await assert.rejects(loadCases(owner,conn(fixture,{wrongSourceError:true})),/unrelated_table/);
- assert.match(routes,/Source-vs-test comparison is unavailable/);
+ assert.match(routes,/IS_LIVE&&!all.sourceComparisonAvailable/,'Unavailable optional source history must be suppressed on the live CRM');
+ assert.doesNotMatch(routes,/Source-vs-test comparison is unavailable/);
  assert.equal(canManage(owner),true);assert.equal(canManage(manager),true);assert.equal(canManage(staff),false);
  assert.equal((await loadCases(staff,conn(fixture))).length,4);
  assert.equal((await loadCases(unassigned,conn(fixture))).length,0);
@@ -143,7 +144,7 @@ function conn(rows,{missingSource=false,wrongSourceError=false,missingDecisions=
  assert.ok(page.includes('source_hash'));
  assert.ok(page.includes('No customer records'));
  const queue=ejs.render(view,{...shared,selected:null,history:null,listing:all});
- assert.ok(queue.includes('Review queue')&&queue.includes('Source vs test'));
+ assert.ok(queue.includes('Review queue')&&queue.includes('Historical source reconciliation'));
  const staffPage=ejs.render(view,{...shared,currentUser:staff,canManage:false,selected:{...sample,lines:[]}});
  assert.ok(!staffPage.includes('value="verified"')&&!staffPage.includes('value="keep_separate"'));
  console.log('TK2M_REVIEW_CENTRE_REGRESSION=PASS',{
