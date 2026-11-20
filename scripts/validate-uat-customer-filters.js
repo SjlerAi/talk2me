@@ -79,10 +79,11 @@ const db={
   async execute(sql,params) {
     if(sql.includes('information_schema.TABLES'))return [[{present:0}]];
     sqlCalls.push({sql,params:{...params}});
-    if(sql.startsWith('SELECT COUNT(*) total FROM crm_v_master_clients'))return [[{total:123}]];
     if(sql.includes('SUM(c.is_active=1)'))return [[{active_count:2134,prospect_count:0,incomplete_count:0,archived_count:0}]];
-    if(sql.includes('COUNT(*) total FROM crm_v_master_clients c')&&sql.includes('unassignedClause'))throw Error('Unexpected clause');
-    if(sql.startsWith('SELECT COUNT(*) total FROM crm_v_master_clients c'))return [[{total:0}]];
+    if(sql.startsWith('SELECT COUNT(*) total FROM clients c JOIN crm_master_active')) {
+      if(sql.includes(' WHERE c.is_active=1 AND '))return [[{total:0}]]; // Unassigned badge
+      return [[{total:123}]]; // Filtered count
+    }
     if(sql.includes('FROM crm_v_master_clients c')&&sql.includes('ORDER BY'))return [[]];
     return [[{total:0}]];
   }
@@ -119,6 +120,11 @@ async function routeCase(user,query) {
   assert.equal(result.rendered.locals.page,2);
   assert.equal(result.rendered.locals.firstRecord,51);
   assert.ok(result.sqlCalls[0].sql.includes('vis.assigned_staff_id=:visibilityStaffId'));
+  assert.match(result.sqlCalls[0].sql,/FROM clients c JOIN crm_master_active active/,'Filtered count must not materialize all Master source joins');
+  assert.match(result.sqlCalls[0].sql,/JOIN crm_master_runs activeRun ON activeRun.id=active.run_id AND activeRun.state='ready'/,'Fast count must require the active ready Master run');
+  assert.match(result.sqlCalls[1].sql,/FROM crm_v_master_clients c/,'Returned customer cards still require the Master-linked data');
+  assert.match(result.sqlCalls[2].sql,/FROM clients c JOIN crm_master_active active/,'Badge counts must use the fast source');
+  assert.match(result.sqlCalls[3].sql,/FROM clients c JOIN crm_master_active active/,'Unassigned counts must use the fast source');
   assert.equal(result.sqlCalls[0].params.visibilityStaffId,7);
   assert.equal(result.sqlCalls[0].params.monthFrom,'2026-10-01');
   assert.equal(result.sqlCalls[1].params.offset,50);
