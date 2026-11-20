@@ -45,12 +45,12 @@ const CATALOG=Object.freeze([
   {key:'data-review',category:'Administration',label:'Data Review Centre',path:'/data-review',match:/^\/data-review(?:\/(?:history|case\/:id(?:\/merge)?))?$/},
   {key:'imports',category:'Administration',label:'Data Import Centre',path:'/backoffice/data-import',match:/^\/backoffice\/(?:data-import|monthly-import-management|legacy-client-claim-reconciliation)$/},
   {key:'upgrade-centre',category:'Commercial',label:'Upgrade Centre',path:'/upgrade-centre',match:/^\/upgrade-centre$/},
-  {key:'deals',category:'Commercial',label:'Black Friday / Deals',path:'/black-friday',match:/^\/(?:black-friday|uat\/deals)$/},
+  {key:'deals',category:'Commercial',label:'Black Friday / Deals',path:'/black-friday',match:/^\/(?:black-friday|deals|uat\/deals)$/},
   {key:'reporting',category:'Management',label:'Reporting Centre',path:'/reports',match:/^\/(?:reports|backoffice\/reports(?:\/[^/]+)?)$/},
   {key:'office-intelligence',category:'Management',label:'Office Intelligence',path:'/office-intelligence',match:/^\/office-intelligence$/},
   {key:'office-tools',category:'Administration',label:'Back-office email, Word and Excel',path:'/backoffice/office-tools',match:/^\/backoffice\/office-tools$/},
   {key:'launchers-admin',category:'Administration',label:'Launcher configuration',path:'/backoffice/os-launchers',match:/^\/backoffice\/os-launchers$/},
-  {key:'library',category:'Documents',label:'Document Library',path:'/uat/library',match:/^\/uat\/library$/},
+  {key:'library',category:'Documents',label:'Document Library',path:'/library',match:/^\/(?:library|uat\/library)$/},
   {key:'calendar',category:'Daily workspace',label:'Calendar page',path:'/calendar',match:/^\/calendar(?:\/items\/:id)?$/},
   {key:'weekly-stats',category:'Reporting',label:'Weekly staff statistics',path:'/weekly-stats',match:/^\/weekly-stats$/}
 ]);

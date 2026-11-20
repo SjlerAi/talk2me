@@ -218,7 +218,7 @@
     section.innerHTML = tk2mPreview ? `<span class="t2m-os-sidebar-label">Navigate</span>
       <button type="button" class="is-current" data-home-today aria-label="My Day" title="My Day"><span>□</span><strong>My Day</strong></button>
       <button type="button" data-os-launch="customers" aria-label="Customers" title="Customers"><span>C</span><strong>Customers</strong></button>
-      <button type="button" data-os-route="${basePath}/uat/library" data-route-title="Library" data-route-icon="L" aria-label="Library" title="Library"><span>L</span><strong>Library</strong></button>
+      <button type="button" data-os-route="${basePath}/library" data-route-title="Library" data-route-icon="L" aria-label="Library" title="Library"><span>L</span><strong>Library</strong></button>
       <button type="button" data-os-route="${basePath}/data-review" data-route-title="Data Review" data-route-icon="✓" aria-label="Data Review" title="Data Review"><span>✓</span><strong>Data Review</strong></button>
       ${isManagement ? `<button type="button" data-os-app="reports" aria-label="Reports" title="Reports"><span>▦</span><strong>Reports</strong></button>
       <button type="button" data-os-route="${basePath}/backoffice" data-route-title="Administration" data-route-icon="⚙" aria-label="Administration" title="Administration"><span>⚙</span><strong>Administration</strong></button>` : ''}
@@ -226,7 +226,7 @@
       <button type="button" class="is-current" data-home-today aria-label="My Day" title="My Day"><span>□</span><strong>My Day</strong></button>
       <button type="button" data-os-app="work" aria-label="Work" title="Work"><span>✓</span><strong>Work</strong></button>
       <button type="button" data-os-launch="customers" aria-label="Customers" title="Customers"><span>C</span><strong>Customers</strong></button>
-      <button type="button" data-os-route="${basePath}/uat/library" data-route-title="Library" data-route-icon="L" aria-label="Library" title="Library"><span>L</span><strong>Library</strong></button>
+      <button type="button" data-os-route="${basePath}/library" data-route-title="Library" data-route-icon="L" aria-label="Library" title="Library"><span>L</span><strong>Library</strong></button>
       ${isManagement ? `<button type="button" data-os-route="${basePath}/command-centre" data-route-title="Team" data-route-icon="◆" aria-label="Team" title="Team"><span>◆</span><strong>Team</strong></button>
       <button type="button" data-os-app="reports" aria-label="Reports" title="Reports"><span>▦</span><strong>Reports</strong></button>
       <button type="button" data-os-route="${basePath}/backoffice" data-route-title="Administration" data-route-icon="⚙" aria-label="Administration" title="Administration"><span>⚙</span><strong>Administration</strong></button>` : ''}
@@ -251,7 +251,7 @@
       const libraryLauncher = document.createElement('button');
       libraryLauncher.type = 'button';
       libraryLauncher.dataset.uatLibraryLauncher = '1';
-      libraryLauncher.dataset.osRoute = `${basePath}/uat/library`;
+      libraryLauncher.dataset.osRoute = `${basePath}/library`;
       libraryLauncher.dataset.routeTitle = 'Library';
       libraryLauncher.dataset.routeIcon = 'L';
       libraryLauncher.setAttribute('aria-label', 'Library');
@@ -280,7 +280,7 @@
       deals.type = 'button';
       deals.className = 't2m-os-icon-button t2m-top-deals-button';
       deals.setAttribute('data-uat-deals-launcher', '1');
-      deals.dataset.osRoute = `${basePath}/uat/deals`;
+      deals.dataset.osRoute = `${basePath}/deals`;
       deals.dataset.routeTitle = 'Deals';
       deals.dataset.routeIcon = '🤝';
       deals.title = 'Deals';

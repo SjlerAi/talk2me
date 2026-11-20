@@ -180,8 +180,8 @@ router.get('/mobile-base/:id', requireAuth, async (req, res, next) => {
 });
 
 router.use((error, req, res, next) => {
-  if (!IS_UAT) return next(error);
-  console.error('[MobileBase UAT route diagnostic]', error);
+  if (!IS_UAT || String(process.env.CRM_LIVE_MODE || '').toLowerCase()==='true') return next(error);
+  console.error('[MobileBase diagnostic]', error);
   if (res.headersSent) return next(error);
   return res.status(500).render('error', {
     title: 'Customer open error',

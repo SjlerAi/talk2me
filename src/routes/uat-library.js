@@ -13,6 +13,7 @@ const { trackEvent } = require('../services/usage-telemetry');
 
 const router = express.Router();
 const IS_UAT = String(process.env.UAT_MODE || '').trim().toLowerCase() === 'true';
+const IS_LIVE = String(process.env.CRM_LIVE_MODE || '').trim().toLowerCase() === 'true';
 const MANAGEMENT_ROLES = new Set(['owner','admin','manager']);
 const privateRoot = String(process.env.PRIVATE_UPLOAD_DIR || '').trim();
 const libraryRoot = path.join(privateRoot, 'library');
@@ -436,7 +437,13 @@ async function createLibraryZip(outputPath,user,{month=null}={}) {
   return {rows,count:rows.length};
 }
 
-router.get('/uat/library',requireAuth,async(req,res,next)=>{
+// Preserve old bookmarks and internal API compatibility, but expose clean
+// operational page addresses on the live CRM.
+router.get('/uat/library',requireAuth,(req,res,next)=>{
+  if(!IS_LIVE)return next();
+  return res.redirect(302,(res.locals.basePath||'')+'/library');
+});
+router.get(['/library','/uat/library'],requireAuth,async(req,res,next)=>{
   try{
     await ensureSchema();
     res.render('uat-library',{
@@ -449,7 +456,11 @@ router.get('/uat/library',requireAuth,async(req,res,next)=>{
   }catch(error){next(error);}
 });
 
-router.get('/uat/deals',requireAuth,async(req,res,next)=>{
+router.get('/uat/deals',requireAuth,(req,res,next)=>{
+  if(!IS_LIVE)return next();
+  return res.redirect(302,(res.locals.basePath||'')+'/deals');
+});
+router.get(['/deals','/uat/deals'],requireAuth,async(req,res,next)=>{
   try{
     await ensureSchema();
     res.render('uat-deals',{
@@ -463,7 +474,7 @@ router.get('/uat/deals',requireAuth,async(req,res,next)=>{
 });
 
 router.get('/api/uat/deals/health',async(req,res)=>{
-  if(!IS_UAT) return res.sendStatus(404);
+  if(!IS_UAT || IS_LIVE) return res.sendStatus(404);
   try{
     await ensureSchema();
     const [[row]]=await db.execute(`SELECT
@@ -491,7 +502,7 @@ router.get('/api/uat/deals/health',async(req,res)=>{
 });
 
 router.get('/api/uat/library/health',async(req,res)=>{
-  if(!IS_UAT) return res.sendStatus(404);
+  if(!IS_UAT || IS_LIVE) return res.sendStatus(404);
   try{
     await ensureSchema();
     const [tables]=await db.execute(`SELECT TABLE_NAME FROM information_schema.TABLES

@@ -13,7 +13,7 @@
 <% if (!schemaReady) { %>
   <div class="phase-notice warning">
     <strong>Base Details foundation not installed</strong>
-    <p>Apply the reviewed PR #110 one-off SQL after the required database backup. Do not use the generic migration runner.</p>
+    <p>A required Base Details component is not ready. Contact the system administrator. No customer information has been changed.</p>
   </div>
 <% } else { %>
   <section class="card">
@@ -60,12 +60,12 @@
       <span><strong><%= Number(eventSummary.staff_unmapped||0) %></strong> staff code unresolved</span>
     </div>
     <form method="post" action="<%= basePath %>/backoffice/base-details/sync-events" style="margin-top:14px"><button class="btn">Synchronise activation & upgrade history</button></form>
-    <small>The counts use the reconciled current-event view: 214 repeated entries from overlapping reports are not counted twice. Both original source rows remain stored. Eighteen event pairs with conflicting details are still awaiting verification. New imports must be reconciled again after synchronising. SADMIN is classified as system activity, not a salesperson.</small>
+    <small>Overlapping source records are counted once in the reconciled event totals. Any conflicting details remain available for verification; new imports must be reconciled after synchronising. System activity is kept separate from staff sales.</small>
   </section>
 
   <section class="card" style="margin-top:18px">
     <h2>Base Details batches</h2>
-    <p>Upload the Base Details XLSX through Data Import Centre. Reconcile first. Staging writes only the dedicated current/snapshot layer and never creates or overwrites historical CRM client rows.</p>
+    <p>Upload the Base Details XLSX through Data Import Centre. Reconcile first. Imports update the dedicated current records and historical snapshots. Existing customer records are not overwritten by this upload.</p>
     <% if (!batches.length) { %>
       <div class="empty-state compact"><strong>No Base Details batch uploaded yet</strong><p>Use Data Import Centre to upload the Vodacom Base Details workbook.</p></div>
     <% } %>

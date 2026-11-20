@@ -206,10 +206,10 @@
         </section>
         <% } %>
         <% if(selected.kind==='migration'){ %>
-        <section class="review-subsection"><h3>Live UENT compared with TK2M</h3>
-          <div class="review-compare"><div><small>Currently live (UENT)</small><strong><%= selected.details.sourceValue %></strong></div>
-          <div><small>TK2M test data</small><strong><%= selected.details.stageValue %></strong></div></div>
-          <p class="review-muted">Source comparison captured: <%= selected.details.checkedAt %>. This comparison must be refreshed before Friday's transfer.</p>
+        <section class="review-subsection"><h3>Historical source comparison</h3>
+          <div class="review-compare"><div><small>Original UENT snapshot</small><strong><%= selected.details.sourceValue %></strong></div>
+          <div><small>TK2M snapshot at comparison</small><strong><%= selected.details.stageValue %></strong></div></div>
+          <p class="review-muted">Comparison recorded: <%= selected.details.checkedAt %>. This is historical evidence; verify current CRM data before taking any action.</p>
         </section>
         <% } %>
         <% if(selected.members.length){ %>

@@ -64,7 +64,8 @@ function screenKeyForRoute(value) {
   if (route.startsWith('/upgrade-centre')) return 'upgrade_centre';
   if (route.startsWith('/office-intelligence')) return 'office_intelligence';
   if (route.startsWith('/agent')) return 'management_agent';
-  if (route.startsWith('/uat/library')) return 'library';
+  if (route === '/library' || route.startsWith('/uat/library')) return 'library';
+  if (route === '/deals' || route.startsWith('/uat/deals')) return 'deals';
   if (route.startsWith('/os/my-work')) return 'my_work';
   if (route.startsWith('/reports')) return 'reports';
   if (route.startsWith('/calendar')) return 'calendar';
@@ -78,6 +79,7 @@ function moduleForRoute(value) {
   if (['customers','clients'].includes(first)) return 'customers';
   if (['queries','inquiries'].includes(first)) return 'queries';
   if (first === 'uat' && route.startsWith('/uat/library')) return 'library';
+  if (first === 'uat' && route.startsWith('/uat/deals')) return 'deals';
   return first.replace(/[^a-z0-9_-]/gi, '_').slice(0, 120);
 }
 

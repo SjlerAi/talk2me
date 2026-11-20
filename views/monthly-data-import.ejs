@@ -8,7 +8,7 @@
     <% if (!selectedBatch) { %>
       <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
         <a class="button secondary compact" href="<%= basePath %>/backoffice/data-import/source-evidence">Refresh Source Evidence</a>
-        <a class="button secondary compact" href="#history">Technical history</a>
+        <a class="button secondary compact" href="#history">Import history</a>
       </div>
     <% } %>
   </header>
@@ -18,7 +18,7 @@
   <% if (!schemaReady) { %>
     <div class="phase-notice warning">
       <strong>Monthly Import setup is required</strong>
-      <p>Apply the reviewed one-off SQL files manually before using this page. Do not run the generic migration system.</p>
+      <p>A required Monthly Import component is not ready. Contact the system administrator; no customer information has been changed.</p>
     </div>
   <% } %>
 
@@ -27,7 +27,7 @@
       <a class="back-link" href="<%= basePath %>/backoffice/data-import<%= panelMode?'?panel=1':'' %>">&larr; Back to Monthly Import</a>
       <div class="heading">
         <div class="min-width-zero">
-          <span class="eyebrow">Technical batch #<%= selectedBatch.id %></span>
+          <span class="eyebrow">Import batch #<%= selectedBatch.id %></span>
           <h2 class="safe-filename" title="<%= selectedBatch.original_filename %>"><%= selectedBatch.original_filename %></h2>
         </div>
         <span class="status-pill <%= selectedBatch.status %>"><%= selectedBatch.status %></span>
@@ -40,14 +40,14 @@
       <div class="batch-actions">
         <% if (selectedBatch.status === 'preview') { %>
           <form method="post" action="<%= basePath %>/backoffice/data-import/batches/<%= selectedBatch.id %>/confirm<%= panelMode?'?panel=1':'' %>">
-            <button>Confirm legacy batch</button>
+            <button>Confirm import batch</button>
           </form>
         <% } %>
         <% if (matchingSchemaReady && selectedBatch.status === 'confirmed') { %>
           <form method="post" action="<%= basePath %>/backoffice/data-import/batches/<%= selectedBatch.id %>/match<%= panelMode?'?panel=1':'' %>">
             <button>Re-run batch matching</button>
           </form>
-          <a class="button secondary" href="<%= basePath %>/backoffice/data-import/batches/<%= selectedBatch.id %>/review<%= panelMode?'?panel=1':'' %>">Technical match review</a>
+          <a class="button secondary" href="<%= basePath %>/backoffice/data-import/batches/<%= selectedBatch.id %>/review<%= panelMode?'?panel=1':'' %>">Review matching</a>
         <% } %>
         <% if (reviewMode) { %>
           <a class="button secondary" href="<%= basePath %>/backoffice/data-import/batches/<%= selectedBatch.id %><%= panelMode?'?panel=1':'' %>">View rows</a>
@@ -56,7 +56,7 @@
     </section>
 
     <% if (reviewMode) { %>
-      <section class="section-heading"><div><span class="eyebrow">Technical view</span><h2>All matching results</h2></div></section>
+      <section class="section-heading"><div><span class="eyebrow">Detailed results</span><h2>All matching results</h2></div></section>
       <section class="review-list">
         <% reviewRows.forEach(row => { %>
           <article class="match-card">
@@ -86,7 +86,7 @@
         <% }) %>
       </section>
     <% } else { %>
-      <section class="section-heading"><div><span class="eyebrow">Technical view</span><h2>Imported rows</h2></div><span><%= batchRows.length %> rows</span></section>
+      <section class="section-heading"><div><span class="eyebrow">Detailed results</span><h2>Imported rows</h2></div><span><%= batchRows.length %> rows</span></section>
       <section class="import-row-list">
         <% batchRows.forEach(row => { %>
           <article class="import-row-card">
@@ -200,7 +200,7 @@
     <section id="finalise" class="workflow-card finalise-card">
       <div class="step-number">4</div>
       <div class="workflow-content">
-        <span class="eyebrow">Technical history</span>
+        <span class="eyebrow">Import history</span>
         <h2>Legacy finalisation is no longer used</h2>
         <p>Only records classified as safe may be approved through Monthly Import Management. This page cannot apply imported records.</p>
         <div class="finalise-preview">
@@ -211,7 +211,7 @@
           <article><span>Excluded / deferred</span><strong><%= Number(workflow.excluded||0) %></strong><small>No live write.</small></article>
           <article><span>Already finalised</span><strong><%= Number(workflow.finalised||0) %></strong><small>Skipped on every repeat run.</small></article>
         </div>
-        <div class="phase-notice warning"><strong>Legacy finalisation is blocked</strong><p><%= Number(workflow.unresolved||0) %> outstanding exception(s) still need attention. Preview and finalise safe records through the protected bulk workflow.</p></div>
+        <div class="phase-notice warning"><strong>Finalisation is paused</strong><p><%= Number(workflow.unresolved||0) %> outstanding exception(s) still need attention. Preview and finalise safe records through the protected bulk workflow.</p></div>
         <nav class="finalise-form">
           <a class="button-link" href="<%= basePath %>/backoffice/monthly-import-management<%= panelMode?'?panel=1':'' %>">Open Monthly Import Management</a>
           <a class="button-link secondary" href="<%= basePath %>/backoffice/monthly-import-management/exceptions<%= panelMode?'?panel=1':'' %>">Resolve exceptions</a>

@@ -27,7 +27,7 @@
   <details class="t2m-admin-group" open>
     <summary><span><strong>Customers &amp; CRM Data</strong><small>Customer management, upgrades, imports and reconciliation</small></span><b>Data controls</b></summary>
     <div class="module-grid">
-      <a class="module-card" href="<%= basePath %>/data-review"><span class="module-icon">✓</span><h2>Data Review Centre</h2><p>Review customer duplicates, import conflicts and migration differences, with full decision history.</p></a>
+      <a class="module-card" href="<%= basePath %>/data-review"><span class="module-icon">✓</span><h2>Data Review Centre</h2><p>Review customer duplicates, import discrepancies and record differences, with full decision history.</p></a>
       <a class="module-card" href="<%= basePath %>/backoffice/clients"><span class="module-icon">🧾</span><h2>Client Administration</h2><p>Contact details, ownership, authority and line records.</p></a>
       <a class="module-card" href="<%= basePath %>/upgrade-centre"><span class="module-icon">📈</span><h2>Upgrade Centre</h2><p>Upcoming and historical line upgrades.</p></a>
       <% if(['owner','manager','admin'].includes(currentUser.role)){ %>
@@ -37,7 +37,7 @@
         <a class="module-card" href="<%= basePath %>/backoffice/monthly-import-management<%= panelMode?'?panel=1':'' %>"><span class="module-icon">MI</span><h2>Monthly Import Management</h2><p>Imported customers, approvals and exceptions.</p></a>
       <% } %>
       <% if(['owner','manager','admin'].includes(currentUser.role)){ %>
-        <a class="module-card" href="<%= basePath %>/backoffice/legacy-client-claim-reconciliation<%= panelMode?'?panel=1':'' %>"><span class="module-icon">LC</span><h2>Legacy Client Claim Reconciliation</h2><p>Review historical claims without modifying records.</p></a>
+        <a class="module-card" href="<%= basePath %>/backoffice/legacy-client-claim-reconciliation<%= panelMode?'?panel=1':'' %>"><span class="module-icon">LC</span><h2>Customer Claim Review</h2><p>Review historical claims without modifying records.</p></a>
       <% } %>
     </div>
   </details>
