@@ -12,7 +12,7 @@ const TYPES=new Set(['same_account_phone','cross_account_phone']);
 const one=Number.isSafeInteger;
 function error(res,status,message) {return res.status(status).render('error',{title:'Cleanup correction not saved',message});}
 function permitted(req,res,next) {
-  if(!canUseTemporaryCleanup(req.session.user))return error(res,404,'The temporary cleanup centre is not available.');
+  if(!canUseTemporaryCleanup(req.session.user))return error(res,404,'This operation is no longer available.');
   next();
 }
 function detailLink(res,type,key){return res.locals.basePath+'/temporary-cleanup/review/'+encodeURIComponent(type)+'/'+encodeURIComponent(key);}
