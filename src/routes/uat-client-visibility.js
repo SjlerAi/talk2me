@@ -10,6 +10,12 @@ const router = express.Router();
 const IS_UAT = String(process.env.UAT_MODE || '').trim().toLowerCase() === 'true';
 const MANAGEMENT_ROLES = new Set(['owner','manager','admin']);
 const PAGE_SIZE = 50;
+// The full Master view joins four source/link tables for every client. Counting
+// through that view costs seconds on production and needlessly delays My Day.
+// Counts use its exact base-row/ready-run gate without the LEFT JOIN projections;
+// the paginated detail list still uses crm_v_master_clients for master fields.
+const COUNT_SOURCE = `clients c JOIN crm_master_active active ON active.singleton=1
+  JOIN crm_master_runs activeRun ON activeRun.id=active.run_id AND activeRun.state='ready'`;
 
 function isManagement(user) {
   return Boolean(user && MANAGEMENT_ROLES.has(String(user.role || '').trim().toLowerCase()));
@@ -108,7 +114,7 @@ router.get('/backoffice/clients',requireAuth,async(req,res,next)=>{
     }
     if (filters.error) where.push('1=0'); // Fail visibly closed for an invalid date/month.
     const sqlWhere='WHERE '+where.join(' AND ');
-    const [[matching]] = await db.execute('SELECT COUNT(*) total FROM crm_v_master_clients c '+sqlWhere,params);
+    const [[matching]] = await db.execute('SELECT COUNT(*) total FROM '+COUNT_SOURCE+' '+sqlWhere,params);
     const total=Number(matching?.total||0);
     const pageCount=Math.max(1,Math.ceil(total/PAGE_SIZE));
     const page=Math.min(pageCount,filters.requestedPage);
@@ -139,8 +145,8 @@ router.get('/backoffice/clients',requireAuth,async(req,res,next)=>{
       SUM(c.is_active=1 AND c.lifecycle_status='prospect') prospect_count,
       SUM(c.is_active=1 AND c.lifecycle_status='prospect' AND (c.email IS NULL OR c.email='' OR c.city_town IS NULL OR c.city_town='' OR c.id_number IS NULL OR c.id_number='')) incomplete_count,
       SUM(c.is_active=0 OR c.lifecycle_status='archived') archived_count
-      FROM crm_v_master_clients c WHERE ${visibility}`,{visibilityStaffId:selectedStaffId||userId});
-    const [[unassigned]] = await db.execute(`SELECT COUNT(*) total FROM crm_v_master_clients c
+      FROM ${COUNT_SOURCE} WHERE ${visibility}`,{visibilityStaffId:selectedStaffId||userId});
+    const [[unassigned]] = await db.execute(`SELECT COUNT(*) total FROM ${COUNT_SOURCE}
       WHERE c.is_active=1 AND ${visibility} AND ${unassignedClause()}`,{visibilityStaffId:selectedStaffId||userId});
 
     const queryStringFor=(overrides={})=>{
