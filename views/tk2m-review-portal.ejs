@@ -288,7 +288,7 @@
         </section>
       </div>
     <% } else if(history){ %>
-      <div class="review-card"><h2>Recorded decisions</h2><p class="review-muted">Every review remains in the audit history, including decisions that need to be reconsidered after a Friday refresh.</p>
+      <div class="review-card"><h2>Recorded decisions</h2><p class="review-muted">Every review remains in the audit history, including decisions that need to be reconsidered after a later data refresh.</p>
         <% if(!history.length){ %><p>Nothing has been reviewed yet.</p><% } %>
         <div class="review-table-wrap"><table><thead><tr><th>When</th><th>Reviewer</th><th>Case type</th><th>Decision</th><th>Explanation</th></tr></thead><tbody>
         <% history.forEach(h=>{ %><tr><td><%= h.reviewed_at instanceof Date?h.reviewed_at.toISOString().slice(0,16).replace('T',' '):h.reviewed_at %></td><td><%= h.reviewer||'Staff' %></td><td><%= kinds[h.kind]||h.kind %></td><td><%= h.status.replace('_',' ') %></td><td><%= h.note %></td></tr><% }) %>
