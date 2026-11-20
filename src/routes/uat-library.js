@@ -22,7 +22,7 @@ const librarySnapshotDir = path.join(libraryRoot, 'snapshots');
 const libraryTempDir = path.join(libraryRoot, 'tmp');
 let schemaPromise;
 
-const CATEGORIES = ['Deals','Favourites','Images','Pricing','PDFs','Forms','Promotions','Training','Documents','Presentations','Other'];
+const CATEGORIES = ['Deals','Manuals','Favourites','Images','Pricing','PDFs','Forms','Promotions','Training','Documents','Presentations','Other'];
 
 function management(user) {
   return Boolean(user && MANAGEMENT_ROLES.has(String(user.role || '').toLowerCase()));
@@ -47,6 +47,22 @@ function requireManager(req, res, next) {
   next();
 }
 
+function isManualsCategory(value) {
+  return String(value||'').trim().toLowerCase()==='manuals';
+}
+async function canEditManuals(user) {
+  if(canRestoreArchived(user))return true;
+  if(!user || !Number.isInteger(Number(user.id)) || Number(user.id)<1)return false;
+  const [[row]]=await db.execute('SELECT staff_id FROM library_manual_publishers WHERE staff_id=:staffId LIMIT 1', {staffId:Number(user.id)});
+  return Boolean(row);
+}
+async function requireManualEditor(req,res,next) {
+  try {
+    await ensureSchema();
+    if(!await canEditManuals(req.session.user))return res.status(403).json({ok:false,error:'Only Gerda or her authorised publishers may upload manuals.'});
+    next();
+  }catch(error){next(error);}
+}
 function idOf(value) {
   const id = Number(value);
   return Number.isInteger(id) && id > 0 ? id : null;
@@ -58,7 +74,7 @@ function clean(value, max=5000) {
 
 function safeCategory(value) {
   const raw = clean(value,80);
-  return raw || 'Other';
+  return raw.toLowerCase()==='manuals' ? 'Manuals' : (raw || 'Other');
 }
 
 function safeMonth(value) {
@@ -226,6 +242,12 @@ async function ensureSchema() {
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (id),
         KEY idx_library_snapshots_month (snapshot_month,created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+      await db.query(`CREATE TABLE IF NOT EXISTS library_manual_publishers (
+        staff_id BIGINT UNSIGNED NOT NULL,
+        granted_by BIGINT UNSIGNED NOT NULL,
+        granted_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (staff_id)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
     })().catch(error=>{schemaPromise=null;throw error;});
   }
@@ -542,10 +564,11 @@ router.get('/api/uat/library/bootstrap',requireAuth,async(req,res,next)=>{
     const favourites=await favouriteSet(userId);
     const documents=rows.map(row=>mapDocument(row,favourites,nativeLaunchFor(req,res.locals.basePath,row)));
     const documentCategories=[...new Set(documents.map(item=>item.category).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
-    const categories=['Deals',...documentCategories.filter(category=>category!=='Deals')];
+    const categories=['Deals','Manuals',...documentCategories.filter(category=>category!=='Deals'&&category!=='Manuals')];
     res.json({
       ok:true,
       canManage,
+      canManageManuals:await canEditManuals(req.session.user),
       canRestore,
       archiveSchedule:'7th of every month at 00:00 Africa/Johannesburg',
       user:{id:userId,name:req.session.user.full_name,role:req.session.user.role},
