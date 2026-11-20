@@ -9,7 +9,7 @@
 
   const requestedCategory=new URLSearchParams(window.location.search).get('category');
   const initialCategory=String(requestedCategory||'').trim().slice(0,80)||'all';
-  const state={documents:[],categories:[],suggestedCategories:[],canManage:false,canRestore:false,category:initialCategory,search:'',status:'active',selected:null};
+  const state={documents:[],categories:[],suggestedCategories:[],canManage:false,canManageManuals:false,canRestore:false,category:initialCategory,search:'',status:'active',selected:null};
   const grid=app.querySelector('[data-library-grid]');
   const count=app.querySelector('[data-library-count]');
   const resultTitle=app.querySelector('[data-library-result-title]');
@@ -75,7 +75,7 @@
       ? `<img src="${esc(fileUrl(doc.versionId))}" alt="">`
       : esc(iconFor(doc));
     return `<article class="library-card ${doc.companyFavourite?'is-featured':''}" data-library-open="${doc.id}">
-      ${state.canManage?`<button type="button" class="library-delete" data-library-delete="${doc.id}" aria-label="Delete ${esc(doc.title)}" title="Delete this file">Delete</button>`:''}
+      ${state.canManage&&(doc.category!=='Manuals'||state.canManageManuals)?`<button type="button" class="library-delete" data-library-delete="${doc.id}" aria-label="Delete ${esc(doc.title)}" title="Delete this file">Delete</button>`:''}
       <button type="button" class="library-star ${doc.favourite?'is-active':''}" data-library-star="${doc.id}" aria-label="${doc.favourite?'Remove favourite':'Add favourite'}">${doc.favourite?'★':'☆'}</button>
       <div class="library-card-preview">${image}</div>
       <div class="library-card-copy">
@@ -101,7 +101,7 @@
   }
 
   function renderCategories(){
-    const dynamicCategories=state.categories.filter(category=>category!=='Deals');
+    const dynamicCategories=state.categories.filter(category=>category!=='Deals'&&category!=='Manuals');
     categoryList.innerHTML=dynamicCategories.map(category=>`<button type="button" class="${state.category===category?'is-active':''}" data-library-category="${esc(category)}"><span>▣</span><strong>${esc(category)}</strong></button>`).join('');
     app.querySelectorAll('[data-library-category]').forEach(button=>button.classList.toggle('is-active',button.dataset.libraryCategory===state.category));
     categoryOptions.innerHTML=state.suggestedCategories.map(category=>`<option value="${esc(category)}"></option>`).join('');
@@ -139,6 +139,7 @@
     state.categories=data.categories||[];
     state.suggestedCategories=data.suggestedCategories||[];
     state.canManage=Boolean(data.canManage);
+    state.canManageManuals=Boolean(data.canManageManuals);
     state.canRestore=Boolean(data.canRestore);
     adminButton.hidden=!state.canManage;
     if(archiveTab)archiveTab.hidden=!state.canRestore;
@@ -162,6 +163,7 @@
     if(!state.canManage)return;
     const doc=state.documents.find(item=>Number(item.id)===Number(id));
     if(!doc)return;
+    if(doc.category==='Manuals'&&!state.canManageManuals)return;
     const confirmed=window.confirm(`Delete "${doc.title}" permanently?\n\nThis removes the Library item and all of its uploaded versions/files. Existing month-end snapshot ZIPs are not changed.`);
     if(!confirmed)return;
     await request(`/api/uat/library/documents/${id}`,{method:'DELETE'});
@@ -205,7 +207,7 @@
 
   function renderAdminDocuments(){
     if(!state.canManage)return;
-    adminDocuments.innerHTML=state.documents.length?state.documents.map(doc=>`<article class="library-admin-row">
+    adminDocuments.innerHTML=state.documents.filter(doc=>doc.category!=='Manuals'||state.canManageManuals).length?state.documents.filter(doc=>doc.category!=='Manuals'||state.canManageManuals).map(doc=>`<article class="library-admin-row">
       <div><strong>${esc(doc.title)}</strong><small>${esc(doc.category)} · V${doc.versionNumber} · ${esc(doc.status)} · ${esc(doc.originalName)}</small></div>
       <div class="library-admin-row-actions">
         <button type="button" data-admin-replace="${doc.id}">New version</button>
