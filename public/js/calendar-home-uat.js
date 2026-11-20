@@ -234,18 +234,6 @@
     sidebar.appendChild(section);
 
     const launcherScroll = launcher?.querySelector('.t2m-os-launcher-scroll');
-    if (launcherScroll && !launcherScroll.querySelector('[data-uat-work-launcher]')) {
-      const workLauncher = document.createElement('button');
-      workLauncher.type = 'button';
-      workLauncher.dataset.uatWorkLauncher = '1';
-      workLauncher.dataset.osApp = 'work';
-      workLauncher.setAttribute('aria-label', 'Work');
-      workLauncher.title = 'Work';
-      workLauncher.innerHTML = '<span class="t2m-brand-mark customer">W</span><strong>Work</strong><b data-badge="work" hidden></b>';
-      const customerLauncher = launcherScroll.querySelector('[data-os-launch="customers"]');
-      if (customerLauncher) launcherScroll.insertBefore(workLauncher, customerLauncher);
-      else launcherScroll.prepend(workLauncher);
-    }
 
     mountMobileMenu();
 
