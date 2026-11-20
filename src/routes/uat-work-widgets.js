@@ -367,7 +367,7 @@ async function getTask(taskId) {
 }
 
 router.get('/api/uat/widgets/health', async (req, res) => {
-  if (!IS_UAT) return res.sendStatus(404);
+  if (!IS_UAT || String(process.env.CRM_LIVE_MODE || '').toLowerCase()==='true') return res.sendStatus(404);
   try {
     await ensureSchema();
     const [rows] = await db.execute(`SELECT TABLE_NAME FROM information_schema.TABLES
@@ -391,7 +391,7 @@ router.get('/api/uat/widgets/health', async (req, res) => {
 });
 
 router.get('/api/uat/work/health', async (req,res) => {
-  if (!IS_UAT) return res.sendStatus(404);
+  if (!IS_UAT || String(process.env.CRM_LIVE_MODE || '').toLowerCase()==='true') return res.sendStatus(404);
   try {
     await ensureWorkOperatingSchema();
     const [rows]=await db.execute(`SELECT TABLE_NAME FROM information_schema.TABLES
