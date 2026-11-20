@@ -8,6 +8,7 @@ const {candidatesForCase,formatted:formatMergeValue}=require('../services/tk2m-m
 const router=express.Router();
 const ALLOWED=new Set(['verified','keep_separate','needs_update','hold']);
 const STAFF_ALLOWED=new Set(['needs_update','hold']);
+const IS_LIVE=String(process.env.CRM_LIVE_MODE||'').trim().toLowerCase()==='true';
 const hex=/^[0-9a-f]{64}$/;
 
 function protectedPage(req,res,next){
@@ -57,7 +58,11 @@ router.get('/data-review',protectedPage,reviewSession,authorize,async(req,res,ne
   try{
     const all=await authenticatedCases(req);
     const totals=summarize(all);
-    const kinds=Object.keys(TYPES);
+    // A missing optional historical source snapshot is not an operational warning.
+    // Hide the empty migration-era category on live, but preserve saved cases and history.
+    const displayTypes=IS_LIVE&&!all.sourceComparisonAvailable?
+      Object.fromEntries(Object.entries(TYPES).filter(([key])=>key!=='migration')):TYPES;
+    const kinds=Object.keys(displayTypes);
     const kind=safeFilter(req.query.kind,[...kinds,'all'],'all');
     const view=safeFilter(req.query.view,['open','pending','stale','verified','keep_separate','needs_update','hold','all'],'open');
     const term=String(req.query.q||'').trim().slice(0,70).toLowerCase();
@@ -71,9 +76,9 @@ router.get('/data-review',protectedPage,reviewSession,authorize,async(req,res,ne
     listing=listing.slice((page-1)*limit,page*limit);
     res.render('tk2m-review-portal',{layout:false,title:'Data Review Centre',currentUser:req.session.user,
       basePath:res.locals.basePath||'',assetVersion:res.locals.assetVersion,
-      listing,totals,kinds:TYPES,kind,view,q:term,page,pages:Math.max(1,Math.ceil(count/limit)),
+      listing,totals,kinds:displayTypes,kind,view,q:term,page,pages:Math.max(1,Math.ceil(count/limit)),
       listTotal:count,csrf:csrf(req),selected:null,history:null,
-      notice:[req.query.saved==='1'?'Review saved. The next outstanding cases remain in the queue.':'', all.sourceComparisonAvailable?'':'Source-vs-test comparison is unavailable until a verified source snapshot is installed.', all.decisionsAvailable?'':'Decision storage has not been installed. This queue is read-only until the review schema is installed and verified.'].filter(Boolean).join(' '),
+      notice:[req.query.saved==='1'?'Review saved. The next outstanding cases remain in the queue.':'', (!IS_LIVE&&!all.sourceComparisonAvailable)?'Historical comparison source is unavailable.':'',, all.decisionsAvailable?'':'Decision storage has not been installed. This queue is read-only until the review schema is installed and verified.'].filter(Boolean).join(' '),
       decisionsAvailable:all.decisionsAvailable,canManage:canManage(req.session.user)});
   }catch(error){next(error);}
 });
@@ -89,7 +94,7 @@ router.get('/data-review/history',protectedPage,reviewSession,authorize,async(re
     res.render('tk2m-review-portal',{layout:false,title:'Review History',currentUser:req.session.user,
       basePath:res.locals.basePath||'',assetVersion:res.locals.assetVersion,
       listing:[],totals:null,kinds:TYPES,kind:'all',view:'all',q:'',page:1,pages:1,listTotal:0,
-      csrf:csrf(req),selected:null,history,notice:all.sourceComparisonAvailable?'':'Source-vs-test comparison is unavailable until a verified source snapshot is installed.',decisionsAvailable:all.decisionsAvailable,canManage:owner});
+      csrf:csrf(req),selected:null,history,notice:(!IS_LIVE&&!all.sourceComparisonAvailable)?'Historical comparison source is unavailable.':'',,decisionsAvailable:all.decisionsAvailable,canManage:owner});
   }catch(error){next(error);}
 });
 router.get('/data-review/case/:id',protectedPage,reviewSession,authorize,async(req,res,next)=>{
