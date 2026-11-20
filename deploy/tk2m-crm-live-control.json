@@ -1,11 +1,11 @@
 {
   "schema": 1,
-  "action": "deploy",
+  "action": "hold",
   "environment": "tk2m-production",
-  "request_id": "tk2m-customers-fast-count-20261120-a1",
+  "request_id": "tk2m-customers-fast-count-20261120-postrelease-hold",
   "release_branch": "release/tk2m-customers-fast-count-20261120",
   "release_sha": "1461c0fe75dd3b35ef2750b1584060cc46376ba9",
-  "expected_previous_sha": "d582b1fa933cd9d39141bbab55fb0cf30605bda9",
+  "expected_previous_sha": "1461c0fe75dd3b35ef2750b1584060cc46376ba9",
   "production_cutover": true,
-  "owner_approved": true
+  "owner_approved": false
 }
