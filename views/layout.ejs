@@ -24,12 +24,12 @@
   <% if(isUat && !isLive){ %><link rel="stylesheet" href="<%= basePath %>/public/uat-safety.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>"><% } %>
   <% if(isUat){ %><link rel="stylesheet" href="<%= basePath %>/public/css/uat-mobile-first.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>"><% } %>
   <% if(isLive){ %><style id="tk2m-production-no-uat-banner">body.command-body::before{content:none!important;display:none!important}body.command-body{padding-top:0!important}</style><% } %>
-  <% if(isUat && !cudoDisabled && currentUser && String(currentUser.role||'').toLowerCase()==='owner' && !panelMode){ %><link rel="stylesheet" href="<%= basePath %>/public/css/cudo-widget.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>"><% } %>
+  <% if(isUat && !isLive && !cudoDisabled && currentUser && String(currentUser.role||'').toLowerCase()==='owner' && !panelMode){ %><link rel="stylesheet" href="<%= basePath %>/public/css/cudo-widget.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>"><% } %>
   <script defer src="<%= basePath %>/public/js/customer-actions.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>"></script>
   <script defer src="<%= basePath %>/public/js/attendance-nightly-settings.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>"></script>
   <% if(currentUser){ %><script defer src="<%= basePath %>/public/js/session-status-monitor.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>" data-base-path="<%= basePath %>"></script><% if(isLive && !panelMode){ %><script defer src="<%= basePath %>/public/js/tk2m-staff-attention.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>"></script><% } %><% } %>
   <% if(currentUser && ['owner','admin','manager'].includes(currentUser.role)){ %><script defer src="<%= basePath %>/public/js/approval-badges.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>" data-base-path="<%= basePath %>"></script><% } %>
-  <% if(isUat && !cudoDisabled && currentUser && String(currentUser.role||'').toLowerCase()==='owner' && !panelMode){ %><script defer src="<%= basePath %>/public/js/cudo-widget.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>" data-base-path="<%= basePath %>"></script><% } %>
+  <% if(isUat && !isLive && !cudoDisabled && currentUser && String(currentUser.role||'').toLowerCase()==='owner' && !panelMode){ %><script defer src="<%= basePath %>/public/js/cudo-widget.js?v=<%= encodeURIComponent(assetVersion || appVersion) %>" data-base-path="<%= basePath %>"></script><% } %>
   <link rel="stylesheet" data-tk2m-blue-refresh href="<%= basePath %>/public/css/tk2m-blue-red-refresh.css?v=<%= encodeURIComponent(assetVersion || appVersion) %>-blue20261119a">
 </head>
 <body class="command-body <%= panelMode?'panel-mode':'' %>">
@@ -53,9 +53,6 @@
     <a href="<%= basePath %>/approvals" data-command-panel><b>◆</b><span data-approval-label><%= safeApprovalCentreCount?'Approvals Needed':'Approvals' %></span><em data-approval-count <%= safeApprovalCentreCount?'':'hidden' %>><%= safeApprovalCentreCount %></em></a>
     <a href="<%= basePath %>/upgrade-centre" data-command-panel><b>↗</b><span>Upgrades</span></a>
     <a href="<%= basePath %>/reports?type=birthdays" data-command-panel><b>★</b><span>Reports</span></a>
-    <% if(isUat && currentUser && (String(currentUser.role||'').toLowerCase()==='owner' || ['jonathan@talk-online.co.za','gerda@talk-online.co.za'].includes(String(currentUser.email||'').toLowerCase()))){ %>
-    <a href="<%= basePath %>/temporary-cleanup"><b>⚑</b><span>Cleanup Centre (Temporary)</span></a>
-    <% } %>
     <a href="<%= basePath %>/backoffice" data-command-panel><b>⚙</b><span>Administration</span></a>
     <% } %>
   </nav>
