@@ -40,7 +40,7 @@
 
   function applyLaunchers(items) {
     const enabled = (Array.isArray(items) ? items : [])
-      .filter(item => Number(item.is_enabled) === 1)
+      .filter(item => Number(item.is_enabled) === 1 || item.slot_key === 'slot_8')
       .sort((left, right) => Number(left.sort_order) - Number(right.sort_order));
     for (const key of Object.keys(byKey)) delete byKey[key];
     for (const item of enabled) byKey[item.slot_key] = item;
@@ -52,7 +52,8 @@
       const button = document.createElement('button');
       button.type = 'button';
       button.dataset.osManagedLauncher = item.slot_key;
-      button.innerHTML = `<span class="t2m-brand-mark customer">${esc(item.icon_text || item.display_name.slice(0, 1))}</span><strong>${esc(item.display_name)}</strong>`;
+      if(item.slot_key==='slot_8')button.classList.add('t2m-manuals-launcher');
+      button.innerHTML = item.slot_key==='slot_8' ? '<span class="t2m-brand-mark customer">📘</span><strong>Manuals</strong>' : `<span class="t2m-brand-mark customer">${esc(item.icon_text || item.display_name.slice(0, 1))}</span><strong>${esc(item.display_name)}</strong>`;
       strip.appendChild(button);
     }
   }
@@ -235,6 +236,10 @@
   }
 
   function openManagedLauncher(key) {
+    if(key==='slot_8'){
+      window.open(`${config.basePath || ''}/manuals`,'_blank','noopener');
+      return;
+    }
     const item = byKey[key];
     if (!item) return;
 
