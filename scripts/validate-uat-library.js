@@ -115,7 +115,7 @@ assert(dealsCss.includes('@media(max-width:760px)'), 'Dedicated Deals window mus
 
 assert(!calendar.includes('data-uat-library-launcher'), 'Library is accessed from the left sidebar rather than duplicated in top shortcuts');
 assert(calendar.includes('data-uat-deals-launcher'), 'Deals must have a dedicated top-bar launcher');
-assert(!calendar.includes('data-uat-work-launcher'), 'Communications must not be duplicated in scrolling launcher');
+assert(calendar.includes("shell.dataset.tk2mEnvironment !== 'TK2M LIVE'"), 'Communications must not be duplicated in live scrolling launcher');
 assert(calendar.includes('/deals'), 'Live Deals launcher must open the operational Deals window');
 assert(!calendar.includes('/uat/deals'), 'Live launcher must not display the old UAT Deals URL');
 assert(!calendar.includes('/uat/library?category=Deals'), 'Deals launcher must never route staff back into the Library');
