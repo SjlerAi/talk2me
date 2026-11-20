@@ -9,7 +9,7 @@ const router=express.Router();
 
 function guard(req,res,next){
   if(!canUseTemporaryCleanup(req.session.user))
-    return res.status(404).render('error',{title:'Not available',message:'Cleanup Centre access is restricted or expired.'});
+    return res.status(404).render('error',{title:'Not available',message:'This retired screen is no longer available. Continue through My Day or Administration Centre.'});
   next();
 }
 function statusFilter(q){
