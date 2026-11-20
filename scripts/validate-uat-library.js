@@ -115,9 +115,14 @@ assert(dealsCss.includes('@media(max-width:760px)'), 'Dedicated Deals window mus
 
 assert(calendar.includes('data-uat-library-launcher'), 'Library must be added to the top launcher');
 assert(calendar.includes('data-uat-deals-launcher'), 'Deals must have a dedicated top-bar launcher');
-assert(calendar.includes('/uat/deals'), 'Deals launcher must open the dedicated Deals window');
+assert(calendar.includes('/deals'), 'Live Deals launcher must open the operational Deals window');
+assert(!calendar.includes('/uat/deals'), 'Live launcher must not display the old UAT Deals URL');
 assert(!calendar.includes('/uat/library?category=Deals'), 'Deals launcher must never route staff back into the Library');
 assert(homeCss.includes('.t2m-top-deals-button'), 'Deals launcher must be visibly styled in green');
-assert(calendar.includes('/uat/library'), 'Library must be available in CRM navigation');
+assert(calendar.includes('/library'), 'Live Library must use the operational URL');
+assert(!calendar.includes('/uat/library'), 'Live Library launcher must not use the old UAT URL');
+assert(route.includes("router.get(['/library','/uat/library'],requireAuth"), 'Canonical /library must keep the old authenticated route compatible');
+assert(route.includes("router.get(['/deals','/uat/deals'],requireAuth"), 'Canonical /deals must keep old authenticated route compatible');
+assert(route.includes("if(!IS_UAT || IS_LIVE) return res.sendStatus(404)"), 'Obsolete UAT health endpoints must not be available in production');
 
-console.log('UAT Talk2Me Library V1 validation passed.');
+console.log('TALK2ME_OPERATIONAL_LIBRARY_AND_DEALS_PASS');
