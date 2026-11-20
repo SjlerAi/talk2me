@@ -689,6 +689,11 @@ router.post('/api/uat/manuals/publishers',requireAuth,requireGerda,async(req,res
     const allowed=req.body.allowed===true;
     if(allowed)await db.execute('INSERT INTO library_manual_publishers (staff_id,granted_by) VALUES (:staffId,:grantedBy) ON DUPLICATE KEY UPDATE granted_by=VALUES(granted_by),granted_at=NOW()',{staffId,grantedBy:Number(req.session.user.id)});
     else await db.execute('DELETE FROM library_manual_publishers WHERE staff_id=:staffId',{staffId});
+    try{await trackEvent({staffId:req.session.user.id,
+      eventType:allowed?'manuals_publisher_granted':'manuals_publisher_revoked',
+      screenKey:'manuals',routePath:'/api/uat/manuals/publishers',
+      moduleName:'library',httpMethod:'POST',httpStatus:200,metadata:{targetStaffId:staffId}});
+    }catch(error){console.error('[manuals-audit]',error.message);}
     res.json({ok:true,staffId,allowed});
   }catch(error){next(error);}
 });
