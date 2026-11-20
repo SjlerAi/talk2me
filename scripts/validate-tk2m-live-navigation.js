@@ -74,6 +74,9 @@ assert.doesNotMatch(tagline({isLive:true,isStaging:true}), /TEST|NOT LIVE|OS v/)
 assert.match(tagline({isLive:false,isStaging:true}), /TEST · Cellular CRM/);
 
 const appSource = read('server.js');
+assert.match(appSource, /if \\(UAT_MODE && !CRM_LIVE_MODE\\) \\{\\s*const publicUatWidgets/, 'Live site must not expose UAT-only widget/telemetry health endpoints');
+const legacyWorkHealth = read('src/routes/uat-work-widgets.js');
+assert.equal((legacyWorkHealth.match(/if \\(!IS_UAT \\|\\| String\\(process\\.env\\.CRM_LIVE_MODE/g)||[]).length,2, 'Two UAT-only work diagnostics must be disabled in production');
 const liveNeutralizer = appSource.match(/if \(CRM_LIVE_MODE\) \{\s*app\.get\('\/public\/uat-safety\.css'[\s\S]*?\n\}/);
 assert.ok(liveNeutralizer, 'production-only UAT CSS neutralizer must exist');
 assert.match(liveNeutralizer[0], /res\.type\('text\/css'\)\.send/);
