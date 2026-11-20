@@ -10,6 +10,7 @@ const crypto = require('crypto');
 const XLSX = require('xlsx');
 const { writeZip, safeZipPath } = require('../services/library-zip');
 const { trackEvent } = require('../services/usage-telemetry');
+const { hasOwnerLibraryAuthority } = require('../services/tk2m-library-roles');
 
 const router = express.Router();
 const IS_UAT = String(process.env.UAT_MODE || '').trim().toLowerCase() === 'true';
@@ -30,9 +31,7 @@ function management(user) {
 
 // Owners receive the same Library archive/publishing authority regardless
 // of display name or staff ID. Staff-specific tasks/messages still use identity.
-function canRestoreArchived(user){
-  return Boolean(user && String(user.role||'').trim().toLowerCase()==='owner');
-}
+const canRestoreArchived = hasOwnerLibraryAuthority;
 function requireLibraryOwner(req,res,next){
   if(!req.session.user)return res.status(401).json({ok:false,error:'Sign in required.'});
   if(!canRestoreArchived(req.session.user))
