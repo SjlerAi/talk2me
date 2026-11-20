@@ -14,7 +14,7 @@ const css=read('public/css/calendar-home-uat.css');
 const shell=read('views/os-shell.ejs');
 const managed=read('public/js/os-launchers.js');
 assert.match(calendar,/data-uat-deals-launcher/);
-assert.doesNotMatch(calendar,/data-uat-work-launcher/,'No redundant Communications button beside Customers');
+assert.match(calendar,/shell\.dataset\.tk2mEnvironment !== 'TK2M LIVE'/,'Live-only removal preserves UAT Work launcher');
 assert.match(css,/#talk2me-os \.t2m-os-icon-button\.t2m-top-deals-button\{/,'Deals must win against shared theme icon rule');
 assert.doesNotMatch(calendar,/data-uat-library-launcher/);
 assert.match(shell,/communications','communication','library','deals/);
