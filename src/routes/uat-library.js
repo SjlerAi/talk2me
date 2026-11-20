@@ -980,12 +980,16 @@ router.delete('/api/uat/library/documents/:id',requireAuth,requireManager,async(
 
     await connection.beginTransaction();
     const [[document]]=await connection.execute(
-      'SELECT id,title,status FROM library_documents WHERE id=:id LIMIT 1 FOR UPDATE',
+      'SELECT id,title,status,category FROM library_documents WHERE id=:id LIMIT 1 FOR UPDATE',
       {id}
     );
     if(!document){
       await connection.rollback();
       return res.sendStatus(404);
+    }
+    if(isManualsCategory(document.category)&&!await canEditManuals(req.session.user)){
+      await connection.rollback();
+      return res.status(403).json({ok:false,error:'Only authorised publishers can delete manuals.'});
     }
     if(document.status!=='active'&&!canRestoreArchived(req.session.user)){
       await connection.rollback();
