@@ -924,8 +924,12 @@ router.post('/api/uat/library/documents/:id/meta',requireAuth,requireManager,asy
     const title=clean(req.body.title,180);
     if(!title) return res.status(400).json({ok:false,error:'Title is required.'});
     const category=safeCategory(req.body.category);
+    const [[existing]]=await db.execute('SELECT category FROM library_documents WHERE id=:id LIMIT 1',{id});
+    if(!existing)return res.sendStatus(404);
+    if((isManualsCategory(existing.category)||isManualsCategory(category))&&!await canEditManuals(req.session.user))
+      return res.status(403).json({ok:false,error:'Only authorised publishers can edit manuals.'});
     const description=clean(req.body.description,5000);
-    const accessLevel=clean(req.body.access_level,30)==='management'?'management':'all';
+    const accessLevel=isManualsCategory(category)?'all':(clean(req.body.access_level,30)==='management'?'management':'all');
     const favourite=String(req.body.company_favourite||'')==='1'?1:0;
     const userId=Number(req.session.user.id);
     const [result]=await db.execute(`UPDATE library_documents
