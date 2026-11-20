@@ -1,11 +1,11 @@
 {
   "schema": 1,
-  "action": "hold",
+  "action": "deploy",
   "environment": "tk2m-production",
-  "request_id": "tk2m-manuals-shortcuts-20261120-postrelease-hold",
-  "release_branch": "release/tk2m-manuals-and-shortcuts-20261120",
-  "release_sha": "54da7a2ca132e26e324a093100b976faf8e372aa",
+  "request_id": "tk2m-manuals-shortcut-qa-fix-20261120-a1",
+  "release_branch": "release/tk2m-manuals-live-qa-fix-20261120",
+  "release_sha": "57bfba2ff0579502db0c771de242328cf9b780f6",
   "expected_previous_sha": "54da7a2ca132e26e324a093100b976faf8e372aa",
   "production_cutover": true,
-  "owner_approved": false
+  "owner_approved": true
 }
