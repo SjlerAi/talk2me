@@ -77,7 +77,7 @@ const database={
     calls.push({sql,params:{...params}});
     if(sql.includes('SUM(c.is_active=1)'))return [[{active_count:2134,prospect_count:0,archived_count:0,incomplete_count:0}]];
     if(sql.startsWith('SELECT COUNT(*) total FROM clients c JOIN crm_master_active')){
-      if(sql.includes('AND NOT EXISTS ('))return [[{total:0}]];
+      if(sql.includes(' WHERE c.is_active=1 AND '))return [[{total:0}]];
       return [[{total:4}]];
     }
     if(sql.includes('FROM crm_v_master_clients c')&&sql.includes('ORDER BY'))return [[{
