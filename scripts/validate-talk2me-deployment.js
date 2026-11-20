@@ -1,62 +1,66 @@
-const fs = require('fs');
-const path = require('path');
+'use strict';
+// GitHub-only retirement guard. This validator must never connect to UENT or
+// TK2M hosting or attempt to change an operational database.
+const fs=require('node:fs');
+const path=require('node:path');
+const root=path.resolve(__dirname,'..');
+const failures=[];
+const relative=p=>path.join(root,p);
+const read=p=>fs.readFileSync(relative(p),'utf8');
 
-const root = path.resolve(__dirname, '..');
-const failures = [];
-
-function read(relativePath) {
-  const absolutePath = path.join(root, relativePath);
-  if (!fs.existsSync(absolutePath)) {
-    failures.push(`Missing required deployment file: ${relativePath}`);
-    return '';
+// The canonical live TK2M release must keep public health and immutable
+// version proofs ahead of any authenticated business routes.
+const server=read('server.js');
+const sessionPosition=server.indexOf('app.use(session({');
+for(const route of ["'/api/health'","'/api/release'"]){
+  const pos=server.indexOf(route);
+  if(pos<0)failures.push('Missing public '+route+' health/release identity');
+  if(sessionPosition>=0 && pos>sessionPosition){
+    failures.push(route+' must be registered before session middleware');
   }
-  return fs.readFileSync(absolutePath, 'utf8');
 }
 
-function requireText(relativePath, text, explanation) {
-  const source = read(relativePath);
-  if (!source.includes(text)) failures.push(`${relativePath}: ${explanation}`);
+// The owner has retired old UENT/UNT CRM deployment automation. A future
+// merge must not silently restore it, even from the historical main branch.
+const retired=[
+  'deploy-elitehost-uat.yml',
+  'bootstrap-elitehost-uat-agent.yml',
+  'bootstrap-ui-uat-v2-agent.yml',
+  'verify-elitehost-connection.yml',
+  'apply-base-details-foundation-db.yml',
+  'validate-release-proof.yml'
+];
+const workflows=relative('.github/workflows');
+for(const name of retired){
+  if(fs.existsSync(path.join(workflows,name))){
+    failures.push('Retired UENT workflow must remain absent: '+name);
+  }
+}
+let examined=0;
+for(const name of fs.readdirSync(workflows).filter(x=>/\.ya?ml$/.test(x))){
+  const source=fs.readFileSync(path.join(workflows,name),'utf8');
+  examined++;
+  // Block any executable Actions workflow pointed at old UENT CRM runtime.
+  // Zippy and current TK2M validation have separate identities and remain.
+  if(/talk2me\.uent\.co\.za|\/home\/uent\/(?:repositories\/talk2me|talk2me\.uent\.co\.za)|SSH_USER:\s*['"]?uent\b/i.test(source)){
+    failures.push('Actions workflow still targets retired UENT CRM: '+name);
+  }
 }
 
-const server = read('server.js');
-const sessionPosition = server.indexOf('app.use(session({');
-for (const route of ["'/api/health'", "'/api/release'"]) {
-  const position = server.indexOf(route);
-  if (position < 0) failures.push(`server.js: missing public ${route} route`);
-  if (sessionPosition >= 0 && position > sessionPosition) failures.push(`server.js: ${route} must be registered before session middleware`);
+// Historical UENT control data is retained in HOLD while host-side database
+// preservation is verified; this validator does not attempt a migration.
+const legacyControl=relative('deploy/uat.json');
+if(fs.existsSync(legacyControl)){
+  const control=JSON.parse(fs.readFileSync(legacyControl,'utf8'));
+  if(control.status!=='HOLD')failures.push('Historical UENT manifest must remain HOLD');
 }
-
-requireText('.github/workflows/verify-elitehost-connection.yml', 'environment: talk2me-uat', 'connection test must use the protected GitHub environment');
-requireText('.github/workflows/verify-elitehost-connection.yml', 'ELITEHOST_SSH_PRIVATE_KEY', 'connection test must consume the exact private-key secret');
-requireText('.github/workflows/bootstrap-elitehost-uat-agent.yml', 'BOOTSTRAP UAT AGENT', 'bootstrap must require explicit confirmation');
-requireText('.github/workflows/deploy-elitehost-uat.yml', 'DEPLOY UAT', 'deployment must require explicit confirmation');
-requireText('.github/workflows/deploy-elitehost-uat.yml', 'sha256sum', 'artifact checksum must be created and revalidated');
-requireText('.github/workflows/deploy-elitehost-uat.yml', 'deploy/uat-control', 'workflow must use the dedicated control branch');
-requireText('.github/workflows/deploy-elitehost-uat.yml', 'status: \'HOLD\'', 'workflow must return the control manifest to HOLD');
-requireText('scripts/talk2me-uat-agent.sh', 'test "$REPOSITORY" = SjlerAi/talk2me', 'agent must pin the repository identity');
-requireText('scripts/talk2me-uat-agent.sh', 'expected_artifact="talk2me-${COMMIT}-${WORKFLOWRUNID}.tar.gz"', 'agent must pin artifact name to commit and run');
-requireText('scripts/deploy-uat-artifact.sh', 'EXPECTED_SHA256', 'driver must validate the expected checksum');
-requireText('scripts/deploy-uat-artifact.sh', 'rollback()', 'driver must provide rollback on failed activation');
-requireText('scripts/deploy-uat-artifact.sh', 'tmp/restart.txt', 'driver must restart Passenger');
-
-const deployWorkflow = read('.github/workflows/deploy-elitehost-uat.yml');
-if (/\b(db:migrate|scripts\/migrate|mysql\s|\.sql\b)/i.test(deployWorkflow)) {
-  failures.push('deploy workflow: SQL and database migrations must remain outside automated deployment');
+if(failures.length){
+  console.error('Talk2Me retired-UENT deployment guard FAILED:');
+  for(const f of failures)console.error('- '+f);
+  process.exitCode=1;
+}else{
+  console.log('TALK2ME_UENT_WORKFLOW_RETIREMENT_GUARD_PASS checked_workflows='+examined);
+  console.log('- Old UENT CRM GitHub deployments, bootstraps and SQL jobs are absent');
+  console.log('- Canonical CRM public health and release proofs remain protected');
+  console.log('- Historical UENT database is NOT modified by this source check');
 }
-
-const control = JSON.parse(read('deploy/uat.json') || '{}');
-if (control.status !== 'HOLD' || control.repository !== 'SjlerAi/talk2me' || control.environment !== 'uat') {
-  failures.push('deploy/uat.json: committed control manifest must be a Talk2Me UAT HOLD manifest');
-}
-
-if (failures.length) {
-  console.error('Talk2Me deployment validation failed:');
-  failures.forEach(failure => console.error(`- ${failure}`));
-  process.exit(1);
-}
-
-console.log('Talk2Me deployment validation passed.');
-console.log('- public health and exact-release routes are available before session middleware');
-console.log('- GitHub environment, encrypted SSH, immutable artifact, checksum, control branch and HOLD reset are enforced');
-console.log('- server agent pins repository/commit/run identity and activation includes backup, rollback and Passenger restart');
-console.log('- automated deployment contains no SQL or migration execution');
