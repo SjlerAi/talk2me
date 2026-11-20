@@ -186,39 +186,5 @@
     observer.observe(loadZone);
   }
 
-  const manageButton=document.querySelector("[data-manuals-manage-open]");
-  const manageDialog=document.querySelector("[data-manuals-manage]");
-  const uploadForm=document.querySelector("[data-manuals-upload]");
-  if(manageButton&&manageDialog&&uploadForm){
-    manageButton.onclick=()=>{manageDialog.showModal();loadPublishers();};
-    manageDialog.querySelector("[data-manuals-manage-close]").onclick=()=>manageDialog.close();
-    uploadForm.onsubmit=async event=>{
-      event.preventDefault();
-      const status=document.querySelector("[data-manuals-upload-status]");
-      const files=uploadForm.querySelector("[name=files]").files;
-      if(!files.length||files.length>10){status.textContent="Choose 1 to 10 files.";return;}
-      const submit=uploadForm.querySelector("[type=submit]");
-      submit.disabled=true;status.textContent="Uploading manuals…";
-      try{const response=await request("/api/uat/manuals/upload",{method:"POST",body:new FormData(uploadForm)});
-        status.textContent=response.count+" manual(s) published";uploadForm.reset();await load({reset:true});
-      }catch(error){status.textContent=error.message;}finally{submit.disabled=false;}
-    };
-  }
-  async function loadPublishers(){
-    const select=document.querySelector("[data-manuals-staff]");if(!select)return;
-    try{const data=await request("/api/uat/manuals/publishers");
-      select.innerHTML=(data.staff||[]).filter(user=>String(user.role||'').toLowerCase()!=='owner').map(user=>"<option value=\""+user.id+"\">"+esc(user.name)+(user.allowed?" (authorised)":"")+"</option>").join("");
-      const names=(data.staff||[]).filter(user=>user.allowed&&String(user.role||'').toLowerCase()!=='owner').map(user=>user.name);
-      document.querySelector("[data-manuals-publishers]").textContent=names.length?"Authorised: "+names.join(", "):"No other authorised uploaders.";
-    }catch(error){document.querySelector("[data-manuals-publishers]").textContent=error.message;}
-  }
-  async function setPublisher(allowed){
-    const staffId=Number(document.querySelector("[data-manuals-staff]")?.value);if(!staffId)return;
-    try{await request("/api/uat/manuals/publishers",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({staffId,allowed})});await loadPublishers();}
-    catch(error){document.querySelector("[data-manuals-publishers]").textContent=error.message;}
-  }
-  const grant=document.querySelector("[data-manuals-grant]");if(grant)grant.onclick=()=>setPublisher(true);
-  const revoke=document.querySelector("[data-manuals-revoke]");if(revoke)revoke.onclick=()=>setPublisher(false);
-
   load({reset:true});
 })();
