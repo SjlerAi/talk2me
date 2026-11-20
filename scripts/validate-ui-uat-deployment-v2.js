@@ -107,18 +107,19 @@ if (fs.existsSync(path.join(root, '.github/workflows/deploy-ui-uat.yml'))) {
   failures.push('Superseded routine GitHub->Elitehost UI-UAT deployment workflow must not exist.');
 }
 
-const commissioning = read('.github/workflows/bootstrap-ui-uat-v2-agent.yml');
-if (!commissioning.includes('BOOTSTRAP UI UAT V2 AGENT')) failures.push('one-time commissioning must require explicit confirmation');
-if (!commissioning.includes('install-talk2me-ui-uat-agent.sh')) failures.push('commissioning must install the reviewed permanent poller');
-if (commissioning.includes('scp ')) failures.push('commissioning workflow must not introduce artifact SCP deployment');
+// Archive-only source checks remain, but the old UI-UAT commissioning
+// workflow has been retired. It must not be made runnable again by a merge.
+if (fs.existsSync(path.join(root, '.github/workflows/bootstrap-ui-uat-v2-agent.yml'))) {
+  failures.push('Retired UENT UI-UAT agent bootstrap workflow must remain absent.');
+}
 
 if (failures.length) {
   console.error('Talk2Me UI-UAT Deployment Bible V2 validation failed:');
   failures.forEach(f => console.error('- ' + f));
   process.exit(1);
 }
-console.log('Talk2Me UI-UAT Deployment Bible V2 validation passed.');
-console.log('- one control branch, one permanent poller, one installed driver');
+console.log('TALK2ME_RETIRED_UI_UAT_ARCHIVE_CONTRACT_PASS');
+console.log('- historical UI-UAT source contracts remain reviewable but bootstrap deployment is disabled');
 console.log('- controlled release/* exact SHA only');
 console.log('- no routine GitHub Actions SSH/SCP deployment workflow');
 console.log('- exact public SHA, page probes and Agent runtime proof remain mandatory');
