@@ -947,6 +947,10 @@ router.post('/api/uat/library/documents/:id/archive',requireAuth,requireManager,
     await ensureSchema();
     const id=idOf(req.params.id);
     if(!id) return res.sendStatus(404);
+    const [[existing]]=await db.execute('SELECT category FROM library_documents WHERE id=:id LIMIT 1',{id});
+    if(!existing)return res.sendStatus(404);
+    if(isManualsCategory(existing.category)&&!await canEditManuals(req.session.user))
+      return res.status(403).json({ok:false,error:'Only authorised publishers can archive manuals.'});
     const status=clean(req.body.status,20)==='active'?'active':'archived';
     if(status==='active'&&!canRestoreArchived(req.session.user))
       return res.status(403).json({ok:false,error:'Only Gerda can restore archived files.'});
