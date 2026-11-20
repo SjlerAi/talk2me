@@ -830,8 +830,12 @@ router.post('/api/uat/library/documents',requireAuth,requireManager,uploadMiddle
     if(!title){removeUploaded(req);return res.status(400).json({ok:false,error:'Enter a document title.'});}
     const userId=Number(req.session.user.id);
     const category=safeCategory(req.body.category);
+    if(isManualsCategory(category)&&!await canEditManuals(req.session.user)){
+      removeUploaded(req);
+      return res.status(403).json({ok:false,error:'Only authorised publishers can upload manuals.'});
+    }
     const description=clean(req.body.description,5000);
-    const accessLevel=clean(req.body.access_level,30)==='management'?'management':'all';
+    const accessLevel=isManualsCategory(category)?'all':(clean(req.body.access_level,30)==='management'?'management':'all');
     const favourite=String(req.body.company_favourite||'')==='1'?1:0;
     const ext=extensionOf(req.file);
     await connection.beginTransaction();
