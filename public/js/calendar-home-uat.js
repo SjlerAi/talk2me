@@ -234,7 +234,7 @@
     sidebar.appendChild(section);
 
     const launcherScroll = launcher?.querySelector('.t2m-os-launcher-scroll');
-    if (launcherScroll && !launcherScroll.querySelector('[data-uat-work-launcher]')) {
+    if (shell.dataset.tk2mEnvironment !== 'TK2M LIVE' && launcherScroll && !launcherScroll.querySelector('[data-uat-work-launcher]')) {
       const workLauncher = document.createElement('button');
       workLauncher.type = 'button';
       workLauncher.dataset.uatWorkLauncher = '1';
