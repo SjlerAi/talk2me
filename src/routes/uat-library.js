@@ -624,6 +624,54 @@ router.get('/api/uat/deals',requireAuth,async(req,res,next)=>{
   }catch(error){next(error);}
 });
 
+router.get('/manuals',requireAuth,async(req,res,next)=>{
+  try{await ensureSchema();res.render('manuals',{layout:false,title:'Manuals',basePath:res.locals.basePath||'',appVersion:res.locals.appVersion||'',currentUser:req.session.user,canManageManuals:await canEditManuals(req.session.user),canDelegateManuals:canRestoreArchived(req.session.user)});}catch(error){next(error);}
+});
+router.get('/api/uat/manuals',requireAuth,async(req,res,next)=>{
+  try{
+    await ensureSchema();
+    const userId=Number(req.session.user.id);
+    const limit=Math.min(Math.max(Number.parseInt(req.query.limit,10)||100,1),200);
+    const offset=Math.max(Number.parseInt(req.query.offset,10)||0,0);
+    const query=clean(req.query.q,120);
+    const typeFilter=dealTypeFilterSql(req.query.type);
+    const params={};
+    let searchSql='';
+    if(query){
+      params.search=`%${query}%`;
+      searchSql=' AND (d.title LIKE :search OR d.description LIKE :search OR v.original_name LIKE :search)';
+    }
+    const whereSql=`${documentAccessSql(req.session.user)} AND d.status='active' AND d.category='Manuals'${typeFilter.sql}${searchSql}`;
+    const [[countRow]]=await db.execute(`SELECT COUNT(*) total
+      FROM library_documents d
+      LEFT JOIN library_versions v ON v.id=d.current_version_id
+      WHERE ${whereSql}`,params);
+    const [rows]=await db.execute(`SELECT d.id,d.title,d.description,d.category,d.access_level,d.company_favourite,d.status,d.updated_at,
+      v.id version_id,v.version_number,v.original_name,v.mime_type,v.extension,v.file_bytes,v.created_at version_created_at,
+      uploader.full_name uploaded_by_name
+      FROM library_documents d
+      LEFT JOIN library_versions v ON v.id=d.current_version_id
+      LEFT JOIN staff_users uploader ON uploader.id=v.uploaded_by
+      WHERE ${whereSql}
+      ORDER BY COALESCE(v.created_at,d.created_at) DESC,d.id DESC
+      LIMIT ${limit} OFFSET ${offset}`,params);
+    const favourites=await favouriteSet(userId);
+    const documents=rows.map(row=>mapDocument(row,favourites,nativeLaunchFor(req,res.locals.basePath,row)));
+    const total=Number(countRow?.total||0);
+    const nextOffset=offset+documents.length;
+    res.json({
+      ok:true,
+      total,
+      offset,
+      limit,
+      nextOffset,
+      hasMore:nextOffset<total,
+      type:typeFilter.type,
+      documents
+    });
+  }catch(error){next(error);}
+});
+
 router.get('/api/uat/library/documents/:id',requireAuth,async(req,res,next)=>{
   try{
     await ensureSchema();
