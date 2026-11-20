@@ -672,8 +672,8 @@ router.get('/api/uat/manuals',requireAuth,async(req,res,next)=>{
 router.get('/api/uat/manuals/publishers',requireAuth,requireLibraryOwner,async(req,res,next)=>{
   try{
     await ensureSchema();
-    const [rows]=await db.execute('SELECT s.id,s.full_name,CASE WHEN p.staff_id IS NULL THEN 0 ELSE 1 END allowed FROM staff_users s LEFT JOIN library_manual_publishers p ON p.staff_id=s.id ORDER BY s.full_name,s.id');
-    res.json({ok:true,staff:rows.map(row=>({id:Number(row.id),name:row.full_name,allowed:Boolean(row.allowed)}))});
+    const [rows]=await db.execute('SELECT s.id,s.full_name,s.role,CASE WHEN p.staff_id IS NULL THEN 0 ELSE 1 END allowed FROM staff_users s LEFT JOIN library_manual_publishers p ON p.staff_id=s.id ORDER BY s.full_name,s.id');
+    res.json({ok:true,staff:rows.map(row=>({id:Number(row.id),name:row.full_name,role:row.role,allowed:Boolean(row.allowed)}))});
   }catch(error){next(error);}
 });
 router.post('/api/uat/manuals/publishers',requireAuth,requireLibraryOwner,async(req,res,next)=>{
@@ -681,8 +681,9 @@ router.post('/api/uat/manuals/publishers',requireAuth,requireLibraryOwner,async(
     await ensureSchema();
     const staffId=idOf(req.body.staffId);
     if(!staffId)return res.status(400).json({ok:false,error:'Choose a valid staff member.'});
-    const [[staff]]=await db.execute('SELECT id FROM staff_users WHERE id=:staffId LIMIT 1',{staffId});
+    const [[staff]]=await db.execute('SELECT id,role FROM staff_users WHERE id=:staffId LIMIT 1',{staffId});
     if(!staff)return res.sendStatus(404);
+    if(hasOwnerLibraryAuthority(staff))return res.status(400).json({ok:false,error:'Owners already have publishing rights by role.'});
     const allowed=req.body.allowed===true;
     if(allowed)await db.execute('INSERT INTO library_manual_publishers (staff_id,granted_by) VALUES (:staffId,:grantedBy) ON DUPLICATE KEY UPDATE granted_by=VALUES(granted_by),granted_at=NOW()',{staffId,grantedBy:Number(req.session.user.id)});
     else await db.execute('DELETE FROM library_manual_publishers WHERE staff_id=:staffId',{staffId});
