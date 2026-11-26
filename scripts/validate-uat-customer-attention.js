@@ -89,17 +89,24 @@ const database={
     throw Error('Unexpected SELECT query '+sql.slice(0,120));
   }
 };
-const handlers={};const originalLoad=Module._load;
+const handlers={};let fixtureDbUsed=false;
+const originalLoad=Module._load;
 Module._load=function(request,parent,isMain){
-  if(parent?.filename?.endsWith('/src/routes/uat-client-visibility.js')){
+  if(parent?.filename===require.resolve('../src/routes/uat-client-visibility')){
     if(request==='express')return {Router:()=>({get:(p,...rest)=>handlers[p]=rest.at(-1)})};
-    if(request==='../config/db')return database;
+    if(request==='../config/db'){fixtureDbUsed=true;return database;}
     if(request==='../middleware/auth')return {requireAuth:()=>{}};
   }
   return originalLoad.apply(this,arguments);
 };
+const previousUatMode=process.env.UAT_MODE;
 process.env.UAT_MODE='true';
-try{require('../src/routes/uat-client-visibility');}finally{Module._load=originalLoad;}
+try{require('../src/routes/uat-client-visibility');}finally{
+  Module._load=originalLoad;
+  if(previousUatMode===undefined)delete process.env.UAT_MODE;
+  else process.env.UAT_MODE=previousUatMode;
+}
+assert.equal(fixtureDbUsed,true,'Route must use the in-memory database fixture');
 async function runRoute(user,query){
   calls.length=0;let locals;
   await handlers['/backoffice/clients']({session:{user},query},{render:(template,value)=>{assert.equal(template,'clients-admin');locals=value;}},err=>{throw err;});

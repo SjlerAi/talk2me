@@ -66,9 +66,14 @@ const fake={
  async getConnection(){return conn}
 };
 async function check(){
- // Freeze Date.now to a deterministic 2026 test moment for booking.
- const originalNow=Date.now;
- Date.now=()=>now.getTime();
+ // Freeze both Date.now() and new Date() for the booking fixture.
+ // Explicit date constructor arguments and Date static helpers stay real.
+ const RealDate=global.Date;
+ class FixtureDate extends RealDate {
+  constructor(...args){super(...(args.length?args:[now.getTime()]));}
+  static now(){return now.getTime();}
+ }
+ global.Date=FixtureDate;
  try{
   const booked=await bookCommunication(fake,{
     senderId:9,recipientId:5,message:'Phone me',
@@ -77,7 +82,7 @@ async function check(){
   });
   assert.equal(booked.id,401);
   assert.equal(booked.attachmentCount,1);
- }finally{Date.now=originalNow}
+ }finally{global.Date=RealDate}
  const pending=await pendingForSender(fake,9);
  assert.equal(pending.length,1);
  assert.equal(pending[0].scheduledFor,'2026-11-21T09:00');

@@ -89,18 +89,25 @@ const db={
   }
 };
 const handlers={};
+let fixtureDbUsed=false;
 const originalLoad=Module._load;
 Module._load=function(request,parent,isMain){
-  if(parent?.filename?.endsWith('/src/routes/uat-client-visibility.js')){
+  if(parent?.filename===require.resolve('../src/routes/uat-client-visibility')){
     if(request==='express')return {Router:()=>({get:(route,...functions)=>{handlers[route]=functions.at(-1);}})};
-    if(request==='../config/db')return db;
+    if(request==='../config/db'){fixtureDbUsed=true;return db;}
     if(request==='../middleware/auth')return {requireAuth:()=>{}};
   }
   return originalLoad.apply(this,arguments);
 };
+const previousUatMode=process.env.UAT_MODE;
 process.env.UAT_MODE='true';
 try {require('../src/routes/uat-client-visibility');}
-finally {Module._load=originalLoad;}
+finally {
+  Module._load=originalLoad;
+  if(previousUatMode===undefined)delete process.env.UAT_MODE;
+  else process.env.UAT_MODE=previousUatMode;
+}
+assert.equal(fixtureDbUsed,true,'Route must use the in-memory database fixture');
 assert.equal(typeof handlers['/backoffice/clients'],'function');
 async function routeCase(user,query) {
   sqlCalls.length=0;

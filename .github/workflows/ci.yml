@@ -3,7 +3,7 @@ name: Validate Talk2Me
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, prep/crm-tk2m-subdomain-20261027]
 
 permissions:
   contents: read
