@@ -40,6 +40,7 @@
  const list=overlay.querySelector('[data-tk2m-unified-list]');
  const status=overlay.querySelector('[data-tk2m-unified-status]');
  let busy=false,loading=false,lastItems=[],refreshTimer=null,activeScope='mine',activeView='today';
+ const hasOpenReply=()=>Boolean(list.querySelector('.tk2m-unified-inline-reply:not([hidden])'));
  const node=(tag,cls,text)=>{
    const n=document.createElement(tag);if(cls)n.className=cls;
    if(text!==undefined)n.textContent=String(text);return n;
@@ -53,6 +54,7 @@
  }
  function close(){
    if(busy)return;
+   if(hasOpenReply()){status.textContent='Send or cancel the open reply before closing Communications.';return;}
    overlay.hidden=true;
    if(refreshTimer)window.clearInterval(refreshTimer);
    refreshTimer=null;
@@ -106,7 +108,7 @@
    const controls=node('div','tk2m-unified-reply-actions');
    const send=node('button','tk2m-unified-submit','Send reply');send.type='submit';
    const cancel=node('button','tk2m-unified-cancel','Cancel');cancel.type='button';
-   cancel.addEventListener('click',()=>{form.hidden=true;message.value='';});
+   cancel.addEventListener('click',()=>{if(busy)return;form.hidden=true;message.value='';void load();});
    controls.append(cancel,send);form.append(message,controls);
    form.addEventListener('submit',event=>{event.preventDefault();void replyTask(item,message.value,form);});
    wrap.append(form);
@@ -130,7 +132,7 @@
        const payload=new FormData();payload.set('comment',body);
        await api('/api/uat/tasks/'+item.id+'/comments',{method:'POST',body:payload});
      }
-     status.textContent='Reply sent';form.hidden=true;
+     status.textContent='Reply sent';form.hidden=true;form.reset();
      await load();
    }catch(error){status.textContent=error.message;}
    finally{busy=false;}
@@ -140,7 +142,7 @@
    if(type==='legacy'||type==='reply'){
      const el=button.closest('.tk2m-unified-entry');
      const form=el?.querySelector('.tk2m-unified-inline-reply');
-     if(form){form.hidden=!form.hidden;if(!form.hidden)form.querySelector('textarea')?.focus();}
+     if(form){form.hidden=false;form.querySelector('textarea')?.focus();}
      return;
    }
    if(type==='complete'&&item.completeOnBehalf && !window.confirm(
@@ -175,11 +177,13 @@
    finally{busy=false;button.disabled=false;}
  }
  async function load(focusTaskId){
-   if(loading)return;
+   if(loading||hasOpenReply())return;
    loading=true;
    const focus=Number(focusTaskId||0);
    try{
      const data=await api('/api/tk2m/communications/myday'+(activeScope==='team'?'?scope=team':''));
+     // A draft may have opened after the request started. Never replace it.
+     if(hasOpenReply())return;
      lastItems=Array.isArray(data[activeView])?data[activeView]:[];
      list.replaceChildren();
      for(const item of lastItems)list.appendChild(entry(item));
@@ -205,6 +209,7 @@
    });
  }
  function open(options={}){
+   if(hasOpenReply()){overlay.hidden=false;status.textContent='Finish your open reply or cancel it.';return;}
    activeScope=options.scope==='mine'?'mine':options.scope==='team'?'team':(cfg.isManagement?'team':'mine');
    selectView(options.view);
    labelLauncher();
@@ -221,12 +226,14 @@
  overlay.querySelectorAll('[data-tk2m-unified-view]').forEach(button=>{
    button.addEventListener('click',()=>{
      if(busy)return;
+     if(hasOpenReply()){status.textContent='Send or cancel the open reply before changing views.';return;}
      selectView(button.dataset.tk2mUnifiedView);
      void load();
    });
  });
  overlay.querySelector('[data-tk2m-unified-close]').addEventListener('click',close);
  overlay.querySelector('[data-tk2m-unified-send]').addEventListener('click',()=>{
+   if(hasOpenReply()){status.textContent='Send or cancel the open reply first.';return;}
    close();window.Talk2MeCommunications?.open?.();
  });
  overlay.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();close();}});

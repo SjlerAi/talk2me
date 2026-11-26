@@ -336,15 +336,16 @@ router.get('/customers/:id/360', requireAuth, async (req, res, next) => {
       return row || null;
     });
 
+    const pendingFixedServices = await optionalSection('pending fixed services',id,[],()=>require('../services/pending-fixed-services').listPendingFixedServices(db,req.session.user,{clientId:id,accountId:accountRecord?.id||null,accountNumber}));
     const fixedAccounts = await optionalSection('fixed services', id, [], async () => {
       if (!accountNumber) return [];
       const [rows] = await db.execute(
         `SELECT fa.*,COUNT(fs.id) fixed_service_count
          FROM fixed_accounts fa
          LEFT JOIN fixed_services fs ON fs.fixed_account_id=fa.id
-         WHERE fa.account_number=:account OR fa.linked_mobile_account_number=:account
+         WHERE fa.account_id=:accountId OR fa.account_number_normalised=UPPER(REPLACE(TRIM(:account),' ','')) OR fa.linked_mobile_account_number=:account
          GROUP BY fa.id`,
-        { account: accountNumber }
+        { account: accountNumber, accountId: accountRecord?.id||null }
       );
       return rows;
     });
@@ -416,6 +417,8 @@ router.get('/customers/:id/360', requireAuth, async (req, res, next) => {
       pendingClaim,
       pendingAccountRequest,
       fixedAccounts,
+      pendingFixedServices,
+      fixedSaved: String(req.query.fixed_saved||''),
       providerLine,
       currentMobileDataReady,
       currentMobileServices,

@@ -453,7 +453,8 @@
     function renderPriority() {
       if(!tk2mPreview)return;
       const panel=workspace.querySelector('[data-home-priority-list]');
-      if(!panel)return;
+      // All refresh paths (including in-flight requests) must leave an open draft intact.
+      if(!panel||state.carryBusy||panel.querySelector('[data-priority-form]:not([hidden])'))return;
       if(state.attentionError){
         panel.innerHTML='<div class="t2m-home-priority-empty">Communications unavailable. Open the list to retry.</div>';
         return;
@@ -504,6 +505,7 @@
           ${item.kind==='task'?`<form class="t2m-home-priority-reply" data-priority-form="${index}" hidden>
             <input id="priority-reply-${index}" type="text" maxlength="4000"
               aria-label="Reply to ${esc(who)}" placeholder="Type reply…" required>
+            <button type="button" data-priority-cancel="${index}">Cancel</button>
             <button type="submit">Send</button>
           </form>`:''}
           <small class="t2m-home-priority-feedback" data-priority-feedback="${index}" role="status" hidden></small>
@@ -526,6 +528,9 @@
           const form=priorityForm(index);
           if(form){form.hidden=false;form.querySelector('input')?.focus();}
         };
+      });
+      panel.querySelectorAll('[data-priority-cancel]').forEach(button=>{
+        button.onclick=()=>{if(state.carryBusy)return;const form=button.closest('[data-priority-form]');if(form){form.hidden=true;form.reset();renderPriority();}};
       });
       panel.querySelectorAll('[data-priority-form]').forEach(form=>{
         form.addEventListener('submit',async event=>{
@@ -579,7 +584,7 @@
       carryFeedback.classList.toggle('is-error',!!isError);
     }
     function renderCarry(){
-      if(!tk2mPreview||!carryList||!carryCount)return;
+      if(!tk2mPreview||!carryList||!carryCount||state.carryBusy||carryList.querySelector('[data-carry-form]:not([hidden])'))return;
       const filtered=state.staffFilter&&isManagement&&state.scope==='team';
       const all=filtered?state.outstanding.filter(item=>
         staffKey({assignedTo:item.assignedTo,assignedName:item.recipient})===state.staffFilter)
@@ -633,14 +638,14 @@
           const item=button.closest('.t2m-home-carry-item');
           const form=item?.querySelector('[data-carry-form]');
           if(!form||state.carryBusy)return;
-          form.hidden=!form.hidden;
-          if(!form.hidden)form.querySelector('textarea')?.focus();
+          form.hidden=false;
+          form.querySelector('textarea')?.focus();
         };
       });
       carryList.querySelectorAll('[data-carry-cancel]').forEach(button=>{
         button.onclick=()=>{
           const form=button.closest('[data-carry-form]');
-          if(form){form.hidden=true;form.reset();}
+          if(form&&!state.carryBusy){form.hidden=true;form.reset();renderCarry();}
         };
       });
       carryList.querySelectorAll('[data-carry-form]').forEach(form=>{
@@ -1003,7 +1008,7 @@
     // Refresh remote staff instructions without closing an active quick-reply box.
     window.setInterval(()=>{
       if(!tk2mPreview||document.hidden||state.carryBusy||
-         workspace.querySelector('[data-carry-form]:not([hidden])'))return;
+         workspace.querySelector('[data-carry-form]:not([hidden]),[data-priority-form]:not([hidden])'))return;
       void loadAttention();
     },30000);
     document.addEventListener('visibilitychange',()=>{

@@ -2,6 +2,7 @@ const express = require('express');
 const db = require('../config/db');
 const { requireAuth } = require('../middleware/auth');
 const { readLinkedAccount } = require('../services/customer-account-link');
+const { saveKnownFixedService } = require('../services/known-fixed-capture');
 
 const router = express.Router();
 const managementRoles = ['owner', 'manager', 'admin'];
@@ -20,7 +21,8 @@ function renderForm(req, res, client, error = null, values = {}, status = 200) {
     client,
     error,
     values,
-    panelMode: isPanelRequest(req)
+    panelMode: isPanelRequest(req),
+    directSave: managementRoles.includes(req.session.user.role) && Boolean(clean(client.account_number))
   });
 }
 
@@ -40,13 +42,12 @@ router.get('/customers/:id/add-fixed', requireAuth, async (req, res, next) => {
     }
 
     const linked = await readLinkedAccount(db, client);
-    if (linked) {
+    if (linked && !managementRoles.includes(req.session.user.role)) {
       const account = encodeURIComponent(linked.account_number);
-      const destination = managementRoles.includes(req.session.user.role)
-        ? `${res.locals.basePath}/fixed/services/new?account_number=${account}`
-        : `${res.locals.basePath}/fixed/services/request-new?account_number=${account}`;
-      return res.redirect(`${destination}${isPanelRequest(req) ? '&panel=1' : ''}`);
+      return res.redirect(`${res.locals.basePath}/fixed/services/request-new?account_number=${account}${isPanelRequest(req) ? '&panel=1' : ''}`);
     }
+    // Management capture uses the customer-scoped form for both an already
+    // linked account and a legacy displayed number. No writes occur on GET.
 
     return renderForm(req, res, client);
   } catch (error) {
@@ -112,6 +113,12 @@ router.post('/customers/:id/request-provisional-fixed-service', requireAuth, asy
     // redirecting to a blank form. No staff approval rights are bypassed.
     const linked = await readLinkedAccount(conn, lockedClient);
     const capturedAccount = clean(linked?.account_number || lockedClient.account_number);
+    if (capturedAccount && managementRoles.includes(req.session.user.role)) {
+      const saved = await saveKnownFixedService(conn,{client:lockedClient,service:values,user:req.session.user,ipAddress:req.ip,userAgent:req.headers?.['user-agent']});
+      await conn.commit();
+      conn.release();
+      return res.redirect(`${res.locals.basePath}/customers/${lockedClient.id}/360?fixed_saved=${saved.created?'1':'existing'}${isPanelRequest(req)?'&panel=1':''}#fixed-services`);
+    }
 
     const proposed = {
       provisional_client_ids: [lockedClient.id],
@@ -156,7 +163,7 @@ router.post('/customers/:id/request-provisional-fixed-service', requireAuth, asy
       req,
       res,
       client,
-      error.code === 'ACCOUNT_LINK_REVIEW_REQUIRED' ? error.message : 'The fixed service could not be saved. No database changes were kept. Please check the details and try again.',
+      error.code === 'ACCOUNT_LINK_REVIEW_REQUIRED' || !error.code ? error.message : 'The fixed service could not be saved. No database changes were kept. Please check the details and try again.',
       values,
       400
     );
