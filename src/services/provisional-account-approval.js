@@ -163,13 +163,22 @@ async function loadOrCreateFixedAccount(connection, account, request, proposal, 
   return { fixedAccount, created: true };
 }
 
+function fixedCaptureHash(fixedAccount,service) {
+  // Same capture, same account, same stable hash; never deduplicate distinct
+  // accounts or merely equal branch names. Preserve exact technical identity.
+  const fields=['branch_name','order_number','solution_id','router_model','mac_address','sim_number','package_name','activation_date','service_status','cancellation_date','installation_address','technical_notes'];
+  return crypto.createHash('sha256').update(JSON.stringify(['fixed-capture-v1',Number(fixedAccount.id),...fields.map(key=>clean(service[key]))])).digest('hex');
+}
+
 async function loadOrCreateFixedService(connection, fixedAccount, request, proposal) {
   const service = proposal.fixed_service;
   if (!service || typeof service !== 'object') return { fixedService: null, created: false };
 
-  const hash = crypto.createHash('sha256').update(`provisional-account-approval:${request.id}`).digest('hex');
-  const conditions = ['source_row_hash=:hash'];
-  const params = { hash };
+  const captureHash = fixedCaptureHash(fixedAccount,service);
+  const hash = captureHash;
+  const legacyHash = request.id ? crypto.createHash('sha256').update(`provisional-account-approval:${request.id}`).digest('hex') : captureHash;
+  const conditions = ['source_row_hash=:hash','source_row_hash=:legacyHash'];
+  const params = { hash,legacyHash };
   if (clean(service.order_number, 80)) {
     conditions.push('order_number=:orderNumber');
     params.orderNumber = clean(service.order_number, 80);
@@ -213,7 +222,7 @@ async function loadOrCreateFixedService(connection, fixedAccount, request, propo
     installationAddress: clean(service.installation_address, 255) || null,
     technicalNotes: clean(service.technical_notes, 5000) || null,
     hash,
-    rawImport: JSON.stringify({ approval_request_id: Number(request.id), provisional: true })
+    rawImport: JSON.stringify(request.id ? { approval_request_id: Number(request.id), provisional: true } : { capture_source: 'management_fixed_capture' })
   });
   const [[fixedService]] = await connection.execute('SELECT * FROM fixed_services WHERE id=:id FOR UPDATE', { id: created.insertId });
   if (!fixedService) throw new Error('The fixed service could not be revalidated after creation.');
@@ -370,6 +379,9 @@ module.exports = {
   canAccessProvisionalApproval,
   isProvisionalAccountRequest,
   normaliseOfficialAccountNumber,
+  loadOrCreateFixedAccount,
+  loadOrCreateFixedService,
+  fixedCaptureHash,
   parseProposal,
   provisionalRequestType,
   roleOf

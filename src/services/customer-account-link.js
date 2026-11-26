@@ -46,6 +46,7 @@ async function resolveCustomerAccountForWrite(conn, client, requested, displayNa
         || normalise(account.account_number_normalised) !== normalised) {
       throw reviewError('A linked official account cannot be reassigned here. Use the reviewed account correction workflow.');
     }
+    assertAvailable(account);
     return { accountId: account.id, accountNumber: account.account_number };
   }
 

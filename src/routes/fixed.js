@@ -101,7 +101,8 @@ router.get('/fixed/services', requireAuth, async (req, res, next) => {
       LEFT JOIN staff_users su ON su.id=fa.assigned_staff_id
       ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
       ORDER BY fa.customer_name, fs.branch_name`, params);
-    res.render('fixed-services', { title: 'Fixed Services', services, filters: { q, status } });
+    const pendingFixedServices=['all','pending'].includes(status)?await require('../services/pending-fixed-services').listPendingFixedServices(db,req.session.user,{q}):[];
+    res.render('fixed-services', { title: 'Fixed Services', services, pendingFixedServices, filters: { q, status } });
   } catch (e) { next(e); }
 });
 

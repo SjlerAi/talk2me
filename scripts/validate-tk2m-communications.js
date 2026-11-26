@@ -76,7 +76,24 @@ async function verifyRecipientDisplayNames(){
  assert.ok(labels.every(([,name])=>!name.includes(' — ')));
 
 }
+function verifyReplyRefreshGuards(){
+ const vm=require('node:vm');
+ const cal=read('public/js/calendar-home-uat.js');
+ const segment=(start,end)=>cal.slice(cal.indexOf(start),cal.indexOf(end));
+ let destructiveWrites=0;
+ const activePanel={querySelector(){return {};},set innerHTML(value){destructiveWrites++;}};
+ const priority=vm.runInNewContext(segment('    function renderPriority()','    function showCarryFeedback')+';renderPriority',{tk2mPreview:true,workspace:{querySelector(){return activePanel;}},state:{carryBusy:false}});
+ priority();
+ const carry=vm.runInNewContext(segment('    function renderCarry()','    function renderFocus()')+';renderCarry',{tk2mPreview:true,carryList:activePanel,carryCount:{},state:{carryBusy:false}});
+ carry();assert.equal(destructiveWrites,0,'Open draft forms must never be reconstructed');
+ const unified=read('public/js/tk2m-unified-communications.js');
+ assert(unified.includes('if(loading||hasOpenReply())return;'));
+ assert(unified.indexOf('if(hasOpenReply())return;',unified.indexOf('async function load('))<unified.indexOf('list.replaceChildren()',unified.indexOf('async function load(')));
+ assert(cal.includes('[data-priority-form]:not([hidden])')&&cal.includes('data-priority-cancel'));
+ vm.compileFunction(cal,[]);vm.compileFunction(unified,[]);
+}
 async function main(){
+ verifyReplyRefreshGuards();
  await verifyRecipientDisplayNames();
  assert.equal(saClock(morning).day,'2026-11-19');
  assert.equal(saClock(morning).minutes,480);
