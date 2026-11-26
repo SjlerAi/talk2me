@@ -80,7 +80,8 @@
  function closeQuick(){if(sending)return;modal.hidden=true;form.reset();toggleFiles();error.hidden=true;closeSchedule();scheduledList.hidden=true;viewScheduled.setAttribute('aria-expanded','false');}
  modal.querySelector('[data-tk2m-quick-close]').addEventListener('click',closeQuick);
  async function staff(){
-   if(recipients)return recipients;
+   // Reload on every compose open so a saved Staff Profile edit is visible
+   // without logging out or refreshing the entire workspace.
    const data=await api('/api/tk2m/communications/people');
    recipients=Array.isArray(data.staff)?data.staff:[];
    return recipients;
@@ -104,7 +105,7 @@
    try{
      const list=await staff();
      for(const p of list){
-       const opt=el('option','',p.name+(p.fullName!==p.name?' — '+p.fullName:''));
+       const opt=el('option','',p.name);
        opt.value=String(p.id);select.appendChild(opt);
      }
      const wanted=Number(options.recipientId||0);
