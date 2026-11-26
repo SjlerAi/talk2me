@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const db = require('../config/db');
 const { requireAuth } = require('../middleware/auth');
 const { audit } = require('../services/audit');
+const { resolveCustomerAccountForWrite } = require('../services/customer-account-link');
 const {
   applyProvisionalAccountApproval,
   canAccessGeneralApprovals,
@@ -357,6 +358,14 @@ router.post('/approvals/:id/decision', requireAuth, async (req, res, next) => {
     if (!keys.length) throw new Error('No approved customer fields were supplied.');
     if (!request.client_id) throw new Error('This request is not linked to a customer record.');
     const set = keys.map(key => `\`${key}\`=:${key}`);
+    if (keys.includes('account_number')) {
+      const [[client]] = await conn.execute('SELECT * FROM clients WHERE id=:id FOR UPDATE', { id: request.client_id });
+      if (!client) throw new Error('Customer record not found.');
+      const link = await resolveCustomerAccountForWrite(conn, client, proposed.account_number, proposed.client_name || client.client_name, req.session.user.id);
+      proposed.account_number = link.accountNumber;
+      proposed.account_id = link.accountId;
+      set.push('account_id=:account_id');
+    }
     if (keys.includes('cell_number')) set.push("cell_number_normalised=REPLACE(REPLACE(REPLACE(REPLACE(:cell_number,' ',''),'-',''),'(',''),')','')");
     set.push('updated_at=NOW()');
     await conn.execute(`UPDATE clients SET ${set.join(',')} WHERE id=:id`, { ...proposed, id: request.client_id });
@@ -371,7 +380,7 @@ router.post('/approvals/:id/decision', requireAuth, async (req, res, next) => {
     return redirectBack(req, res, request.request_type.includes('account') ? 'account_changes' : 'customer_changes');
   } catch (error) {
     await conn.rollback();
-    if (!error.code) {
+    if (!error.code || error.code === 'ACCOUNT_LINK_REVIEW_REQUIRED') {
       return res.status(409).render('error', { title: 'Approval could not be completed', message: error.message });
     }
     next(error);

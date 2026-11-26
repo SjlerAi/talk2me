@@ -1,6 +1,7 @@
 const express = require('express');
 const db = require('../config/db');
 const { requireAuth } = require('../middleware/auth');
+const { readLinkedAccount } = require('../services/customer-account-link');
 
 const router = express.Router();
 const managementRoles = ['owner', 'manager', 'admin'];
@@ -38,8 +39,9 @@ router.get('/customers/:id/add-fixed', requireAuth, async (req, res, next) => {
       });
     }
 
-    if (String(client.account_number || '').trim() && client.account_id) {
-      const account = encodeURIComponent(String(client.account_number).trim());
+    const linked = await readLinkedAccount(db, client);
+    if (linked) {
+      const account = encodeURIComponent(linked.account_number);
       const destination = managementRoles.includes(req.session.user.role)
         ? `${res.locals.basePath}/fixed/services/new?account_number=${account}`
         : `${res.locals.basePath}/fixed/services/request-new?account_number=${account}`;
@@ -48,6 +50,7 @@ router.get('/customers/:id/add-fixed', requireAuth, async (req, res, next) => {
 
     return renderForm(req, res, client);
   } catch (error) {
+    if (error.code === 'ACCOUNT_LINK_REVIEW_REQUIRED') return res.status(409).render('error', { title: 'Account review required', message: error.message });
     next(error);
   }
 });
@@ -104,41 +107,39 @@ router.post('/customers/:id/request-provisional-fixed-service', requireAuth, asy
     const [[lockedClient]] = await conn.execute('SELECT * FROM clients WHERE id=:id FOR UPDATE', { id });
     if (!lockedClient) throw new Error('Customer not found.');
 
-    if (String(lockedClient.account_number || '').trim() && lockedClient.account_id) {
-      await conn.rollback();
-      conn.release();
-      const account = encodeURIComponent(String(lockedClient.account_number).trim());
-      const destination = managementRoles.includes(req.session.user.role)
-        ? `${res.locals.basePath}/fixed/services/new?account_number=${account}`
-        : `${res.locals.basePath}/fixed/services/request-new?account_number=${account}`;
-      return res.redirect(`${destination}${isPanelRequest(req) ? '&panel=1' : ''}`);
-    }
+    // The account may have been linked while the form was open. Keep the
+    // captured service details in the same approval transaction instead of
+    // redirecting to a blank form. No staff approval rights are bypassed.
+    const linked = await readLinkedAccount(conn, lockedClient);
+    const capturedAccount = clean(linked?.account_number || lockedClient.account_number);
 
     const proposed = {
       provisional_client_ids: [lockedClient.id],
       client_name: lockedClient.client_name,
-      requested_account_number: null,
+      requested_account_number: capturedAccount,
       fixed_service: values
     };
 
     const [request] = await conn.execute(`INSERT INTO data_change_requests
       (request_type,entity_type,record_id,client_id,account_number,summary,reason,proposed_data_json,
        required_approval_role,status,requested_by)
-      VALUES ('assign_account_number','clients',:recordId,:clientId,NULL,:summary,:reason,:json,
+      VALUES ('assign_account_number','clients',:recordId,:clientId,:accountNumber,:summary,:reason,:json,
        'manager','pending_manager',:requestedBy)`, {
       recordId: lockedClient.id,
       clientId: lockedClient.id,
-      summary: `Assign account number and add fixed service for ${lockedClient.client_name || 'customer'}`,
-      reason: 'Fixed service captured while the customer was present. Management must allocate the official account number.',
+      accountNumber: capturedAccount,
+      summary: capturedAccount ? `Confirm existing account and add fixed service for ${lockedClient.client_name || 'customer'}` : `Assign account number and add fixed service for ${lockedClient.client_name || 'customer'}`,
+      reason: capturedAccount ? 'Fixed service captured against an existing account number. Management must confirm the link and approve the service.' : 'Fixed service captured while the customer was present. Management must allocate the official account number.',
       json: JSON.stringify(proposed),
       requestedBy: req.session.user.id
     });
 
     await conn.execute(`INSERT INTO staff_tasks
       (type,title,message,priority,assigned_to,created_by,due_at,related_client_id,email_status)
-      SELECT 'notification','Account number required',:message,'high',s.id,:createdBy,NOW(),:clientId,'not_configured'
+      SELECT 'notification',:title,:message,'high',s.id,:createdBy,NOW(),:clientId,'not_configured'
       FROM staff_users s WHERE s.is_active=1 AND s.role IN ('owner','manager','admin')`, {
-      message: `${req.session.user.full_name} captured a provisional fixed service for ${lockedClient.client_name || 'a customer'}. Open Approvals, assign the official account number and approve request #${request.insertId}.`,
+      title: capturedAccount ? 'Fixed service approval required' : 'Account number required',
+      message: capturedAccount ? `${req.session.user.full_name} captured a fixed service against an existing account number. Open Approvals, confirm the account link and approve request #${request.insertId}.` : `${req.session.user.full_name} captured a provisional fixed service for ${lockedClient.client_name || 'a customer'}. Open Approvals, assign the official account number and approve request #${request.insertId}.`,
       createdBy: req.session.user.id,
       clientId: lockedClient.id
     });
@@ -146,7 +147,7 @@ router.post('/customers/:id/request-provisional-fixed-service', requireAuth, asy
     await conn.commit();
     conn.release();
     const suffix = isPanelRequest(req) ? '&panel=1' : '';
-    return res.redirect(`${res.locals.basePath}/customers/${lockedClient.id}/360?change_requested=fixed-account-number${suffix}`);
+    return res.redirect(`${res.locals.basePath}/customers/${lockedClient.id}/360?change_requested=${capturedAccount ? 'fixed-account-link' : 'fixed-account-number'}${suffix}`);
   } catch (error) {
     try { await conn.rollback(); } catch (_) {}
     conn.release();
@@ -155,7 +156,7 @@ router.post('/customers/:id/request-provisional-fixed-service', requireAuth, asy
       req,
       res,
       client,
-      'The fixed service could not be saved. No database changes were kept. Please check the details and try again.',
+      error.code === 'ACCOUNT_LINK_REVIEW_REQUIRED' ? error.message : 'The fixed service could not be saved. No database changes were kept. Please check the details and try again.',
       values,
       400
     );
