@@ -23,7 +23,61 @@ function dbMock(options={}){
  }};
  return {db,seen,writes,commits};
 }
+async function verifyRecipientDisplayNames(){
+ // Exercise the real authenticated people handler with synthetic staff only.
+ const vm=require('node:vm');
+ const route=read('src/routes/tk2m-communications-brief.js');
+ const handlers=new Map();
+ const fakeRouter={get(path,...callbacks){handlers.set(path,callbacks.at(-1));},post(){}};
+ const rows=[
+   {id:7,first_name:'Formal First',full_name:'Preferred',role:'staff'},
+   {id:11,first_name:'Legal',full_name:'Chosen Display Name',role:'manager'},
+   {id:12,first_name:'Different',full_name:'  Two Words  ',role:'staff'},
+   {id:13,first_name:'Fallback',full_name:' ',role:'staff'}
+ ];
+ let query;
+ const db={async execute(sql,params){query={sql,params};return [rows];}};
+ const context={module:{exports:{}},process:{env:{CRM_LIVE_MODE:'true'}},require(name){
+   if(name==='express')return {Router:()=>fakeRouter};
+   if(name==='../config/db')return db;
+   if(name==='../middleware/auth')return {requireAuth(){}};
+   return {};
+ }};
+ vm.runInNewContext(route,context);
+ const handler=handlers.get('/api/tk2m/communications/people');
+ assert.equal(typeof handler,'function');
+ let body;
+ await handler({session:{user:{id:9}}},{set(key,value){assert.equal(key,'Cache-Control');assert.equal(value,'private, no-store');},json(value){body=value;}},error=>{throw error;});
+ assert.deepEqual(JSON.parse(JSON.stringify(body.staff.map(p=>[p.id,p.name]))),[[7,'Preferred'],[11,'Chosen Display Name'],[12,'Two Words'],[13,'Fallback']]);
+ assert.equal(query.params.staffId,9);
+ assert.match(query.sql,/is_active=1 AND id<>:staffId AND password_hash IS NOT NULL/);
+ assert.match(query.sql,/chatgpt_crm_test/);
+ // Exercise the actual compose list construction and its repeated fresh load.
+ const client=read('public/js/tk2m-quick-communications.js');
+ vm.compileFunction(client,[]);
+ const getFunction=(name,next)=>client.slice(client.indexOf(' async function '+name+'('),client.indexOf(' async function '+next+'('));
+ const labels=[];
+ let reads=0;
+ const select={value:'',set innerHTML(value){labels.length=0;},appendChild(opt){labels.push([opt.value,opt.textContent]);},focus(){}};
+ const openSource=client.slice(client.indexOf(' async function openQuick('),client.indexOf(" form.addEventListener('submit'"));
+ const run=vm.runInNewContext('let recipients=null;'+getFunction('staff','trackComposeOpen')+openSource+';openQuick',{
+   api:async path=>{assert.equal(path,'/api/tk2m/communications/people');reads++;return body;},
+   el:(tag,cls,value)=>({textContent:value}),select,form:{reset(){}},modal:{hidden:true},
+   error:{hidden:true},briefOpen:null,sending:false,trackComposeOpen(){},closeSchedule(){},
+   toggleFiles(){},scheduledList:{},viewScheduled:{setAttribute(){}},message:{focus(){}}
+ });
+ await run({recipientId:11});
+ assert.deepEqual(labels,[['7','Preferred'],['11','Chosen Display Name'],['12','Two Words'],['13','Fallback']]);
+ assert.equal(select.value,'11');
+ body.staff[0].name='Updated Preferred';
+ await run();
+ assert.equal(reads,2);
+ assert.deepEqual(labels[0],['7','Updated Preferred']);
+ assert.ok(labels.every(([,name])=>!name.includes(' — ')));
+
+}
 async function main(){
+ await verifyRecipientDisplayNames();
  assert.equal(saClock(morning).day,'2026-11-19');
  assert.equal(saClock(morning).minutes,480);
  assert.equal(saClock(afternoon).minutes,990);

@@ -94,7 +94,9 @@ router.get('/api/tk2m/communications/people',requireAuth,async(req,res,next)=>{
       AND COALESCE(username,'')<>'chatgpt_crm_test'
     ORDER BY full_name ASC`,{staffId});
   res.json({ok:true,staff:rows.map(p=>({
-   id:Number(p.id),name:String(p.first_name||p.full_name||'Staff').trim().split(/\s+/).slice(0,2).join(' '),
+   // Staff Profile's Display name is stored in full_name. Do not derive a
+   // nickname from first_name or append a surname to the configured label.
+   id:Number(p.id),name:String(p.full_name||'').trim()||String(p.first_name||'').trim()||'Staff',
    fullName:String(p.full_name||'Staff'),role:p.role
   }))});
  }catch(error){next(error);}
