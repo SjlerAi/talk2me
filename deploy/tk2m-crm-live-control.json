@@ -1,11 +1,11 @@
 {
   "schema": 1,
-  "action": "hold",
+  "action": "deploy",
   "environment": "tk2m-production",
-  "request_id": "tk2m-fixed-service-account-link-20261126-postrelease-hold",
-  "release_branch": "release/tk2m-fixed-service-account-link-20261126",
-  "release_sha": "42c8549377010c2337b027111b0d3f5daaaa2742",
+  "request_id": "tk2m-communications-display-name-20261126-a1",
+  "release_branch": "release/tk2m-communications-display-name-20261126",
+  "release_sha": "c5e991e8e2e43db52ce0aed511422b92ab860728",
   "expected_previous_sha": "42c8549377010c2337b027111b0d3f5daaaa2742",
   "production_cutover": true,
-  "owner_approved": false
+  "owner_approved": true
 }
