@@ -90,14 +90,19 @@
               <% if(panelMode){ %><input type="hidden" name="panel" value="1"><% } %>
               <% if(item.needsAccountNumber){ %>
                 <div class="approval-reason">
-                  <strong>Official account number required</strong>
-                  <p>This imported provisional mobile line or fixed service cannot be approved until the official account number has been entered.</p>
+                  <% if(item.provisionalAccountApproval && item.accountNumber){ %>
+                    <strong>Confirm existing official account number</strong>
+                    <p>The account number is already captured. Verify the existing number and approve the service; do not create a duplicate request.</p>
+                  <% } else { %>
+                    <strong>Official account number required</strong>
+                    <p>This imported provisional mobile line or fixed service cannot be approved until the official account number has been entered.</p>
+                  <% } %>
                 </div>
-                <label>Official account number<input name="account_number" placeholder="Enter official account number" required maxlength="80" autocomplete="off"></label>
+                <label>Official account number<input name="account_number" value="<%= item.provisionalAccountApproval ? (item.accountNumber || '') : '' %>" placeholder="Enter official account number" required maxlength="80" autocomplete="off"></label>
               <% } %>
               <textarea name="comment" rows="2" placeholder="Optional management comment"></textarea>
               <div>
-                <button class="btn primary" type="submit" name="decision" value="approve"><%= item.ownershipConflict?'Assign to claimant':item.needsAccountNumber?'Save account number and approve':(item.category==='client_claims'?'Approve & Assign Account':'Approve') %></button>
+                <button class="btn primary" type="submit" name="decision" value="approve"><%= item.ownershipConflict?'Assign to claimant':item.needsAccountNumber?(item.provisionalAccountApproval&&item.accountNumber?'Confirm account and approve':'Save account number and approve'):(item.category==='client_claims'?'Approve & Assign Account':'Approve') %></button>
                 <button class="btn danger" type="submit" name="decision" value="reject" formnovalidate><%= item.ownershipConflict?'Keep current assignment':'Reject' %></button>
               </div>
             </form>

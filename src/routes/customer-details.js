@@ -2,6 +2,7 @@ const express = require('express');
 const db = require('../config/db');
 const { requireAuth } = require('../middleware/auth');
 const { audit } = require('../services/audit');
+const { resolveCustomerAccountForWrite } = require('../services/customer-account-link');
 
 const router = express.Router();
 const MANAGEMENT = new Set(['owner', 'manager', 'admin']);
@@ -41,17 +42,17 @@ function birthdayFromSaId(value) {
   return `${year}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
 }
 
-async function getClient(id) {
-  const [[client]] = await db.execute('SELECT * FROM clients WHERE id=:id LIMIT 1', { id });
+async function getClient(id, connection = db, lock = false) {
+  const [[client]] = await connection.execute('SELECT * FROM clients WHERE id=:id LIMIT 1' + (lock ? ' FOR UPDATE' : ''), { id });
   return client || null;
 }
 
-async function duplicateMatches(id, { cell_number, email, id_number, account_number }) {
+async function duplicateMatches(id, { cell_number, email, id_number, account_number }, connection = db) {
   const phone = normalisePhone(cell_number);
   const mail = text(email).toLowerCase();
   const identity = text(id_number, 30);
   const account = text(account_number, 100);
-  const [rows] = await db.execute(`SELECT id,client_name,cell_number,email,id_number,account_number,lifecycle_status
+  const [rows] = await connection.execute(`SELECT id,client_name,cell_number,email,id_number,account_number,lifecycle_status
     FROM clients
     WHERE id<>:id
       AND NOT (:account<>'' AND account_number=:account)
@@ -68,8 +69,8 @@ function persistedValue(value) {
   return String(value == null ? '' : value).trim();
 }
 
-async function verifySavedCustomer(id, values) {
-  const saved = await getClient(id);
+async function verifySavedCustomer(id, values, connection = db) {
+  const saved = await getClient(id, connection);
   if (!saved) throw new Error('The customer disappeared before the update could be verified.');
 
   const checks = [
@@ -78,7 +79,9 @@ async function verifySavedCustomer(id, values) {
     ['cell_number', values.cell_number],
     ['alt_number', values.alt_number],
     ['city_town', values.city_town],
-    ['id_number', values.id_number]
+    ['id_number', values.id_number],
+    ['account_number', values.account_number],
+    ['account_id', values.account_id]
   ];
   const failed = checks.find(([field, expected]) => persistedValue(saved[field]).toLowerCase() !== persistedValue(expected).toLowerCase());
   if (failed) throw new Error(`Customer details did not persist correctly (${failed[0]}). Please try again.`);
@@ -104,10 +107,13 @@ router.get('/customers/:id/details', requireAuth, async (req, res, next) => {
 });
 
 router.post('/customers/:id/details', requireAuth, async (req, res, next) => {
+  let conn;
   try {
     const id = Number(req.params.id);
-    const client = await getClient(id);
-    if (!client) return res.status(404).render('error', { title:'Not found', message:'Customer could not be found.' });
+    conn = await db.getConnection();
+    await conn.beginTransaction();
+    const client = await getClient(id, conn, true);
+    if (!client) { await conn.rollback(); return res.status(404).render('error', { title:'Not found', message:'Customer could not be found.' }); }
     const isManagement = MANAGEMENT.has(String(req.session.user.role || '').toLowerCase());
     const values = {
       client_name: text(req.body.client_name, 255),
@@ -128,43 +134,56 @@ router.post('/customers/:id/details', requireAuth, async (req, res, next) => {
       contract_term_months: Number(req.body.contract_term_months) === 36 ? 36 : 24,
       cancellation_date: dateOrNull(req.body.cancellation_date),
       notes: text(req.body.notes, 5000),
-      account_number: isManagement ? text(req.body.account_number, 100) : text(client.account_number, 100),
+      account_number: isManagement && Object.prototype.hasOwnProperty.call(req.body, 'account_number') ? String(req.body.account_number ?? '').trim() : text(client.account_number, 100),
+      account_id: client.account_id || null,
       lifecycle_status: isManagement && ['prospect','client','inactive','lost'].includes(req.body.lifecycle_status) ? req.body.lifecycle_status : (client.lifecycle_status || 'prospect'),
       line_status: isManagement && ['unknown','active','inactive','cancelled','suspended'].includes(req.body.line_status) ? req.body.line_status : (client.line_status || 'unknown')
     };
     if (!values.client_name) values.client_name = client.client_name || `Customer ${id}`;
     if (!values.birthday && values.id_number) values.birthday = birthdayFromSaId(values.id_number);
 
-    const duplicates = await duplicateMatches(id, values);
+    const duplicates = await duplicateMatches(id, values, conn);
     if (duplicates.length && String(req.body.confirm_duplicate || '') !== '1') {
+      await conn.rollback();
       return res.status(409).render('customer-details', {
         title:'Possible Duplicate Customer', client:{...client,...values}, isManagement, saved:false, converted:false,
         duplicates, error:'Talk2Me found another customer with matching contact, ID or identity information on a different account. Check the records below before saving.'
       });
     }
 
+    if (isManagement) {
+      const link = await resolveCustomerAccountForWrite(conn, client, values.account_number, values.client_name, req.session.user.id);
+      values.account_number = link.accountNumber;
+      values.account_id = link.accountId;
+    }
     const phone = normalisePhone(values.cell_number);
-    const [updateResult] = await db.execute(`UPDATE clients SET
+    const [updateResult] = await conn.execute(`UPDATE clients SET
       client_name=:client_name,first_name=:first_name,surname=:surname,company_name=:company_name,
       cell_number=:cell_number,cell_number_normalised=:phone,alt_number=:alt_number,email=:email,city_town=:city_town,
       id_number=:id_number,birthday=:birthday,customer_type=:customer_type,package_name=:package_name,handset=:handset,
       monthly_invoice_amount=:monthly_invoice_amount,previous_upgrade_date=:previous_upgrade_date,
       next_upgrade_date=CASE WHEN :previous_upgrade_date IS NULL THEN next_upgrade_date ELSE DATE_ADD(:previous_upgrade_date, INTERVAL :term MONTH) END,
       contract_term_months=:term,cancellation_date=:cancellation_date,notes=:notes,
-      account_number=:account_number,lifecycle_status=:lifecycle_status,line_status=:line_status,updated_at=NOW()
+      account_number=:account_number,account_id=:account_id,lifecycle_status=:lifecycle_status,line_status=:line_status,updated_at=NOW()
       WHERE id=:id`, { ...values, phone, term: values.contract_term_months, id });
 
     if (!updateResult.affectedRows) throw new Error('Customer details were not updated.');
-    const saved = await verifySavedCustomer(id, values);
+    const saved = await verifySavedCustomer(id, values, conn);
+    await conn.commit();
 
     try {
-      await audit(req, 'customer_details_updated', 'clients', id, {
-        lifecycle_status: saved.lifecycle_status,
-        email_updated: persistedValue(client.email).toLowerCase() !== persistedValue(saved.email).toLowerCase()
-      });
+      await audit(req, { actionType: 'customer_details_updated', entityType: 'clients', entityId: id,
+        description: 'Customer details updated', before: { account_id: client.account_id, account_number: client.account_number },
+        after: { account_id: saved.account_id, account_number: saved.account_number,
+          lifecycle_status: saved.lifecycle_status,
+          email_updated: persistedValue(client.email).toLowerCase() !== persistedValue(saved.email).toLowerCase() } });
     } catch (_) {}
     res.redirect(`${res.locals.basePath}/customers/${id}/360?details_saved=1`);
-  } catch (error) { next(error); }
+  } catch (error) {
+    if (conn) await conn.rollback();
+    if (error.code === 'ACCOUNT_LINK_REVIEW_REQUIRED') return res.status(409).render('error', { title: 'Account review required', message: error.message });
+    next(error);
+  } finally { if (conn) conn.release(); }
 });
 
 router.post('/customers/:id/convert-to-client', requireAuth, async (req, res, next) => {
