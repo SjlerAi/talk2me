@@ -78,7 +78,6 @@ const fakeDb={
   if(/FROM account_intelligence_reviews/.test(sql))return [state.reviews.filter(x=>x.account_number===p.num||x.account_number===p.account).filter(x=>x.prior_month===p.prior&&x.current_month===p.month)
      .map(x=>({match_key:x.match_key,status:x.status,reason:x.reason,reviewed_at:x.reviewed_at}))];
   if(/INSERT INTO account_intelligence_documents/.test(sql)){
-   console.log('QA_INSERT_DOCUMENT_NAME_PRESENT',Boolean(p.holder));
    const id=++state.docSerial;
    state.documents.push({id,account_number:p.account,original_filename:p.name,stored_filename:p.stored,document_sha256:p.sha,
      document_kind:p.kind,source_customer_name:p.holder,invoice_number:p.invoice,total_cents:p.total,source_date:p.date,
