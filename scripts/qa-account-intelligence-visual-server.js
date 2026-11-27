@@ -8,9 +8,12 @@ const crypto=require('node:crypto');
 const fs=require('node:fs');
 const path=require('node:path');
 const os=require('node:os');
-const PORT=38187;
+const PORT=Number(process.env.TK2M_QA_PORT||38187);
+if(!Number.isSafeInteger(PORT)||PORT<1024||PORT>65535)throw new Error('Invalid QA port');
 const root=path.resolve(__dirname,'..');
-const qaRoot=path.join(os.tmpdir(),'tk2m-account-intelligence-qa-synthetic');
+const qaDir=process.env.TK2M_QA_DIRNAME||'tk2m-account-intelligence-qa-synthetic';
+if(!/^tk2m-account-intelligence-qa-[a-z0-9-]+$/.test(qaDir))throw new Error('Invalid QA directory name');
+const qaRoot=path.join(os.tmpdir(),qaDir);
 fs.mkdirSync(qaRoot,{recursive:true});
 process.env.PRIVATE_UPLOAD_DIR=qaRoot;
 process.env.OUTBOUND_EMAIL_ENABLED='false';
@@ -188,7 +191,7 @@ app.get('/__qa/schema/:state',(req,res)=>{state.schemaReady=req.params.state==='
 app.get('/__qa/fixture-path',(req,res)=>res.type('text/plain').send(fixtureDir));
 app.get('/__qa/status',(req,res)=>res.json({synthetic:true,role:req.session.user?.role||'none',
  schemaReady:state.schemaReady,documents:state.documents.length,entries:state.entries.length,
- reviews:state.reviews.length,audits:state.audit.length,uploadedAccounts:[...new Set(state.documents.map(x=>x.account_number))]}));
+ reviews:state.reviews.length,audits:state.audit.length,distinctAccounts:new Set(state.documents.map(x=>x.account_number)).size}));
 app.get('/backoffice',(req,res)=>res.render('backoffice-home',{title:'Administration Centre'}));
 app.get('/api/tasks/unread-latest',(req,res)=>res.json({task:null}));
 app.get('/api/approvals/count',(req,res)=>res.json({count:0}));
