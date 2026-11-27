@@ -66,7 +66,7 @@
         <form method="get" action="<%= basePath %>/backoffice/account-intelligence">
           <label for="ai-account">Account</label>
           <select id="ai-account" name="account" required>
-            <% accounts.forEach(function(a){ const doc=documents.find(d=>d.account_number===a); %><option value="<%= a %>" <%= a===selected?'selected':'' %>><%= doc?.source_customer_name||'Name pending' %> — <%= a %></option><% }); %>
+            <% accounts.forEach(function(a){ const doc=documents.find(d=>d.account_number===a&&d.source_customer_name); %><option value="<%= a %>" <%= a===selected?'selected':'' %>><%= doc?.source_customer_name||'Name pending' %> — <%= a %></option><% }); %>
           </select>
           <label for="ai-month">Current billing month</label>
           <input id="ai-month" type="month" name="month" value="<%= month %>" required>
@@ -79,7 +79,7 @@
       <section class="ai-card">
         <h2><%= displayCustomer||'Customer name pending' %></h2>
         <p class="ai-sub"><strong>Account number: <%= selected %></strong> · <strong><%= monthLabel(prior) %> compared with <%= monthLabel(month) %></strong></p>
-        <p class="ai-sub">Customer name is from the supplier statement until an exact CRM account match has been confirmed. Invoice charges are shown separately from payments and credits.</p>
+        <p class="ai-sub"><%= crm?.status==='linked'?'Customer and account identity confirmed in TK2M.':'Customer name is from the uploaded supplier statement; CRM account matching is still pending.' %> Invoice charges are separate from payments and credits.</p>
         <div class="ai-grid">
           <div><span class="ai-muted">Previous invoices</span><h2>R<%= rand(report.previous.invoices) %></h2></div>
           <div><span class="ai-muted">Current invoices</span><h2>R<%= rand(report.current.invoices) %></h2></div>
