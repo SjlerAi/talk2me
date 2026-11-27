@@ -43,10 +43,10 @@ const fakeDb={
   if(!state.schemaReady && /account_intelligence_(?:documents|entries|reviews)/.test(sql))errSchema();
   if(/SELECT id,account_number,original_filename,document_kind/.test(sql)&&/FROM account_intelligence_documents/.test(sql))
    return [state.documents.slice().sort((a,b)=>b.id-a.id).slice(0,80)];
-  if(/SELECT id FROM account_intelligence_documents WHERE account_number/.test(sql))
-   return [state.documents.filter(d=>d.account_number===(p.account||p.num)).map(x=>({id:x.id})).slice(0,1)];
   if(/SELECT id FROM account_intelligence_documents WHERE account_number=:account AND document_sha256/.test(sql))
    return [state.documents.filter(d=>d.account_number===p.account && d.document_sha256===p.sha).map(x=>({id:x.id})).slice(0,1)];
+  if(/SELECT id FROM account_intelligence_documents WHERE account_number/.test(sql))
+   return [state.documents.filter(d=>d.account_number===(p.account||p.num)).map(x=>({id:x.id})).slice(0,1)];
   if(/SELECT stored_filename,original_filename FROM account_intelligence_documents/.test(sql))
    return [state.documents.filter(x=>x.id===p.id).map(x=>({stored_filename:x.stored_filename,original_filename:x.original_filename})).slice(0,1)];
   if(/FROM account_intelligence_entries e JOIN account_intelligence_documents d/.test(sql)){
