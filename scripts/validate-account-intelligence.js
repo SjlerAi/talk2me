@@ -57,3 +57,16 @@ test('only exact account identifiers are treated as equal before approval',()=>{
  assert.notEqual(core.normaliseAccount('B0000002-1'),core.normaliseAccount('B0000002'));
  assert.equal(core.stableKey({itemNo:'VT2-AB123',reference:''}),'SERVICE:VT2');
 });
+
+test('transient VT1 invoice IDs do not create false matching amount movements',()=>{
+ const example=[
+ 'Account Number: B0000001',
+ '2026/10/03 INV VT1-DEMOA R1940.80 R1940.80',
+ '2026/11/03 INV VT1-DEMOB R1940.80 R1940.80'
+ ].join('\n');
+ const parsed=core.parseStatement(example);
+ const result=core.compareMonths(parsed.entries,'2026-10','2026-11');
+ assert.equal(result.netChangeCents,0);
+ assert.equal(result.changeCount,0);
+ assert.equal(result.categoryMatchedPending,true);
+});
