@@ -213,7 +213,6 @@ router.post(URL+'/upload',requireOwner,(req,res,next)=>{
    for(const file of files){
      const content=await extractPdfText(file.buffer);
      const parsed=core.parseStatement(content);
-     if(process.env.CRM_LIVE_MODE!=='true')console.log('QA_UPLOADED_TEXT_HOLDER',content.includes('Account Holder'),Boolean(presentation.accountHolderFromText(content)));
 
      if(!parsed.accountNumber)throw new Error('Account number not recognised in one of the PDFs');
      if(kind==='statement'&&!parsed.entries.length)throw new Error('No supported statement rows found');
