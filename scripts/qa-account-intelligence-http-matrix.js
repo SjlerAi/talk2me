@@ -77,12 +77,10 @@ async function run(){
  verify(page.body.includes('R290.00')&&page.body.includes('R72.71'),'Supporting invoice is NOT double-counted as statement charge');
  let preview=await owner.get('/backoffice/account-intelligence/customer-report?account=B0000001&month=2026-11');
  verify(preview.status===200&&preview.body.includes('Monthly Account Review')&&preview.body.includes('Demo Fibre 50Mbps'),'Customer report includes actual mobile and fixed inventory');
- const invalidReview=new FormData();
- for(const [k,v] of Object.entries({csrf,account:'B0000001',month:'2026-11',prior:'2026-10',key:'LINE:999111114',status:'verified',reason:''}))invalidReview.append(k,v);
+ const invalidReview=new URLSearchParams({csrf,account:'B0000001',month:'2026-11',prior:'2026-10',key:'LINE:999111114',status:'verified',reason:''});
  const rr=await owner.post('/backoffice/account-intelligence/review',invalidReview);
  verify(rr.status===400,'Verification with blank reason denied');
- const validReview=new FormData();
- for(const [k,v] of Object.entries({csrf,account:'B0000001',month:'2026-11',prior:'2026-10',key:'LINE:999111114',status:'verified',reason:'SYNTHETIC REVIEW: source evidence checked'}))validReview.append(k,v);
+ const validReview=new URLSearchParams({csrf,account:'B0000001',month:'2026-11',prior:'2026-10',key:'LINE:999111114',status:'verified',reason:'SYNTHETIC REVIEW: source evidence checked'});
  const okReview=await owner.post('/backoffice/account-intelligence/review',validReview);
  preview=await owner.get('/backoffice/account-intelligence/customer-report?account=B0000001&month=2026-11');
  verify(okReview.status===303&&preview.body.includes('SYNTHETIC REVIEW: source evidence checked'),'Verified reason saved and appears in customer preview');
@@ -99,8 +97,7 @@ async function run(){
  verify(page.status===403,'Staff denied original source download');
  page=await staff.get('/backoffice/account-intelligence/customer-report?account=B0000001&month=2026-11');
  verify(page.status===403,'Staff denied customer report preview');
- const noCsrf=new FormData();
- for(const [k,v] of Object.entries({account:'B0000001',month:'2026-11',prior:'2026-10',key:'LINE:999111114',status:'verified',reason:'bad'}))noCsrf.append(k,v);
+ const noCsrf=new URLSearchParams({account:'B0000001',month:'2026-11',prior:'2026-10',key:'LINE:999111114',status:'verified',reason:'bad'});
  const rejected=await owner.post('/backoffice/account-intelligence/review',noCsrf);
  verify(rejected.status===403,'Missing CSRF review denied');
  const many=Array.from({length:7},(_,i)=>['synthetic-statement.pdf','source-'+i+'.pdf']);
