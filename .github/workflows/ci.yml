@@ -47,3 +47,99 @@ jobs:
         run: bash -n deploy.sh scripts/setup-elitehost-ssh.sh scripts/install-talk2me-uat-agent.sh scripts/talk2me-uat-agent.sh scripts/deploy-uat-artifact.sh scripts/install-talk2me-ui-uat-agent.sh scripts/talk2me-ui-uat-agent.sh scripts/deploy-ui-uat.sh scripts/tk2m-crm-live-agent.sh
       - name: Validate Deployment Bible V2 lock
         run: node scripts/validate-ui-uat-deployment-v2.js
+
+  deployment-contract-qa:
+    name: Isolated deployment dependency and MariaDB recovery proof
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      mariadb:
+        image: mariadb:10.11
+        env:
+          MARIADB_ROOT_PASSWORD: synthetic-ci-only-not-a-production-secret
+          MARIADB_DATABASE: tk2m_deploy_qa
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=12
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: npm
+      - name: Verify locked production dependency preparation
+        run: |
+          set -euo pipefail
+          before="$(sha256sum package-lock.json)"
+          npm ci --omit=dev --ignore-scripts --no-audit --no-fund
+          test "$(sha256sum package-lock.json)" = "$before"
+          git diff --exit-code -- package.json package-lock.json
+          npm ls --omit=dev --all --json > /dev/null
+          node -e "const assert=require('node:assert/strict');const lock=require('./package-lock.json');assert.equal(require('./node_modules/pdfjs-dist/package.json').version,lock.packages['node_modules/pdfjs-dist'].version);"
+          node scripts/validate-account-intelligence-pdf.js
+      - name: Prove migration 039 and backup restoration using synthetic MariaDB only
+        env:
+          QA_DB_CONTAINER: ${{ job.services.mariadb.id }}
+          QA_DB_PASSWORD: synthetic-ci-only-not-a-production-secret
+        run: |
+          set -euo pipefail
+          test "$GITHUB_ACTIONS" = true
+          test -n "$QA_DB_CONTAINER"
+          db() {
+            docker exec -i -e MYSQL_PWD="$QA_DB_PASSWORD" "$QA_DB_CONTAINER" mariadb --batch --skip-column-names -uroot "$@"
+          }
+          dump() {
+            docker exec -e MYSQL_PWD="$QA_DB_PASSWORD" "$QA_DB_CONTAINER" mariadb-dump -uroot --single-transaction --quick --skip-add-drop-table "$1" | gzip -c > "$2"
+            gzip -t "$2"
+          }
+          fixture() {
+            db "$1" -e "SELECT CONCAT(id,':',label) FROM fixture_customer ORDER BY id; SELECT CONCAT(id,':',customer_id,':',line_value) FROM fixture_line ORDER BY id;"
+          }
+          schema() {
+            db "$1" -e "SELECT GROUP_CONCAT(TABLE_NAME ORDER BY TABLE_NAME SEPARATOR ',') FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME LIKE 'account_intelligence_%';"
+          }
+          test "$(db tk2m_deploy_qa -e 'SELECT DATABASE()')" = tk2m_deploy_qa
+          db tk2m_deploy_qa -e 'SELECT VERSION()' | grep -qi MariaDB
+          db tk2m_deploy_qa <<'SQL'
+          CREATE TABLE fixture_customer (id INT PRIMARY KEY, label VARCHAR(40) NOT NULL) ENGINE=InnoDB;
+          CREATE TABLE fixture_line (id INT PRIMARY KEY, customer_id INT NOT NULL, line_value INT NOT NULL, FOREIGN KEY(customer_id) REFERENCES fixture_customer(id)) ENGINE=InnoDB;
+          INSERT INTO fixture_customer VALUES (1,'synthetic-a'),(2,'synthetic-b');
+          INSERT INTO fixture_line VALUES (10,1,12345),(20,2,67890);
+          SQL
+          baseline="$(fixture tk2m_deploy_qa)"
+          test -n "$baseline"
+          test "$(schema tk2m_deploy_qa)" = NULL
+          tmp="$(mktemp -d)"
+          trap 'rm -rf "$tmp"' EXIT
+          dump tk2m_deploy_qa "$tmp/before.sql.gz"
+          sha256sum "$tmp/before.sql.gz"
+          db tk2m_deploy_qa < migrations/039_account_intelligence.sql
+          expected=account_intelligence_account_links,account_intelligence_documents,account_intelligence_email_drafts,account_intelligence_entries,account_intelligence_reviews
+          test "$(schema tk2m_deploy_qa)" = "$expected"
+          test "$(fixture tk2m_deploy_qa)" = "$baseline"
+          db tk2m_deploy_qa <<'SQL'
+          INSERT INTO account_intelligence_documents (id,account_number,original_filename,stored_filename,document_sha256,uploaded_by) VALUES (1,'BQA0001','synthetic.pdf','00000000-0000-4000-8000-000000000001',REPEAT('a',64),1);
+          INSERT INTO account_intelligence_entries (document_id,billing_month,transaction_date,transaction_type,category,item_number,match_key,amount_cents,source_line) VALUES (1,'2026-11','2026-11-01','INV','invoice','QA-1','QA-1',12345,1);
+          SQL
+          ai_fixture() {
+            db "$1" -e "SELECT CONCAT(id,':',account_number) FROM account_intelligence_documents ORDER BY id; SELECT CONCAT(document_id,':',source_line,':',amount_cents) FROM account_intelligence_entries ORDER BY id;"
+          }
+          ai_baseline="$(ai_fixture tk2m_deploy_qa)"
+          test -n "$ai_baseline"
+          db tk2m_deploy_qa < migrations/039_account_intelligence.sql
+          test "$(schema tk2m_deploy_qa)" = "$expected"
+          test "$(fixture tk2m_deploy_qa)" = "$baseline"
+          test "$(ai_fixture tk2m_deploy_qa)" = "$ai_baseline"
+          dump tk2m_deploy_qa "$tmp/after.sql.gz"
+          sha256sum "$tmp/after.sql.gz"
+          db -e 'CREATE DATABASE tk2m_deploy_restore_before_qa; CREATE DATABASE tk2m_deploy_restore_after_qa;'
+          gzip -dc "$tmp/before.sql.gz" | db tk2m_deploy_restore_before_qa
+          gzip -dc "$tmp/after.sql.gz" | db tk2m_deploy_restore_after_qa
+          test "$(fixture tk2m_deploy_restore_before_qa)" = "$baseline"
+          test "$(schema tk2m_deploy_restore_before_qa)" = NULL
+          test "$(fixture tk2m_deploy_restore_after_qa)" = "$baseline"
+          test "$(schema tk2m_deploy_restore_after_qa)" = "$expected"
+          test "$(ai_fixture tk2m_deploy_restore_after_qa)" = "$ai_baseline"
+          echo 'TK2M_SYNTHETIC_MARIADB_MIGRATION_AND_RESTORE_PASS'
