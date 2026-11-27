@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Client Account Review - <%= account %></title>
+<style>
+body{font:15px/1.5 Arial,sans-serif;max-width:820px;margin:32px auto;color:#1d2c41;padding:0 20px}
+h1{color:#174a80;margin-bottom:0}h2{margin-top:28px;border-bottom:1px solid #dde7f0;padding-bottom:6px}
+small,.muted{color:#687889} table{width:100%;border-collapse:collapse;font-size:14px}
+td,th{padding:9px 6px;border-bottom:1px solid #e3eaf2;text-align:left}th.num,td.num{text-align:right}
+.notice{padding:12px;background:#fff7e7;border-left:4px solid #daa84f}
+.actions{display:flex;justify-content:flex-end;gap:9px}
+button{padding:10px 14px;background:#174a80;color:white;border:0;border-radius:7px;cursor:pointer}
+@media print{.actions{display:none}body{margin:10px auto}}
+</style>
+<link rel="stylesheet" data-tk2m-blue-refresh href="<%= basePath %>/public/css/tk2m-blue-red-refresh.css">
+</head><body>
+<div class="actions"><button type="button" onclick="window.print()">Print / Save PDF</button></div>
+<h1>Monthly Account Review</h1>
+<p class="muted">Account <strong><%= account %></strong> · <%= prior %> compared with <%= month %></p>
+<p>Prepared as a customer communication draft. Nothing has been sent. All amounts are in South African rand (ZAR).</p>
+<h2>Account billing summary</h2>
+<table><tbody>
+<tr><td>Previous month's invoice charges</td><td class="num">R<%= rand(comparison.previous.invoices) %></td></tr>
+<tr><td>Current month's invoice charges</td><td class="num">R<%= rand(comparison.current.invoices) %></td></tr>
+<tr><td><strong>Change in invoice charges</strong></td><td class="num"><strong><%= comparison.netChangeCents<0?'−':comparison.netChangeCents>0?'+':'' %>R<%= rand(Math.abs(comparison.netChangeCents)) %></strong></td></tr>
+<tr><td>Current-month credit notes</td><td class="num">R<%= rand(comparison.current.credits) %></td></tr>
+<tr><td>Current-month recorded payments</td><td class="num">R<%= rand(comparison.current.payments) %></td></tr>
+<tr><td>Current month's charges after credits</td><td class="num">R<%= rand(comparison.current.netCharges) %></td></tr>
+</tbody></table>
+<p class="muted">Payment entries and prior balances are not invoice charges. The figures above do not independently establish the current amount outstanding.</p>
+<h2>Largest account changes</h2>
+<table><thead><tr><th>Billing reference</th><th class="num">Previously</th><th class="num">Current</th><th class="num">Change</th></tr></thead>
+<tbody>
+<% changes.forEach(function(c){ %><tr><td><%= c.reference %></td>
+<td class="num">R<%= rand(c.oldCents) %></td><td class="num">R<%= rand(c.newCents) %></td>
+<td class="num"><%= c.deltaCents>=0?'+':'−' %>R<%= rand(Math.abs(c.deltaCents)) %></td></tr>
+<% }); %>
+<% if(!changes.length){ %><tr><td colspan="4">No monetary changes have been identified for these periods.</td></tr><% } %>
+</tbody></table>
+<h2>Verified explanations</h2>
+<% const verified=changes.filter(x=>x.review?.status==='verified'&&x.review?.reason); %>
+<% if(verified.length){ %><ul>
+<% verified.forEach(function(c){ %><li><strong><%= c.reference %>:</strong> <%= c.review.reason %></li><% }); %>
+</ul><% } else { %><p class="notice">No explanations have yet been approved. Gerda must verify the underlying contract or supplier invoice before this draft is shared with the customer.</p><% } %>
+<% const pending=changes.filter(x=>x.review?.status!=='verified'); %>
+<% if(pending.length){ %><p class="muted"><%= pending.length %> significant differences still need investigation. The reasons for these amounts are not yet confirmed.</p><% } %>
+<h2>Services held in the CRM</h2>
+<% if(crm?.status==='linked'){ %>
+<p>The CRM currently records <strong><%= crm.lines.length %></strong> line entries on this account.
+This is a current CRM snapshot, not necessarily the historical position at the billing date.</p>
+<% if(crm.truncated){ %><p class="notice">The CRM line list exceeds 5,000 entries and is incomplete. Do not send this report as a complete account inventory.</p><% } %>
+<% const active=crm.lines.filter(x=>x.line_status==='active'); %>
+<p>Currently marked active: <strong><%= active.length %></strong>.</p>
+<h2>Service and contract inventory</h2>
+<p class="muted">The following entries reflect the CRM's current recorded information. A missing or provisional amount is not a verified supplier charge.</p>
+<table><thead><tr><th>Line</th><th>Package</th><th>Status</th><th class="num">CRM monthly amount</th><th>Upgrade eligibility</th></tr></thead>
+<tbody><% crm.lines.forEach(function(x){ %><tr>
+<td><%= x.cell_number||'Not recorded' %></td>
+<td><%= x.package_name||'Not recorded' %></td>
+<td><%= x.line_status||'Unknown' %></td>
+<td class="num"><%= x.monthly_invoice_amount==null?'Not recorded':'R'+Number(x.monthly_invoice_amount).toFixed(2) %></td>
+<td><%= x.next_upgrade_date||'Not recorded' %></td>
+</tr><% }); %></tbody></table>
+<h2>Coming up in the next four weeks</h2>
+<% const currentDate=new Date();const end=new Date(currentDate.getTime()+28*86400000);
+ const upcoming=crm.lines.filter(x=>x.next_upgrade_date&&new Date(x.next_upgrade_date+'T12:00:00Z')>=currentDate&&new Date(x.next_upgrade_date+'T12:00:00Z')<=end); %>
+<% if(upcoming.length){ %><p><strong><%= upcoming.length %></strong> currently recorded upgrade eligibility dates fall within the next 28 days.</p>
+<ul><% upcoming.slice(0,25).forEach(function(x){ %><li><%= x.cell_number||'Service line' %> — <%= x.next_upgrade_date %> (eligibility, not a confirmed upgrade)</li><% }); %></ul>
+<% } else { %><p>No dated upgrade eligibilities in this four-week window were found in the current CRM line records.</p><% } %>
+<% } else { %>
+<p class="notice">Account-to-CRM identity has not yet been verified. Services, contracts and upcoming upgrades have deliberately been excluded.</p>
+<% } %>
+<h2>CRM service activity and planned follow-ups</h2>
+<p class="muted">The following figures are drawn from internally recorded CRM events and scheduled work, not from supplier billing evidence. Gerda must verify their meaning before promising any completed or future service change.</p>
+<% if(activity?.events==null){ %><p>Monthly CRM change-event records could not be verified.</p>
+<% }else{ %><p>CRM events recorded during <%= month %>: <strong><%= activity.events.length %><%= activity.events.length>=200?' (at least)':'' %></strong>. These may include import records and require confirmation before describing them as completed transactions.</p><% } %>
+<% if(activity?.upcomingTasks==null){ %><p>Pending follow-up work could not be verified.</p>
+<% }else{ %><p>Outstanding internal follow-ups scheduled for the next four weeks: <strong><%= activity.upcomingTasks.length %><%= activity.upcomingTasks.length>=100?' (at least)':'' %></strong>. A scheduled task is not necessarily an approved upgrade or confirmed activation.</p><% } %>
+<h2>Review and next steps</h2>
+<p>Changes without an approved explanation should be investigated against the detailed supplier invoice and relevant CRM change records. Scheduled future actions are not completed transactions.</p>
+<p class="muted">Draft generated <%= generatedAt %>. Management review and customer approval of the intended recipient are required before any external communication.</p>
+</body></html>

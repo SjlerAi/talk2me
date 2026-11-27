@@ -10,7 +10,8 @@ const cssPath=path.join(root,'public/css/tk2m-blue-red-refresh.css');
 const css=fs.readFileSync(cssPath,'utf8');
 const templates=fs.readdirSync(path.join(root,'views')).filter(v=>v.endsWith('.ejs'));
 const full=templates.filter(name=>/<!doctype/i.test(fs.readFileSync(path.join(root,'views',name),'utf8')));
-assert.equal(full.length,14,'unexpected top-level view count: review new full-document screens');
+assert.ok(full.includes('account-intelligence-customer-report.ejs'),'Customer Account Intelligence report must remain a full-document template');
+assert.equal(full.length,15,'unexpected top-level view count: review new full-document screens');
 for(const name of full){
   const src=fs.readFileSync(path.join(root,'views',name),'utf8');
   assert.match(src,/data-tk2m-blue-refresh/,'missing shared theme in '+name);
