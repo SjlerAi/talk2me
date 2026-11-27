@@ -1,8 +1,8 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Client Account Review - <%= account %></title>
+<title>Monthly Account Review — <%= displayCustomer %> — <%= account %></title>
 <style>
-body{font:15px/1.5 Arial,sans-serif;max-width:820px;margin:32px auto;color:#1d2c41;padding:0 20px}
+body{font:15px/1.5 Arial,sans-serif;max-width:900px;margin:30px auto;color:#1d2c41;padding:0 20px}
 h1{color:#174a80;margin-bottom:0}h2{margin-top:28px;border-bottom:1px solid #dde7f0;padding-bottom:6px}
 small,.muted{color:#687889} table{width:100%;border-collapse:collapse;font-size:14px}
 td,th{padding:9px 6px;border-bottom:1px solid #e3eaf2;text-align:left}th.num,td.num{text-align:right}
@@ -15,12 +15,16 @@ button{padding:10px 14px;background:#174a80;color:white;border:0;border-radius:7
 </head><body>
 <div class="actions"><button type="button" onclick="window.print()">Print / Save PDF</button></div>
 <h1>Monthly Account Review</h1>
-<p class="muted">Account <strong><%= account %></strong> · <%= prior %> compared with <%= month %></p>
+<h2 style="border:0;margin:5px 0 3px;color:#174a80"><%= displayCustomer %></h2>
+<p class="muted">Account number: <strong><%= account %></strong></p>
+<p class="muted"><strong><%= monthLabel(prior) %> compared with <%= monthLabel(month) %></strong></p>
+<% if(crm?.status!=='linked'){ %><p class="notice"><strong>Management draft — CRM account confirmation pending.</strong>
+ The customer's name is sourced from the uploaded supplier statement where available. Contract details must be confirmed before this report is sent.</p><% } %>
 <p>Prepared as a customer communication draft. Nothing has been sent. All amounts are in South African rand (ZAR).</p>
 <h2>Account billing summary</h2>
 <table><tbody>
-<tr><td>Previous month's invoice charges</td><td class="num">R<%= rand(comparison.previous.invoices) %></td></tr>
-<tr><td>Current month's invoice charges</td><td class="num">R<%= rand(comparison.current.invoices) %></td></tr>
+<tr><td><%= monthLabel(prior) %> invoice charges</td><td class="num">R<%= rand(comparison.previous.invoices) %></td></tr>
+<tr><td><%= monthLabel(month) %> invoice charges</td><td class="num">R<%= rand(comparison.current.invoices) %></td></tr>
 <tr><td><strong>Change in invoice charges</strong></td><td class="num"><strong><%= comparison.netChangeCents<0?'−':comparison.netChangeCents>0?'+':'' %>R<%= rand(Math.abs(comparison.netChangeCents)) %></strong></td></tr>
 <tr><td>Current-month credit notes</td><td class="num">R<%= rand(comparison.current.credits) %></td></tr>
 <tr><td>Current-month recorded payments</td><td class="num">R<%= rand(comparison.current.payments) %></td></tr>
@@ -36,11 +40,11 @@ button{padding:10px 14px;background:#174a80;color:white;border:0;border-radius:7
 <% }); %>
 <% if(!changes.length){ %><tr><td colspan="4">No monetary changes have been identified for these periods.</td></tr><% } %>
 </tbody></table>
-<h2>Verified explanations</h2>
+<h2>Explanations confirmed by Gerda</h2>
 <% const verified=changes.filter(x=>x.review?.status==='verified'&&x.review?.reason); %>
 <% if(verified.length){ %><ul>
 <% verified.forEach(function(c){ %><li><strong><%= c.reference %>:</strong> <%= c.review.reason %></li><% }); %>
-</ul><% } else { %><p class="notice">No explanations have yet been approved. Gerda must verify the underlying contract or supplier invoice before this draft is shared with the customer.</p><% } %>
+</ul><% } else { %><p class="notice">No explanations have been verified yet. Gerda can review each change in the Back Office and approve its explanation before sending this report.</p><% } %>
 <% const pending=changes.filter(x=>x.review?.status!=='verified'); %>
 <% if(pending.length){ %><p class="muted"><%= pending.length %> significant differences still need investigation. The reasons for these amounts are not yet confirmed.</p><% } %>
 <h2>Services held in the CRM</h2>
@@ -80,7 +84,7 @@ This is a current CRM snapshot, not necessarily the historical position at the b
 <ul><% upcoming.slice(0,25).forEach(function(x){ %><li><%= x.cell_number||'Service line' %> — <%= x.next_upgrade_date %> (eligibility, not a confirmed upgrade)</li><% }); %></ul>
 <% } else { %><p>No dated upgrade eligibilities in this four-week window were found in the current CRM line records.</p><% } %>
 <% } else { %>
-<p class="notice">Account-to-CRM identity has not yet been verified. Services, contracts and upcoming upgrades have deliberately been excluded.</p>
+<p class="notice">The supplier statement has not yet been confirmed against its exact TK2M CRM customer record. Gerda can confirm the account match in the Back Office. Until then, CRM service and contract details are excluded.</p>
 <% } %>
 <h2>CRM service activity and planned follow-ups</h2>
 <p class="muted">The following figures are drawn from internally recorded CRM events and scheduled work, not from supplier billing evidence. Gerda must verify their meaning before promising any completed or future service change.</p>
@@ -90,5 +94,5 @@ This is a current CRM snapshot, not necessarily the historical position at the b
 <% }else{ %><p>Outstanding internal follow-ups scheduled for the next four weeks: <strong><%= activity.upcomingTasks.length %><%= activity.upcomingTasks.length>=100?' (at least)':'' %></strong>. A scheduled task is not necessarily an approved upgrade or confirmed activation.</p><% } %>
 <h2>Review and next steps</h2>
 <p>Changes without an approved explanation should be investigated against the detailed supplier invoice and relevant CRM change records. Scheduled future actions are not completed transactions.</p>
-<p class="muted">Draft generated <%= generatedAt %>. Management review and customer approval of the intended recipient are required before any external communication.</p>
+<p class="muted">Draft generated <%= generatedAt %>. Nothing has been sent. Verify the customer, recipient, and every explanation before emailing a copy.</p>
 </body></html>
