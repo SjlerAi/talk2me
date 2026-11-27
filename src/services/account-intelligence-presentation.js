@@ -31,7 +31,7 @@ function defaultEmail({customer,account,previousMonth,currentMonth,netChangeCent
  const body='Dear Customer,\n\n'+
   'We have reviewed the monthly charges for your '+customer+' account ('+account+').\n\n'+
   'Your invoice charges for '+current+' '+movement+' compared with '+prior+'.\n\n'+
-  'Please see the attached account review for the largest billing differences and any explanations that have been confirmed. Credits, payments and outstanding balances are shown separately where available.\n\n'+
+  'Please see the attached account review for the largest billing differences and any explanations that have been confirmed. Credit notes and payments are shown separately; this comparison does not independently establish the amount outstanding.\n\n'+
   'If you would like us to check a specific line or service, please reply to this email and we will assist.\n\n'+
   'Kind regards,\nGerda\nTalk2Me Customer Support';
  return {subject,body};
