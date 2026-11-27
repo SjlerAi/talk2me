@@ -124,7 +124,16 @@
              <td><%= line.next_upgrade_date||'Not recorded' %></td>
            </tr><% }); %></tbody>
           </table></div>
-          <% if(crm.lines.length>35){ %><p class="ai-sub">Showing the first 35 CRM lines. The customer report includes a summary, not this full internal table.</p><% } %>
+          <% if(crm.lines.length>35){ %><p class="ai-sub">Showing the first 35 CRM mobile lines. The internal customer report contains the full available listing.</p><% } %>
+          <h3>Fixed services / internet / site subscriptions</h3>
+          <% if(crm.fixedServices===null){ %><p class="ai-warning">Fixed service information could not be verified from the CRM.</p>
+          <% }else{ %><p><span class="ai-tag"><%= crm.fixedServices.length %><%= crm.fixedTruncated?'+' : '' %> fixed service records</span></p>
+            <div class="ai-table-wrap"><table class="ai-table">
+              <thead><tr><th>Solution / order</th><th>Site</th><th>Package</th><th>Status</th><th>Activated</th></tr></thead><tbody>
+              <% crm.fixedServices.slice(0,35).forEach(function(f){ %><tr><td><%= f.solution_id||f.order_number||'Not recorded' %></td><td><%= f.branch_name||f.service_title||'Not recorded' %></td><td><%= f.package_name||'Not recorded' %></td><td><%= f.service_status||'unknown' %></td><td><%= f.activation_date||'Not recorded' %></td></tr><% }); %>
+              </tbody></table></div>
+            <% if(crm.fixedTruncated){ %><p class="ai-warning">Fixed service listing exceeds 1,000 and is incomplete.</p><% } %>
+          <% } %>
         <% } %>
       </section>
       <section class="ai-card">
