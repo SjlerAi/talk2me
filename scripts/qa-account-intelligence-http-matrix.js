@@ -17,6 +17,8 @@ function client(){
    const r=await fetch(BASE+p,{headers:cookie?{Cookie:cookie}:{},redirect:'manual'});
    const sc=r.headers.get('set-cookie');
    if(sc)cookie=sc.split(';')[0];
+   const loc=r.headers.get('location');
+   if([301,302,303,307,308].includes(r.status)&&loc&&loc.startsWith('/'))return this.get(loc);
    return{status:r.status,headers:r.headers,body:await r.text()};
   },
   async post(p,form){
