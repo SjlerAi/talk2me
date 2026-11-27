@@ -64,6 +64,18 @@ async function run(){
  page=await owner.get('/backoffice/account-intelligence?account=B0000001&month=2026-11');
  verify(page.body.includes('R217.29')&&page.body.includes('R290.00')&&page.body.includes('R72.71'),'Real HTTP PDF upload reconciles month charges');
  verify(page.body.includes('R10.00')&&page.body.includes('R220.00')&&page.body.includes('R280.00'),'Credits/payments/net charges shown separately');
+ verify(page.body.includes('Synthetic Business One')&&page.body.includes('October 2026')&&page.body.includes('November 2026'),'Customer holder and readable dates visible');
+ verify(page.body.includes('Demo Staff Member')&&page.body.includes('Confirm this exact CRM account'),'Internal staff allocation and confirmation action shown');
+ const unmatched=await owner.get('/backoffice/account-intelligence/customer-report?account=B0000001&month=2026-11');
+ verify(unmatched.body.includes('CRM account confirmation pending')&&!unmatched.body.includes('Demo Fibre 50Mbps'),'Unconfirmed CRM lines withheld from customer report');
+ const conflicting=new URLSearchParams({csrf,account:'B0000001',crm_account_id:'102',month:'2026-11'});
+ const rejectedLink=await owner.post('/backoffice/account-intelligence/confirm-account',conflicting);
+ verify(rejectedLink.status===409,'Wrong account identifier cannot be confirmed');
+ const exact=new URLSearchParams({csrf,account:'B0000001',crm_account_id:'101',month:'2026-11'});
+ const confirmed=await owner.post('/backoffice/account-intelligence/confirm-account',exact);
+ verify(confirmed.status===303,'Exact CRM account confirmation is saved');
+ page=await owner.get('/backoffice/account-intelligence?account=B0000001&month=2026-11');
+ verify(page.body.includes('CRM account identity confirmed'),'CRM confirmation persists in management view');
  verify(page.body.includes('Demo Fibre 50Mbps')&&page.body.includes('0791111101'),'CRM mobile and fixed service sections render');
  await owner.post('/backoffice/account-intelligence/upload',form({csrf,kind:'statement'},[['synthetic-statement.jsp']]));
  page=await owner.get('/backoffice/account-intelligence');
@@ -77,6 +89,17 @@ async function run(){
  verify(page.body.includes('R290.00')&&page.body.includes('R72.71'),'Supporting invoice is NOT double-counted as statement charge');
  let preview=await owner.get('/backoffice/account-intelligence/customer-report?account=B0000001&month=2026-11');
  verify(preview.status===200&&preview.body.includes('Monthly Account Review')&&preview.body.includes('Demo Fibre 50Mbps'),'Customer report includes actual mobile and fixed inventory');
+ verify(preview.body.includes('October 2026 compared with November 2026')&&!preview.body.includes('Demo Staff Member'),'Customer report readable and excludes staff member');
+ let editor=await owner.get('/backoffice/account-intelligence/email-draft?account=B0000001&month=2026-11');
+ verify(editor.status===200&&editor.body.includes('Gerda&#39;s email editor')||editor.status===200&&editor.body.includes("Gerda's email editor"),'Customer email editor opens');
+ verify(editor.body.includes('Your account review: November 2026 compared with October 2026'),'Standard email subject generated');
+ const savedDraft=new URLSearchParams({csrf,account:'B0000001',month:'2026-11',recipient:'synthetic@example.invalid',subject:'QA draft for synthetic account',body:'Synthetic manager-written email body'});
+ const savedResponse=await owner.post('/backoffice/account-intelligence/email-draft',savedDraft);
+ editor=await owner.get('/backoffice/account-intelligence/email-draft?account=B0000001&month=2026-11');
+ verify(savedResponse.status===303&&editor.body.includes('Synthetic manager-written email body'),'Edited email draft saved without sending');
+ const badDraft=new URLSearchParams({csrf,account:'B0000001',month:'2026-11',recipient:'broken-address',subject:'Invalid',body:'Test'});
+ const badDraftResponse=await owner.post('/backoffice/account-intelligence/email-draft',badDraft);
+ verify(badDraftResponse.status===400,'Invalid recipient rejected');
  const invalidReview=new URLSearchParams({csrf,account:'B0000001',month:'2026-11',prior:'2026-10',key:'LINE:999111114',status:'verified',reason:''});
  const rr=await owner.post('/backoffice/account-intelligence/review',invalidReview);
  verify(rr.status===400,'Verification with blank reason denied');
@@ -97,6 +120,8 @@ async function run(){
  verify(page.status===403,'Staff denied original source download');
  page=await staff.get('/backoffice/account-intelligence/customer-report?account=B0000001&month=2026-11');
  verify(page.status===403,'Staff denied customer report preview');
+ page=await staff.get('/backoffice/account-intelligence/email-draft?account=B0000001&month=2026-11');
+ verify(page.status===403,'Staff denied management-only email editor');
  const noCsrf=new URLSearchParams({account:'B0000001',month:'2026-11',prior:'2026-10',key:'LINE:999111114',status:'verified',reason:'bad'});
  const rejected=await owner.post('/backoffice/account-intelligence/review',noCsrf);
  verify(rejected.status===403,'Missing CSRF review denied');
@@ -108,7 +133,7 @@ async function run(){
  const rejectedSize=await owner.post('/backoffice/account-intelligence/upload',oversized);
  verify(rejectedSize.status===400&&rejectedSize.body.includes('PDF upload rejected'),'File exceeding 8MB limit rejected');
  const status=await owner.get('/__qa/status'),j=JSON.parse(status.body);
- verify(j.documents===3&&j.reviews===1&&j.audits>=4,'Rejected files do not modify fake documents/reviews');
+ verify(j.documents===3&&j.reviews===1&&j.confirmedLinks===1&&j.emailDrafts===1&&j.audits>=4,'Rejected files do not modify fake documents/reviews');
  console.log('SCREEN_ROUTE_MATRIX_PASS count='+passes+' synthetic=true; passed='+JSON.stringify(passed));
 }
 run().catch(e=>{console.error('SCREEN_ROUTE_MATRIX_FAIL',e.stack||e);process.exitCode=1});
