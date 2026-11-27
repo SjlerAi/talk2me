@@ -37,7 +37,7 @@ function rowShape(line){return line.slice(0,130).replace(/[A-Za-z]/g,'A').replac
    result.allDatedRowsParsed=dateLines.length===p.entries.length;
    // Independent ledger test: where statement rows contain a debit/credit and
    // a running balance, compare consecutive balances with signed movements.
-   const pairRows=dateLines.map(line=>[...line.matchAll(/R?\\s*-?\\d[\\d,]*\\.\\d{2}/g)]
+   const pairRows=dateLines.map(line=>[...line.matchAll(/R?\s*-?\d[\d,]*\.\d{2}/g)]
      .map(m=>core.cents(m[0])));
    let comparable=0,matched=0,mismatched=0;
    for(let i=1;i<pairRows.length;i++){
