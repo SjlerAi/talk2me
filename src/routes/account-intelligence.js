@@ -256,7 +256,7 @@ router.get(URL+'/source/:id',requireOwner,async(req,res,next)=>{
    if(!document||!/^[a-f0-9-]{36}$/.test(document.stored_filename))return res.sendStatus(404);
    res.set('Cache-Control','private,no-store');
    res.set('X-Content-Type-Options','nosniff');
-   res.download(path.join(privateRoot(),document.stored_filename+'.pdf'),cleanFilename(document.original_filename)+'.pdf',
+   res.download(path.join(privateRoot(),document.stored_filename+'.pdf'),cleanFilename(document.original_filename).replace(/\.(pdf|jsp)$/i,'')+'.pdf',
      err=>{if(err&&!res.headersSent)next(err)});
  }catch(e){next(e);}
 });
