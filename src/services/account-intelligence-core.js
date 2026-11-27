@@ -36,6 +36,8 @@ function stableKey(row) {
   const ref = String(row.reference || '').trim().toUpperCase();
   if (/^\d{7,15}$/.test(ref)) return 'LINE:' + ref;
   if (/^VT2-[A-Z0-9]+$/.test(String(row.itemNo || ''))) return 'SERVICE:VT2';
+  // Monthly VT1 invoice IDs are transient; compare their recurring category total, not the generated invoice number.
+  if (/^VT1-[A-Z0-9]+$/.test(String(row.itemNo || ''))) return 'SERVICE:VT1';
   if (/^[A-Z][A-Z0-9-]{3,}$/.test(ref)) return 'REFERENCE:' + ref;
   // Changing invoice IDs must not masquerade as reliable line matches.
   return 'UNMATCHED:' + String(row.itemNo || row.lineNo);
@@ -98,7 +100,7 @@ function summarise(entries, month) {
     if (item.category === 'invoice') {
       totals.invoices += item.amountCents;
       const key=item.matchingKey;
-      const old=invoice.get(key) || {key,reference:item.reference || item.itemNo,amountCents:0,items:0,needsReview:key.startsWith('UNMATCHED:')};
+      const old=invoice.get(key) || {key,reference:item.reference || item.itemNo,amountCents:0,items:0,needsReview:key.startsWith('UNMATCHED:')||key==='SERVICE:VT1'};
       old.amountCents += item.amountCents;
       old.items++;invoice.set(key,old);
     } else if (item.category === 'credit') totals.credits += Math.abs(item.amountCents);
@@ -128,6 +130,7 @@ function compareMonths(entries, priorMonth, currentMonth, limit=10) {
   if(sum!==totalDelta)throw new Error('Billing differences failed to reconcile');
   return {priorMonth,currentMonth,previous:previous.totals,current:current.totals,
     netChangeCents:totalDelta,top:changes.filter(x=>x.deltaCents!==0).slice(0,limit),
-    changes,changeCount:changes.filter(x=>x.deltaCents!==0).length,reviewCount:changes.filter(x=>x.needsReview).length};
+    changes,changeCount:changes.filter(x=>x.deltaCents!==0).length,reviewCount:changes.filter(x=>x.needsReview).length,
+    categoryMatchedPending:changes.some(x=>x.key==='SERVICE:VT1'&&x.needsReview)};
 }
 module.exports={cents,rand,monthFromDate,normaliseAccount,accountFromText,parseStatement,summarise,compareMonths,stableKey};
