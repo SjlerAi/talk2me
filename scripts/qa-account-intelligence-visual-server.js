@@ -3,6 +3,7 @@
 // Never run this harness on hosting. It replaces only the DB adapter with an in-memory fake.
 const express=require('express');
 const session=require('express-session');
+const expressLayouts=require('express-ejs-layouts');
 const crypto=require('node:crypto');
 const fs=require('node:fs');
 const path=require('node:path');
@@ -150,15 +151,21 @@ fs.writeFileSync(path.join(fixtureDir,'synthetic-second-account.pdf'),makePdf([
 const app=express();
 app.set('view engine','ejs');
 app.set('views',path.join(root,'views'));
+app.use(expressLayouts);
+app.set('layout','layout');
 app.use(express.urlencoded({extended:false}));
 app.use(express.json());
 app.use(session({secret:'LOCAL-SYNTHETIC-QA-NOT-FOR-HOSTING',resave:false,saveUninitialized:false,
  cookie:{sameSite:'lax',httpOnly:true,secure:false}}));
 app.use((req,res,next)=>{
  res.locals.basePath='';
- res.locals.panelMode=false;
+ res.locals.panelMode=String(req.query.panel||'')==='1';
  res.locals.isLive=true;
- res.locals.isUat=false;
+ res.locals.isStaging=true;
+ res.locals.isUat=true;
+ res.locals.cudoDisabled=true;
+ res.locals.unreadTaskCount=0;
+ res.locals.approvalCentreCount=0;
  res.locals.currentUser=req.session.user||null;
  res.locals.assetVersion='qa';
  res.locals.appVersion='qa';
@@ -182,7 +189,10 @@ app.get('/__qa/fixture-path',(req,res)=>res.type('text/plain').send(fixtureDir))
 app.get('/__qa/status',(req,res)=>res.json({synthetic:true,role:req.session.user?.role||'none',
  schemaReady:state.schemaReady,documents:state.documents.length,entries:state.entries.length,
  reviews:state.reviews.length,audits:state.audit.length,uploadedAccounts:[...new Set(state.documents.map(x=>x.account_number))]}));
-app.get('/backoffice',(req,res)=>res.render('backoffice-home',{layout:false,title:'Administration Centre'}));
+app.get('/backoffice',(req,res)=>res.render('backoffice-home',{title:'Administration Centre'}));
+app.get('/api/tasks/unread-latest',(req,res)=>res.json({task:null}));
+app.get('/api/approvals/count',(req,res)=>res.json({count:0}));
+app.post('/api/usage/events',(req,res)=>res.sendStatus(204));
 app.use('/',require('../src/routes/account-intelligence'));
 app.use((err,req,res,next)=>{console.error('QA_ERROR',String(err.message||err));res.status(500).type('text/plain').send('SYNTHETIC QA ERROR: '+String(err.message||err).slice(0,160))});
 app.listen(PORT,'127.0.0.1',()=>console.log('TK2M_ACCOUNT_INTELLIGENCE_VISUAL_QA_READY http://127.0.0.1:'+PORT+' synthetic=true fixtureDir='+fixtureDir));
