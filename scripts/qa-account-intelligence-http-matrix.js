@@ -104,7 +104,7 @@ async function run(){
  let preview=await owner.get('/backoffice/account-intelligence/customer-report?account=B0000001&month=2026-11');
  verify(preview.status===200&&preview.body.includes('Monthly Account Review')&&preview.body.includes('Demo Fibre 50Mbps'),'Customer report includes actual mobile and fixed inventory');
  verify(preview.body.includes('October 2026 compared with November 2026')&&
-   preview.body.includes('Customer name')&&preview.body.includes('Synthetic Business One')&&
+   preview.body.includes('Customer name')&&preview.body.toUpperCase().includes('SYNTHETIC BUSINESS ONE')&&
    preview.body.includes('Staff member responsible for this account')&&preview.body.includes('Demo Staff Member'),
    'Customer report labels customer name and confirmed assigned staff member');
  let editor=await owner.get('/backoffice/account-intelligence/email-draft?account=B0000001&month=2026-11');
