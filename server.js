@@ -542,6 +542,8 @@ if (BASE_PATH) app.use(BASE_PATH, officeIntelligence);
 if (CRM_LIVE_MODE) {
   // TK2M Back Office document and one-recipient email workflow.
   app.use('/', require('./src/routes/office-tools'));
+  // Management-only, review-first billing comparison; additive schema is separately gated.
+  app.use('/', require('./src/routes/account-intelligence'));
 }
 const routes = require('./src/routes');
 app.use('/', routes);

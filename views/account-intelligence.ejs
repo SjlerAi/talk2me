@@ -1,0 +1,212 @@
+<style>
+.ai-shell{max-width:1180px;margin:0 auto;padding:14px 18px;color:#18263c}
+.ai-shell h1{font-size:1.65rem;margin:0 0 4px}
+.ai-shell h2{font-size:1.12rem;margin:0 0 10px}
+.ai-shell p{line-height:1.45}
+.ai-sub{color:#52657a;font-size:.93rem}
+.ai-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}
+.ai-card{background:white;border:1px solid #dbe4ee;border-radius:12px;padding:15px;margin:14px 0}
+.ai-card input,.ai-card select,.ai-card textarea{border:1px solid #bac9d8;border-radius:7px;padding:8px;max-width:100%;background:#fff;color:#172e47}
+.ai-card label{display:block;font-weight:600;font-size:.86rem;margin:5px 0}
+.ai-card button,.ai-button{border:0;border-radius:8px;background:#174a80;color:#fff;display:inline-block;padding:10px 14px;font-weight:700;text-decoration:none;cursor:pointer}
+.ai-muted{color:#607087}
+.ai-warning{background:#fff6e5;border:1px solid #e6c680;padding:10px;border-radius:8px}
+.ai-table-wrap{overflow-x:auto}
+.ai-table{width:100%;border-collapse:collapse;font-size:.87rem}
+.ai-table td,.ai-table th{text-align:left;padding:9px 7px;border-bottom:1px solid #e0e7ef;vertical-align:top}
+.ai-table th{color:#445975}
+.ai-num{text-align:right!important;white-space:nowrap;font-variant-numeric:tabular-nums}
+.ai-flag{font-size:.75rem;padding:3px 7px;background:#fff0d8;border-radius:6px}
+.ai-good{color:#237444;font-weight:600}
+.ai-review{display:grid;gap:5px;min-width:200px}
+.ai-review textarea{font-size:.8rem;width:100%;min-height:55px}
+.ai-review button{padding:6px 10px}
+.ai-tag{font-size:.8rem;background:#edf4fc;border-radius:6px;padding:5px 7px;display:inline-block}
+@media (max-width:720px){
+.ai-shell{padding:10px 8px}
+.ai-grid{grid-template-columns:minmax(0,1fr)}
+.ai-card{padding:12px;min-width:0}
+.ai-card input[type=file]{width:100%;box-sizing:border-box}
+.ai-changes,.ai-changes tbody,.ai-changes tbody tr{display:block;width:100%;min-width:0;box-sizing:border-box}
+.ai-changes thead{display:none}
+.ai-changes tbody tr{border:1px solid #cfdae5;border-radius:9px;padding:8px;margin:0 0 12px}
+.ai-changes tbody td{display:flex;align-items:start;justify-content:space-between;gap:10px;padding:9px 4px;border-bottom:1px solid #edf2f7;text-align:right!important;white-space:normal!important;overflow-wrap:anywhere;box-sizing:border-box}
+.ai-changes tbody td::before{content:attr(data-label);font-weight:700;flex:0 0 40%;text-align:left;color:#52657a}
+.ai-changes tbody td.ai-review-cell{display:block;text-align:left!important}
+.ai-changes tbody td.ai-review-cell::before{display:block;content:attr(data-label);margin-bottom:7px}
+.ai-changes .ai-review{min-width:0;width:100%}
+.ai-changes .ai-review textarea,.ai-changes .ai-review select,.ai-changes .ai-review button{width:100%;max-width:100%;box-sizing:border-box}
+}
+</style>
+<section class="ai-shell">
+  <p><a href="<%= basePath %>/backoffice">← Back to Administration</a></p>
+  <h1>Account Intelligence</h1>
+  <p class="ai-sub">Monthly billing review, CRM line cross-check and customer report preparation. Read-only customer records; management approval required for every explanation.</p>
+  <% if(message){ %><p class="ai-warning"><%= message %></p><% } %>
+  <% if(schemaRequired){ %>
+    <div class="ai-card ai-warning"><h2>Database setup has not been authorised</h2>
+      <p>Account Intelligence code is available for review, but the additive database migration has not been applied. Contact the owner before enabling uploads.</p>
+      <p>No existing CRM records have been changed.</p></div>
+  <% } else { %>
+    <div class="ai-grid">
+      <section class="ai-card">
+        <h2>1. Upload statements</h2>
+        <form method="post" action="<%= basePath %>/backoffice/account-intelligence/upload" enctype="multipart/form-data">
+          <input type="hidden" name="csrf" value="<%= csrf %>">
+          <label for="ai-kind">Document type</label>
+          <select id="ai-kind" name="kind"><option value="statement">Monthly / multi-month statement</option><option value="invoice">Supporting detailed invoice</option></select>
+          <label for="ai-files">Select up to six files</label>
+          <input id="ai-files" name="documents" type="file" accept=".pdf,.jsp,application/pdf" multiple required>
+          <p class="ai-sub">Maximum 8 MB per file. Files must contain genuine PDF content. Different client accounts may be uploaded together.</p>
+          <button type="submit">Upload &amp; extract</button>
+        </form>
+      </section>
+      <section class="ai-card">
+        <h2>2. Compare billing months</h2>
+        <form method="get" action="<%= basePath %>/backoffice/account-intelligence">
+          <label for="ai-account">Account</label>
+          <select id="ai-account" name="account" required>
+            <% accounts.forEach(function(a){ const doc=documents.find(d=>d.account_number===a&&d.source_customer_name); %><option value="<%= a %>" <%= a===selected?'selected':'' %>><%= doc?.source_customer_name||'Name pending' %> — <%= a %></option><% }); %>
+          </select>
+          <label for="ai-month">Current billing month</label>
+          <input id="ai-month" type="month" name="month" value="<%= month %>" required>
+          <p class="ai-sub">Compares with the preceding billing month using invoice charges; credits and payments appear separately.</p>
+          <button type="submit">Compare</button>
+        </form>
+      </section>
+    </div>
+    <% if(report){ %>
+      <section class="ai-card">
+        <h2><%= displayCustomer||'Customer name pending' %></h2>
+        <p class="ai-sub"><strong>Account number: <%= selected %></strong> · <strong><%= monthLabel(prior) %> compared with <%= monthLabel(month) %></strong></p>
+        <p class="ai-sub"><%= crm?.status==='linked'?'Customer and account identity confirmed in TK2M.':'Customer name is from the uploaded supplier statement; CRM account matching is still pending.' %> Invoice charges are separate from payments and credits.</p>
+        <div class="ai-grid">
+          <div><span class="ai-muted">Previous invoices</span><h2>R<%= rand(report.previous.invoices) %></h2></div>
+          <div><span class="ai-muted">Current invoices</span><h2>R<%= rand(report.current.invoices) %></h2></div>
+          <div><span class="ai-muted">Invoice-charge change</span><h2><%= report.netChangeCents<0?'−':report.netChangeCents>0?'+':'' %>R<%= rand(Math.abs(report.netChangeCents)) %></h2></div>
+          <div><span class="ai-muted">Changed billing references</span><h2><%= report.changeCount %></h2></div>
+        </div>
+        <p><span class="ai-tag">Credits this month: R<%= rand(report.current.credits) %></span>
+          <span class="ai-tag">Payments recorded: R<%= rand(report.current.payments) %></span>
+          <span class="ai-tag">Net charges after credits: R<%= rand(report.current.netCharges) %></span></p>
+        <p class="ai-sub">A reduction in charges is not proof of a tariff correction. Billing reason must be verified against an invoice or CRM change history.</p>
+        <a class="ai-button" href="<%= basePath %>/backoffice/account-intelligence/customer-report?account=<%= encodeURIComponent(selected) %>&month=<%= encodeURIComponent(month) %>" target="_blank" rel="noopener">Preview customer report (not sent)</a>
+        <a class="ai-button" style="background:#344d67;margin-left:8px" href="<%= basePath %>/backoffice/account-intelligence/email-draft?account=<%= encodeURIComponent(selected) %>&month=<%= encodeURIComponent(month) %>">Prepare editable client email</a>
+      </section>
+      <section class="ai-card">
+        <h2>Top 10 monetary differences</h2>
+        <p class="ai-sub">Largest absolute rand changes first. Every other line remains in the underlying reconciliation. No artificial tenth entry is added.</p>
+        <% if(report.categoryMatchedPending){ %><p class="ai-warning">A recurring supplier invoice changes its reference every month. Its category totals were compared rather than treating the new invoice number as a new service. Gerda should verify the underlying recurring service before explaining it to the client.</p><% } %>
+        <div class="ai-table-wrap"><table class="ai-table ai-changes">
+          <thead><tr><th>Source reference</th><th>Status / CRM</th><th class="ai-num"><%= monthLabel(prior) %></th><th class="ai-num"><%= monthLabel(month) %></th><th class="ai-num">Difference</th><th>Gerda’s explanation / review</th></tr></thead>
+          <tbody>
+            <% report.top.forEach(function(change){ %><tr>
+              <td data-label="Reference"><strong><%= change.reference %></strong><span class="ai-muted"> · <%= change.kind %></span></td>
+              <td data-label="CRM match"><span class="ai-flag"><%= change.crmState==='candidate'?'Possible CRM line':change.crmState==='missing'?'Not matched in CRM':change.crmState==='ambiguous'?'Multiple CRM matches':'Other invoice/service' %></span></td>
+              <td class="ai-num" data-label="<%= monthLabel(prior) %>">R<%= rand(change.oldCents) %></td>
+              <td class="ai-num" data-label="<%= monthLabel(month) %>">R<%= rand(change.newCents) %></td>
+              <td class="ai-num" data-label="Difference"><strong><%= change.deltaCents>0?'+':change.deltaCents<0?'−':'' %>R<%= rand(Math.abs(change.deltaCents)) %></strong></td>
+              <td class="ai-review-cell" data-label="Review &amp; explanation">
+                <form class="ai-review" method="post" action="<%= basePath %>/backoffice/account-intelligence/review">
+                  <input type="hidden" name="csrf" value="<%= csrf %>">
+                  <input type="hidden" name="account" value="<%= selected %>">
+                  <input type="hidden" name="month" value="<%= month %>">
+                  <input type="hidden" name="prior" value="<%= prior %>">
+                  <input type="hidden" name="key" value="<%= change.key %>">
+                  <select name="status">
+                    <% ['pending','investigate','verified'].forEach(function(s){ %><option value="<%= s %>" <%= (change.review?.status||'pending')===s?'selected':'' %>><%= s==='verified'?'Confirmed — explanation verified':s==='investigate'?'Needs investigation':'Not reviewed' %></option><% }); %>
+                  </select>
+                  <textarea name="reason" maxlength="2000" placeholder="Gerda: enter the reason, evidence or question"><%= change.review?.reason||'' %></textarea>
+                  <button type="submit">Save review</button>
+                </form>
+              </td>
+            </tr><% }); %>
+            <% if(!report.top.length){ %><tr><td colspan="6">No monetary differences were found for these months. Confirm that both source periods were uploaded.</td></tr><% } %>
+          </tbody>
+        </table></div>
+      </section>
+      <section class="ai-card">
+        <h2>CRM account snapshot</h2>
+        <% if(!crm?.account){ %>
+          <p class="ai-warning">No exact matching CRM account has been found for <strong><%= selected %></strong>. Gerda must first verify or correct the account number in the normal CRM customer management screen. No customer lines will be joined automatically.</p>
+        <% } else { %>
+          <% if(crm.status!=='linked'){ %>
+            <div class="ai-warning"><strong>Suggested CRM match (not yet confirmed):</strong> <%= crm.account.display_name %> / <%= crm.account.account_number %>.
+            Please check the supplier statement against this CRM account before confirming.</div>
+            <form method="post" action="<%= basePath %>/backoffice/account-intelligence/confirm-account" style="margin:12px 0">
+             <input type="hidden" name="csrf" value="<%= csrf %>">
+             <input type="hidden" name="account" value="<%= selected %>">
+             <input type="hidden" name="crm_account_id" value="<%= crm.account.id %>">
+             <input type="hidden" name="month" value="<%= month %>">
+             <button type="submit">Confirm this exact CRM account</button>
+            </form>
+          <% }else{ %><p class="ai-good">CRM account identity confirmed by management.</p><% } %>
+          <p><strong>CRM customer:</strong> <%= crm.account.display_name||crm.account.account_number %> · <%= crm.lines.length %> CRM line records</p>
+          <p class="ai-tag"><strong>Allocated staff member (internal only):</strong> <%= crm.account.assigned_staff_name||'No confirmed staff allocation' %></p>
+          <% const future=crm.lines.filter(x=>x.next_upgrade_date&&new Date(x.next_upgrade_date+'T12:00:00Z')>=new Date()&&new Date(x.next_upgrade_date+'T12:00:00Z')<=new Date(Date.now()+28*86400000)); %>
+          <p><span class="ai-tag">Upcoming eligible upgrades (28 days): <%= future.length %></span>
+             <span class="ai-tag">Source match candidates require confirmation</span></p>
+          <div class="ai-table-wrap"><table class="ai-table">
+           <thead><tr><th>CRM line</th><th>Record status</th><th>Recorded monthly cost</th><th>Next upgrade date</th></tr></thead>
+           <tbody><% crm.lines.slice(0,35).forEach(function(line){ %><tr>
+             <td><%= line.cell_number||'Not recorded' %></td><td><%= line.line_status||'unknown' %></td>
+             <td><%= line.monthly_invoice_amount==null?'Not recorded':'R'+Number(line.monthly_invoice_amount).toFixed(2) %></td>
+             <td><%= line.next_upgrade_date||'Not recorded' %></td>
+           </tr><% }); %></tbody>
+          </table></div>
+          <% if(crm.lines.length>35){ %><p class="ai-sub">Showing the first 35 CRM mobile lines. The internal customer report contains the full available listing.</p><% } %>
+          <h3>Fixed services / internet / site subscriptions</h3>
+          <% if(crm.fixedServices===null){ %><p class="ai-warning">Fixed service information could not be verified from the CRM.</p>
+          <% }else{ %><p><span class="ai-tag"><%= crm.fixedServices.length %><%= crm.fixedTruncated?'+' : '' %> fixed service records</span></p>
+            <div class="ai-table-wrap"><table class="ai-table">
+              <thead><tr><th>Solution / order</th><th>Site</th><th>Package</th><th>Status</th><th>Activated</th></tr></thead><tbody>
+              <% crm.fixedServices.slice(0,35).forEach(function(f){ %><tr><td><%= f.solution_id||f.order_number||'Not recorded' %></td><td><%= f.branch_name||f.service_title||'Not recorded' %></td><td><%= f.package_name||'Not recorded' %></td><td><%= f.service_status||'unknown' %></td><td><%= f.activation_date||'Not recorded' %></td></tr><% }); %>
+              </tbody></table></div>
+            <% if(crm.fixedTruncated){ %><p class="ai-warning">Fixed service listing exceeds 1,000 and is incomplete.</p><% } %>
+          <% } %>
+        <% } %>
+      </section>
+      <section class="ai-card">
+        <h2>Recorded CRM activity and next 28 days</h2>
+        <p class="ai-sub">This is evidence recorded by the CRM, not independently verified proof of activation or supplier completion. Review source events before explaining them to customers.</p>
+        <% if(activity?.warnings?.length){ %><p class="ai-warning"><%= activity.warnings.join('. ') %></p><% } %>
+        <div class="ai-grid">
+          <div><span class="ai-muted">Events recorded this billing month</span>
+            <h2><%= activity?.events==null?'Not available':activity.events.length %></h2></div>
+          <div><span class="ai-muted">Outstanding tasks due in the next four weeks</span>
+            <h2><%= activity?.upcomingTasks==null?'Not available':activity.upcomingTasks.length %></h2></div>
+        </div>
+        <% if(activity?.events?.length){ %><h3>Monthly event evidence</h3>
+          <div class="ai-table-wrap"><table class="ai-table"><thead><tr><th>Event date</th><th>Event type</th><th>Description / package</th></tr></thead>
+          <tbody><% activity.events.slice(0,25).forEach(function(e){ %><tr><td><%= e.event_date %></td><td><%= e.event_type %></td><td><%= e.description||e.package_name||'Details not recorded' %></td></tr><% }); %></tbody></table></div>
+          <% if(activity.events.length>=200){ %><p class="ai-warning">Event list is capped at 200; full activity count has not been established.</p><% } %>
+        <% } %>
+        <% if(activity?.upcomingTasks?.length){ %><h3>Upcoming internal follow-ups</h3>
+          <div class="ai-table-wrap"><table class="ai-table"><thead><tr><th>Due</th><th>Action</th></tr></thead>
+          <tbody><% activity.upcomingTasks.slice(0,25).forEach(function(t){ %><tr><td><%= t.due_at %></td><td><%= t.title %></td></tr><% }); %></tbody></table></div>
+          <% if(activity.upcomingTasks.length>=100){ %><p class="ai-warning">Task list is capped at 100; complete workload count has not been established.</p><% } %>
+        <% } %>
+      </section>
+      <section class="ai-card">
+        <h2>Supporting detailed invoice checks</h2>
+        <div class="ai-table-wrap"><table class="ai-table"><thead><tr><th>Invoice</th><th>Detailed total</th><th>Statement result</th><th>Source</th></tr></thead>
+         <tbody><% sourceMatches.forEach(function(x){ %><tr>
+           <td><%= x.invoice_number||'Not extracted' %></td><td><%= x.total_cents==null?'Not extracted':'R'+rand(Number(x.total_cents)) %></td>
+           <td><%= x.reconciled?'Matched':x.sourceFound?'Amount differs / needs review':'Not found in current-month statement' %></td>
+           <td><a href="<%= basePath %>/backoffice/account-intelligence/source/<%= x.id %>">Open PDF</a></td>
+         </tr><% }); %>
+         <% if(!sourceMatches.length){ %><tr><td colspan="4">No supporting invoice PDFs uploaded for this account.</td></tr><% } %></tbody>
+        </table></div>
+      </section>
+    <% } %>
+    <section class="ai-card">
+      <h2>Document register (latest 80)</h2>
+      <div class="ai-table-wrap"><table class="ai-table"><thead><tr><th>Account</th><th>Document</th><th>Type</th><th>Uploaded</th><th>Original</th></tr></thead>
+       <tbody><% documents.forEach(function(x){ %><tr>
+        <td><%= x.account_number %></td><td><%= x.original_filename %></td><td><%= x.document_kind %></td>
+        <td><%= x.uploaded_at %></td><td><a href="<%= basePath %>/backoffice/account-intelligence/source/<%= x.id %>">View PDF</a></td>
+       </tr><% }); %></tbody>
+      </table></div>
+    </section>
+  <% } %>
+</section>

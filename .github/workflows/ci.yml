@@ -19,6 +19,20 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - run: npm run check
+      - name: Validate Account Intelligence statement parsing and privacy controls
+        run: node scripts/validate-account-intelligence.js && node scripts/validate-account-intelligence-presentation.js && node scripts/validate-account-intelligence-pdf.js && node --check src/routes/account-intelligence.js && node --check src/services/account-intelligence-pdf.js
+      - name: Run Account Intelligence synthetic real-route HTTP acceptance matrix
+        run: |
+          set -euo pipefail
+          node scripts/qa-account-intelligence-visual-server.js > /tmp/tk2m-ai-qa-server.log 2>&1 &
+          qa_pid=$!
+          trap 'kill "$qa_pid" 2>/dev/null || true' EXIT
+          for attempt in 1 2 3 4 5 6 7 8 9 10; do
+            if curl --fail --silent http://127.0.0.1:38187/__qa/status > /dev/null; then break; fi
+            sleep 1
+          done
+          curl --fail --silent http://127.0.0.1:38187/__qa/status
+          node scripts/qa-account-intelligence-http-matrix.js
       - name: Validate authorised Workspace and CRM customer lookup parity
         run: node scripts/validate-tk2m-global-customer-search.js
       - name: Validate Zippy 2 lightweight voice and CRM features

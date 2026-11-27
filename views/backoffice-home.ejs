@@ -30,6 +30,9 @@
       <a class="module-card" href="<%= basePath %>/data-review"><span class="module-icon">✓</span><h2>Data Review Centre</h2><p>Review customer duplicates, import discrepancies and record differences, with full decision history.</p></a>
       <a class="module-card" href="<%= basePath %>/backoffice/clients"><span class="module-icon">🧾</span><h2>Client Administration</h2><p>Contact details, ownership, authority and line records.</p></a>
       <a class="module-card" href="<%= basePath %>/upgrade-centre"><span class="module-icon">📈</span><h2>Upgrade Centre</h2><p>Upcoming and historical line upgrades.</p></a>
+      <% if(['owner','manager'].includes(currentUser.role)){ %>
+      <a class="module-card" href="<%= basePath %>/backoffice/account-intelligence"><span class="module-icon">📄</span><h2>Account Intelligence</h2><p>Upload monthly statements, compare the ten largest line changes, cross-check CRM services and prepare customer report drafts.</p></a>
+      <% } %>
       <% if(['owner','manager','admin'].includes(currentUser.role)){ %>
         <a class="module-card" href="<%= basePath %>/backoffice/data-import"><span class="module-icon">📥</span><h2>Data Import Centre</h2><p>Upload, preview and audit B12, Siebel and Fixed Base reports.</p></a>
       <% } %>

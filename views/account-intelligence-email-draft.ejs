@@ -1,0 +1,80 @@
+<style>
+.ai-email-shell{max-width:960px;margin:0 auto;padding:14px;color:#183048}
+.ai-email-card{background:#fff;border:1px solid #dbe4ed;border-radius:12px;padding:18px;margin:15px 0}
+.ai-email-muted{color:#5d7085;font-size:.92rem}
+.ai-email-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px}
+.ai-email-card label{display:block;font-weight:700;margin:12px 0 5px}
+.ai-email-card input,.ai-email-card textarea{width:100%;box-sizing:border-box;padding:10px;font:inherit;border:1px solid #b6c5d5;border-radius:8px;color:#17304a;background:white}
+.ai-email-card textarea{min-height:290px;line-height:1.55}
+.ai-email-card button,.ai-email-link{display:inline-block;border:0;background:#164b84;color:white;font-weight:700;border-radius:8px;padding:10px 15px;margin:5px 8px 5px 0;text-decoration:none;cursor:pointer}
+.ai-email-notice{background:#fff6e2;border:1px solid #e2c17d;border-radius:9px;padding:12px}
+.ai-email-success{background:#f0f8f2;border:1px solid #9ccdac;border-radius:9px;padding:12px}
+@media(max-width:720px){.ai-email-row{grid-template-columns:1fr}.ai-email-shell{padding:8px}}
+</style>
+<section class="ai-email-shell">
+ <p><a href="<%= basePath %>/backoffice/account-intelligence?account=<%= encodeURIComponent(account) %>&month=<%= encodeURIComponent(month) %>">← Back to Account Intelligence</a></p>
+ <h1>Customer email — editable draft</h1>
+ <p class="ai-email-muted"><strong><%= displayCustomer %></strong> · Account <%= account %> · <%= monthLabel(prior) %> compared with <%= monthLabel(month) %></p>
+ <% if(notice){ %><p class="ai-email-success"><%= notice %></p><% } %>
+ <div class="ai-email-notice">
+  <strong>Management review only — no email has been sent.</strong>
+  <% if(crm?.status!=='linked'){ %> This account is not yet confirmed against TK2M. Confirm the exact CRM account before external communication.<% } %>
+  Please check the recipient, all approved explanations, and the PDF report. The standard email is fully editable.
+ </div>
+ <div class="ai-email-row">
+  <div class="ai-email-card">
+   <h2>Report checklist</h2>
+   <p>1. Review the ten largest monetary changes and record verified reasons in Back Office.</p>
+   <p>2. Confirm the customer identity and allocated staff member (internal only).</p>
+   <p>3. Open and save the approved PDF report.</p>
+   <p>4. Edit the recipient, subject and body below.</p>
+   <p>5. Use your email app to attach the PDF and send after a final check. Automated CRM sending is not enabled in this review build.</p>
+   <a class="ai-email-link" href="<%= basePath %>/backoffice/account-intelligence/customer-report?account=<%= encodeURIComponent(account) %>&month=<%= encodeURIComponent(month) %>" target="_blank" rel="noopener">Preview / Print account PDF</a>
+  </div>
+  <div class="ai-email-card">
+   <h2>Billing summary</h2>
+   <p><%= monthLabel(prior) %>: <strong>R<%= rand(comparison.previous.invoices) %></strong></p>
+   <p><%= monthLabel(month) %>: <strong>R<%= rand(comparison.current.invoices) %></strong></p>
+   <p>Difference: <strong><%= comparison.netChangeCents<0?'−':comparison.netChangeCents>0?'+':'' %>R<%= rand(Math.abs(comparison.netChangeCents)) %></strong></p>
+   <p class="ai-email-muted">These are invoice charges, not the amount outstanding.</p>
+  </div>
+ </div>
+ <div class="ai-email-card">
+  <h2>Gerda's email editor</h2>
+  <form method="post" action="<%= basePath %>/backoffice/account-intelligence/email-draft" id="ai-email-form">
+   <input type="hidden" name="csrf" value="<%= csrf %>">
+   <input type="hidden" name="account" value="<%= account %>">
+   <input type="hidden" name="month" value="<%= month %>">
+   <label for="ai-email-recipient">Client email address — enter and verify manually</label>
+   <input id="ai-email-recipient" type="email" name="recipient" maxlength="254" autocomplete="off" value="<%= saved?.recipient_email||'' %>" placeholder="client@example.co.za">
+   <label for="ai-email-subject">Subject</label>
+   <input id="ai-email-subject" type="text" name="subject" maxlength="180" required value="<%= saved?.subject||defaultDraft.subject %>">
+   <label for="ai-email-body">Email message (Gerda can change any wording)</label>
+   <textarea id="ai-email-body" name="body" maxlength="6000" required><%= saved?.body||defaultDraft.body %></textarea>
+   <button type="submit">Save editable email draft</button>
+   <button type="button" id="ai-copy-email">Copy email text</button>
+   <button type="button" id="ai-open-mail" style="background:#4f667c" <%= crm?.status!=='linked'?'disabled title="Confirm the CRM account first"':'' %>>Open in email app (review before sending)</button>
+  </form>
+  <p id="ai-email-status" class="ai-email-muted" role="status" aria-live="polite">Saving creates an internal draft; it does not send the message.</p>
+  <% if(saved){ %><p class="ai-email-muted">Last internal draft save: <%= saved.edited_at %></p><% } %>
+ </div>
+</section>
+<script>
+(function(){
+ const byId=id=>document.getElementById(id);
+ const status=byId('ai-email-status');
+ const compose=()=>({to:byId('ai-email-recipient').value.trim(),subject:byId('ai-email-subject').value.trim(),body:byId('ai-email-body').value.trim()});
+ byId('ai-copy-email').addEventListener('click',async()=>{
+   const m=compose();
+   try{await navigator.clipboard.writeText('To: '+m.to+'\nSubject: '+m.subject+'\n\n'+m.body);status.textContent='Email content copied. No email has been sent.';}
+   catch(e){status.textContent='Copy is unavailable. Select the text directly to copy it.';}
+ });
+ byId('ai-open-mail').addEventListener('click',()=>{
+   const m=compose();
+   if(!m.to||!m.to.includes('@')){status.textContent='Enter and confirm the correct recipient before opening the email app.';return;}
+   if(!window.confirm('Open an external email draft addressed to '+m.to+'? Nothing will be sent automatically. Attach the approved PDF yourself.'))return;
+   window.location.href='mailto:'+encodeURIComponent(m.to)+'?subject='+encodeURIComponent(m.subject)+'&body='+encodeURIComponent(m.body);
+   status.textContent='External email draft requested. Check its recipient and attach the approved PDF before sending.';
+ });
+})();
+</script>
