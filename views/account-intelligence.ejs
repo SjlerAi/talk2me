@@ -22,6 +22,19 @@
 .ai-review textarea{font-size:.8rem;width:100%;min-height:55px}
 .ai-review button{padding:6px 10px}
 .ai-tag{font-size:.8rem;background:#edf4fc;border-radius:6px;padding:5px 7px;display:inline-block}
+@media (max-width:720px){
+.ai-shell{padding:10px 8px}
+.ai-card{padding:12px}
+.ai-changes,.ai-changes tbody,.ai-changes tbody tr{display:block;width:100%;min-width:0;box-sizing:border-box}
+.ai-changes thead{display:none}
+.ai-changes tbody tr{border:1px solid #cfdae5;border-radius:9px;padding:8px;margin:0 0 12px}
+.ai-changes tbody td{display:flex;align-items:start;justify-content:space-between;gap:10px;padding:9px 4px;border-bottom:1px solid #edf2f7;text-align:right!important;white-space:normal!important;overflow-wrap:anywhere;box-sizing:border-box}
+.ai-changes tbody td::before{content:attr(data-label);font-weight:700;flex:0 0 40%;text-align:left;color:#52657a}
+.ai-changes tbody td.ai-review-cell{display:block;text-align:left!important}
+.ai-changes tbody td.ai-review-cell::before{display:block;content:attr(data-label);margin-bottom:7px}
+.ai-changes .ai-review{min-width:0;width:100%}
+.ai-changes .ai-review textarea,.ai-changes .ai-review select,.ai-changes .ai-review button{width:100%;max-width:100%;box-sizing:border-box}
+}
 </style>
 <section class="ai-shell">
   <p><a href="<%= basePath %>/backoffice">← Back to Administration</a></p>
@@ -79,16 +92,16 @@
       <section class="ai-card">
         <h2>Top 10 monetary differences</h2>
         <p class="ai-sub">Largest absolute rand changes first. Every other line remains in the underlying reconciliation. No artificial tenth entry is added.</p>
-        <div class="ai-table-wrap"><table class="ai-table">
+        <div class="ai-table-wrap"><table class="ai-table ai-changes">
           <thead><tr><th>Source reference</th><th>Status / CRM</th><th class="ai-num"><%= prior %></th><th class="ai-num"><%= month %></th><th class="ai-num">Difference</th><th>Gerda's verified reason</th></tr></thead>
           <tbody>
             <% report.top.forEach(function(change){ %><tr>
-              <td><strong><%= change.reference %></strong><br><span class="ai-muted"><%= change.kind %></span></td>
-              <td><span class="ai-flag"><%= change.crmState==='candidate'?'Possible CRM line':change.crmState==='missing'?'Not matched in CRM':change.crmState==='ambiguous'?'Multiple CRM matches':'Other invoice/service' %></span></td>
-              <td class="ai-num">R<%= rand(change.oldCents) %></td>
-              <td class="ai-num">R<%= rand(change.newCents) %></td>
-              <td class="ai-num"><strong><%= change.deltaCents>0?'+':change.deltaCents<0?'−':'' %>R<%= rand(Math.abs(change.deltaCents)) %></strong></td>
-              <td>
+              <td data-label="Reference"><strong><%= change.reference %></strong><span class="ai-muted"> · <%= change.kind %></span></td>
+              <td data-label="CRM match"><span class="ai-flag"><%= change.crmState==='candidate'?'Possible CRM line':change.crmState==='missing'?'Not matched in CRM':change.crmState==='ambiguous'?'Multiple CRM matches':'Other invoice/service' %></span></td>
+              <td class="ai-num" data-label="<%= prior %>">R<%= rand(change.oldCents) %></td>
+              <td class="ai-num" data-label="<%= month %>">R<%= rand(change.newCents) %></td>
+              <td class="ai-num" data-label="Difference"><strong><%= change.deltaCents>0?'+':change.deltaCents<0?'−':'' %>R<%= rand(Math.abs(change.deltaCents)) %></strong></td>
+              <td class="ai-review-cell" data-label="Review &amp; explanation">
                 <form class="ai-review" method="post" action="<%= basePath %>/backoffice/account-intelligence/review">
                   <input type="hidden" name="csrf" value="<%= csrf %>">
                   <input type="hidden" name="account" value="<%= selected %>">
