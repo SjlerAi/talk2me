@@ -35,20 +35,11 @@ function rowShape(line){return line.slice(0,130).replace(/[A-Za-z]/g,'A').replac
       arithmeticReconciled:c.changes.reduce((n,x)=>n+x.deltaCents,0)===c.netChangeCents};
    }
    result.allDatedRowsParsed=dateLines.length===p.entries.length;
-   // Independent ledger test: where statement rows contain a debit/credit and
-   // a running balance, compare consecutive balances with signed movements.
-   const pairRows=dateLines.map(line=>[...line.matchAll(/R?\s*-?\d[\d,]*\.\d{2}/g)]
-     .map(m=>core.cents(m[0])));
-   let comparable=0,matched=0,mismatched=0;
-   for(let i=1;i<pairRows.length;i++){
-     if(pairRows[i].length<2||pairRows[i-1].length<2||
-        p.entries[i]?.month!==p.entries[i-1]?.month)continue;
-     comparable++;
-     const actualDelta=pairRows[i].at(-1)-pairRows[i-1].at(-1);
-     if(actualDelta===pairRows[i][0])matched++;
-     else mismatched++;
-   }
-   result.ledgerBalanceCrossCheck={comparable,matched,mismatched};
+   // The source statements are displayed in reverse/statement ordering:
+   // balance columns are not a sequential transaction ledger. Do not assert
+   // consecutive balance deltas equal current row debit/credit.
+   const monetaryRows=dateLines.filter(line=>/R?\s*-?\d[\d,]*\.\d{2}/.test(line)).length;
+   result.monetaryRowsWithAmount=monetaryRows;
    if(!p.accountNumber||!p.entries.length){
     // Shapes mask all alphanumeric content. Safe diagnostic: punctuation/layout only.
     result.dateRowShapes=dateLines.slice(0,3).map(rowShape);
