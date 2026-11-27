@@ -85,7 +85,17 @@ async function crmSnapshot(accountNumber) {
    'UPPER(REPLACE(TRIM(account_number)," ",""))=:number) ORDER BY id LIMIT 5001',
    {id:account.id,number:accountNumber});
  const truncated=lines.length>5000;
- return {status:'linked',account,lines:lines.slice(0,5000),truncated};
+ let fixedServices=null,fixedTruncated=false;
+ try {
+   const [rows]=await db.execute(
+     'SELECT fs.id,fs.service_title,fs.branch_name,fs.solution_id,fs.order_number,fs.package_name,'+
+     'fs.service_status,DATE_FORMAT(fs.activation_date,"%Y-%m-%d") activation_date '+
+     'FROM fixed_services fs JOIN fixed_accounts fa ON fa.id=fs.fixed_account_id '+
+     'WHERE fa.account_id=:id OR (fa.account_id IS NULL AND fa.account_number_normalised=:number) '+
+     'ORDER BY fs.id LIMIT 1001',{id:account.id,number:accountNumber});
+   fixedTruncated=rows.length>1000;fixedServices=rows.slice(0,1000);
+ }catch(e){fixedServices=null;}
+ return {status:'linked',account,lines:lines.slice(0,5000),truncated,fixedServices,fixedTruncated};
 }
 
 async function accountActivity(crm,month) {
