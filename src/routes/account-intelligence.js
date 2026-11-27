@@ -325,4 +325,91 @@ router.get(URL+'/customer-report',requireOwner,async(req,res,next)=>{
  }catch(e){next(e);}
 });
 
+
+function safeEmail(value){
+ const str=String(value||'').trim();
+ return !str||str.length<=254&&/^[^\s@<>]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(str)&&!str.includes('..');
+}
+function safeSubject(value){
+ const str=String(value||'').trim();
+ return str.length>=1&&str.length<=180&&!/[\r\n\x00-\x1f]/.test(str);
+}
+router.post(URL+'/confirm-account',requireOwner,async(req,res,next)=>{
+ try{
+   if(!csrfValid(req))return res.sendStatus(403);
+   const account=core.normaliseAccount(req.body.account),candidateId=Number(req.body.crm_account_id);
+   if(!account||!Number.isSafeInteger(candidateId)||candidateId<1)return res.sendStatus(400);
+   const [docs]=await db.execute('SELECT id FROM account_intelligence_documents WHERE account_number=:account LIMIT 1',{account});
+   if(!docs.length)return res.sendStatus(404);
+   const [candidates]=await db.execute(
+     'SELECT id,display_name FROM customer_accounts WHERE id=:id AND '+
+     '(account_number_normalised=:number OR account_number=:number) LIMIT 1',
+     {id:candidateId,number:account});
+   if(candidates.length!==1)return res.status(409).type('text/plain')
+     .send('The account number does not exactly match the proposed CRM record. No link was saved.');
+   await db.execute(
+     'INSERT INTO account_intelligence_account_links(account_number,crm_account_id,confirmed_by) '+
+     'VALUES (:number,:id,:by) ON DUPLICATE KEY UPDATE '+
+     'crm_account_id=VALUES(crm_account_id),confirmed_by=VALUES(confirmed_by),confirmed_at=NOW()',
+     {number:account,id:candidateId,by:req.session.user.id});
+   await audit(req,{actionType:'account_intelligence_identity_confirmed',
+     entityType:'account_intelligence_account_links',description:'Management confirmed supplier account to exact-number CRM account',
+     after:{account,crmAccountId:candidateId}});
+   setNotice(req,'Account identity confirmed. Existing CRM customers and staff assignments were not modified.');
+   res.redirect(303,URL+'?account='+encodeURIComponent(account)+'&month='+encodeURIComponent(period(req.body.month)||new Date().toISOString().slice(0,7)));
+ }catch(e){next(e);}
+});
+async function draftContext(account,month){
+ const [docs]=await db.execute(
+  'SELECT id,source_customer_name FROM account_intelligence_documents WHERE account_number=:account ORDER BY id DESC LIMIT 1',{account});
+ if(!docs.length)return null;
+ const prior=previousMonth(month),entries=await accountRows(account);
+ const comparison=core.compareMonths(entries,prior,month);
+ const crm=await crmSnapshot(account);
+ const displayCustomer=presentation.customerName(crm,docs[0].source_customer_name);
+ const defaultDraft=presentation.defaultEmail({customer:displayCustomer,account,previousMonth:prior,
+  currentMonth:month,netChangeCents:comparison.netChangeCents,rand:core.rand});
+ const [saved]=await db.execute(
+  'SELECT recipient_email,subject,body,edited_at FROM account_intelligence_email_drafts '+
+  'WHERE account_number=:account AND billing_month=:month LIMIT 1',{account,month});
+ return {prior,comparison,crm,displayCustomer,defaultDraft,saved:saved[0]||null};
+}
+router.get(URL+'/email-draft',requireOwner,async(req,res,next)=>{
+ try{
+   const account=core.normaliseAccount(req.query.account),month=period(req.query.month);
+   if(!account||!month)return res.sendStatus(400);
+   const context=await draftContext(account,month);
+   if(!context)return res.sendStatus(404);
+   const notice=req.session.accountIntelNotice||null;delete req.session.accountIntelNotice;
+   res.set('Cache-Control','private,no-store');
+   res.render('account-intelligence-email-draft',{
+    title:'Customer email draft',account,month,csrf:csrf(req),monthLabel:presentation.monthLabel,
+    notice,...context,deliveryEnabled:false
+   });
+ }catch(e){next(e);}
+});
+router.post(URL+'/email-draft',requireOwner,async(req,res,next)=>{
+ try{
+   if(!csrfValid(req))return res.sendStatus(403);
+   const account=core.normaliseAccount(req.body.account),month=period(req.body.month);
+   const recipient=String(req.body.recipient||'').trim(),subject=String(req.body.subject||'').trim();
+   const body=String(req.body.body||'').trim();
+   if(!account||!month||!safeEmail(recipient)||!safeSubject(subject)||!body||body.length>6000)
+    return res.status(400).type('text/plain').send('Please enter a valid recipient, subject and message.');
+   const context=await draftContext(account,month);
+   if(!context)return res.sendStatus(404);
+   await db.execute(
+    'INSERT INTO account_intelligence_email_drafts(account_number,billing_month,recipient_email,subject,body,edited_by) '+
+    'VALUES (:account,:month,:recipient,:subject,:body,:editor) '+
+    'ON DUPLICATE KEY UPDATE recipient_email=VALUES(recipient_email),subject=VALUES(subject),'+
+    'body=VALUES(body),edited_by=VALUES(edited_by)',
+    {account,month,recipient:recipient||null,subject,body,editor:req.session.user.id});
+   await audit(req,{actionType:'account_intelligence_email_draft_saved',entityType:'billing_email_draft',
+     description:'Management saved an unsent client account email draft',
+     after:{account,month,recipientSet:Boolean(recipient),subjectLength:subject.length,bodyLength:body.length}});
+   setNotice(req,'Email draft saved. Nothing has been sent. Confirm recipient and attach the approved PDF before sending.');
+   res.redirect(303,URL+'/email-draft?account='+encodeURIComponent(account)+'&month='+encodeURIComponent(month));
+ }catch(e){next(e);}
+});
+
 module.exports=router;
