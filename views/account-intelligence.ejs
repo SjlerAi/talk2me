@@ -66,7 +66,7 @@
         <form method="get" action="<%= basePath %>/backoffice/account-intelligence">
           <label for="ai-account">Account</label>
           <select id="ai-account" name="account" required>
-            <% accounts.forEach(function(a){ %><option value="<%= a %>" <%= a===selected?'selected':'' %>><%= a %></option><% }); %>
+            <% accounts.forEach(function(a){ const doc=documents.find(d=>d.account_number===a); %><option value="<%= a %>" <%= a===selected?'selected':'' %>><%= doc?.source_customer_name||'Name pending' %> — <%= a %></option><% }); %>
           </select>
           <label for="ai-month">Current billing month</label>
           <input id="ai-month" type="month" name="month" value="<%= month %>" required>
@@ -77,8 +77,9 @@
     </div>
     <% if(report){ %>
       <section class="ai-card">
-        <h2>Billing position for <%= selected %></h2>
-        <p class="ai-sub"><%= prior %> compared with <%= month %>. Changes are based on the actual recorded invoice amounts, not running balances.</p>
+        <h2><%= displayCustomer||'Customer name pending' %></h2>
+        <p class="ai-sub"><strong>Account number: <%= selected %></strong> · <strong><%= monthLabel(prior) %> compared with <%= monthLabel(month) %></strong></p>
+        <p class="ai-sub">Customer name is from the supplier statement until an exact CRM account match has been confirmed. Invoice charges are shown separately from payments and credits.</p>
         <div class="ai-grid">
           <div><span class="ai-muted">Previous invoices</span><h2>R<%= rand(report.previous.invoices) %></h2></div>
           <div><span class="ai-muted">Current invoices</span><h2>R<%= rand(report.current.invoices) %></h2></div>
@@ -90,18 +91,19 @@
           <span class="ai-tag">Net charges after credits: R<%= rand(report.current.netCharges) %></span></p>
         <p class="ai-sub">A reduction in charges is not proof of a tariff correction. Billing reason must be verified against an invoice or CRM change history.</p>
         <a class="ai-button" href="<%= basePath %>/backoffice/account-intelligence/customer-report?account=<%= encodeURIComponent(selected) %>&month=<%= encodeURIComponent(month) %>" target="_blank" rel="noopener">Preview customer report (not sent)</a>
+        <a class="ai-button" style="background:#344d67;margin-left:8px" href="<%= basePath %>/backoffice/account-intelligence/email-draft?account=<%= encodeURIComponent(selected) %>&month=<%= encodeURIComponent(month) %>">Prepare editable client email</a>
       </section>
       <section class="ai-card">
         <h2>Top 10 monetary differences</h2>
         <p class="ai-sub">Largest absolute rand changes first. Every other line remains in the underlying reconciliation. No artificial tenth entry is added.</p>
         <div class="ai-table-wrap"><table class="ai-table ai-changes">
-          <thead><tr><th>Source reference</th><th>Status / CRM</th><th class="ai-num"><%= prior %></th><th class="ai-num"><%= month %></th><th class="ai-num">Difference</th><th>Gerda's verified reason</th></tr></thead>
+          <thead><tr><th>Source reference</th><th>Status / CRM</th><th class="ai-num"><%= monthLabel(prior) %></th><th class="ai-num"><%= monthLabel(month) %></th><th class="ai-num">Difference</th><th>Gerda’s explanation / review</th></tr></thead>
           <tbody>
             <% report.top.forEach(function(change){ %><tr>
               <td data-label="Reference"><strong><%= change.reference %></strong><span class="ai-muted"> · <%= change.kind %></span></td>
               <td data-label="CRM match"><span class="ai-flag"><%= change.crmState==='candidate'?'Possible CRM line':change.crmState==='missing'?'Not matched in CRM':change.crmState==='ambiguous'?'Multiple CRM matches':'Other invoice/service' %></span></td>
-              <td class="ai-num" data-label="<%= prior %>">R<%= rand(change.oldCents) %></td>
-              <td class="ai-num" data-label="<%= month %>">R<%= rand(change.newCents) %></td>
+              <td class="ai-num" data-label="<%= monthLabel(prior) %>">R<%= rand(change.oldCents) %></td>
+              <td class="ai-num" data-label="<%= monthLabel(month) %>">R<%= rand(change.newCents) %></td>
               <td class="ai-num" data-label="Difference"><strong><%= change.deltaCents>0?'+':change.deltaCents<0?'−':'' %>R<%= rand(Math.abs(change.deltaCents)) %></strong></td>
               <td class="ai-review-cell" data-label="Review &amp; explanation">
                 <form class="ai-review" method="post" action="<%= basePath %>/backoffice/account-intelligence/review">
@@ -111,9 +113,9 @@
                   <input type="hidden" name="prior" value="<%= prior %>">
                   <input type="hidden" name="key" value="<%= change.key %>">
                   <select name="status">
-                    <% ['pending','investigate','verified'].forEach(function(s){ %><option value="<%= s %>" <%= (change.review?.status||'pending')===s?'selected':'' %>><%= s==='verified'?'Verified':s==='investigate'?'Investigate':'Pending' %></option><% }); %>
+                    <% ['pending','investigate','verified'].forEach(function(s){ %><option value="<%= s %>" <%= (change.review?.status||'pending')===s?'selected':'' %>><%= s==='verified'?'Confirmed — explanation verified':s==='investigate'?'Needs investigation':'Not reviewed' %></option><% }); %>
                   </select>
-                  <textarea name="reason" maxlength="2000" placeholder="Verified explanation or question"><%= change.review?.reason||'' %></textarea>
+                  <textarea name="reason" maxlength="2000" placeholder="Gerda: enter the reason, evidence or question"><%= change.review?.reason||'' %></textarea>
                   <button type="submit">Save review</button>
                 </form>
               </td>
@@ -124,10 +126,22 @@
       </section>
       <section class="ai-card">
         <h2>CRM account snapshot</h2>
-        <% if(crm?.status!=='linked'){ %>
-          <p class="ai-warning">Official CRM account link is <%= crm?.status||'unavailable' %>. Similar-looking account numbers are not joined automatically. Please confirm the identity before publishing.</p>
+        <% if(!crm?.account){ %>
+          <p class="ai-warning">No exact matching CRM account has been found for <strong><%= selected %></strong>. Gerda must first verify or correct the account number in the normal CRM customer management screen. No customer lines will be joined automatically.</p>
         <% } else { %>
-          <p><strong><%= crm.account.display_name||crm.account.account_number %></strong> · <%= crm.lines.length %> CRM line records</p>
+          <% if(crm.status!=='linked'){ %>
+            <div class="ai-warning"><strong>Suggested CRM match (not yet confirmed):</strong> <%= crm.account.display_name %> / <%= crm.account.account_number %>.
+            Please check the supplier statement against this CRM account before confirming.</div>
+            <form method="post" action="<%= basePath %>/backoffice/account-intelligence/confirm-account" style="margin:12px 0">
+             <input type="hidden" name="csrf" value="<%= csrf %>">
+             <input type="hidden" name="account" value="<%= selected %>">
+             <input type="hidden" name="crm_account_id" value="<%= crm.account.id %>">
+             <input type="hidden" name="month" value="<%= month %>">
+             <button type="submit">Confirm this exact CRM account</button>
+            </form>
+          <% }else{ %><p class="ai-good">CRM account identity confirmed by management.</p><% } %>
+          <p><strong>CRM customer:</strong> <%= crm.account.display_name||crm.account.account_number %> · <%= crm.lines.length %> CRM line records</p>
+          <p class="ai-tag"><strong>Allocated staff member (internal only):</strong> <%= crm.account.assigned_staff_name||'No confirmed staff allocation' %></p>
           <% const future=crm.lines.filter(x=>x.next_upgrade_date&&new Date(x.next_upgrade_date+'T12:00:00Z')>=new Date()&&new Date(x.next_upgrade_date+'T12:00:00Z')<=new Date(Date.now()+28*86400000)); %>
           <p><span class="ai-tag">Upcoming eligible upgrades (28 days): <%= future.length %></span>
              <span class="ai-tag">Source match candidates require confirmation</span></p>
