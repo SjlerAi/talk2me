@@ -19,6 +19,8 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - run: npm run check
+      - name: Validate Account Intelligence statement parsing and privacy controls
+        run: node scripts/validate-account-intelligence.js && node scripts/validate-account-intelligence-pdf.js && node --check src/routes/account-intelligence.js && node --check src/services/account-intelligence-pdf.js
       - name: Validate authorised Workspace and CRM customer lookup parity
         run: node scripts/validate-tk2m-global-customer-search.js
       - name: Validate Zippy 2 lightweight voice and CRM features
