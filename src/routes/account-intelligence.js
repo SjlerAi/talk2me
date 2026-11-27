@@ -10,6 +10,7 @@ const {requireOwner}=require('../middleware/auth');
 const {audit}=require('../services/audit');
 const core=require('../services/account-intelligence-core');
 const {extractPdfText}=require('../services/account-intelligence-pdf');
+const presentation=require('../services/account-intelligence-presentation');
 
 const router=express.Router();
 const URL='/backoffice/account-intelligence';
@@ -74,10 +75,16 @@ async function accountRows(accountNumber) {
 }
 async function crmSnapshot(accountNumber) {
  const [accounts]=await db.execute(
-   'SELECT id,account_number,display_name FROM customer_accounts '+
-   'WHERE account_number_normalised=:num OR account_number=:num LIMIT 2',{num:accountNumber});
+   'SELECT ca.id,ca.account_number,ca.account_number_normalised,ca.display_name,ca.assigned_staff_id,'+
+   's.full_name assigned_staff_name FROM customer_accounts ca '+
+   'LEFT JOIN staff_users s ON s.id=ca.assigned_staff_id '+
+   'WHERE ca.account_number_normalised=:num OR ca.account_number=:num LIMIT 2',{num:accountNumber});
  if(accounts.length!==1)return {status:accounts.length?'ambiguous':'unlinked',lines:[],account:null};
  const account=accounts[0];
+ const [[link]]=await db.execute(
+  'SELECT crm_account_id,confirmed_by,confirmed_at FROM account_intelligence_account_links WHERE account_number=:num LIMIT 1',
+  {num:accountNumber});
+ const confirmed=link&&Number(link.crm_account_id)===Number(account.id);
  const [lines]=await db.execute(
    'SELECT id,cell_number,line_status,package_name,monthly_invoice_amount,created_at,'+
    'DATE_FORMAT(next_upgrade_date,"%Y-%m-%d") next_upgrade_date '+
@@ -95,7 +102,7 @@ async function crmSnapshot(accountNumber) {
      'ORDER BY fs.id LIMIT 1001',{id:account.id,number:accountNumber});
    fixedTruncated=rows.length>1000;fixedServices=rows.slice(0,1000);
  }catch(e){fixedServices=null;}
- return {status:'linked',account,lines:lines.slice(0,5000),truncated,fixedServices,fixedTruncated};
+ return {status:confirmed?'linked':'candidate',account,lines:lines.slice(0,5000),truncated,fixedServices,fixedTruncated};
 }
 
 async function accountActivity(crm,month) {
@@ -138,17 +145,19 @@ async function dashboard(req,res) {
  const message=req.session.accountIntelNotice||null;
  delete req.session.accountIntelNotice;
  const [documents]=await db.execute(
-  'SELECT id,account_number,original_filename,document_kind,invoice_number,total_cents,DATE_FORMAT(source_date,"%Y-%m-%d") source_date,uploaded_at,'+
+  'SELECT id,account_number,original_filename,document_kind,source_customer_name,invoice_number,total_cents,DATE_FORMAT(source_date,"%Y-%m-%d") source_date,uploaded_at,'+
   'extraction_warnings FROM account_intelligence_documents ORDER BY uploaded_at DESC,id DESC LIMIT 80');
  const accounts=[...new Set(documents.map(x=>x.account_number))];
  const selected=String(req.query.account||accounts[0]||'').trim().toUpperCase();
  const month=period(req.query.month)||new Date().toISOString().slice(0,7);
  const prior=previousMonth(month);
- let report=null,crm=null,activity=null,reviews=[],sourceMatches=[];
+ let report=null,crm=null,activity=null,reviews=[],sourceMatches=[],sourceName=null,displayCustomer=null;
  if(selected&&accounts.includes(selected)){
    const entries=await accountRows(selected);
    report=core.compareMonths(entries,prior,month);
    crm=await crmSnapshot(selected);
+   sourceName=documents.find(x=>x.account_number===selected&&x.source_customer_name)?.source_customer_name||null;
+   displayCustomer=presentation.customerName(crm,sourceName);
    activity=await accountActivity(crm,month);
    report.top=crmAnnotations(report.top,crm.lines);
    const [existing]=await db.execute(
@@ -173,7 +182,7 @@ async function dashboard(req,res) {
  res.set('Cache-Control','private,no-store');
  res.render('account-intelligence',{
    title:'Account Intelligence',csrf:csrf(req),documents,accounts,selected,month,prior,
-   report,crm,activity,reviews,sourceMatches,message,schemaRequired:false,renderError:null,rand:core.rand
+   report,crm,activity,reviews,sourceMatches,sourceName,displayCustomer,message,schemaRequired:false,renderError:null,rand:core.rand,monthLabel:presentation.monthLabel
  });
 }
 router.get(URL,requireOwner,async(req,res,next)=>{
@@ -181,7 +190,7 @@ router.get(URL,requireOwner,async(req,res,next)=>{
  catch(e) {
    if(e.code==='ER_NO_SUCH_TABLE')return res.status(503).render('account-intelligence',{
      title:'Account Intelligence',csrf:csrf(req),documents:[],accounts:[],selected:'',month:'',prior:'',
-     report:null,crm:null,activity:null,reviews:[],sourceMatches:[],message:null,schemaRequired:true,
+     report:null,crm:null,activity:null,reviews:[],sourceMatches:[],sourceName:null,displayCustomer:null,message:null,schemaRequired:true,monthLabel:presentation.monthLabel,
      renderError:null,rand:core.rand
    });
    next(e);
@@ -217,9 +226,10 @@ router.post(URL+'/upload',requireOwner,(req,res,next)=>{
      const invoice=invoiceDetails(content);
      const [created]=await connection.execute(
        'INSERT INTO account_intelligence_documents (account_number,original_filename,stored_filename,'+
-       'document_sha256,document_kind,invoice_number,total_cents,source_date,extraction_warnings,uploaded_by) '+
-       'VALUES (:account,:name,:stored,:sha,:kind,:invoice,:total,:date,:warnings,:staff)',
+       'document_sha256,document_kind,source_customer_name,invoice_number,total_cents,source_date,extraction_warnings,uploaded_by) '+
+       'VALUES (:account,:name,:stored,:sha,:kind,:holder,:invoice,:total,:date,:warnings,:staff)',
        {account:parsed.accountNumber,name:cleanFilename(file.originalname),stored,sha,kind,
+        holder:presentation.accountHolderFromText(content),
         invoice:kind==='invoice'?invoice.number:null,total:kind==='invoice'?invoice.totalCents:null,
         date:kind==='invoice'?invoice.sourceDate:null,
         warnings:parsed.notes.join('; ').slice(0,2000),staff:req.session.user.id});
@@ -293,12 +303,13 @@ router.get(URL+'/customer-report',requireOwner,async(req,res,next)=>{
  try {
    const account=core.normaliseAccount(req.query.account),month=period(req.query.month);
    if(!account||!month)return res.sendStatus(400);
-   const [exists]=await db.execute('SELECT id FROM account_intelligence_documents WHERE account_number=:account LIMIT 1',{account});
+   const [exists]=await db.execute('SELECT id,source_customer_name FROM account_intelligence_documents WHERE account_number=:account ORDER BY id DESC LIMIT 1',{account});
    if(!exists.length)return res.sendStatus(404);
    const prior=previousMonth(month);
    const entries=await accountRows(account);
    const comparison=core.compareMonths(entries,prior,month);
    const crm=await crmSnapshot(account);
+   const displayCustomer=presentation.customerName(crm,exists[0].source_customer_name);
    const activity=await accountActivity(crm,month);
    const [reviewRows]=await db.execute(
     'SELECT match_key,status,reason FROM account_intelligence_reviews '+
@@ -308,7 +319,7 @@ router.get(URL+'/customer-report',requireOwner,async(req,res,next)=>{
    const changes=comparison.top.map(x=>({...x,review:reasons.get(x.key)||null}));
    res.set('Cache-Control','private,no-store');
    res.render('account-intelligence-customer-report',{
-     layout:false,title:'Customer Account Review',account,month,prior,comparison,crm,activity,changes,rand:core.rand,
+     layout:false,title:'Customer Account Review',account,month,prior,comparison,crm,activity,changes,displayCustomer,monthLabel:presentation.monthLabel,rand:core.rand,
      generatedAt:new Date().toISOString()
    });
  }catch(e){next(e);}
