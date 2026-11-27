@@ -211,7 +211,7 @@ app.get('/__qa/schema/:state',(req,res)=>{state.schemaReady=req.params.state==='
 app.get('/__qa/fixture-path',(req,res)=>res.type('text/plain').send(fixtureDir));
 app.get('/__qa/status',(req,res)=>res.json({synthetic:true,role:req.session.user?.role||'none',
  schemaReady:state.schemaReady,documents:state.documents.length,entries:state.entries.length,
- reviews:state.reviews.length,confirmedLinks:state.links.length,emailDrafts:state.drafts.length,audits:state.audit.length,distinctAccounts:new Set(state.documents.map(x=>x.account_number)).size}));
+ reviews:state.reviews.length,confirmedLinks:state.links.length,emailDrafts:state.drafts.length,namedDocuments:state.documents.filter(x=>x.source_customer_name).length,audits:state.audit.length,distinctAccounts:new Set(state.documents.map(x=>x.account_number)).size}));
 app.get('/backoffice',(req,res)=>res.render('backoffice-home',{title:'Administration Centre'}));
 app.get('/api/tasks/unread-latest',(req,res)=>res.json({task:null}));
 app.get('/api/approvals/count',(req,res)=>res.json({count:0}));
