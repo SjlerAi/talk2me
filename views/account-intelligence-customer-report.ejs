@@ -40,6 +40,7 @@ button{padding:10px 14px;background:#174a80;color:white;border:0;border-radius:7
 <% }); %>
 <% if(!changes.length){ %><tr><td colspan="4">No monetary changes have been identified for these periods.</td></tr><% } %>
 </tbody></table>
+<% if(comparison.categoryMatchedPending){ %><p class="notice">A recurring supplier invoice changed its reference number. Its total was compared by invoice category, but the underlying service still needs verification before external circulation.</p><% } %>
 <h2>Explanations confirmed by Gerda</h2>
 <% const verified=changes.filter(x=>x.review?.status==='verified'&&x.review?.reason); %>
 <% if(verified.length){ %><ul>
