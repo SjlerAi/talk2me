@@ -6,7 +6,9 @@ const fs=require('node:fs');
 const path=require('node:path');
 const os=require('node:os');
 const BASE='http://127.0.0.1:38187';
-const files=path.join(os.tmpdir(),'tk2m-account-intelligence-qa-synthetic','fixtures');
+const fixtureRoot=process.env.TK2M_QA_DIRNAME||'tk2m-account-intelligence-qa-synthetic';
+if(!/^tk2m-account-intelligence-qa-[a-z0-9-]+$/.test(fixtureRoot))throw new Error('Bad QA fixture root');
+const files=path.join(os.tmpdir(),fixtureRoot,'fixtures');
 let passes=0;
 const passed=[];
 function verify(condition,message){assert.ok(condition,message);passes++;passed.push(message);console.log('PASS',message);}
