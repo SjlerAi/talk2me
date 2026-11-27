@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS account_intelligence_documents (
  stored_filename CHAR(36) NOT NULL,
  document_sha256 CHAR(64) NOT NULL,
  document_kind ENUM('statement','invoice') NOT NULL DEFAULT 'statement',
+ source_customer_name VARCHAR(140) NULL,
  invoice_number VARCHAR(45) NULL,
  total_cents BIGINT NULL,
  source_date DATE NULL,
@@ -50,4 +51,27 @@ CREATE TABLE IF NOT EXISTS account_intelligence_reviews (
  reviewed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
  UNIQUE KEY uq_ai_review (account_number,prior_month,current_month,match_key),
  KEY idx_ai_review_account (account_number,current_month)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Stores only management-confirmed, exact-number CRM account identities.
+-- This never changes an existing customer/line or its current staff assignment.
+CREATE TABLE IF NOT EXISTS account_intelligence_account_links (
+ account_number VARCHAR(40) NOT NULL PRIMARY KEY,
+ crm_account_id BIGINT UNSIGNED NOT NULL,
+ confirmed_by BIGINT UNSIGNED NOT NULL,
+ confirmed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ KEY idx_ai_link_crm (crm_account_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Management drafts are not outbox messages; no automatic external sending.
+CREATE TABLE IF NOT EXISTS account_intelligence_email_drafts (
+ id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+ account_number VARCHAR(40) NOT NULL,
+ billing_month CHAR(7) NOT NULL,
+ recipient_email VARCHAR(254) NULL,
+ subject VARCHAR(180) NOT NULL,
+ body TEXT NOT NULL,
+ edited_by BIGINT UNSIGNED NOT NULL,
+ edited_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ UNIQUE KEY uq_ai_email_account_month (account_number,billing_month)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
