@@ -60,6 +60,19 @@ This is a current CRM snapshot, not necessarily the historical position at the b
 <td class="num"><%= x.monthly_invoice_amount==null?'Not recorded':'R'+Number(x.monthly_invoice_amount).toFixed(2) %></td>
 <td><%= x.next_upgrade_date||'Not recorded' %></td>
 </tr><% }); %></tbody></table>
+<h2>Fixed and internet services recorded in the CRM</h2>
+<% if(crm.fixedServices===null){ %>
+<p class="notice">Fixed-service records could not be verified for this account; this draft is not a complete service inventory.</p>
+<% }else{ %>
+<p>Currently recorded fixed-service entries: <strong><%= crm.fixedServices.length %><%= crm.fixedTruncated?'+':'' %></strong>.</p>
+<% if(crm.fixedTruncated){ %><p class="notice">This fixed-service listing is incomplete because it exceeds the supported review limit.</p><% } %>
+<table><thead><tr><th>Solution / order</th><th>Site</th><th>Package</th><th>Status</th><th>Activation date</th></tr></thead>
+<tbody><% crm.fixedServices.forEach(function(f){ %><tr>
+<td><%= f.solution_id||f.order_number||'Not recorded' %></td>
+<td><%= f.branch_name||f.service_title||'Not recorded' %></td>
+<td><%= f.package_name||'Not recorded' %></td><td><%= f.service_status||'Unknown' %></td>
+<td><%= f.activation_date||'Not recorded' %></td>
+</tr><% }); %></tbody></table><% } %>
 <h2>Coming up in the next four weeks</h2>
 <% const currentDate=new Date();const end=new Date(currentDate.getTime()+28*86400000);
  const upcoming=crm.lines.filter(x=>x.next_upgrade_date&&new Date(x.next_upgrade_date+'T12:00:00Z')>=currentDate&&new Date(x.next_upgrade_date+'T12:00:00Z')<=end); %>
