@@ -211,7 +211,7 @@ done
 # LiteSpeed sometimes ignores its own successful restart response. Kill only
 # the SAME pre-release worker after verifying a unique PID, owner, exact cwd,
 # and exact lsnode command. If anything moved, fail closed for manual review.
-current_pid="$(crm_worker_pids)"
+current_pid="$(crm_worker_pids)" || rollback_and_fail "CRM worker enumeration failed"
 if [[ -n "$pre_deploy_pid" && "$current_pid" == "$pre_deploy_pid" ]]; then
   owner="$(ps -o user= -p "$current_pid" | tr -d '[:space:]')"
   actual_cwd="$(readlink "/proc/$current_pid/cwd" 2>/dev/null || true)"
@@ -219,7 +219,7 @@ if [[ -n "$pre_deploy_pid" && "$current_pid" == "$pre_deploy_pid" ]]; then
   [[ "$owner" == talk && "$actual_cwd" == "$APP" &&
      "$command" == "lsnode:$APP/" ]] ||
     rollback_and_fail "CRM-only process identity was not proven; no signal sent"
-  kill -TERM "$current_pid"
+  kill -TERM "$current_pid" || rollback_and_fail "scoped CRM worker restart signal failed"
   echo "TK2M_CRM_SCOPED_WORKER_RESTART old_pid=$current_pid"
 elif [[ -n "$current_pid" ]]; then
   rollback_and_fail "CRM worker changed unexpectedly while runtime SHA is stale; no signal sent"
