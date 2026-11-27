@@ -84,8 +84,6 @@ async function run(){
  const okReview=await owner.post('/backoffice/account-intelligence/review',validReview);
  preview=await owner.get('/backoffice/account-intelligence/customer-report?account=B0000001&month=2026-11');
  verify(okReview.status===303&&preview.body.includes('SYNTHETIC REVIEW: source evidence checked'),'Verified reason saved and appears in customer preview');
- const pdf=await fetch(BASE+'/backoffice/account-intelligence/source/1',{headers:{Cookie:owner.cookie||''},redirect:'manual'});
- // Access through owner.get retains the session; this check uses text response only to inspect headers.
  const downloaded=await owner.get('/backoffice/account-intelligence/source/1');
  verify(downloaded.status===200&&downloaded.headers.get('content-disposition')?.includes('synthetic-statement.pdf')&&!downloaded.headers.get('content-disposition')?.includes('.pdf.pdf'),'Original PDF downloads with correct filename');
  verify(downloaded.headers.get('x-content-type-options')==='nosniff','Original PDF response has nosniff header');
