@@ -27,6 +27,14 @@ function rowShape(line){return line.slice(0,130).replace(/[A-Za-z]/g,'A').replac
     validPdf:raw.subarray(0,5).toString('latin1')==='%PDF-',account:maskAccount(p.accountNumber),
     parsedTransactions:p.entries.length,months,types:transactions,warnings:p.notes.length,
     dateLines:dateLines.length,accountLabels,textLength:text.length};
+   if(p.accountNumber&&p.entries.length&&months.includes('2026-10')&&months.includes('2026-11')){
+    const c=core.compareMonths(p.entries,'2026-10','2026-11');
+    result.octNov={priorInvoiceCents:c.previous.invoices,currentInvoiceCents:c.current.invoices,
+      deltaCents:c.netChangeCents,creditCents:c.current.credits,paymentCents:c.current.payments,
+      differences:c.changeCount,topShown:c.top.length,
+      arithmeticReconciled:c.changes.reduce((n,x)=>n+x.deltaCents,0)===c.netChangeCents};
+   }
+   result.allDatedRowsParsed=dateLines.length===p.entries.length;
    if(!p.accountNumber||!p.entries.length){
     // Shapes mask all alphanumeric content. Safe diagnostic: punctuation/layout only.
     result.dateRowShapes=dateLines.slice(0,3).map(rowShape);
