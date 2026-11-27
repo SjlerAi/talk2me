@@ -70,6 +70,10 @@ async function run(){
  verify(page.body.includes('Demo Staff Member')&&page.body.includes('Confirm this exact CRM account'),'Internal staff allocation and confirmation action shown');
  const unmatched=await owner.get('/backoffice/account-intelligence/customer-report?account=B0000001&month=2026-11');
  verify(unmatched.body.includes('CRM account confirmation pending')&&!unmatched.body.includes('Demo Fibre 50Mbps'),'Unconfirmed CRM lines withheld from customer report');
+ verify(unmatched.body.includes('Customer name')&&unmatched.body.includes('Synthetic Business One')&&
+   unmatched.body.includes('Staff member responsible for this account')&&
+   unmatched.body.includes('Pending CRM account confirmation')&&!unmatched.body.includes('Demo Staff Member'),
+   'Unconfirmed client report shows source customer name but does not disclose a possible staff assignment');
  const conflicting=new URLSearchParams({csrf,account:'B0000001',crm_account_id:'102',month:'2026-11'});
  const rejectedLink=await owner.post('/backoffice/account-intelligence/confirm-account',conflicting);
  verify(rejectedLink.status===409,'Wrong account identifier cannot be confirmed');
@@ -85,13 +89,24 @@ async function run(){
  await owner.post('/backoffice/account-intelligence/upload',form({csrf,kind:'statement'},[['synthetic-second-account.pdf']]));
  page=await owner.get('/backoffice/account-intelligence?account=B0000002&month=2026-11');
  verify(page.body.includes('B0000002')&&page.body.includes('R30.00'),'Second account upload and selection works');
+ const secondUnconfirmed=await owner.get('/backoffice/account-intelligence/customer-report?account=B0000002&month=2026-11');
+ verify(secondUnconfirmed.body.includes('Pending CRM account confirmation')&&
+   !secondUnconfirmed.body.includes('Demo Staff Member'),'Unconfirmed second account does not inherit another customer staff contact');
+ const secondConfirm=new URLSearchParams({csrf,account:'B0000002',crm_account_id:'102',month:'2026-11'});
+ const secondResult=await owner.post('/backoffice/account-intelligence/confirm-account',secondConfirm);
+ const secondConfirmed=await owner.get('/backoffice/account-intelligence/customer-report?account=B0000002&month=2026-11');
+ verify(secondResult.status===303&&secondConfirmed.body.includes('No active staff member assigned in TK2M')&&
+   !secondConfirmed.body.includes('Demo Staff Member'),'Confirmed account without staff displays explicit unassigned state');
  await owner.post('/backoffice/account-intelligence/upload',form({csrf,kind:'invoice'},[['synthetic-invoice.pdf']]));
  page=await owner.get('/backoffice/account-intelligence?account=B0000001&month=2026-11');
  verify(page.body.includes('Supporting detailed invoice checks')&&page.body.includes('VT2-FAKE01'),'Supporting supplier invoice listed');
  verify(page.body.includes('R290.00')&&page.body.includes('R72.71'),'Supporting invoice is NOT double-counted as statement charge');
  let preview=await owner.get('/backoffice/account-intelligence/customer-report?account=B0000001&month=2026-11');
  verify(preview.status===200&&preview.body.includes('Monthly Account Review')&&preview.body.includes('Demo Fibre 50Mbps'),'Customer report includes actual mobile and fixed inventory');
- verify(preview.body.includes('October 2026 compared with November 2026')&&!preview.body.includes('Demo Staff Member'),'Customer report readable and excludes staff member');
+ verify(preview.body.includes('October 2026 compared with November 2026')&&
+   preview.body.includes('Customer name')&&preview.body.includes('Synthetic Business One')&&
+   preview.body.includes('Staff member responsible for this account')&&preview.body.includes('Demo Staff Member'),
+   'Customer report labels customer name and confirmed assigned staff member');
  let editor=await owner.get('/backoffice/account-intelligence/email-draft?account=B0000001&month=2026-11');
  verify(editor.status===200&&editor.body.includes('Gerda&#39;s email editor')||editor.status===200&&editor.body.includes("Gerda's email editor"),'Customer email editor opens');
  verify(editor.body.includes('Your account review: November 2026 compared with October 2026'),'Standard email subject generated');
@@ -135,7 +150,7 @@ async function run(){
  const rejectedSize=await owner.post('/backoffice/account-intelligence/upload',oversized);
  verify(rejectedSize.status===400&&rejectedSize.body.includes('PDF upload rejected'),'File exceeding 8MB limit rejected');
  const status=await owner.get('/__qa/status'),j=JSON.parse(status.body);
- verify(j.documents===3&&j.reviews===1&&j.confirmedLinks===1&&j.emailDrafts===1&&j.audits>=4,'Rejected files do not modify fake documents/reviews');
+ verify(j.documents===3&&j.reviews===1&&j.confirmedLinks===2&&j.emailDrafts===1&&j.audits>=4,'Rejected files do not modify fake documents/reviews');
  console.log('SCREEN_ROUTE_MATRIX_PASS count='+passes+' synthetic=true; passed='+JSON.stringify(passed));
 }
 run().catch(e=>{console.error('SCREEN_ROUTE_MATRIX_FAIL',e.stack||e);process.exitCode=1});
