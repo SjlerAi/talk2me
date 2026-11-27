@@ -384,7 +384,7 @@ router.get(URL+'/email-draft',requireOwner,async(req,res,next)=>{
    const notice=req.session.accountIntelNotice||null;delete req.session.accountIntelNotice;
    res.set('Cache-Control','private,no-store');
    res.render('account-intelligence-email-draft',{
-    title:'Customer email draft',account,month,csrf:csrf(req),monthLabel:presentation.monthLabel,
+    title:'Customer email draft',account,month,csrf:csrf(req),monthLabel:presentation.monthLabel,rand:core.rand,
     notice,...context,deliveryEnabled:false
    });
  }catch(e){next(e);}
