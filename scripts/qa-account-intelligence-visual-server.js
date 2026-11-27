@@ -22,8 +22,8 @@ process.env.CRM_LIVE_MODE='false';
 
 function formatDate(days){return new Date(Date.now()+days*86400000).toISOString().slice(0,10)}
 const accounts=[
- {id:101,account_number:'B0000001',account_number_normalised:'B0000001',display_name:'SYNTHETIC BUSINESS ONE'},
- {id:102,account_number:'B0000002',account_number_normalised:'B0000002',display_name:'SYNTHETIC BUSINESS TWO'}
+ {id:101,account_number:'B0000001',account_number_normalised:'B0000001',display_name:'SYNTHETIC BUSINESS ONE',assigned_staff_id:11,assigned_staff_name:'Demo Staff Member'},
+ {id:102,account_number:'B0000002',account_number_normalised:'B0000002',display_name:'SYNTHETIC BUSINESS TWO',assigned_staff_id:null,assigned_staff_name:null}
 ];
 const clients=[
  {id:1001,account_id:101,account_number:'B0000001',cell_number:'0791111101',line_status:'active',package_name:'Demo Mobile 10GB',monthly_invoice_amount:240.00,created_at:'2026-01-15',next_upgrade_date:formatDate(12)},
@@ -39,16 +39,18 @@ const events=[
 const tasks=[
  {id:1,related_client_id:1001,title:'Verify supplier contract for demo line',due_at:formatDate(7)+' 08:30',completed_at:null}
 ];
-let state={documents:[],entries:[],reviews:[],audit:[],docSerial:0,entrySerial:0,schemaReady:true};
+let state={documents:[],entries:[],reviews:[],links:[],drafts:[],audit:[],docSerial:0,entrySerial:0,schemaReady:true};
 function cloneState(){return structuredClone(state)}
 function errSchema(){const e=new Error('Synthetic schema not installed');e.code='ER_NO_SUCH_TABLE';throw e}
 const fakeDb={
  async execute(sql,p={}){
-  if(!state.schemaReady && /account_intelligence_(?:documents|entries|reviews)/.test(sql))errSchema();
+  if(!state.schemaReady && /account_intelligence_(?:documents|entries|reviews|account_links|email_drafts)/.test(sql))errSchema();
   if(/SELECT id,account_number,original_filename,document_kind/.test(sql)&&/FROM account_intelligence_documents/.test(sql))
    return [state.documents.slice().sort((a,b)=>b.id-a.id).slice(0,80)];
   if(/SELECT id FROM account_intelligence_documents WHERE account_number=:account AND document_sha256/.test(sql))
    return [state.documents.filter(d=>d.account_number===p.account && d.document_sha256===p.sha).map(x=>({id:x.id})).slice(0,1)];
+  if(/SELECT id,source_customer_name FROM account_intelligence_documents WHERE account_number/.test(sql))
+    return [state.documents.filter(d=>d.account_number===p.account).sort((a,b)=>b.id-a.id).slice(0,1).map(x=>({id:x.id,source_customer_name:x.source_customer_name}))];
   if(/SELECT id FROM account_intelligence_documents WHERE account_number/.test(sql))
    return [state.documents.filter(d=>d.account_number===(p.account||p.num)).map(x=>({id:x.id})).slice(0,1)];
   if(/SELECT stored_filename,original_filename FROM account_intelligence_documents/.test(sql))
@@ -62,7 +64,13 @@ const fakeDb={
       amountCents:e.amount_cents,lineNo:e.source_line,documentId:d.id,uploadedAt:d.uploaded_at});
    return [rows.slice(0,40000)];
   }
-  if(/FROM customer_accounts/.test(sql))return [accounts.filter(x=>x.account_number_normalised===p.num).slice(0,2).map(x=>({...x}))];
+  if(/FROM customer_accounts/.test(sql))return [accounts.filter(x=>
+      p.id?x.id===p.id&&x.account_number_normalised===p.number:x.account_number_normalised===p.num
+   ).slice(0,2).map(x=>({...x}))];
+  if(/FROM account_intelligence_account_links/.test(sql))
+    return [state.links.filter(x=>x.account_number===p.num).slice(0,1)];
+  if(/FROM account_intelligence_email_drafts/.test(sql))
+    return [state.drafts.filter(x=>x.account_number===p.account&&x.billing_month===p.month).slice(0,1)];
   if(/FROM clients WHERE account_id/.test(sql))return [clients.filter(x=>x.account_id===p.id).map(x=>({...x})).slice(0,5001)];
   if(/FROM fixed_services fs JOIN fixed_accounts fa/.test(sql))return [fixed.filter(x=>x.account_id===p.id).map(x=>({...x})).slice(0,1001)];
   if(/FROM mobile_events/.test(sql))return [events.filter(x=>x.account_id===p.account&&x.event_date.startsWith(p.start.slice(0,7))).map(x=>({...x})).slice(0,200)];
@@ -72,7 +80,7 @@ const fakeDb={
   if(/INSERT INTO account_intelligence_documents/.test(sql)){
    const id=++state.docSerial;
    state.documents.push({id,account_number:p.account,original_filename:p.name,stored_filename:p.stored,document_sha256:p.sha,
-     document_kind:p.kind,invoice_number:p.invoice,total_cents:p.total,source_date:p.date,
+     document_kind:p.kind,source_customer_name:p.holder,invoice_number:p.invoice,total_cents:p.total,source_date:p.date,
      extraction_warnings:p.warnings,uploaded_by:p.staff,uploaded_at:new Date().toISOString()});
    return [{insertId:id,affectedRows:1}];
   }
@@ -87,6 +95,17 @@ const fakeDb={
      status:p.status,reason:p.reason,reviewer_id:p.reviewer,reviewed_at:new Date().toISOString()};
    state.reviews=state.reviews.filter(x=>!(x.account_number===v.account_number&&x.prior_month===v.prior_month&&x.current_month===v.current_month&&x.match_key===v.match_key));
    state.reviews.push(v);return [{affectedRows:1}];
+  }
+  if(/INSERT INTO account_intelligence_account_links/.test(sql)){
+    const item={account_number:p.number,crm_account_id:p.id,confirmed_by:p.by,confirmed_at:new Date().toISOString()};
+    state.links=state.links.filter(x=>x.account_number!==item.account_number);
+    state.links.push(item);return[{affectedRows:1}];
+  }
+  if(/INSERT INTO account_intelligence_email_drafts/.test(sql)){
+    const item={account_number:p.account,billing_month:p.month,recipient_email:p.recipient,
+      subject:p.subject,body:p.body,edited_by:p.editor,edited_at:new Date().toISOString()};
+    state.drafts=state.drafts.filter(x=>x.account_number!==item.account_number||x.billing_month!==item.billing_month);
+    state.drafts.push(item);return[{affectedRows:1}];
   }
   if(/INSERT INTO audit_log/.test(sql)){state.audit.push({action:p.actionType||'unknown'});return[{affectedRows:1}]}
   throw new Error('Unexpected synthetic query: '+sql.slice(0,150));
@@ -128,6 +147,7 @@ function makePdf(lines) {
 const fixtureDir=path.join(qaRoot,'fixtures');
 fs.mkdirSync(fixtureDir,{recursive:true});
 const statement=[
+ 'Account Holder: Synthetic Business One',
  'Account Number: B0000001',
  '2026/10/03 INV B600000003 999111112 R17.29 R600.00',
  '2026/10/03 INV B600000004 999111113 R200.00 R800.00',
@@ -184,14 +204,14 @@ app.get('/__qa/login/:role',(req,res)=>{
  req.session.save(()=>res.redirect('/backoffice'));
 });
 app.get('/__qa/reset',(req,res)=>{
- state={documents:[],entries:[],reviews:[],audit:[],docSerial:0,entrySerial:0,schemaReady:true};
+ state={documents:[],entries:[],reviews:[],links:[],drafts:[],audit:[],docSerial:0,entrySerial:0,schemaReady:true};
  res.redirect('/backoffice/account-intelligence');
 });
 app.get('/__qa/schema/:state',(req,res)=>{state.schemaReady=req.params.state==='on';res.redirect('/backoffice/account-intelligence')});
 app.get('/__qa/fixture-path',(req,res)=>res.type('text/plain').send(fixtureDir));
 app.get('/__qa/status',(req,res)=>res.json({synthetic:true,role:req.session.user?.role||'none',
  schemaReady:state.schemaReady,documents:state.documents.length,entries:state.entries.length,
- reviews:state.reviews.length,audits:state.audit.length,distinctAccounts:new Set(state.documents.map(x=>x.account_number)).size}));
+ reviews:state.reviews.length,confirmedLinks:state.links.length,emailDrafts:state.drafts.length,audits:state.audit.length,distinctAccounts:new Set(state.documents.map(x=>x.account_number)).size}));
 app.get('/backoffice',(req,res)=>res.render('backoffice-home',{title:'Administration Centre'}));
 app.get('/api/tasks/unread-latest',(req,res)=>res.json({task:null}));
 app.get('/api/approvals/count',(req,res)=>res.json({count:0}));
