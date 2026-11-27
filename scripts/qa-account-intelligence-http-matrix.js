@@ -64,7 +64,7 @@ async function run(){
  page=await owner.get('/backoffice/account-intelligence?account=B0000001&month=2026-11');
  verify(page.body.includes('R217.29')&&page.body.includes('R290.00')&&page.body.includes('R72.71'),'Real HTTP PDF upload reconciles month charges');
  verify(page.body.includes('R10.00')&&page.body.includes('R220.00')&&page.body.includes('R280.00'),'Credits/payments/net charges shown separately');
- verify(page.body.includes('Demo Fibre 50Mbps')&&page.body.includes('Demo Mobile 10GB'),'CRM mobile and fixed service sections render');
+ verify(page.body.includes('Demo Fibre 50Mbps')&&page.body.includes('0791111101'),'CRM mobile and fixed service sections render');
  await owner.post('/backoffice/account-intelligence/upload',form({csrf,kind:'statement'},[['synthetic-statement.jsp']]));
  page=await owner.get('/backoffice/account-intelligence');
  verify(page.body.includes('identical duplicates skipped'),'Genuine PDF supplied as .jsp accepted and duplicate skipped');
