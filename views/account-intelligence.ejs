@@ -96,6 +96,7 @@
       <section class="ai-card">
         <h2>Top 10 monetary differences</h2>
         <p class="ai-sub">Largest absolute rand changes first. Every other line remains in the underlying reconciliation. No artificial tenth entry is added.</p>
+        <% if(report.categoryMatchedPending){ %><p class="ai-warning">A recurring supplier invoice changes its reference every month. Its category totals were compared rather than treating the new invoice number as a new service. Gerda should verify the underlying recurring service before explaining it to the client.</p><% } %>
         <div class="ai-table-wrap"><table class="ai-table ai-changes">
           <thead><tr><th>Source reference</th><th>Status / CRM</th><th class="ai-num"><%= monthLabel(prior) %></th><th class="ai-num"><%= monthLabel(month) %></th><th class="ai-num">Difference</th><th>Gerda’s explanation / review</th></tr></thead>
           <tbody>
