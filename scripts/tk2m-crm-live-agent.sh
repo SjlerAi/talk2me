@@ -50,37 +50,120 @@ JS
 read -r action branch sha request expected_previous <<< "$parsed"
 [[ "$action" == hold ]] && exit 0
 
-# Refuse a stale request if production has moved since owner approval.
+
+# V2 PAIRING CONTRACT: the existing private driver must be upgraded and tested
+# alongside this poller. Never install this candidate independently.
+# contract-v2/status/dry-run are non-activating; status is backed by a durable
+# journal, not by the current checkout. run prepares/activates, preserves the
+# previous receipt and rollback artifacts, and journals the attempt. finalize
+# independently rechecks the exact live worker and writes the verified receipt
+# only after the poller proves it; rollback restores source/dependencies/metadata
+# and the previous receipt. No automatic destructive database restore.
+# No automatic replay of failed, interrupted or indeterminate operations.
 current="$(git -C "$APP" rev-parse HEAD)"
-if [[ "$current" != "$expected_previous" && "$current" != "$sha" ]]; then
-  fail "host release changed; expected previous or requested SHA"
-fi
+last="$(cat "$STATE/last-verified-release" 2>/dev/null)" ||
+  fail "verified baseline receipt unavailable"
+read -r last_request last_sha last_branch extra <<< "$last"
+[[ "$last_request" =~ ^tk2m-[a-zA-Z0-9_-]{8,80}$ &&
+   "$last_sha" =~ ^[a-f0-9]{40}$ &&
+   "$last_branch" =~ ^release/tk2m-[a-zA-Z0-9._/-]+$ &&
+   -z "${extra:-}" ]] || fail "invalid verified baseline receipt"
 
 prove_live(){
-  local release health
+  local sha="$1" expected_branch="$2" after="${3:-}" release health
   release="$(curl -fsS --max-time 7 "$RELEASE_URL")" || return 1
   health="$(curl -fsS --max-time 7 "$HEALTH_URL")" || return 1
-  node - "$sha" "$release" "$health" <<'JS'
-const [,,sha,releaseText,healthText]=process.argv;
+  node - "$sha" "$expected_branch" "$after" "$release" "$health" <<'JS'
+const [,,sha,branch,after,releaseText,healthText]=process.argv;
 try {
  const release=JSON.parse(releaseText),health=JSON.parse(healthText);
  if(release.commit!==sha || release.workerBootCommit!==sha ||
-    typeof release.workerBootTime!=='string' || Number.isNaN(Date.parse(release.workerBootTime)) ||
+    release.sourceBranch!==branch ||
+    typeof release.workerBootTime!=='string' ||
+    !Number.isFinite(Date.parse(release.workerBootTime)) ||
+    (after && (!Number.isFinite(Date.parse(after)) ||
+      Date.parse(release.workerBootTime)<=Date.parse(after))) ||
     release.environment!=='production' ||
     release.productionCutover!==true || release.stagingOnly!==false ||
     health.environment!=='production' || health.status!=='ok' ||
     health.database!=='connected') process.exit(1);
- console.log('TK2M_PRODUCTION_SHA_HEALTH_PASS '+sha);
+ console.error('TK2M_PRODUCTION_SHA_HEALTH_PASS '+sha);
+ console.log(release.workerBootTime);
 } catch(_) {process.exit(1)}
 JS
 }
+contract="$("$DRIVER" "$branch" "$sha" "$request" contract-v2)" ||
+  fail "paired v2 driver not commissioned"
+[[ "$contract" == TK2M_DRIVER_V2_ACTIVATION_JOURNAL_AND_RECEIPT ]] ||
+  fail "unsupported driver contract"
+status="$("$DRIVER" "$branch" "$sha" "$request" status)" ||
+  fail "driver request journal unavailable"
 
-last="$(cat "$STATE/last-verified-release" 2>/dev/null || true)"
-if [[ "$last" == "$request $sha $branch" ]]; then
-  prove_live || fail "previously accepted release does not match hosted production"
+# A completed request may be observed again without replaying any writes.
+if [[ "$current" == "$sha" && "$last" == "$request $sha $branch" ]]; then
+  [[ "$status" == TK2M_DRIVER_V2_COMMITTED ]] ||
+    fail "receipt exists but driver finalization not proven"
+  prove_live "$sha" "$branch" >/dev/null ||
+    fail "previously accepted release does not match hosted production"
   exit 0
 fi
-[[ "$current" == "$expected_previous" ]] || fail "target already installed but no matching verified release"
+[[ "$status" == TK2M_DRIVER_V2_NEW ]] ||
+  fail "request previously attempted or unresolved; do not replay"
+[[ "$sha" != "$expected_previous" && "$current" == "$expected_previous" &&
+   "$last_sha" == "$current" ]] ||
+  fail "release drift or same-SHA request; audited reconciliation required"
+baseline_boot="$(prove_live "$expected_previous" "$last_branch")" ||
+  fail "previous worker, branch and database not proven"
+
+rollback_and_fail(){
+  local reason="$1" rollback_status trial
+  printf 'TK2M_PRODUCTION_ACTIVATION_FAILED: %s\n' "$reason" >&2
+  if ! "$DRIVER" "$branch" "$sha" "$request" rollback; then
+    fail "rollback failed; unresolved journal; incident review required"
+  fi
+  rollback_status="$("$DRIVER" "$branch" "$sha" "$request" status)" ||
+    fail "rollback journal unavailable"
+  [[ "$rollback_status" == TK2M_DRIVER_V2_ROLLED_BACK &&
+     "$(git -C "$APP" rev-parse HEAD)" == "$expected_previous" &&
+     "$(cat "$STATE/last-verified-release")" == "$last" ]] ||
+    fail "rollback state/receipt not proven; incident review required"
+  for trial in 1 2 3; do
+    if prove_live "$expected_previous" "$last_branch" >/dev/null; then
+      fail "activation failed; previous release restored and hosted proof PASS; HOLD required"
+    fi
+    sleep 5
+  done
+  /usr/sbin/cloudlinux-selector restart --json --interpreter nodejs --user talk --app-root "$APP" ||
+    fail "rollback worker restart refused; incident review required"
+  for trial in 1 2 3 4 5 6; do
+    if prove_live "$expected_previous" "$last_branch" >/dev/null; then
+      fail "activation failed; previous release restored and hosted proof PASS; HOLD required"
+    fi
+    sleep 5
+  done
+  fail "rollback worker proof failed; incident review required"
+}
+
+finalize_candidate(){
+  [[ "$(git -C "$APP" rev-parse HEAD)" == "$sha" &&
+     "$(cat "$STATE/last-verified-release")" == "$last" ]] ||
+    rollback_and_fail "source/receipt changed before finalization"
+  # An indeterminate finalization must be reconciled, never blindly rolled back
+  # or replayed. The durable driver journal must retain the recovery evidence.
+  "$DRIVER" "$branch" "$sha" "$request" finalize ||
+    fail "finalization indeterminate; preserve journal and reconcile"
+  local committed
+  committed="$("$DRIVER" "$branch" "$sha" "$request" status)" ||
+    fail "finalization journal unavailable"
+  [[ "$committed" == TK2M_DRIVER_V2_COMMITTED &&
+     "$(git -C "$APP" rev-parse HEAD)" == "$sha" &&
+     "$(cat "$STATE/last-verified-release")" == "$request $sha $branch" ]] ||
+    fail "final receipt/status mismatch; reconcile without replay"
+  prove_live "$sha" "$branch" "$baseline_boot" >/dev/null ||
+    fail "post-finalization worker proof failed; incident review required"
+  printf 'TK2M_PRODUCTION_DEPLOY_PROVEN request=%s sha=%s\n' "$request" "$sha"
+  printf 'TK2M_PRODUCTION_DEPLOY_REQUIRES_CONTROL_HOLD\n'
+}
 
 # Record exactly which CRM Passenger worker was running before this release.
 # Never infer it from a generic 'node' PID or touch another app's worker.
@@ -92,15 +175,22 @@ if [[ -n "$pre_deploy_pid" && ! "$pre_deploy_pid" =~ ^[0-9]+$ ]]; then
   fail "multiple or invalid CRM workers; refuse automatic process operation"
 fi
 
+# The paired v2 driver must durably record an attempt before any mutation.
+# dry-run is non-activating and rejects replay or an unresolved journal.
 "$DRIVER" "$branch" "$sha" "$request" dry-run
-"$DRIVER" "$branch" "$sha" "$request" run
+if ! "$DRIVER" "$branch" "$sha" "$request" run; then
+  rollback_and_fail "driver activation failed"
+fi
+[[ "$(cat "$STATE/last-verified-release")" == "$last" ]] ||
+  rollback_and_fail "driver wrote a receipt before worker proof"
+[[ "$(git -C "$APP" rev-parse HEAD)" == "$sha" ]] ||
+  rollback_and_fail "activated checkout does not match approved SHA"
 
 # First permit Passenger to refresh naturally. A file-based /api/release SHA
 # is NOT proof of loaded code; prove_live verifies the worker's boot SHA.
 for trial in 1 2 3; do
-  if prove_live; then
-    printf 'TK2M_PRODUCTION_DEPLOY_PROVEN request=%s sha=%s\n' "$request" "$sha"
-    printf 'TK2M_PRODUCTION_DEPLOY_REQUIRES_CONTROL_HOLD\n'
+  if prove_live "$sha" "$branch" "$baseline_boot" >/dev/null; then
+    finalize_candidate
     exit 0
   fi
   sleep 5
@@ -109,11 +199,10 @@ done
 # The application-scoped CloudLinux restart is preferred and never targets
 # Zippy, UENT or the whole hosting account.
 /usr/sbin/cloudlinux-selector restart --json --interpreter nodejs --user talk --app-root "$APP" ||
-  fail "scoped CloudLinux CRM restart refused"
+  rollback_and_fail "scoped CloudLinux CRM restart refused"
 for trial in 1 2 3; do
-  if prove_live; then
-    printf 'TK2M_PRODUCTION_DEPLOY_PROVEN request=%s sha=%s\n' "$request" "$sha"
-    printf 'TK2M_PRODUCTION_DEPLOY_REQUIRES_CONTROL_HOLD\n'
+  if prove_live "$sha" "$branch" "$baseline_boot" >/dev/null; then
+    finalize_candidate
     exit 0
   fi
   sleep 5
@@ -129,19 +218,18 @@ if [[ -n "$pre_deploy_pid" && "$current_pid" == "$pre_deploy_pid" ]]; then
   command="$(ps -o args= -p "$current_pid" | sed 's/[[:space:]]*$//')"
   [[ "$owner" == talk && "$actual_cwd" == "$APP" &&
      "$command" == "lsnode:$APP/" ]] ||
-    fail "CRM-only process identity was not proven; no signal sent"
+    rollback_and_fail "CRM-only process identity was not proven; no signal sent"
   kill -TERM "$current_pid"
   echo "TK2M_CRM_SCOPED_WORKER_RESTART old_pid=$current_pid"
 elif [[ -n "$current_pid" ]]; then
-  fail "CRM worker changed unexpectedly while runtime SHA is stale; no signal sent"
+  rollback_and_fail "CRM worker changed unexpectedly while runtime SHA is stale; no signal sent"
 fi
 
 for trial in 1 2 3 4 5 6; do
-  if prove_live; then
-    printf 'TK2M_PRODUCTION_DEPLOY_PROVEN request=%s sha=%s\n' "$request" "$sha"
-    printf 'TK2M_PRODUCTION_DEPLOY_REQUIRES_CONTROL_HOLD\n'
+  if prove_live "$sha" "$branch" "$baseline_boot" >/dev/null; then
+    finalize_candidate
     exit 0
   fi
   sleep 5
 done
-fail "new worker boot SHA/health not proven; production requires incident review"
+rollback_and_fail "new worker boot SHA/health not proven"
