@@ -8,6 +8,11 @@ small,.muted{color:#687889} table{width:100%;border-collapse:collapse;font-size:
 td,th{padding:9px 6px;border-bottom:1px solid #e3eaf2;text-align:left}th.num,td.num{text-align:right}
 .notice{padding:12px;background:#fff7e7;border-left:4px solid #daa84f}
 .actions{display:flex;justify-content:flex-end;gap:9px}
+.customer-identity{display:grid;grid-template-columns:1fr 1fr;gap:12px 20px;background:#f4f8fc;border:1px solid #dbe6f1;border-radius:10px;padding:14px 16px;margin:17px 0 13px}
+.customer-identity .field-label{display:block;font-size:12px;font-weight:700;color:#65768a;margin-bottom:3px}
+.customer-identity strong{display:block;font-size:16px;overflow-wrap:anywhere}
+.customer-identity .staff-contact{grid-column:1/-1}
+@media(max-width:620px){.customer-identity{grid-template-columns:1fr}.customer-identity .staff-contact{grid-column:auto}}
 button{padding:10px 14px;background:#174a80;color:white;border:0;border-radius:7px;cursor:pointer}
 @media print{.actions{display:none}body{margin:10px auto}}
 </style>
@@ -15,8 +20,15 @@ button{padding:10px 14px;background:#174a80;color:white;border:0;border-radius:7
 </head><body>
 <div class="actions"><button type="button" onclick="window.print()">Print / Save PDF</button></div>
 <h1>Monthly Account Review</h1>
-<h2 style="border:0;margin:5px 0 3px;color:#174a80"><%= displayCustomer %></h2>
-<p class="muted">Account number: <strong><%= account %></strong></p>
+<div class="customer-identity" aria-label="Customer and account contact">
+ <div><span class="field-label">Customer name</span><strong><%= displayCustomer %></strong></div>
+ <div><span class="field-label">Account number</span><strong><%= account %></strong></div>
+ <div class="staff-contact"><span class="field-label">Staff member responsible for this account</span>
+  <strong><%= crm?.status==='linked'
+   ? (crm.account?.assigned_staff_name||'No active staff member assigned in TK2M')
+   : 'Pending CRM account confirmation' %></strong>
+ </div>
+</div>
 <p class="muted"><strong><%= monthLabel(prior) %> compared with <%= monthLabel(month) %></strong></p>
 <% if(crm?.status!=='linked'){ %><p class="notice"><strong>Management draft — CRM account confirmation pending.</strong>
  The customer's name is sourced from the uploaded supplier statement where available. Contract details must be confirmed before this report is sent.</p><% } %>
