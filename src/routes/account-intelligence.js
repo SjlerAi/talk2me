@@ -77,7 +77,7 @@ async function crmSnapshot(accountNumber) {
  const [accounts]=await db.execute(
    'SELECT ca.id,ca.account_number,ca.account_number_normalised,ca.display_name,ca.assigned_staff_id,'+
    's.full_name assigned_staff_name FROM customer_accounts ca '+
-   'LEFT JOIN staff_users s ON s.id=ca.assigned_staff_id '+
+   'LEFT JOIN staff_users s ON s.id=ca.assigned_staff_id AND s.is_active=1 '+
    'WHERE ca.account_number_normalised=:num OR ca.account_number=:num LIMIT 2',{num:accountNumber});
  if(accounts.length!==1)return {status:accounts.length?'ambiguous':'unlinked',lines:[],account:null};
  const account=accounts[0];
