@@ -1,0 +1,49 @@
+name: Native cPanel deployment contract
+
+on:
+  push:
+    branches:
+      - 'native/cpanel-*'
+      - main
+      - 'prep/crm-tk2m-subdomain-20261027'
+      - 'integration/kloka-time-demo-review'
+    paths:
+      - '.cpanel.yml'
+      - '.github/workflows/native-cpanel-contract.yml'
+  pull_request:
+    paths:
+      - '.cpanel.yml'
+      - '.github/workflows/native-cpanel-contract.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate YAML and reject wrong deployment checkout
+        run: |
+          ruby -r yaml -r open3 -r tmpdir <<'RUBY'
+          doc = YAML.safe_load(File.read('.cpanel.yml'))
+          abort 'Unexpected deployment structure' unless doc.is_a?(Hash) && doc.keys == ['deployment'] && doc['deployment'].is_a?(Hash) && doc['deployment'].keys == ['tasks']
+          tasks = doc['deployment']['tasks']
+          abort 'Expected one nonempty guarded task' unless tasks.is_a?(Array) && tasks.size == 1 && tasks.first.is_a?(String) && !tasks.first.strip.empty?
+          task = tasks.first
+          abort 'Forbidden direct transport or permission mutation' if task.match?(/(?:^|[;\s|&])(?:\/[A-Za-z0-9_.\/-]+\/)?(?:cp|rsync|scp|sftp|ssh|chmod|chown|curl|wget|git)(?=\s|$)/) || task.include?('DEPLOYPATH')
+          abort 'Missing native checkout and identity guard' unless task.include?('NATIVE_DEPLOY_REFUSED') && task.include?('exit 1') || task.include?('pwd -P') && task.include?('id -un')
+          %w[sh bash].each do |shell|
+            out, err, status = Open3.capture3(shell, '-n', stdin_data: task)
+            abort "#{shell} syntax error: #{err}" unless status.success?
+          end
+          # This isolated GitHub-hosted directory cannot be a registered cPanel checkout.
+          Dir.mktmpdir('native-contract-') do |dir|
+            out, err, status = Open3.capture3('timeout', '10s', 'sh', '-c', task, chdir: dir)
+            abort 'Native task did not refuse the unrelated checkout' if status.success? || status.exitstatus == 124
+          end
+          puts 'NATIVE_CPANEL_CONTRACT_PASS (syntax and wrong-checkout refusal; not hosted proof)'
+          RUBY

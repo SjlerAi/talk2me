@@ -1,12 +1,6 @@
 ---
+# TK2M production native trigger only; retired UENT application is not a target.
+# Driver/worker reconciliation and existing release approval are mandatory; do not arm deployment until verified.
 deployment:
   tasks:
-    - export DEPLOYPATH=/home/uent/talk2me.uent.co.za
-    - /bin/cp -R public $DEPLOYPATH
-    - /bin/cp -R src $DEPLOYPATH
-    - /bin/cp -R views $DEPLOYPATH
-    - /bin/cp -R scripts $DEPLOYPATH
-    - /bin/cp -R migrations $DEPLOYPATH
-    - /bin/cp package.json $DEPLOYPATH
-    - /bin/cp server.js $DEPLOYPATH
-    - /bin/cp .htaccess $DEPLOYPATH
+    - 'test "$(id -un)" = "talk" && test "$(pwd -P)" = "/home/talk/repositories/tk2m-crm-native" && test -f "/home/talk/bin/tk2m-crm-agent-live" && test ! -L "/home/talk/bin/tk2m-crm-agent-live" && test -x "/home/talk/bin/tk2m-crm-agent-live" && test -f "/home/talk/crm-live/ops/deploy-tk2m-live" && test ! -L "/home/talk/crm-live/ops/deploy-tk2m-live" && test -x "/home/talk/crm-live/ops/deploy-tk2m-live" && test -d "/home/talk/tk2m-crm-deploy-control/.git" && test ! -L "/home/talk/tk2m-crm-deploy-control/.git" && test -d "/home/talk/repositories/talk2me-crm-stage/.git" && test ! -L "/home/talk/repositories/talk2me-crm-stage/.git" && test -f /home/talk/crm-live/PRODUCTION_ACTIVE && test ! -L /home/talk/crm-live/PRODUCTION_ACTIVE && /home/talk/bin/tk2m-crm-agent-live'
