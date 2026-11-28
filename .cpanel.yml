@@ -1,12 +1,7 @@
 ---
+# Retired UENT baseline: the previous direct-copy deployment is obsolete.
+# Active TK2M is maintained on prep/crm-tk2m-subdomain-20261027.
+# This historical branch must not activate any application.
 deployment:
   tasks:
-    - export DEPLOYPATH=/home/uent/talk2me.uent.co.za
-    - /bin/cp -R public $DEPLOYPATH
-    - /bin/cp -R src $DEPLOYPATH
-    - /bin/cp -R views $DEPLOYPATH
-    - /bin/cp -R scripts $DEPLOYPATH
-    - /bin/cp -R migrations $DEPLOYPATH
-    - /bin/cp package.json $DEPLOYPATH
-    - /bin/cp server.js $DEPLOYPATH
-    - /bin/cp .htaccess $DEPLOYPATH
+    - 'printf "%s\n" "NATIVE_DEPLOY_REFUSED: retired Talk2Me baseline; use the separately commissioned TK2M live integration" >&2; exit 1'
